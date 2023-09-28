@@ -1,0 +1,11 @@
+build/
+build_rel/
+.vscode/
+
+SAT.cc
+SAT.hh
+
+test.cpp
+test.exe
+
+uf*
