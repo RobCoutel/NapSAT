@@ -125,7 +125,6 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
 #endif
       continue;
     }
-#if SAT_BLOCKERS
     if (lit_true(clause.blocker)
     && (!_chronological_backtracking || lit_level(clause.blocker) <= lit_level(lit)))
     {
@@ -145,7 +144,6 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
 #endif
       continue;
     }
-#endif
     Tlit replacement = SAT_LIT_UNDEF;
     Tlit *end = clause.lits + clause.size;
     Tlit *k = lits + 2;
@@ -188,6 +186,9 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       if (lit_false(lit2))
       {
         // the clause is conflicting
+#if LOG_LEVEL > 2
+        cout << "Clause is conflicting\n";
+#endif
 #if SAT_GREEDY_STOP
 #if DEBUG_CLAUSE > 0
         if (cl == DEBUG_CLAUSE)
@@ -200,19 +201,20 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
 #endif
         if (_chronological_backtracking)
         {
-          Tlit lit0 = lits[0];
-          Tlit lit1 = lits[1];
+          assert(lit2 == lits[0]);
+          assert(lit == lits[1]);
           select_watched_literals(lits, _clauses[cl].size);
-          if (lit0 != lits[0] && lit0 != lits[1])
-            stop_watch(lit0, cl);
-          if (lit1 != lits[0] && lit1 != lits[1])
-            stop_watch(lit1, cl);
-          if (lit0 != lits[0] && lit0 != lits[1])
+          if (lit2 != lits[0] && lit2 != lits[1])
+            stop_watch(lit2, cl);
+          if (lit != lits[0] && lit != lits[1]) {
+            watch_list[i--] = watch_list[--n];
+            watch_list.pop_back();
+          }
+          if (lits[0] != lit && lits[0] != lit2)
             watch_lit(lits[0], cl);
-          if (lit1 != lits[0] && lit1 != lits[1])
+          if (lits[1] != lit && lits[1] != lit2)
             watch_lit(lits[1], cl);
         }
-        watch_list.resize(n);
         return cl;
 #endif
       }
@@ -231,7 +233,9 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
         continue;
       }
     }
-    assert(lit_undef(replacement));
+    assert(lit_undef(replacement)
+       || (_chronological_backtracking
+        && lit_level(replacement) > lit_level(lit)));
     assert(replacement != lits[0] && replacement != lits[1]);
     assert(*k == replacement);
     // watch the replacement and stop watching lit
@@ -241,6 +245,7 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
     watch_lit(replacement, cl);
     // remove the clause from the watch list
     watch_list[i--] = watch_list[--n];
+    watch_list.pop_back();
 #if LOG_LEVEL > 2
     cout << "Clause is watched by ";
     print_lit(replacement);
@@ -251,7 +256,6 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
   next_clause:;
   }
 
-  watch_list.resize(n);
   _vars[lit_to_var(lit)].waiting = false;
   assert(trail_consistency());
   return SAT_CLAUSE_UNDEF;
@@ -371,6 +375,7 @@ void modulariT_SAT::analyze_conflict(Tclause conflict)
     cout << endl;
   }
 #endif
+  assert(watch_lists_minimal());
   assert(conflict != SAT_CLAUSE_UNDEF);
   assert(!_writing_clause);
   unsigned count = 0;
@@ -400,7 +405,7 @@ void modulariT_SAT::analyze_conflict(Tclause conflict)
   assert(count > 1);
   while (count > 1)
   {
-    while (!lit_seen(_trail[i]))
+    while (!lit_seen(_trail[i]) || lit_level(_trail[i]) != decision_level)
     {
       assert(i > 0);
       i--;
@@ -515,7 +520,10 @@ void modulariT_SAT::restart()
 #endif
   _agility = 1;
   _agility_threshold *= _threshold_decay;
-  backtrack(SAT_LEVEL_ROOT);
+  if (_chronological_backtracking)
+    CB_backtrack(SAT_LEVEL_ROOT);
+  else
+    backtrack(SAT_LEVEL_ROOT);
   assert(trail_consistency());
 }
 
@@ -574,9 +582,22 @@ void sat::modulariT_SAT::purge_clauses()
     if (_clauses[cl].watched && _clauses[cl].size == 1)
     {
       _clauses[cl].watched = false;
-      assert(lit_undef(_clauses[cl].lits[0]));
+#if LOG_LEVEL > 3
+      cout << "Clause ";
+      print_clause(cl);
+      cout << " is unit after purge\n";
+#endif
       if (lit_undef(_clauses[cl].lits[0]))
         stack_lit(_clauses[cl].lits[0], cl);
+      else
+      {
+        assert(_chronological_backtracking);
+#if LOG_LEVEL > 3
+        cout << "TODO: missed lower implication\n";
+#endif
+        CB_backtrack(SAT_LEVEL_ROOT);
+        stack_lit(_clauses[cl].lits[0], cl);
+      }
     }
     else if (_clauses[cl].size == 0)
     {

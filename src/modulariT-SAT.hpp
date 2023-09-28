@@ -425,6 +425,14 @@ namespace sat
     */
     void order_trail();
 
+    /*     MISSED LOWER IMPLICATIONS     */
+
+    /**
+     * @brief For each variable, contains the lowest clause that can propagate the variable.
+     * The clause must be ordered such that the first literal is the one that could have been propagated earlier. And the second literal is the highest literal in the clause.
+    */
+    std::vector<Tclause> _missed_lower_implications;
+
     /*     STATISTICS     */
     /**
      * @brief Statistics of the solver.
@@ -497,8 +505,11 @@ namespace sat
 
     inline void stop_watch(Tlit lit, Tclause cl)
     {
+      // print the lsit
       assert(std::find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl) != _watch_lists[lit].end());
-      *std::find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl) = _watch_lists[lit].back();
+      *std::find(_watch_lists[lit].begin(),
+                 _watch_lists[lit].end(), cl)
+        = _watch_lists[lit].back();
       _watch_lists[lit].pop_back();
     }
 

@@ -13,7 +13,7 @@ int main(int argc, char** argv)
   }
 
   sat::modulariT_SAT solver(20, 91);
-  // solver.toggle_chronological_backtracking(true);
+  solver.toggle_chronological_backtracking(true);
   solver.parse_dimacs(argv[1]);
   solver.solve();
 

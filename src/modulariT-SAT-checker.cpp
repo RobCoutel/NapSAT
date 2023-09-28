@@ -192,8 +192,29 @@ bool sat::modulariT_SAT::watch_lists_minimal()
       }
     }
   }
-  if (!success)
+
+  // Check that that are not multiple copies of the same clause in the watch lists
+  for (Tlit lit = 0; lit < _watch_lists.size(); lit++)
+  {
+    for (unsigned i = 0; i < _watch_lists[lit].size(); i++) {
+      for (unsigned j = i + 1; j < _watch_lists[lit].size(); j++) {
+        if (_watch_lists[lit][i] == _watch_lists[lit][j]) {
+          success = false;
+          cerr << error << "Invariant violation: Watch lists minimal: clause " << _watch_lists[lit][i] << " is in the watch list of literal " << lit << " multiple times\n";
+          cout << error << "Invariant violation: ";
+          print_clause(_watch_lists[lit][i]);
+          cout << " is in the watch list of literal ";
+          print_lit(lit);
+          cout << " multiple times" << endl;
+        }
+      }
+    }
+  }
+  if (!success) {
     print_trail();
+    print_watch_lists();
+  }
+
   return success;
 }
 
@@ -293,6 +314,8 @@ bool sat::modulariT_SAT::weak_non_falsified_clause(Tclause clause)
 
 bool sat::modulariT_SAT::no_unit_clauses()
 {
+  if (_chronological_backtracking)
+    return true;
   bool success = true;
   for (Tclause cl = 0; cl < _clauses.size(); cl++)
   {
