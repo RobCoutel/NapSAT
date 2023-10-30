@@ -1,0 +1,9 @@
+This modulariT-SAT is a CDCL SAT solver supporting both chronological and non-chronological backtracking. The solver will print "s SATISFIABLE" if the problem has a solution, and "s UNSATISFIABLE" otherwise.
+
+To use the solver, use the following command:
+    modulariT-SAT[-dbg] <input_file> [options]
+
+The options are the following:
+    -cb or --chronological-backtracking : use chronological backtracking
+
+    -i or --interactive : set the mode of solving to interactive, i.e., the solver can be commanded between decisions
