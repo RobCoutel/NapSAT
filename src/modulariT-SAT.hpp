@@ -5,104 +5,21 @@
  */
 #include "SAT-config.hpp"
 #include "SAT-stats.hpp"
+#include "SAT-types.hpp"
 #include "heap.hpp"
 
 #include <vector>
+#include <set>
 #include <iostream>
 #include <cstring>
 #include <cassert>
 #include <algorithm>
 
-// TODO remove that
-#define MARKUSED(X) ((void)(&(X)))
-
 namespace sat
 {
-  /**
-   * @brief Type to denote a variable.
-   * @details The variable 0 is not used. The first variable is 1.
-   */
-  typedef unsigned Tvar;
-
-  /**
-   * @brief Type to denote a propositional literal. The first bit is the polarity of the literal, the other bits are the variable.
-   * @details The polarity is 0 for negative literals and 1 for positive literals.
-   * @details The literals 0 and 1 are not used. The first literal is 2 for variable 1 and polarity 0.
-   */
-  typedef unsigned Tlit;
-
-  /**
-   * @brief Type to denote the value of a variable.
-   * @details The value can be SAT_VAR_TRUE, SAT_VAR_FALSE or SAT_VAR_UNDEF.
-   */
-  typedef unsigned Tval;
-
-  /**
-   * @brief Type to denote a decision level.
-   * @details The decision level 0 is the root level. The first decision level is 1.
-   * @details A decision level of SAT_LEVEL_UNDEF = 0xFFFFFFFF means that the variable is unassigned.
-   */
-  typedef unsigned Tlevel;
-
-  /**
-   * @brief Type to denote the ID a clause.
-   * @details The first clause has the ID 0.
-   */
-  typedef unsigned Tclause;
-
-  const Tlit SAT_LIT_UNDEF = 0;
-
-  const Tval SAT_VAR_TRUE = 0;
-  const Tval SAT_VAR_FALSE = 1;
-  const Tval SAT_VAR_UNDEF = 2;
-
-  const Tlevel SAT_LEVEL_ROOT = 0;
-  const Tlevel SAT_LEVEL_UNDEF = 0xFFFFFFFF;
-
-  const Tclause SAT_CLAUSE_UNDEF = 0xFFFFFFFF;
-
-  /*************************************************************************/
-  /*                         Operation on literals                         */
-  /*************************************************************************/
-  /**
-   * @brief Returns a literal corresponding to the given variable and polarity.
-   */
-  inline Tlit literal(Tvar var, unsigned pol) { return var << 1 | pol; }
-
-  /**
-   * @brief Returns the variable of the given literal.
-   * @param lit literal to evaluate.
-   * @return variable of the literal.
-   */
-  inline Tvar lit_to_var(Tlit lit) { return lit >> 1; }
-
-  /**
-   * @brief Returns the negation of the given literal.
-   * @param lit literal to evaluate.
-   * @return negation of the literal.
-  */
-  inline Tlit lit_neg(Tlit lit) { return lit ^ 1; }
-
-  /**
-   * @brief Returns the polarity of the given literal.
-   * @param lit literal to evaluate.
-   * @return polarity of the literal (0 for negative literals, 1 for positive literals)
-  */
-  inline unsigned lit_pol(Tlit lit) { return lit & 1; }
-
   class modulariT_SAT
   {
   public:
-    enum status
-    {
-      // All variables are assigned and no conflict was found.
-      SAT,
-      // The clause set is unsatisfiable.
-      UNSAT,
-      // The solver does not know if the clause set is satisfiable or not.
-      UNDEF
-    };
-
 #ifndef TEST
   private:
 #endif
@@ -121,7 +38,8 @@ namespace sat
                 seen(false),
                 waiting(false),
                 state(SAT_VAR_UNDEF),
-                phase_cache(0)
+                phase_cache(0),
+                state_last_sync(SAT_VAR_UNDEF)
       {
       }
       /**
@@ -156,6 +74,11 @@ namespace sat
        * @note Used to compute the agility of the solver
        */
       unsigned phase_cache : 1;
+
+      /**
+       * @brief Last value assigned to the variable before the last synchronization.
+      */
+      Tval state_last_sync : 2;
 
     } TSvar;
 
@@ -433,6 +356,27 @@ namespace sat
     */
     std::vector<Tclause> _missed_lower_implications;
 
+    /*     PROOFS     */
+
+    /**
+     * @brief True if the solver is keeping track of the proof of unsatisfiability.
+     */
+    bool _proofs = false;
+
+    /**
+     * @brief Callback function to print the proof of unsatisfiability.
+     */
+    void (*_proof_callback)(void) = nullptr;
+
+    /*     SMT SYNCHRONIZATION     */
+
+    unsigned _number_of_valid_literals = 0;
+
+    /**
+     * @brief Set of variables that were touched by the SAT solver since the last synchronization.
+    */
+    std::set<Tvar> _touched_variables;
+
     /*     STATISTICS     */
     /**
      * @brief Statistics of the solver.
@@ -505,7 +449,7 @@ namespace sat
 
     inline void stop_watch(Tlit lit, Tclause cl)
     {
-      // print the lsit
+      // print the list
       assert(std::find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl) != _watch_lists[lit].end());
       *std::find(_watch_lists[lit].begin(),
                  _watch_lists[lit].end(), cl)
@@ -583,7 +527,7 @@ namespace sat
     }
 
     /**
-     * @brief Unassigns a variable.
+     * @brief Unassign a variable.
      */
     inline void var_unassign(Tvar var)
     {
@@ -663,6 +607,12 @@ namespace sat
      */
     void repair_conflict(Tclause conflict);
 
+    /**
+     * @brief Returns true if the literal is required in the learned clause. Returns false if the literal is already implied by the other literals of the clause.
+     *
+     * @param lit literal to evaluate.
+     * @return false if the literal is redundant with the current learned clause
+    */
     bool lit_is_required_in_learned_clause(Tlit lit);
 
     /**
@@ -698,6 +648,8 @@ namespace sat
      */
     Tclause internal_add_clause(Tlit *lits, unsigned size, bool learned, bool external);
 
+    void parse_user_input();
+
     /*************************************************************************/
     /*                          Public interface                             */
     /*************************************************************************/
@@ -717,8 +669,14 @@ namespace sat
     void toggle_chronological_backtracking(bool on);
 
     /**
+     * @brief Set the callback function to print the proof of unsatisfiability.
+    */
+    void set_proof_callback(void (*proof_callback)(void));
+
+    /**
      * @brief Asks the solver to keep track of the proof of unsatisfiability of the clause set. The proof can be printed with print_refutation(). By default, the solver does not keep track of the proof.
      * @pre The trail must be empty and no learning must have been done.
+     * @pre The callback function must be set.
      */
     void toggle_proofs(bool on);
 
@@ -733,6 +691,17 @@ namespace sat
      * @brief Solves the clause set. The procedure stops when all variables are assigned, of the solver concludes that the clause set is unsatisfiable.
      */
     status solve();
+
+    /**
+     * @brief Solves the clause set. Interrupts before each decision and asks the user what to do.
+     *
+     * The user can
+     * - ask the solver to make a decision by typing "DECIDE"
+     * - choose a decision by typing "DECIDE [literal]"
+     * - hint a theory propagation by typing "HINT <literal> [level]"
+     * - learn a new clause by typing "LEARN <lit1> [lit2] [...]"
+    */
+    status solve_interactive();
 
     /**
      * @brief Returns the status of the solver.
@@ -802,32 +771,30 @@ namespace sat
 
     /**
      * @brief Provide a hint to the SAT solver. The hint will be considered as a decision.
-     * @param var variable to assign
-     * @param pol polarity of the assignment
+      * @param lit literal to assign
      */
-    void hint(Tvar var, bool pol);
+    void hint(Tlit lit);
 
     /**
      * @brief Provide a hint to the SAT solver. The hint will be assigned at the given decision level.
-     * @param var variable to assign
-     * @param pol polarity of the assignment
+      * @param lit literal to assign
      * @param level decision level of the assignment
      * @pre The level must be lower than or equal to the current decision level.
      */
-    void hint(Tvar var, bool pol, unsigned int level);
+    void hint(Tlit lit, unsigned int level);
 
     /**
      * @brief Notify the solver that the trail was synchronized by the user. This function will reset the colors of the variables.
      */
-    void synchronized();
+    void synchronize();
 
     /**
      * @brief Returns the index of the last literal that remains valid since the last synchronization. That is, every literal with an index lower than the returned value has been unchanged since the last synchronization.
      */
-    unsigned sync_validity();
+    unsigned sync_validity_limit();
 
     /**
-     * @brief Returns the modification of colors since the last synchronization.
+     * @brief Returns the modification of state of a variable since the last synchronization.
      * @return 0 if no change, 1 if the variable was assigned, 2 if the variable was unassigned, 3 if the variable changed polarity.
      */
     unsigned sync_color(Tvar var);
@@ -847,10 +814,19 @@ namespace sat
      */
     Tlevel decision_level() const;
 
+    std::string literal_to_string(Tlit lit);
+
+    std::string clause_to_string(Tclause cl);
+
     /**
      * @brief Prints the current assignment of the solver on the standard output in a human-readable format.
      */
     void print_trail();
+
+    /**
+     * @brief Prints the current assignment of the solver on the standard output in a human-readable format.
+    */
+    void print_trail_simple();
 
     /**
      * @brief Prints a clause on the standard output in a human-readable format.

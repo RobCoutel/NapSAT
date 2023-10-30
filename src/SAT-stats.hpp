@@ -12,7 +12,6 @@ namespace sat
     unsigned long long propagations = 0;
     unsigned long long decisions = 0;
     unsigned restarts = 0;
-    unsigned long long blocked_clauses = 0;
     unsigned long long external_clauses = 0;
     unsigned long long learned_clauses = 0;
     unsigned long long purged_clauses = 0;
@@ -26,7 +25,6 @@ namespace sat
     inline void inc_propagations() { propagations++; }
     inline void inc_decisions() { decisions++; }
     inline void inc_restarts() { restarts++; }
-    inline void inc_blocked_clauses() { blocked_clauses++; }
     inline void inc_external_clauses() { external_clauses++; }
     inline void inc_learned_clauses() { learned_clauses++; }
     inline void inc_purged_clauses() { purged_clauses++; }
@@ -56,7 +54,6 @@ namespace sat
       std::cout << "c propagations: " << format_long(propagations) << "\n";
       std::cout << "c decisions:    " << format_long(decisions) << "\n";
       std::cout << "c restarts:     " << format_long(restarts) << "\n";
-      std::cout << "c blocked clauses:  " << format_long(blocked_clauses) << "\n";
       std::cout << "c external clauses: " << format_long(external_clauses) << "\n";
       std::cout << "c learned clauses:  " << format_long(learned_clauses) << "\n";
       std::cout << "c purged clauses:   " << format_long(purged_clauses) << "\n";

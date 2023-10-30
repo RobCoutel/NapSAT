@@ -32,10 +32,12 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
   _agility *= _agility_decay;
   _agility_threshold *= _threshold_multiplier;
 
-  if (reason == SAT_CLAUSE_UNDEF)
+  if (reason == SAT_CLAUSE_UNDEF || reason == SAT_CLAUSE_LAZY)
   {
     // Decision
+    // TODO this is going to bug if hints are not pushed at the highest level
     _decision_index.push_back(_trail.size() - 1);
+    cout << "decision index size: " << _decision_index.size() << endl;
     svar.level = _decision_index.size();
   }
   else
@@ -162,14 +164,10 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
         continue;
       }
       replacement = *k;
-#if SAT_BLOCKERS
       if (lit_true(replacement)
       && (!_chronological_backtracking || lit_level(replacement) <= lit_level(lit)))
       {
         clause.blocker = replacement;
-#if STATS
-        _stats.inc_blocked_clauses();
-#endif
 #if LOG_LEVEL > 2
         cout << "Clause sets up blocker ";
         print_lit(clause.blocker);
@@ -177,7 +175,6 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
 #endif
         goto next_clause;
       }
-#endif
       break;
     }
     if (replacement == SAT_LIT_UNDEF)
@@ -201,6 +198,9 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
 #endif
         if (_chronological_backtracking)
         {
+          // Bring the two highest literals to the front of the clause
+          // This is done to make sure that after backtracking, the clause
+          // will no longer have falsified watched literals
           assert(lit2 == lits[0]);
           assert(lit == lits[1]);
           select_watched_literals(lits, _clauses[cl].size);
@@ -233,6 +233,7 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
         continue;
       }
     }
+
     assert(lit_undef(replacement)
        || (_chronological_backtracking
         && lit_level(replacement) > lit_level(lit)));
@@ -313,6 +314,7 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
   _stats.add_backtrack_difference(_decision_index.size() - level);
 #endif
   unsigned waiting_count = 0;
+  cout << "decision index size: " << _decision_index.size() << endl;
   while (_decision_index.size() > level)
   {
     Tlit lit = _trail.back();
@@ -340,7 +342,7 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
 #if LOG_LEVEL > 4
   print_trail();
 #endif
-  assert(trail_consistency());
+  // assert(trail_consistency());
 }
 
 bool sat::modulariT_SAT::lit_is_required_in_learned_clause(Tlit lit)
@@ -839,9 +841,15 @@ void modulariT_SAT::toggle_chronological_backtracking(bool on)
   _chronological_backtracking = on;
 }
 
+void modulariT_SAT::set_proof_callback(void (*proof_callback)(void))
+{
+  _proof_callback = proof_callback;
+}
+
 void modulariT_SAT::toggle_proofs(bool on)
 {
-  MARKUSED(on);
+  assert(_proof_callback);
+  _proofs = on;
 }
 
 bool modulariT_SAT::propagate()
@@ -892,7 +900,7 @@ bool modulariT_SAT::propagate()
   return true;
 }
 
-modulariT_SAT::status modulariT_SAT::solve()
+status modulariT_SAT::solve()
 {
   if (_status != UNDEF)
     return _status;
@@ -908,7 +916,24 @@ modulariT_SAT::status modulariT_SAT::solve()
   return _status;
 }
 
-modulariT_SAT::status modulariT_SAT::get_status()
+status sat::modulariT_SAT::solve_interactive()
+{
+  if (_status != UNDEF)
+    return _status;
+  while (propagate())
+  {
+    assert(trail_consistency());
+    print_trail_simple();
+    parse_user_input();
+  }
+  assert(trail_consistency());
+#if STATS
+  _stats.print();
+#endif
+  return _status;
+}
+
+status modulariT_SAT::get_status()
 {
   return _status;
 }
@@ -957,7 +982,7 @@ void modulariT_SAT::add_literal(Tlit lit)
   _literal_buffer[_next_literal_index++] = lit;
 }
 
-modulariT_SAT::status modulariT_SAT::finalize_clause()
+status modulariT_SAT::finalize_clause()
 {
   assert(_writing_clause);
   _writing_clause = false;
@@ -966,7 +991,7 @@ modulariT_SAT::status modulariT_SAT::finalize_clause()
   return _status;
 }
 
-modulariT_SAT::status sat::modulariT_SAT::add_clause(Tlit *lits, unsigned size)
+status sat::modulariT_SAT::add_clause(Tlit *lits, unsigned size)
 {
   Tvar max_var = 0;
   for (unsigned i = 0; i < size; i++)
@@ -992,37 +1017,53 @@ unsigned sat::modulariT_SAT::get_clause_size(Tclause cl) const
   return _clauses[cl].size;
 }
 
-void modulariT_SAT::hint(Tvar var, bool pol)
+void modulariT_SAT::hint(Tlit lit)
 {
-  MARKUSED(var);
-  MARKUSED(pol);
+  assert(lit_to_var(lit) < _vars.size());
+  assert(!_writing_clause);
+  assert(lit_undef(lit));
+  stack_lit(lit, SAT_CLAUSE_LAZY);
 }
 
-void modulariT_SAT::hint(Tvar var, bool pol, unsigned int level)
+void modulariT_SAT::hint(Tlit lit, unsigned int level)
 {
-  MARKUSED(var);
-  MARKUSED(pol);
-  MARKUSED(level);
+  assert(lit_to_var(lit) < _vars.size());
+  assert(!_writing_clause);
+  assert(lit_undef(lit));
+  assert(level <= _decision_index.size() + 1);
+  hint(lit);
+  _vars[lit_to_var(lit)].level = level;
 }
 
-void modulariT_SAT::synchronized()
+void modulariT_SAT::synchronize()
 {
+  _number_of_valid_literals = _trail.size();
+  for (Tvar var : _touched_variables)
+    _vars[var].state_last_sync = _vars[var].state;
+
+  _touched_variables.clear();
 }
 
-unsigned modulariT_SAT::sync_validity()
+unsigned modulariT_SAT::sync_validity_limit()
 {
-  return 0;
+  return _number_of_valid_literals;
 }
 
 unsigned modulariT_SAT::sync_color(Tvar var)
 {
-  MARKUSED(var);
-  return 0;
+  assert(var < _vars.size() && var > 0);
+  if (_vars[var].state == _vars[var].state_last_sync)
+    return 0;
+  if (SAT_VAR_UNDEF == _vars[var].state)
+    return 1;
+  if (SAT_VAR_UNDEF == _vars[var].state_last_sync)
+    return 2;
+  return 3;
 }
 
 void modulariT_SAT::set_markup(void (*markup_function)(void))
 {
-  MARKUSED(markup_function);
+  assert(markup_function);
 }
 
 const std::vector<Tlit> &modulariT_SAT::trail() const
