@@ -23,6 +23,21 @@ bool sat::modulariT_SAT::trail_consistency()
     cerr << error << "Invariant violation: Trail consistency: the trail is not complete yet the solver claimed SAT\n";
     cout << error << "Invariant violation: the trail is not complete yet the solver claimed SAT" << endl;
   }
+  for (unsigned index : _decision_index)
+  {
+    if (index >= _trail.size())
+    {
+      success = false;
+      cerr << error << "Invariant violation: Trail consistency: The decision index is out of range\n";
+      cout << error << "Invariant violation: The decision index is out of range" << endl;
+    }
+    if (lit_reason(_trail[index]) != SAT_CLAUSE_UNDEF
+    && lit_reason(_trail[index]) != SAT_CLAUSE_LAZY) {
+      success = false;
+      cerr << error << "Invariant violation: Trail consistency: The decision index is not a decision\n";
+      cout << error << "Invariant violation: The decision index is not a decision" << endl;
+    }
+  }
   for (Tclause cl = 0; cl < _clauses.size(); cl++)
   {
     if (_clauses[cl].deleted)
