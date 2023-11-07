@@ -4,6 +4,12 @@ To use the solver, use the following command:
     modulariT-SAT[-dbg] <input_file> [options]
 
 The options are the following:
-    -cb or --chronological-backtracking : use chronological backtracking
+    -cb or --chronological-backtracking :
+        Use chronological backtracking
 
-    -i or --interactive : set the mode of solving to interactive, i.e., the solver can be commanded between decisions
+    -i or --interactive [command file] :
+        Set the mode of solving to interactive, i.e., the solver can be commanded between decisions.
+        If [command file] is a valid file name and does not start with the character '-', each line of the file will serve as commands until it reaches the end.
+
+    -o or -observing :
+        Set the mode of the solver to observing, i.e., the solver will send notifications to an observer which will display the advancement of the solver.

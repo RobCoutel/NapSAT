@@ -4,10 +4,12 @@
 #define LOG_LEVEL 0
 #define DEBUG_CLAUSE 0
 #define STATS 0
+#define OBSERVER_ENABLED 1
 #else
 #define LOG_LEVEL 0
 #define DEBUG_CLAUSE 0
 #define STATS 0
+#define OBSERVER_ENABLED 0
 #endif
 
 

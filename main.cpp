@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <libgen.h>
-#include "modulariT-SAT.hpp"
+#include "src/solver/modulariT-SAT.hpp"
 
 using namespace std;
 using namespace sat;
@@ -31,8 +31,7 @@ int main(int argc, char **argv)
     return 0;
   }
 
-  bool interactive = false;
-  sat::modulariT_SAT solver(20, 91);
+  sat::modulariT_SAT solver(0, 0);
   cout << "argc = " << argc << endl;
   for (int i = 2; i < argc; i++)
   {
@@ -45,15 +44,24 @@ int main(int argc, char **argv)
     else if (string(argv[i]) == "-i" || string(argv[i]) == "--interactive")
     {
       cout << "Interactive run enabled" << endl;
-      interactive = true;
+      solver.toggle_interactive(true);
+      if (argc > i + 1 && string(argv[i+1])[0] != '-')
+      {
+        solver.load_commands(string(argv[i+1]));
+        i++;
+      }
     }
+    else if (string(argv[i]) == "-o" || string(argv[i]) == "--observer")
+    {
+      cout << "Observer enabled" << endl;
+      solver.toggle_observing(true);
+    }
+    else
+      cout << "Unknown option: " << argv[i] << endl;
   }
 
   solver.parse_dimacs(argv[1]);
-  if (!interactive)
-    solver.solve();
-  else
-    solver.solve_interactive();
+  solver.solve();
 
   if (solver.get_status() == sat::SAT)
     cout << "s SATISFIABLE" << endl;
@@ -62,6 +70,5 @@ int main(int argc, char **argv)
   else
     cout << "UNKNOWN" << endl;
 
-  // solver.print_trail();
   return 0;
 }

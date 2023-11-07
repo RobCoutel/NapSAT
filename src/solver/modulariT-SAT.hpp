@@ -4,8 +4,10 @@
  * @author Robin Coutelier
  */
 #include "SAT-config.hpp"
-#include "SAT-stats.hpp"
 #include "SAT-types.hpp"
+#include "../observer/SAT-stats.hpp"
+#include "../observer/SAT-notification.hpp"
+#include "../observer/SAT-observer.hpp"
 #include "heap.hpp"
 
 #include <vector>
@@ -32,24 +34,25 @@ namespace sat
      */
     typedef struct TSvar
     {
-      TSvar() : level(SAT_LEVEL_UNDEF),
-                reason(SAT_CLAUSE_UNDEF),
-                activity(0.0),
-                seen(false),
-                waiting(false),
-                state(SAT_VAR_UNDEF),
-                phase_cache(0),
-                state_last_sync(SAT_VAR_UNDEF)
+      TSvar()
+          : level(LEVEL_UNDEF),
+            reason(CLAUSE_UNDEF),
+            activity(0.0),
+            seen(false),
+            waiting(false),
+            state(VAR_UNDEF),
+            phase_cache(0),
+            state_last_sync(VAR_UNDEF)
       {
       }
       /**
        * @brief Decision level at which the variable was assigned.
-       * @details If the variable is unassigned, the level is SAT_LEVEL_UNDEF.
+       * @details If the variable is unassigned, the level is LEVEL_UNDEF.
        */
       Tlevel level;
       /**
        * @brief Clause that propagated the variable.
-       * @details If the variable is assigned by a decision, the reason is SAT_CLAUSE_UNDEF.
+       * @details If the variable is assigned by a decision, the reason is CLAUSE_UNDEF.
        */
       Tclause reason;
       /**
@@ -66,7 +69,7 @@ namespace sat
        */
       unsigned waiting : 1;
       /**
-       * @brief State of the variable. Can be SAT_VAR_TRUE, SAT_VAR_FALSE or SAT_VAR_UNDEF.
+       * @brief State of the variable. Can be VAR_TRUE, VAR_FALSE or VAR_UNDEF.
        */
       Tval state : 2;
       /**
@@ -77,7 +80,7 @@ namespace sat
 
       /**
        * @brief Last value assigned to the variable before the last synchronization.
-      */
+       */
       Tval state_last_sync : 2;
 
     } TSvar;
@@ -88,14 +91,18 @@ namespace sat
      */
     typedef struct TSclause
     {
-      TSclause(Tlit *lits, unsigned size, bool learned, bool external) : lits(lits),
-                                                                         deleted(false),
-                                                                         learned(learned),
-                                                                         watched(true),
-                                                                         external(external),
-                                                                         size(size),
-                                                                         original_size(size),
-                                                                         blocker(*lits) { assert(size < (1 << 28)); }
+      TSclause(Tlit *lits, unsigned size, bool learned, bool external)
+          : lits(lits),
+            deleted(false),
+            learned(learned),
+            watched(true),
+            external(external),
+            size(size),
+            original_size(size),
+            blocker(*lits) { assert(size < (1 << 28)); }
+      /**
+       * @brief Pointer to the first literal of the clause.
+      */
       Tlit *lits;
       /**
        * @brief Boolean indicating whether the clause is deleted. That is, the clause is not in the clause set anymore and the memory is available for reuse.
@@ -126,7 +133,7 @@ namespace sat
        * @brief Blocking literal. If the clause is satisfied by the blocking literal, the watched literals are allowed to be falsified.
        * @details In chronological backtracking, the blocking literal must be at a lower level than the watched literals.
        */
-      Tlit blocker = SAT_LIT_UNDEF;
+      Tlit blocker = LIT_UNDEF;
       /**
        * @brief Activity of the clause. Used in clause deletion heuristics.
        */
@@ -156,8 +163,7 @@ namespace sat
      */
     unsigned _propagated_literals = 0;
 
-    /*     CLAUSES ALLOCATION     */
-
+    /**  CLAUSES ALLOCATION  **/
     /**
      * @brief Set of clauses
      */
@@ -184,7 +190,7 @@ namespace sat
      */
     unsigned sync_validity_index;
 
-    /*     ADDING CLAUSES     */
+    /**  ADDING CLAUSES  **/
     /**
      * @brief True if the solver is in clause input mode.
      */
@@ -200,7 +206,7 @@ namespace sat
      */
     unsigned _next_literal_index;
 
-    /*     ACTIVITY HEAP     */
+    /**  ACTIVITY HEAP  **/
     /**
      * @brief Activity increment for variables. This value is multiplied by the _var_activity_multiplier until the activity of a variable becomes greater than 10^9. In which case, the activity of all variables is divided by 10^9 and the increment is set to 1.0.
      * TODO update the definition
@@ -220,7 +226,7 @@ namespace sat
      */
     void bump_var_activity(Tvar var);
 
-    /*     CLAUSE DELETION    */
+    /**  CLAUSE DELETION  **/
     unsigned _n_learned_clauses = 0;
 
     /**
@@ -280,7 +286,7 @@ namespace sat
      */
     void simplify_clause_set();
 
-    /*     RESTART AGILITY     */
+    /**  RESTART AGILITY  **/
     /**
      * @brief Progress metric of the solver
      * @details The agility measures a moving average of the number of flips of polarity for literals.
@@ -315,7 +321,7 @@ namespace sat
      */
     double _threshold_decay = 1;
 
-    /*     PURGE     */
+    /**  PURGE  **/
     /**
      * @brief Current progress before next purge.
      * @details Count the number of not yet purged level 0 literals on the trail.
@@ -332,32 +338,30 @@ namespace sat
      */
     unsigned _purge_inc = 1;
 
-    /*     CHRONOLOGICAL BACKTRACKING     */
+    /**  CHRONOLOGICAL BACKTRACKING  **/
 
     bool _chronological_backtracking = false;
 
     /**
      * @brief Buffer used in chronological backtracking to store literals that were removed from the trail and must be put back in the trail.
-    */
+     */
     std::vector<Tlit> _backtrack_buffer;
 
     /**
      * @brief Reorder the trail by decision level.
      * @details The sorting algorithm should be stable. That is, the relative order of literals with the same decision level should not be changed.
      * @todo This function is not yet implemented.
-    */
+     */
     void order_trail();
 
-    /*     MISSED LOWER IMPLICATIONS     */
-
+    /**  MISSED LOWER IMPLICATIONS  **/
     /**
      * @brief For each variable, contains the lowest clause that can propagate the variable.
      * The clause must be ordered such that the first literal is the one that could have been propagated earlier. And the second literal is the highest literal in the clause.
-    */
+     */
     std::vector<Tclause> _missed_lower_implications;
 
-    /*     PROOFS     */
-
+    /**  PROOFS  **/
     /**
      * @brief True if the solver is keeping track of the proof of unsatisfiability.
      */
@@ -368,26 +372,34 @@ namespace sat
      */
     void (*_proof_callback)(void) = nullptr;
 
-    /*     SMT SYNCHRONIZATION     */
+    /**  SMT SYNCHRONIZATION  **/
 
     unsigned _number_of_valid_literals = 0;
 
     /**
      * @brief Set of variables that were touched by the SAT solver since the last synchronization.
-    */
+     */
     std::set<Tvar> _touched_variables;
 
-    /*     STATISTICS     */
+    /**  STATISTICS  **/
     /**
      * @brief Statistics of the solver.
      */
     sat::statistics _stats;
 
+    /**  INTERACTIVE SOLVER  **/
+    sat::gui::observer *_observer = nullptr;
+
+    /**
+     * @brief True if the solver is interactive.
+     */
+    bool _interactive = false;
+
     /*************************************************************************/
     /*                       Quality of life functions                       */
     /*************************************************************************/
     /**
-     * @brief Returns the level of the given literal. If the literal is not assigned, returns SAT_LEVEL_UNDEF.
+     * @brief Returns the level of the given literal. If the literal is not assigned, returns LEVEL_UNDEF.
      * @param lit literal to evaluate.
      * @return level of the literal.
      */
@@ -427,7 +439,7 @@ namespace sat
     }
 
     /**
-     * @brief Returns the reason of the literal. If the literal is not assigned, returns SAT_CLAUSE_UNDEF.
+     * @brief Returns the reason of the literal. If the literal is not assigned, returns CLAUSE_UNDEF.
      * @param lit literal to evaluate.
      * @return reason of the literal.
      */
@@ -449,11 +461,9 @@ namespace sat
 
     inline void stop_watch(Tlit lit, Tclause cl)
     {
-      // print the list
       assert(std::find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl) != _watch_lists[lit].end());
       *std::find(_watch_lists[lit].begin(),
-                 _watch_lists[lit].end(), cl)
-        = _watch_lists[lit].back();
+                 _watch_lists[lit].end(), cl) = _watch_lists[lit].back();
       _watch_lists[lit].pop_back();
     }
 
@@ -507,7 +517,7 @@ namespace sat
      */
     inline bool var_undef(Tvar var) const
     {
-      return _vars[var].state == SAT_VAR_UNDEF;
+      return _vars[var].state == VAR_UNDEF;
     }
 
     /**
@@ -515,7 +525,7 @@ namespace sat
      */
     inline bool var_true(Tvar var) const
     {
-      return _vars[var].state == SAT_VAR_TRUE;
+      return _vars[var].state == VAR_TRUE;
     }
 
     /**
@@ -523,7 +533,7 @@ namespace sat
      */
     inline bool var_false(Tvar var) const
     {
-      return _vars[var].state == SAT_VAR_FALSE;
+      return _vars[var].state == VAR_FALSE;
     }
 
     /**
@@ -532,9 +542,11 @@ namespace sat
     inline void var_unassign(Tvar var)
     {
       TSvar &v = _vars[var];
-      v.state = SAT_VAR_UNDEF;
-      v.reason = SAT_CLAUSE_UNDEF;
-      v.level = SAT_LEVEL_UNDEF;
+      if (_observer)
+        _observer->notify(new sat::gui::unassignment(literal(var, v.state)));
+      v.state = VAR_UNDEF;
+      v.reason = CLAUSE_UNDEF;
+      v.level = LEVEL_UNDEF;
       if (!_variable_heap.contains(var))
         _variable_heap.insert(var, v.activity);
     }
@@ -547,7 +559,11 @@ namespace sat
     inline void var_allocate(Tvar var)
     {
       for (Tvar i = _vars.size(); i <= var; i++)
+      {
         _variable_heap.insert(i, 0.0);
+        if (_observer)
+          _observer->notify(new sat::gui::new_variable(i));
+      }
       if (var >= _vars.size() - 1)
       {
         _vars.resize(var + 1);
@@ -573,6 +589,20 @@ namespace sat
      * @param lit literal to print.
      */
     void print_lit(Tlit lit);
+
+    /**
+     * @brief Parses a command and executes it.
+     * @details A valid command is a command of the type
+     * DECIDE [literal]   (to decide a literal, if literal is not provided, the solver decides)
+     * HINT <literal>     (to hint a literal)
+     * LEARN [literal]+   (to learn a clause from the given literals)
+     * DELETE_CLAUSE <clause> (to delete a clause)
+     * HELP               (to print the list of commands)
+     * QUIT               (to quit the solver)
+     * @param command command to parse.
+     * @return true if the command was parsed successfully, false otherwise.
+     */
+    bool parse_command(std::string command);
 
     /*************************************************************************/
     /*                          Internal functions                           */
@@ -612,7 +642,7 @@ namespace sat
      *
      * @param lit literal to evaluate.
      * @return false if the literal is redundant with the current learned clause
-    */
+     */
     bool lit_is_required_in_learned_clause(Tlit lit);
 
     /**
@@ -648,8 +678,6 @@ namespace sat
      */
     Tclause internal_add_clause(Tlit *lits, unsigned size, bool learned, bool external);
 
-    void parse_user_input();
-
     /*************************************************************************/
     /*                          Public interface                             */
     /*************************************************************************/
@@ -670,7 +698,7 @@ namespace sat
 
     /**
      * @brief Set the callback function to print the proof of unsatisfiability.
-    */
+     */
     void set_proof_callback(void (*proof_callback)(void));
 
     /**
@@ -679,6 +707,27 @@ namespace sat
      * @pre The callback function must be set.
      */
     void toggle_proofs(bool on);
+
+    /**
+     * @brief Enable or disable interactivity of the solver. The solver is interactive if it stops between decisions to let the user make a decision, hint or learn a clause.
+     * @details If on, this option significantly slows down the solver.
+     * @details If on, the solver will also switch on observing.
+     * @param on true to enable interactivity, false to disable it.
+     */
+    void toggle_interactive(bool on);
+
+    /**
+     * @brief Enable or disable observing of the solver. The solver is observed if it notifies an observer of its progress.
+     * @details If on, this option significantly slows down the solver.
+     * @param on true to enable observing, false to disable it.
+     */
+    void toggle_observing(bool on);
+
+    /**
+     * @brief Loads a list of commands from a file to the observer. The commands will be executed in order when checkpoints are notified, until all the commands have been executed. Then, solve the checkpoint notifications go back to the default behavior.
+     * @pre The solver must be in observing or interactive mode. Although, in observing mode alone, this command is useless.
+     */
+    void load_commands(const std::string &filename);
 
     /**
      * @brief Propagate literals in the queue and resolve conflicts if needed. The procedure stops when all variables are assigned, or a decision is needed. If the solver is in input mode, it will switch to propagation mode.
@@ -691,17 +740,6 @@ namespace sat
      * @brief Solves the clause set. The procedure stops when all variables are assigned, of the solver concludes that the clause set is unsatisfiable.
      */
     status solve();
-
-    /**
-     * @brief Solves the clause set. Interrupts before each decision and asks the user what to do.
-     *
-     * The user can
-     * - ask the solver to make a decision by typing "DECIDE"
-     * - choose a decision by typing "DECIDE [literal]"
-     * - hint a theory propagation by typing "HINT <literal> [level]"
-     * - learn a new clause by typing "LEARN <lit1> [lit2] [...]"
-    */
-    status solve_interactive();
 
     /**
      * @brief Returns the status of the solver.
@@ -771,13 +809,13 @@ namespace sat
 
     /**
      * @brief Provide a hint to the SAT solver. The hint will be considered as a decision.
-      * @param lit literal to assign
+     * @param lit literal to assign
      */
     void hint(Tlit lit);
 
     /**
      * @brief Provide a hint to the SAT solver. The hint will be assigned at the given decision level.
-      * @param lit literal to assign
+     * @param lit literal to assign
      * @param level decision level of the assignment
      * @pre The level must be lower than or equal to the current decision level.
      */
@@ -825,23 +863,23 @@ namespace sat
 
     /**
      * @brief Prints the current assignment of the solver on the standard output in a human-readable format.
-    */
+     */
     void print_trail_simple();
 
     /**
      * @brief Prints a clause on the standard output in a human-readable format.
      * @param clause clause to print.
-    */
+     */
     void print_clause(Tclause cl);
 
     /**
      * @brief Prints the clause set on the standard output in a human-readable format.
-    */
+     */
     void print_clause_set();
 
     /**
      * @brief Prints the watch lists on the standard output in a human-readable format.
-    */
+     */
     void print_watch_lists();
 
     /**

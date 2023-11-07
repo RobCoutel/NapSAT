@@ -31,8 +31,8 @@ bool sat::modulariT_SAT::trail_consistency()
       cerr << error << "Invariant violation: Trail consistency: The decision index is out of range\n";
       cout << error << "Invariant violation: The decision index is out of range" << endl;
     }
-    if (lit_reason(_trail[index]) != SAT_CLAUSE_UNDEF
-    && lit_reason(_trail[index]) != SAT_CLAUSE_LAZY) {
+    if (lit_reason(_trail[index]) != CLAUSE_UNDEF
+    && lit_reason(_trail[index]) != CLAUSE_LAZY) {
       success = false;
       cerr << error << "Invariant violation: Trail consistency: The decision index is not a decision\n";
       cout << error << "Invariant violation: The decision index is not a decision" << endl;

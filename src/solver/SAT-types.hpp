@@ -26,14 +26,14 @@ namespace sat
 
   /**
    * @brief Type to denote the value of a variable.
-   * @details The value can be SAT_VAR_TRUE, SAT_VAR_FALSE or SAT_VAR_UNDEF.
+   * @details The value can be VAR_TRUE, VAR_FALSE or VAR_UNDEF.
    */
   typedef unsigned Tval;
 
   /**
    * @brief Type to denote a decision level.
    * @details The decision level 0 is the root level. The first decision level is 1.
-   * @details A decision level of SAT_LEVEL_UNDEF = 0xFFFFFFFF means that the variable is unassigned.
+   * @details A decision level of LEVEL_UNDEF = 0xFFFFFFFF means that the variable is unassigned.
    */
   typedef unsigned Tlevel;
 
@@ -43,17 +43,20 @@ namespace sat
    */
   typedef unsigned Tclause;
 
-  const Tlit SAT_LIT_UNDEF = 0;
+  const Tlit LIT_UNDEF = 0;
 
-  const Tval SAT_VAR_TRUE = 0;
-  const Tval SAT_VAR_FALSE = 1;
-  const Tval SAT_VAR_UNDEF = 2;
+  const Tval VAR_TRUE = 0;
+  const Tval VAR_FALSE = 1;
+  const Tval VAR_UNDEF = 2;
+  const Tval VAR_ERROR = 3;
 
-  const Tlevel SAT_LEVEL_ROOT = 0;
-  const Tlevel SAT_LEVEL_UNDEF = 0xFFFFFFFF;
+  const Tlevel LEVEL_ROOT = 0;
+  const Tlevel LEVEL_UNDEF = 0xFFFFFFFF;
+  const Tlevel LEVEL_ERROR = 0xFFFFFFFE;
 
-  const Tclause SAT_CLAUSE_UNDEF = 0xFFFFFFFF;
-  const Tclause SAT_CLAUSE_LAZY = 0xFFFFFFFE;
+  const Tclause CLAUSE_UNDEF = 0xFFFFFFFF;
+  const Tclause CLAUSE_LAZY = 0xFFFFFFFE;
+  const Tclause CLAUSE_ERROR = 0xFFFFFFFD;
 
   /*************************************************************************/
   /*                         Operation on literals                         */
@@ -83,5 +86,12 @@ namespace sat
    * @return polarity of the literal (0 for negative literals, 1 for positive literals)
    */
   inline unsigned lit_pol(Tlit lit) { return lit & 1; }
+
+  /**
+   * @brief Returns the integer corresponding to the given literal.
+   * @param lit literal to evaluate.
+   * @return integer corresponding to the literal.
+  */
+  inline int lit_to_int(Tlit lit) { return (int)lit_pol(lit) ? (int)lit_to_var(lit) : -(int)lit_to_var(lit); }
 
 }

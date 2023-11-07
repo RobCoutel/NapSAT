@@ -86,6 +86,8 @@ void sat::modulariT_SAT::delete_clause(Tclause cl)
   _clauses[cl].deleted = true;
   _clauses[cl].watched = false;
   _deleted_clauses.push_back(cl);
+  if (_observer)
+    _observer->notify(new sat::gui::delete_clause(cl));
 }
 
 static const char esc_char = 27; // the decimal code for escape character is 27
@@ -128,7 +130,7 @@ void sat::modulariT_SAT::print_lit(Tlit lit)
     assert(lit_false(lit));
     cout << "\033[0;31m";
   }
-  if (!lit_undef(lit) && lit_reason(lit) == SAT_CLAUSE_UNDEF)
+  if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
     cout << esc_char << "[4m";
   if (!lit_pol(lit))
     cout << "-";
@@ -152,7 +154,7 @@ string modulariT_SAT::literal_to_string(Tlit lit)
     assert(lit_false(lit));
     s += "\033[0;31m";
   }
-  if (!lit_undef(lit) && lit_reason(lit) == SAT_CLAUSE_UNDEF) {
+  if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF) {
     s += esc_char;
     s += "[4m";
   }
@@ -169,7 +171,7 @@ string modulariT_SAT::literal_to_string(Tlit lit)
 string modulariT_SAT::clause_to_string(Tclause cl)
 {
   string s = "";
-  if (cl == SAT_CLAUSE_UNDEF)
+  if (cl == CLAUSE_UNDEF)
     return "undef";
   // if (_clauses[cl].watched)
   // {
@@ -208,7 +210,7 @@ static unsigned string_length_escaped(string str) {
 
 void modulariT_SAT::print_clause(Tclause cl)
 {
-  if (cl == SAT_CLAUSE_UNDEF)
+  if (cl == CLAUSE_UNDEF)
   {
     cout << "undef";
     return;
@@ -363,27 +365,17 @@ void sat::modulariT_SAT::print_watch_lists()
   }
 }
 
-// vector of commands read from a file. As long as this is not empty, the program will read commands from this vector instead of the user input
-// This is made such that it is easier to test the program
-static vector<string> commands;
-
-void sat::modulariT_SAT::parse_user_input()
+bool sat::modulariT_SAT::parse_command(std::string input)
 {
-  string input;
+  if (input == "") {
+    decide();
+    return true;
+  }
   string tmp = "";
   vector<string> tokens;
 
-try_again:
   tokens.clear();
   tmp = "";
-  cout << "Enter a command: ";
-  if (commands.size() == 0)
-    getline(cin, input, '\n');
-  else {
-    input = commands[0];
-    commands.erase(commands.begin());
-    cout << input << endl;
-  }
   for (unsigned i = 0; i < input.length(); i++)
   {
     char c = input[i];
@@ -407,7 +399,7 @@ try_again:
   if (tokens.size() == 0)
   {
     cout << "Error: empty command\n";
-    goto try_again;
+    return false;
   }
   if (tokens[0] == "DECIDE")
   {
@@ -415,13 +407,19 @@ try_again:
       decide();
     else if (tokens.size() == 2)
     {
-      int lit = stoi(tokens[1]);
-      decide(literal(abs(lit), lit > 0));
+      int lit_int = stoi(tokens[1]);
+      Tlit lit = literal(abs(lit_int), lit_int > 0);
+      if (!lit_undef(lit))
+      {
+        cout << "Error: literal " << lit << " is not undefined\n";
+        return false;
+      }
+      decide((lit));
     }
     else
     {
       cout << "Error: too many arguments (expected 0 or 1)\n";
-      goto try_again;
+      return false;
     }
   }
   else if (tokens[0] == "HINT")
@@ -432,7 +430,7 @@ try_again:
       if (!lit_undef(lit))
       {
         cout << "Error: literal " << lit << " is not undefined\n";
-        goto try_again;
+        return false;
       }
       hint(literal(abs(lit), lit > 0));
     }
@@ -442,7 +440,7 @@ try_again:
       if (!lit_undef(lit))
       {
         cout << "Error: literal " << lit << " is not undefined\n";
-        goto try_again;
+        return false;
       }
       Tlevel level = stoi(tokens[2]);
       hint(literal(abs(lit), lit > 0), level);
@@ -450,16 +448,11 @@ try_again:
     else
     {
       cout << "Error: wrong number of arguments (expected 1 or 2)\n";
-      goto try_again;
+      return false;
     }
   }
   else if (tokens[0] == "LEARN")
   {
-    if (tokens.size() == 1)
-    {
-      cout << "Error: no literals given\n";
-      goto try_again;
-    }
     start_clause();
     for (unsigned i = 1; i < tokens.size(); i++)
     {
@@ -489,23 +482,56 @@ try_again:
     else
       cout << "Error: wrong number of arguments (expected 1)\n";
   }
-  else if (tokens[0] == "COMMAND")
+  else if (tokens[0] == "DELETE_CLAUSE")
   {
-    if (tokens.size() == 2) {
-      // open the the file provided as second argument and store the commands in a vector
-
-      ifstream file(tokens[1]);
-      if (!file.is_open()) {
-        cout << "Error: could not open file \"" << tokens[1] << "\"\n";
-        goto try_again;
-      }
-      string line;
-      while (getline(file, line)) {
-        commands.push_back(line);
-      }
-      file.close();
+    if (tokens.size() != 2) {
+      cout << "Error: wrong number of arguments (expected 1)\n";
+      return false;
     }
+    int cl = stoi(tokens[1]);
+    if (cl < 0 || cl >= _clauses.size()) {
+      cout << "Error: clause " << cl << " does not exist\n";
+      return false;
+    }
+    if (_clauses[cl].deleted) {
+      cout << "Error: clause " << cl << " is already deleted\n";
+      return false;
+    }
+    delete_clause(cl);
   }
+  // else if (tokens[0] == "DELETE_VARIABLE")
+  // {
+  //   if (tokens.size() != 2) {
+  //     cout << "Error: wrong number of arguments (expected 1)\n";
+  //     return false;
+  //   }
+  //   int var = stoi(tokens[1]);
+  //   if (var < 0 || var >= _vars.size()) {
+  //     cout << "Error: variable " << var << " does not exist\n";
+  //     return false;
+  //   }
+  //   if (!_vars[var].active) {
+  //     cout << "Error: variable " << var << " is already deleted\n";
+  //     return false;
+  //   }
+  // }
+  // else if (tokens[0] == "COMMAND")
+  // {
+  //   if (tokens.size() == 2) {
+  //     // open the the file provided as second argument and store the commands in a vector
+
+  //     ifstream file(tokens[1]);
+  //     if (!file.is_open()) {
+  //       cout << "Error: could not open file \"" << tokens[1] << "\"\n";
+  //       return false;
+  //     }
+  //     string line;
+  //     while (getline(file, line)) {
+  //       commands.push_back(line);
+  //     }
+  //     file.close();
+  //   }
+  // }
   else if (tokens[0] == "HELP")
   {
     cout << "DECIDE [lit]: decide the value of a literal\n";
@@ -519,6 +545,7 @@ try_again:
   else
   {
     cout << "Error: unknown command \"" << tokens[0] << "\"; try \"HELP\" to get the list of commands\n";
-    goto try_again;
+    return false;
   }
+  return true;
 }
