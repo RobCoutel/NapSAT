@@ -22,11 +22,10 @@ void heap::swap(unsigned i, unsigned j)
 void heap::heapify_down(unsigned i)
 {
   assert(i < _heap.size());
-  while (left(i) < _heap.size())
-  {
+  while (left(i) < _heap.size()) {
     unsigned child;
     if (right(i) < _heap.size()
-     && _activity[_heap[right(i)]] > _activity[_heap[left(i)]])
+      && _activity[_heap[right(i)]] > _activity[_heap[left(i)]])
       child = right(i);
     else
       child = left(i);
@@ -42,8 +41,7 @@ void heap::heapify_up(unsigned i)
 {
   assert(i < _heap.size());
   unsigned p = parent(i);
-  while (i && _activity[_heap[i]] > _activity[_heap[p]])
-  {
+  while (i && _activity[_heap[i]] > _activity[_heap[p]]) {
     swap(i, p);
     i = parent(i);
     p = parent(i);
@@ -52,8 +50,7 @@ void heap::heapify_up(unsigned i)
 
 void heap::insert(unsigned key, double activity)
 {
-  if (_index.size() <= key)
-  {
+  if (_index.size() <= key) {
     unsigned old_size = _index.size();
     _index.resize(key + 1);
     _activity.resize(key + 1);
@@ -140,8 +137,7 @@ void sat_utils::heap::print()
   bfs_queue.clear();
   bfs_queue.push_back(0);
   unsigned i = 0;
-  while (i < bfs_queue.size())
-  {
+  while (i < bfs_queue.size()) {
     unsigned j = bfs_queue[i];
     if (left(j) < _heap.size())
       bfs_queue.push_back(left(j));
@@ -152,32 +148,27 @@ void sat_utils::heap::print()
 
   unsigned max_width = 1;
   unsigned max_height = 0;
-  for (unsigned i = 0; i < _heap.size(); i = left(i))
-  {
+  for (unsigned i = 0; i < _heap.size(); i = left(i)) {
     max_width = max_width << 1;
     max_height++;
   }
   unsigned height = 0;
   unsigned width = 1;
   unsigned next_level = 1;
-  for (unsigned i = 0; i < bfs_queue.size(); i++)
-  {
+  for (unsigned i = 0; i < bfs_queue.size(); i++) {
     for (unsigned k = 0; k < max_width / width / 2; k++)
       std::cout << "      ";
-    if (i == next_level)
-    {
+    if (i == next_level) {
       std::cout << std::endl;
       width = width << 1;
       next_level += width;
       height++;
     }
     unsigned j = bfs_queue[i];
-    if (j < _heap.size())
-    {
+    if (j < _heap.size()) {
       std::cout << _heap[j] << " (" << _activity[_heap[j]] << ") ";
     }
-    else
-    {
+    else {
       std::cout << "X ";
     }
   }

@@ -1,8 +1,11 @@
-#pragma once
 /**
  * @file modulariT-SAT.hpp
  * @author Robin Coutelier
+ *
+ * @brief This file is part of the SMT Solver modulariT. It defines the interface of the SAT solver and its data structures.
  */
+#pragma once
+
 #include "SAT-config.hpp"
 #include "SAT-types.hpp"
 #include "../observer/SAT-stats.hpp"
@@ -35,16 +38,15 @@ namespace sat
     typedef struct TSvar
     {
       TSvar()
-          : level(LEVEL_UNDEF),
-            reason(CLAUSE_UNDEF),
-            activity(0.0),
-            seen(false),
-            waiting(false),
-            state(VAR_UNDEF),
-            phase_cache(0),
-            state_last_sync(VAR_UNDEF)
-      {
-      }
+        : level(LEVEL_UNDEF),
+        reason(CLAUSE_UNDEF),
+        activity(0.0),
+        seen(false),
+        waiting(false),
+        state(VAR_UNDEF),
+        phase_cache(0),
+        state_last_sync(VAR_UNDEF)
+      {}
       /**
        * @brief Decision level at which the variable was assigned.
        * @details If the variable is unassigned, the level is LEVEL_UNDEF.
@@ -91,19 +93,22 @@ namespace sat
      */
     typedef struct TSclause
     {
-      TSclause(Tlit *lits, unsigned size, bool learned, bool external)
-          : lits(lits),
-            deleted(false),
-            learned(learned),
-            watched(true),
-            external(external),
-            size(size),
-            original_size(size),
-            blocker(*lits) { assert(size < (1 << 28)); }
+      TSclause(Tlit* lits, unsigned size, bool learned, bool external)
+        : lits(lits),
+        deleted(false),
+        learned(learned),
+        watched(true),
+        external(external),
+        size(size),
+        original_size(size),
+        blocker(*lits)
+      {
+        assert(size < (1 << 28));
+      }
       /**
        * @brief Pointer to the first literal of the clause.
-      */
-      Tlit *lits;
+       */
+      Tlit* lits;
       /**
        * @brief Boolean indicating whether the clause is deleted. That is, the clause is not in the clause set anymore and the memory is available for reuse.
        */
@@ -147,17 +152,14 @@ namespace sat
      * @brief Status of the solver.
      */
     status _status = UNDEF;
-
     /**
      * @brief List of variables in the clause set.
      */
     std::vector<TSvar> _vars;
-
     /**
      * @brief Trail of assigned literals.
      */
     std::vector<Tlit> _trail;
-
     /**
      * @brief Number of propagated literals
      */
@@ -168,23 +170,19 @@ namespace sat
      * @brief Set of clauses
      */
     std::vector<TSclause> _clauses;
-
     /**
      * @brief List of deleted clauses. The memory of these clauses is available for reuse.
      */
     std::vector<Tclause> _deleted_clauses;
-
     /**
      * @brief _watch_lists[i] is the list of clauses watched by the literal i.
      */
     std::vector<std::vector<Tclause>> _watch_lists;
-
     /**
      * @brief _decision_index[i] is the index of the made after level i.
      * @remark _decision_index[0] is the index of the first decision.
      */
     std::vector<unsigned> _decision_index;
-
     /**
      * @brief Position of the last literal on the trail that was left unchanged since the last synchronization.
      */
@@ -195,12 +193,10 @@ namespace sat
      * @brief True if the solver is in clause input mode.
      */
     bool _writing_clause = false;
-
     /**
      * @brief When in clause input mode, contains a pointer to the first literal of the clause being written.
      */
-    Tlit *_literal_buffer;
-
+    Tlit* _literal_buffer;
     /**
      * @brief When in clause input mode, contains the index of the next literal to write.
      */
@@ -212,9 +208,10 @@ namespace sat
      * TODO update the definition
      */
     double _var_activity_increment = 1.0;
-
+    /**
+     * @brief Decay factor of the _var_activity_increment.
+     */
     const double _var_activity_decay = 0.95;
-
     /**
      * @brief Priority queue of variables. The variables are ordered by their activity.
      */
@@ -227,41 +224,38 @@ namespace sat
     void bump_var_activity(Tvar var);
 
     /**  CLAUSE DELETION  **/
-    unsigned _n_learned_clauses = 0;
-
     /**
+     * @brief Number of learned clauses in the clause set.
+     */
+    unsigned _n_learned_clauses = 0;
+    /**
+     * @brief Number of learned clauses before a clause elimination procedure is called
      * @note At first, the number of learned clauses before elimination is the number of external clauses.
      */
     unsigned _next_clause_elimination = 0;
-
     /**
      * @brief Multiplier of the number of clauses before elimination.
      */
     double _clause_elimination_multiplier = 1.5;
-
     /**
      * @brief Activity increment for clauses. Each time a clause is used to resolve a conflict, its activity is increased by _clause_activity_increment and _clause_activity_increment is multiplied by _clause_activity_multiplier.
      */
     double _clause_activity_increment = 0.0001;
-
     /**
      * @brief Multiplier for the activity increment of clauses.
      * @details The higher the multiplier, faster the clauses are considered irrelevant.
      * @details The multiplier must be greater than 1.
      */
     double _clause_activity_multiplier = 1.0001;
-
     /**
      * @brief Maximum possible activity of a clause. It is the sum of the activity increments.
      */
     double _max_clause_activity = 1;
-
     /**
      * @brief Threshold of the clause activity. If the activity of a clause is lower than the threshold multiplied by the maximum possible activity, the clause is deleted.
      * @details The threshold is a value between 0 and 1. The higher the threshold, the more clauses are deleted.
      */
     double _clause_activity_threshold = 0;
-
     /**
      * @brief Decay factor of the clause activity threshold. If the solver deletes too many clauses, the solver will not make progress. Therefore, the threshold is multiplied by the threshold decay factor upon each clause deletion. This hyper parameter must be set to a value lower than 1.
      */
@@ -300,22 +294,18 @@ namespace sat
      * TODO Check if there is not a limit to the decay factor such that it is not possible to finish propagating all literals. It probably depends on the threshold decay factor too.
      */
     double _agility = 1;
-
     /**
      * @brief Decay factor the of moving average of the agility.
      */
     double _agility_decay = 0.9999;
-
     /**
      * @brief Threshold of the agility. If the agility is lower than the threshold, the solver restarts and the the threshold is multiplied by threshold_decay.
      */
     double _agility_threshold = 0.4;
-
     /**
      * @brief Multiplier for the agility threshold. Since formulas can be very different, the agility for one problem may not be the same as the agility for another problem. Therefore, the threshold is multiplied by the threshold multiplier upon each implication. This hyper parameter must be set to a value greater than 1.
      */
     double _threshold_multiplier = 1;
-
     /**
      * @brief Decay factor of the threshold. If the solver restarts too often, the solver will not make progress. Therefore, the threshold is multiplied by the threshold decay factor upon each restart. This hyper parameter must be set to a value lower than 1 and lower than 2 - threshold_multiplier.
      */
@@ -327,12 +317,10 @@ namespace sat
      * @details Count the number of not yet purged level 0 literals on the trail.
      */
     unsigned _purge_counter = 0;
-
     /**
      * @brief Limit of the purge counter before the next purge.
      */
     unsigned _purge_threshold = 5;
-
     /**
      * @brief Increment of the purge threshold upon each purge.
      */
@@ -340,6 +328,9 @@ namespace sat
 
     /**  CHRONOLOGICAL BACKTRACKING  **/
 
+    /**
+     * @brief True if the solver is using chronological backtracking.
+     */
     bool _chronological_backtracking = false;
 
     /**
@@ -356,10 +347,19 @@ namespace sat
 
     /**  MISSED LOWER IMPLICATIONS  **/
     /**
+     * @brief True if the solver is using strong chronological backtracking. In strong chronological backtracking, the solver will log missed lower implication and reimply them lazyly when backtracking.
+     */
+    bool _strong_chronological_backtracking = false;
+    /**
      * @brief For each variable, contains the lowest clause that can propagate the variable.
      * The clause must be ordered such that the first literal is the one that could have been propagated earlier. And the second literal is the highest literal in the clause.
      */
-    std::vector<Tclause> _missed_lower_implications;
+    std::vector<Tclause> _lazy_reimplication_buffer;
+
+    /**
+     * @brief Buffer used in strong chronological backtracking to store literals that were removed from the trail and should be reimplied after backtracking.
+     */
+    std::vector<Tclause> _reimplication_backtrack_buffer;
 
     /**  PROOFS  **/
     /**
@@ -374,8 +374,10 @@ namespace sat
 
     /**  SMT SYNCHRONIZATION  **/
 
+    /**
+     * @brief Number of literals that were valid since the last synchronization.
+     */
     unsigned _number_of_valid_literals = 0;
-
     /**
      * @brief Set of variables that were touched by the SAT solver since the last synchronization.
      */
@@ -388,10 +390,13 @@ namespace sat
     sat::statistics _stats;
 
     /**  INTERACTIVE SOLVER  **/
-    sat::gui::observer *_observer = nullptr;
-
+    /**
+     * @brief Observer of the solver. If _observer is not nullptr, the solver notifies the observer of its progress.
+     */
+    sat::gui::observer* _observer = nullptr;
     /**
      * @brief True if the solver is interactive.
+     * @details The solver is interactive if it stops between decisions to let the user make a decision, hint or learn a clause.
      */
     bool _interactive = false;
 
@@ -456,14 +461,26 @@ namespace sat
      */
     inline void watch_lit(Tlit lit, Tclause cl)
     {
+#if NOTIFY_WATCH_CHANGES
+      if (_observer)
+        _observer->notify(new sat::gui::watch(cl, lit));
+#endif
       _watch_lists[lit].push_back(cl);
     }
 
+    /**
+     * @brief Find the clause cl in the watch list of lit and remove it.
+     * @details Complexity: O(n), where n is the length of the watch list.
+     */
     inline void stop_watch(Tlit lit, Tclause cl)
     {
       assert(std::find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl) != _watch_lists[lit].end());
-      *std::find(_watch_lists[lit].begin(),
-                 _watch_lists[lit].end(), cl) = _watch_lists[lit].back();
+#if NOTIFY_WATCH_CHANGES
+      if (_observer)
+        _observer->notify(new sat::gui::unwatch(cl, lit));
+#endif
+      * std::find(_watch_lists[lit].begin(),
+        _watch_lists[lit].end(), cl) = _watch_lists[lit].back();
       _watch_lists[lit].pop_back();
     }
 
@@ -541,7 +558,7 @@ namespace sat
      */
     inline void var_unassign(Tvar var)
     {
-      TSvar &v = _vars[var];
+      TSvar& v = _vars[var];
       if (_observer)
         _observer->notify(new sat::gui::unassignment(literal(var, v.state)));
       v.state = VAR_UNDEF;
@@ -558,18 +575,17 @@ namespace sat
      */
     inline void var_allocate(Tvar var)
     {
-      for (Tvar i = _vars.size(); i <= var; i++)
-      {
+      for (Tvar i = _vars.size(); i <= var; i++) {
         _variable_heap.insert(i, 0.0);
         if (_observer)
           _observer->notify(new sat::gui::new_variable(i));
       }
-      if (var >= _vars.size() - 1)
-      {
+      if (var >= _vars.size() - 1) {
         _vars.resize(var + 1);
+        _lazy_reimplication_buffer.resize(var + 1, CLAUSE_UNDEF);
         _watch_lists.resize(2 * var + 2);
         // reallocate the literal buffer to make sure it is big enough
-        Tlit *new_literal_buffer = new Tlit[_vars.size()];
+        Tlit* new_literal_buffer = new Tlit[_vars.size()];
         std::memcpy(new_literal_buffer, _literal_buffer, _next_literal_index * sizeof(Tlit));
         delete[] _literal_buffer;
         _literal_buffer = new_literal_buffer;
@@ -649,6 +665,12 @@ namespace sat
      * Analyze a conflict and learn a new clause.
      * @param conflict clause that caused the conflict.
      */
+    void analyze_conflict_reimply(Tclause conflict);
+
+    /**
+     * Analyze a conflict and learn a new clause.
+     * @param conflict clause that caused the conflict.
+     */
     void analyze_conflict(Tclause conflict);
 
     /**
@@ -666,7 +688,7 @@ namespace sat
      * @param lits array of literals to reorder.
      * @param size size of the clause.
      */
-    void select_watched_literals(Tlit *lits, unsigned size);
+    void select_watched_literals(Tlit* lits, unsigned size);
 
     /**
      * @brief allocates a new chunk of memory for a clause, and adds to the clause set. The clause is added to the watch lists if needed (size >= 2).
@@ -676,7 +698,7 @@ namespace sat
      * @param learned true if the clause is a learned clause, false otherwise.
      * @param external true if the clause is an external clause, false otherwise.
      */
-    Tclause internal_add_clause(Tlit *lits, unsigned size, bool learned, bool external);
+    Tclause internal_add_clause(Tlit* lits, unsigned size, bool learned, bool external);
 
     /*************************************************************************/
     /*                          Public interface                             */
@@ -689,12 +711,20 @@ namespace sat
      */
     modulariT_SAT(unsigned int n_var, unsigned int n_clauses);
 
-    void parse_dimacs(const char *filename);
+    /**
+     * @brief Parse a DIMACS file and add the clauses to the clause set.
+     */
+    void parse_dimacs(const char* filename);
 
     /**
-     * @brief switch the solver to chronological backtracking mode. By default, the solver uses non-chronological backtracking.
+     * @brief Switch the solver to chronological backtracking mode. By default, the solver uses non-chronological backtracking.
      */
     void toggle_chronological_backtracking(bool on);
+
+    /**
+     * @brief Switch the solver to strong chronological backtracking mode. By default, the solver uses strong chronological backtracking.
+     */
+    void toggle_strong_chronological_backtracking(bool on);
 
     /**
      * @brief Set the callback function to print the proof of unsatisfiability.
@@ -724,10 +754,25 @@ namespace sat
     void toggle_observing(bool on);
 
     /**
-     * @brief Loads a list of commands from a file to the observer. The commands will be executed in order when checkpoints are notified, until all the commands have been executed. Then, solve the checkpoint notifications go back to the default behavior.
-     * @pre The solver must be in observing or interactive mode. Although, in observing mode alone, this command is useless.
+     * @brief Returns true if the solver is in interactive mode.
+     * @return true if the solver is in interactive mode, false otherwise.
      */
-    void load_commands(const std::string &filename);
+    bool is_interactive() const;
+
+    /**
+     * @brief Returns true if the solver is in observing mode.
+     * @return true if the solver is in observing mode, false otherwise.
+     */
+    bool is_observing() const;
+
+    /**
+     * @brief Returns a pointer to the observer of the solver.
+     * @return pointer to the observer of the solver.
+     * @note The pointer is nullptr if the solver is not observing.
+     * @note It is the responsibility of the user querying the observer to not compromise the integrity of the observer. That is, the user must not delete the observer or modify its state.
+     * @warning This method is just a convenience for the main. It is not meant to be used in a library.
+     */
+    sat::gui::observer* get_observer() const;
 
     /**
      * @brief Propagate literals in the queue and resolve conflicts if needed. The procedure stops when all variables are assigned, or a decision is needed. If the solver is in input mode, it will switch to propagation mode.
@@ -785,12 +830,10 @@ namespace sat
      * @brief Add a complete clause to the clause set.
      * @param lits array of literals to add to the clause set.
      * @param size size of the clause.
-     * @param learned true if the clause is a learned clause, false otherwise.
-     * @param external true if the clause is an external clause, false otherwise.
      * @return status of the solver after adding the clause.
      * @note The memory of the clause is allocated by the solver. Therefore, the pointer lits is managed by the user and is not freed by the solver.
      */
-    status add_clause(Tlit *lits, unsigned size);
+    status add_clause(Tlit* lits, unsigned size);
 
     /**
      * @brief Returns the literals of a clause.
@@ -798,7 +841,7 @@ namespace sat
      * @return pointer to the first literal of the clause.
      * @note should be called in conjunction with get_clause_size() to get the size of the clause.
      */
-    const Tlit *get_clause(Tclause cl) const;
+    const Tlit* get_clause(Tclause cl) const;
 
     /**
      * @brief Returns the size of a clause.
@@ -845,15 +888,28 @@ namespace sat
     /**
      * @brief Returns a reference to the trail. The trail should not be modified by the user.
      */
-    const std::vector<Tlit> &trail() const;
+    const std::vector<Tlit>& trail() const;
 
     /**
      * @brief Returns the current decision level.
      */
     Tlevel decision_level() const;
 
+    /*************************************************************************/
+    /*                        Printing the state                             */
+    /*************************************************************************/
+    /**
+     * @brief Returns a colored string of a literal. The literal is printed green if satisfied, red if falsified, and yellow if unassigned
+     * @param lit literal to print.
+     * @return colored string of the literal.
+     */
     std::string literal_to_string(Tlit lit);
 
+    /**
+     * @brief Returns a string of a clause. The clause is printed in the form "cl : lit1 lit2 ... litm | litm+1 ... litn" where lit1, ..., litn are the literals of the clause, litm+1, ..., litn are disabled literals (false at level 0) and cl is the clause id.
+     * @param clause clause to print.
+     * @return string of the clause.
+     */
     std::string clause_to_string(Tclause cl);
 
     /**

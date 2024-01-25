@@ -5,17 +5,18 @@
 #include <iostream>
 #include <fstream>
 #include <cassert>
+#include <cmath>
+#include <map>
 
 using namespace sat;
 using namespace sat::gui;
 using namespace std;
 
-long unsigned sat::gui::observer::hash_clause(const std::vector<sat::Tlit> &lits)
+long unsigned sat::gui::observer::hash_clause(const std::vector<sat::Tlit>& lits)
 {
   // https://stackoverflow.com/questions/20511347/a-good-hash-function-for-a-vector
   std::size_t seed = lits.size();
-  for (auto x : lits)
-  {
+  for (auto x : lits) {
     x = ((x >> 16) ^ x) * 0x45d9f3b;
     x = ((x >> 16) ^ x) * 0x45d9f3b;
     x = (x >> 16) ^ x;
@@ -29,39 +30,143 @@ sat::gui::observer::observer()
   _display = new sat::gui::display(this);
 }
 
-void observer::notify(notification *notification)
+sat::gui::observer::observer(const observer& other)
 {
-  cout << "notification: " << notification->get_message() << endl;
-  assert(_location == _notifications.size());
+  for (auto notification : other._notifications)
+    _notifications.push_back(notification->clone());
+}
+
+void observer::notify(notification* notification)
+{
+  // cout << "notification: " << notification->get_message() << endl;
+  assert(_location == _notifications.size() || _stats_only);
   _notifications.push_back(notification);
+  if (_stats_only)
+    return;
   _location++;
+  // cout << "notification " << _location << "/" << _notifications.size() << endl;
+  // cout << "notification: " << notification->get_message() << endl;
   notification->apply(*this);
-  _display->notify_change(notification->get_event_level());
+  if (!_check_invariants_only) {
+    if (_breakpoints.find(_location) != _breakpoints.end()) {
+      cout << "Breakpoint reached" << endl;
+      _display->notify_change(1);
+    }
+    else
+      _display->notify_change(notification->get_event_level(*this));
+  }
+}
+
+std::string observer::get_statistics()
+{
+  std::unordered_map<sat::gui::NotificationType, unsigned> notification_count;
+  for (notification* notification : _notifications) {
+    if (notification_count.find(notification->get_type()) == notification_count.end())
+      notification_count[notification->get_type()] = 0;
+    notification_count[notification->get_type()]++;
+  }
+  string s = "";
+  s += "Core Statistics:\n";
+  s += "  - Variables: " + to_string(_variables.size()) + "\n";
+  s += "  - Clauses: " + to_string(_active_clauses.size()) + "\n";
+  s += "  - Notifications:\n";
+  for (auto pair : notification_count) {
+    s += "    - " + notification_to_string(pair.first) + " " + to_string(pair.second) + "\n";
+  }
+
+  std::unordered_map<std::string, unsigned> stat_count;
+  for (notification* notification : _notifications) {
+    if (notification->get_type() == STAT) {
+      std::string stat_name = notification->get_message();
+      if (stat_count.find(stat_name) == stat_count.end())
+        stat_count[stat_name] = 0;
+      stat_count[stat_name]++;
+    }
+  }
+
+  if (stat_count.size() > 0) {
+    s += "Additional Statistics:\n";
+    for (auto pair : stat_count) {
+      s += "  - " + pair.first + ": " + to_string(pair.second) + "\n";
+    }
+  }
+  return s;
 }
 
 unsigned observer::next()
 {
+  if (_stats_only) {
+    cerr << "\033[0;33mWARNING\033[0m: trying to navigate in statistics only mode" << endl;
+  }
   assert(_location < _notifications.size());
   _notifications[_location++]->apply(*this);
-  cout << "notification " << _location << "/" << _notifications.size() << endl;
-  return _notifications[_location - 1]->get_event_level();
+  if (_breakpoints.find(_location) != _breakpoints.end()) {
+    cout << "Breakpoint reached" << endl;
+    return 1;
+  }
+  return _notifications[_location - 1]->get_event_level(*this);
 }
 
 unsigned observer::back()
 {
   assert(_location > 0);
   _location--;
-  notification *notification = _notifications[_location];
-  cout << "notification " << _location << "/" << _notifications.size() << endl;
-  cout << "notification: " << notification->get_message() << endl;
+  notification* notification = _notifications[_location];
+  // cout << "notification " << _location << "/" << _notifications.size() << endl;
+  // cout << "notification: " << notification->get_message() << endl;
   notification->rollback(*this);
-  return notification->get_event_level();
+  if (_breakpoints.find(_location) != _breakpoints.end()) {
+    cout << "Breakpoint reached" << endl;
+    return 1;
+  }
+  return notification->get_event_level(*this);
+}
+
+std::string sat::gui::observer::last_message()
+{
+  if (_location == 0)
+    return "Initial state";
+  return _notifications[_location - 1]->get_message();
+}
+
+void sat::gui::observer::mark_variable(sat::Tvar var)
+{
+  _marked_variables.insert(var);
+}
+
+void sat::gui::observer::mark_clause(sat::Tclause cl)
+{
+  _marked_clauses.insert(cl);
+}
+
+void sat::gui::observer::unmark_variable(sat::Tvar var)
+{
+  _marked_variables.erase(var);
+}
+
+void sat::gui::observer::unmark_clause(sat::Tclause cl)
+{
+  _marked_clauses.erase(cl);
+}
+
+bool sat::gui::observer::is_variable_marked(sat::Tvar var)
+{
+  return _marked_variables.find(var) != _marked_variables.end();
+}
+
+bool sat::gui::observer::is_clause_marked(sat::Tclause cl)
+{
+  return _marked_clauses.find(cl) != _marked_clauses.end();
+}
+
+void sat::gui::observer::set_breakpoint(unsigned n_notifications)
+{
+  _breakpoints.insert(n_notifications);
 }
 
 void sat::gui::observer::notify_checkpoint()
 {
-  while (_commands.size() != 0)
-  {
+  while (_commands.size() != 0) {
     string command = _commands[0];
     _commands.erase(_commands.begin());
     cout << "Executing command: " << command << endl;
@@ -108,16 +213,12 @@ sat::Tval observer::var_value(sat::Tvar var)
 sat::Tval observer::lit_value(sat::Tlit lit)
 {
   sat::Tval value = var_value(lit_to_var(lit));
+  assert(value == VAR_TRUE || value == VAR_FALSE || value == VAR_UNDEF || value == VAR_ERROR);
   if (value == VAR_ERROR)
     return VAR_ERROR;
   if (value == VAR_UNDEF)
     return VAR_UNDEF;
-  if (value == VAR_TRUE)
-    return lit_pol(lit);
-  if (value == VAR_FALSE)
-    return lit_pol(lit) ^ 1;
-  assert(false);
-  return VAR_ERROR;
+  return lit_pol(lit) == value;
 }
 
 sat::Tlevel observer::var_level(sat::Tvar var)
@@ -129,24 +230,46 @@ sat::Tlevel observer::var_level(sat::Tvar var)
   return _variables[var].level;
 }
 
+sat::Tclause sat::gui::observer::var_reason(sat::Tvar var)
+{
+  if (var >= _variables.size())
+    return CLAUSE_ERROR;
+  if (!_variables[var].active)
+    return CLAUSE_ERROR;
+  return _variables[var].reason;
+}
+
+bool sat::gui::observer::var_propagated(sat::Tvar var)
+{
+  return _variables[var].propagated;
+}
+
 sat::Tlevel observer::lit_level(sat::Tlit lit)
 {
   return var_level(lit_to_var(lit));
 }
 
-const std::vector<sat::Tlit> &observer::get_assignment()
+sat::Tclause sat::gui::observer::lit_reason(sat::Tlit lit)
+{
+  return var_reason(lit_to_var(lit));
+}
+
+bool sat::gui::observer::lit_propagated(sat::Tlit lit)
+{
+  return var_propagated(lit_to_var(lit));
+}
+
+const std::vector<sat::Tlit>& observer::get_assignment()
 {
   return _assignment_stack;
 }
 
-std::vector<std::pair<sat::Tclause, const std::vector<sat::Tlit> *>> sat::gui::observer::get_clauses()
+std::vector<std::pair<sat::Tclause, const std::vector<sat::Tlit>*>> sat::gui::observer::get_clauses()
 {
-  vector<pair<Tclause, const vector<Tlit> *>> to_return;
+  vector<pair<Tclause, const vector<Tlit>*>> to_return;
   Tclause cl = 0;
-  for (clause *cl_ptr : _active_clauses)
-  {
-    if (cl_ptr && cl_ptr->active)
-    {
+  for (clause* cl_ptr : _active_clauses) {
+    if (cl_ptr && cl_ptr->active) {
       assert(cl_ptr->cl == cl);
       to_return.push_back(make_pair(cl, &cl_ptr->literals));
     }
@@ -163,10 +286,8 @@ static const char ESC_CHAR = 27; // the decimal code for escape character is 27
 static unsigned string_length_escaped(string str)
 {
   unsigned length = 0;
-  for (unsigned i = 0; i < str.length(); i++)
-  {
-    if (str[i] == ESC_CHAR)
-    {
+  for (unsigned i = 0; i < str.length(); i++) {
+    if (str[i] == ESC_CHAR) {
       while (str[i] != 'm')
         i++;
       continue;
@@ -186,8 +307,7 @@ std::string sat::gui::observer::literal_to_string(sat::Tlit lit)
     s += "\033[0;32m";
   else
     s += "\033[0;31m";
-  if (lit_value(lit) != VAR_UNDEF && _variables[var].reason == CLAUSE_UNDEF)
-  {
+  if (lit_value(lit) != VAR_UNDEF && _variables[var].reason == CLAUSE_UNDEF) {
     s += ESC_CHAR;
     s += "[4m";
   }
@@ -204,14 +324,12 @@ std::string sat::gui::observer::literal_to_string(sat::Tlit lit)
 static string pad(int n, int max_int)
 {
   int max_digits = 0;
-  while (max_int > 0)
-  {
+  while (max_int > 0) {
     max_int /= 10;
     max_digits++;
   }
   int digits = 0;
-  while (n > 0)
-  {
+  while (n > 0) {
     n /= 10;
     digits++;
   }
@@ -226,22 +344,25 @@ std::string sat::gui::observer::variable_to_string(sat::Tvar var)
   string s = "";
   s += std::to_string(var) + ": ";
   s += pad(var, _variables.size());
-  if (_variables[var].active)
-  {
+  if (_variables[var].active) {
     if (_variables[var].value == VAR_UNDEF)
       s += "\033[0;33mundef\033[0m";
     else if (_variables[var].value == VAR_TRUE)
       s += "\033[0;32mtrue\033[0m";
-    else
+    else if (_variables[var].value == VAR_FALSE)
       s += "\033[0;31mfalse\033[0m";
+    else
+      s += "error";
     s += " @ ";
     if (_variables[var].level == LEVEL_UNDEF)
       s += "inf";
     else
       s += std::to_string(_variables[var].level);
     s += " by ";
-    if (_variables[var].reason == CLAUSE_UNDEF)
+    if (_variables[var].reason == CLAUSE_UNDEF && _variables[var].value != VAR_UNDEF)
       s += "decision";
+    else if (_variables[var].reason == CLAUSE_UNDEF)
+      s += "undef";
     else if (_variables[var].reason == CLAUSE_LAZY)
       s += "lazy";
     else
@@ -252,13 +373,16 @@ std::string sat::gui::observer::variable_to_string(sat::Tvar var)
   return s;
 }
 
+bool sat::gui::observer::enable_sorting = false;
+
 void sat::gui::observer::sort_clauses(Tclause cl)
 {
-  vector<Tlit> &lits = _active_clauses[cl]->literals;
+  if (!enable_sorting)
+    return;
+  vector<Tlit>& lits = _active_clauses[cl]->literals;
   unsigned n_sat = 0;
   unsigned n_undef = 0;
-  for (Tlit lit : lits)
-  {
+  for (Tlit lit : lits) {
     if (lit_value(lit) == VAR_TRUE)
       n_sat++;
     else if (lit_value(lit) == VAR_UNDEF)
@@ -267,53 +391,54 @@ void sat::gui::observer::sort_clauses(Tclause cl)
   unsigned i = 0;
   unsigned j = n_sat;
   unsigned k = n_sat + n_undef;
-  while (i < n_sat)
-  {
+  while (i < n_sat) {
     if (lit_value(lits[i]) == VAR_TRUE)
       i++;
-    else if (lit_value(lits[i]) == VAR_UNDEF)
-    {
+    else if (lit_value(lits[i]) == VAR_UNDEF) {
       assert(j < n_sat + n_undef);
       swap(lits[i], lits[j++]);
     }
-    else
-    {
+    else {
       assert(lit_value(lits[i]) == VAR_FALSE);
       assert(k < lits.size());
       swap(lits[i], lits[k++]);
     }
   }
-  while (j < n_sat + n_undef)
-  {
+  while (j < n_sat + n_undef) {
     if (lit_value(lits[j]) == VAR_UNDEF)
       j++;
-    else
-    {
+    else {
       assert(k < lits.size());
       swap(lits[j], lits[k++]);
     }
   }
 }
 
-const static unsigned TERMINAL_WIDTH = 158;
+const static unsigned TERMINAL_WIDTH = 167;
 std::string sat::gui::observer::clause_to_string(Tclause cl)
 {
   string s = "";
   if (cl == CLAUSE_UNDEF)
     return "undef";
-  if (_active_clauses[cl]->literals.size() > 0
-  && lit_value(_active_clauses[cl]->literals[0]) == VAR_UNDEF)
-    s += "\033[0;33m";
-  else if (_active_clauses[cl]->literals.size() > 0
-  && lit_value(_active_clauses[cl]->literals[0]) == VAR_TRUE)
-    s += "\033[0;32m";
-  else
-    s += "\033[0;31m";
-  s += std::to_string(cl) + "\033[0m: ";
+  if (enable_sorting) {
+    if (_active_clauses[cl]->literals.size() > 0 && lit_value(_active_clauses[cl]->literals[0]) == VAR_UNDEF)
+      s += "\033[0;33m";
+    else if (_active_clauses[cl]->literals.size() > 0 && lit_value(_active_clauses[cl]->literals[0]) == VAR_TRUE)
+      s += "\033[0;32m";
+    else
+      s += "\033[0;31m";
+    s += std::to_string(cl) + "\033[0m: ";
+  }
+  else {
+    s += std::to_string(cl) + ": ";
+  }
   vector<Tlit> lits = _active_clauses[cl]->literals;
 
-  for (Tlit lit : lits)
+  for (Tlit lit : lits) {
+    if (_active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end())
+      s += "w";
     s += literal_to_string(lit) + " ";
+  }
   return s;
 }
 
@@ -321,8 +446,7 @@ void sat::gui::observer::print_clause_set()
 {
   unsigned longest_clause = 0;
   cout << "Clauses: " << _clauses_dict.size() << "\n";
-  for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
-  {
+  for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     if (_active_clauses[cl] == nullptr || !_active_clauses[cl]->active)
       continue;
     if (_active_clauses[cl]->literals.size() > longest_clause)
@@ -330,67 +454,58 @@ void sat::gui::observer::print_clause_set()
   }
   unsigned longest_var = 1; // 1 for the sign
   Tvar max_var = _variables.size();
-  while (max_var > 0)
-  {
+  while (max_var > 0) {
     max_var /= 10;
     longest_var++;
   }
 
   unsigned max_clause_width = (longest_clause + 2) * (longest_var + 1) + 3;
-  Tclause i = 0;
-  while (i < _active_clauses.size())
-  {
-    unsigned j = max_clause_width;
-    while (j < TERMINAL_WIDTH && i < _active_clauses.size())
-    {
-      if (!_active_clauses[i]->active)
-      {
-        i++;
-        continue;
-      }
-      sort_clauses(i);
-      string clause_str = clause_to_string(i++);
-      cout << clause_str;
-      string spaces = "";
-
-      assert(string_length_escaped(clause_str) <= max_clause_width);
-      for (unsigned k = 0; k < max_clause_width - string_length_escaped(clause_str); k++)
-        spaces += " ";
-      cout << spaces;
-      j += max_clause_width;
+  unsigned current_position = 0;
+  for (unsigned i = 0; i < _active_clauses.size(); i++) {
+    if (!_active_clauses[i]->active)
+      continue;
+    if (current_position + max_clause_width > TERMINAL_WIDTH) {
+      cout << "\n";
+      current_position = 0;
     }
-    cout << endl;
+    sort_clauses(i);
+    string clause_str = clause_to_string(i);
+    cout << clause_str;
+    string spaces = "";
+
+    assert(string_length_escaped(clause_str) <= max_clause_width);
+    unsigned k = string_length_escaped(clause_str);
+    for (; k < max_clause_width && k < TERMINAL_WIDTH; k++)
+      spaces += " ";
+    cout << spaces;
+    current_position += max_clause_width;
   }
+  cout << "\n";
   for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
     cout << "*";
-  cout << "\n";
+  cout << endl;
 }
 
 void sat::gui::observer::print_deleted_clauses()
-{
-}
+{}
 
 void sat::gui::observer::print_assignment()
 {
   cout << "trail :\n";
-  for (Tlevel lvl = _decision_level; lvl <= _decision_level; lvl--)
-  {
+  for (Tlevel lvl = _decision_level; lvl <= _decision_level; lvl--) {
     cout << lvl << ": ";
-    for (unsigned i = 0; i < _assignment_stack.size(); i++)
-    {
+    for (unsigned i = 0; i < _assignment_stack.size(); i++) {
       if (i == _n_propagated)
         cout << "| ";
       Tlit lit = _assignment_stack[i];
       Tvar var = lit_to_var(lit);
-      if (_variables[var].level == lvl)
-      {
+      if (_variables[var].level == lvl) {
         cout << literal_to_string(lit) << " ";
         cout << pad(lit_to_var(lit), _variables.size());
         if (lit_pol(lit))
           cout << " ";
       }
-      else
-      {
+      else {
         cout << "  " + pad(0, _variables.size());
         ;
       }
@@ -409,10 +524,8 @@ void sat::gui::observer::print_variables()
   const unsigned MAX_VARS_PER_LINE = 30;
   unsigned current_position = 0;
   cout << "variables :\n";
-  for (Tvar var = 0; var < _variables.size(); var++)
-  {
-    if (current_position + MAX_VARS_PER_LINE > TERMINAL_WIDTH)
-    {
+  for (Tvar var = 0; var < _variables.size(); var++) {
+    if (current_position + MAX_VARS_PER_LINE > TERMINAL_WIDTH) {
       cout << "\n";
       current_position = 0;
     }
@@ -429,6 +542,326 @@ void sat::gui::observer::print_variables()
   for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
     cout << "*";
   cout << "\n";
+}
+
+std::string sat::gui::observer::literal_to_latex(Tlit lit)
+{
+  string s = "";
+  if (lit_value(lit) == VAR_FALSE)
+    s += "\\red{";
+  else if (lit_value(lit) == VAR_TRUE)
+    s += "\\green{";
+  if (!lit_pol(lit))
+    s += "\\neg ";
+  if (lit_reason(lit) == CLAUSE_UNDEF && lit_value(lit) != VAR_UNDEF)
+    s += "\\bm{v}";
+  else
+    s += "v";
+  s += "_{" + to_string(lit_to_var(lit)) + "}";
+  if (lit_value(lit) == VAR_FALSE || lit_value(lit) == VAR_TRUE)
+    s += "}";
+  return s;
+}
+
+std::string sat::gui::observer::literal_to_aligned_latex(Tlit lit)
+{
+  string s = "";
+  if (lit_value(lit) == VAR_FALSE)
+    s += "\\red{";
+  else if (lit_value(lit) == VAR_TRUE)
+    s += "\\green{";
+  if (!lit_pol(lit))
+    s += "\\neg ";
+  else
+    s += "\\phantom{\\neg} ";
+  s += "v";
+  s += "_{" + to_string(lit_to_var(lit));
+
+  unsigned n_digits = floor(log10(lit_to_var(lit)));
+  unsigned max_digits = floor(log10(_variables.size()));
+  if (n_digits < max_digits) {
+    s += "\\phantom{";
+    while (n_digits < max_digits) {
+      s += "0";
+      n_digits++;
+    }
+    s += "}";
+  }
+
+  s += "}";
+  if (lit_value(lit) == VAR_FALSE || lit_value(lit) == VAR_TRUE)
+    s += "}";
+  return s;
+}
+
+static const unsigned MAX_LITS_PER_LINE = 3;
+
+std::string sat::gui::observer::clause_to_latex(Tclause cl)
+{
+  if (cl == CLAUSE_UNDEF)
+    return "decision";
+  string s = "$";
+  for (unsigned i = 0; i < _active_clauses[cl]->literals.size(); i++) {
+    if (i > 0)
+      s += "\\lor ";
+    if (i == MAX_LITS_PER_LINE - 1 && i < _active_clauses[cl]->literals.size() - 1) {
+      s += "\\red{\\dots}";
+      break;
+    }
+    s += literal_to_latex(_active_clauses[cl]->literals[i]);
+  }
+  s += "$";
+  return s;
+}
+
+std::string sat::gui::observer::clause_to_aligned_latex(Tclause cl)
+{
+  if (cl == CLAUSE_UNDEF)
+    return "decision";
+  string s = "";
+  for (unsigned i = 0; i < _active_clauses[cl]->literals.size(); i++) {
+    if (i > 0)
+      s += "\\lor ";
+    Tlit lit = _active_clauses[cl]->literals[i];
+    bool watched = false;
+    if (_active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end()) {
+      s += "\\underline{";
+      watched = true;
+    }
+    s += literal_to_aligned_latex(lit);
+    if (watched)
+      s += "}";
+  }
+  return s;
+}
+
+static inline std::string pair_to_latex(int a, double b)
+{
+  return "(" + std::to_string(a) + ", " + std::to_string(b) + ")";
+}
+
+std::string sat::gui::observer::trail_to_latex()
+{
+  double spacing = 0.75;
+  string s = "";
+
+  unsigned x = 0;
+  Tlevel y = 0;
+
+  // print the literals
+  for (Tlit lit : _assignment_stack) {
+    Tlevel level = lit_level(lit);
+    s += "\\draw[thick] (" + to_string(x) + ", 0) -- node[below, yshift = -0.1cm] {";
+    s += "\\rotatebox{270}{";
+    s += clause_to_latex(lit_reason(lit));
+    s += "}} (" + to_string(x + 1) + ", 0);\n";
+    if (y != level) {
+      s += "\\draw[thick] " + pair_to_latex(x, y * spacing) + " -- " + pair_to_latex(x, level * spacing) + ";\n";
+      y = level;
+    }
+    s += "\\draw[thick] " + pair_to_latex(x, y * spacing) + " -- ";
+    if (lit_reason(lit) == CLAUSE_UNDEF)
+      s += "node[below] {$\\delta = " + to_string(level) + "$} ";
+    s += "node[above] {$";
+    s += literal_to_latex(lit);
+    s += "$} " + pair_to_latex(x + 1, y * spacing) + ";\n";
+    x++;
+  }
+
+  // print the conflicts
+  for (clause* cl : _active_clauses) {
+    bool falsified = true;
+    for (Tlit lit : cl->literals) {
+      if (lit_value(lit) != VAR_FALSE) {
+        falsified = false;
+        break;
+      }
+    }
+    if (!falsified)
+      continue;
+    Tlevel level = 0;
+    for (Tlit lit : cl->literals) {
+      if (lit_level(lit) > level)
+        level = lit_level(lit);
+    }
+    // print in red
+    s += "\\draw[thick, red] (" + to_string(x) + ", 0) -- node[below, yshift = -0.1cm] {";
+    s += "\\rotatebox{270}{";
+    s += clause_to_latex(cl->cl);
+    s += "}} (" + to_string(x + 1) + ", 0);\n";
+    if (y != level) {
+      s += "\\draw[thick, red] " + pair_to_latex(x, y * spacing) + " -- " + pair_to_latex(x, level * spacing) + ";\n";
+      y = level;
+    }
+    s += "\\draw[thick, red] " + pair_to_latex(x, y * spacing) + " -- ";
+    s += "node[above, red] {$\\bot$} " + pair_to_latex(x + 1, y * spacing) + ";\n";
+    x++;
+  }
+
+  s += "\n\\draw[thick, dotted] ";
+  s += pair_to_latex(_n_propagated, -3) + " -- ";
+  s += pair_to_latex(_n_propagated, (_decision_level + 1) * spacing + 0.5);
+  s += " node[right, yshift=-0.2cm] {$\\q \\rightarrow$}";
+  s += " node[left, yshift=-0.2cm] {$\\leftarrow \\trail$};\n\n";
+
+  // print the ticks
+  if (x > 0) {
+    s += "\\foreach \\x in {0,1,...," + to_string(x) + "}\n";
+    s += "  \\draw[thick] (\\x,3pt)--(\\x,-3pt);\n";
+  }
+  else {
+    s += "\\draw[thick] (0,3pt)--(0,-3pt);\n";
+  }
+  return s;
+}
+
+std::string sat::gui::observer::clause_set_to_latex()
+{
+  string s = "\\begin{tabular}{l}\n";
+  for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
+    if (_active_clauses[cl] == nullptr || !_active_clauses[cl]->active)
+      continue;
+    s += "  $C_{" + to_string(cl + 1);
+    unsigned n_digits = floor(log10(cl + 1));
+    unsigned max_digits = floor(log10(_active_clauses.size()));
+    if (n_digits < max_digits) {
+      s += "\\phantom{";
+      while (n_digits < max_digits) {
+        s += "0";
+        n_digits++;
+      }
+      s += "}";
+    }
+    s += "} = ";
+    s += clause_to_aligned_latex(cl) + "$\\\\\n";
+  }
+  s += "\\end{tabular}\n";
+  return s;
+}
+
+std::string sat::gui::observer::used_clauses_to_latex()
+{
+  cout << "used clauses to latex" << endl;
+  string s = "\\begin{tabular}{l}\n";
+  for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
+    bool falsified = true;
+    for (Tlit lit : _active_clauses[cl]->literals) {
+      if (lit_value(lit) != VAR_FALSE) {
+        falsified = false;
+        break;
+      }
+    }
+    bool propagating = false;
+    for (Tlit lit : _active_clauses[cl]->literals) {
+      if (lit_reason(lit) == cl) {
+        propagating = true;
+        break;
+      }
+    }
+    if (propagating || falsified) {
+      s += "  $C_{" + to_string(cl + 1);
+      unsigned n_digits = floor(log10(cl + 1));
+      unsigned max_digits = floor(log10(_active_clauses.size()));
+      if (n_digits < max_digits) {
+        s += "\\phantom{";
+        while (n_digits < max_digits) {
+          s += "0";
+          n_digits++;
+        }
+        s += "}";
+      }
+      s += "} = ";
+      s += clause_to_aligned_latex(cl) + "$\\\\\n";
+    }
+  }
+  s += "\\end{tabular}\n";
+  return s;
+}
+
+std::string sat::gui::observer::implication_graph_to_latex()
+{
+  string s = "";
+  s += "\\tikzstyle{vertex}=[draw,minimum size=24pt,inner sep=1pt]\n";
+  s += "\\tikzstyle{propagated}=[circle]\n";
+  s += "\\tikzstyle{decision}=[rectangle]\n";
+  s += "\\tikzstyle{myarr}=[shorten >=1pt,->,>=stealth]\n";
+  s += "\\tikzstyle{currentclause}=[fill=blue!15]\n";
+
+  for (Tlevel lvl = 0; lvl <= _decision_level; lvl++) {
+    unsigned x = 0;
+    for (Tlit lit : _assignment_stack) {
+      if (lit_level(lit) == lvl) {
+        s += "\\node[vertex";
+        if (lit_reason(lit) == CLAUSE_UNDEF)
+          s += ", decision]";
+        else
+          s += ", propagated]";
+        s += "(v" + to_string(lit_to_var(lit)) + ") at (";
+        s += to_string(x) + ", " + to_string((-2) * (int) lvl) + ") {$";
+        s += literal_to_latex(lit);
+        s += "$};\n";
+        x += 2;
+      }
+    }
+  }
+  s += "\n";
+  for (unsigned i = 1; i < _assignment_stack.size(); i++) {
+    Tlit lit = _assignment_stack[i];
+    Tclause reason = lit_reason(lit);
+    if (reason == CLAUSE_UNDEF)
+      continue;
+    for (unsigned j = 0; j < _active_clauses[reason]->literals.size(); j++) {
+      Tlit lit2 = _active_clauses[reason]->literals[j];
+      if (lit2 == lit)
+        continue;
+      // cout << "lit2: " << lit2 << endl;
+      // cout << "lit: " << lit << endl;
+      if (lit_level(lit2) != lit_level(lit) || lit_to_var(lit2) == lit_to_var(_assignment_stack[i - 1])) {
+        s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr] (v" + to_string(lit_to_var(lit)) + ");";
+      }
+      else {
+        s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, bend right=30] (v" + to_string(lit_to_var(lit)) + ");";
+      }
+      s += "\n";
+    }
+    s += "\n";
+  }
+  return s;
+}
+
+static string fileTrail = "Figures/trails/weak-blocker-";
+static string fileClause = "Figures/clauses/weak-blocker-";
+static unsigned fileNumber = 0;
+
+void sat::gui::observer::save_state()
+{
+  if (!_recording)
+    return;
+  string filename = fileTrail + to_string(fileNumber) + ".tex";
+  string trail_latex = trail_to_latex();
+  ofstream file(filename);
+  if (!file.is_open()) {
+    cout << "Could not open file " << filename << endl;
+  }
+  else {
+    file << trail_latex;
+    file.close();
+  }
+  filename = fileClause + to_string(fileNumber) + ".tex";
+  string clause_latex;
+  if (_active_clauses.size() > 20)
+    clause_latex = used_clauses_to_latex();
+  else
+    clause_latex = clause_set_to_latex();
+  file.open(filename);
+  if (!file.is_open()) {
+    cout << "Could not open file " << filename << endl;
+  }
+  else {
+    file << clause_latex;
+    file.close();
+  }
+  fileNumber++;
 }
 
 sat::gui::observer::~observer()

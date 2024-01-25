@@ -1,4 +1,4 @@
-EXEC = modulariT-SAT_$(shell git rev-list --count --all)
+EXEC = modulariT-SAT-$(shell git rev-list --count --all)
 MAIN = main.cpp
 
 CC := g++
@@ -53,7 +53,6 @@ $(BUILD_DIR)/$(EXEC)-dbg: $(DBG_OBJS) $(MAIN_OBJ_DBG)
 
 # test
 $(BUILD_DIR)/test: $(TEST_OBJS) $(DBG_OBJS)
-	echo $(TEST_OBJS)
 	$(CC) $(CFLAGS) $(DBG_FLAGS) $^ -o $@
 
 .PHONY: all

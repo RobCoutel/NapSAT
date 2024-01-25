@@ -45,8 +45,8 @@ namespace sat
 
   const Tlit LIT_UNDEF = 0;
 
-  const Tval VAR_TRUE = 0;
-  const Tval VAR_FALSE = 1;
+  const Tval VAR_FALSE = 0;
+  const Tval VAR_TRUE = 1;
   const Tval VAR_UNDEF = 2;
   const Tval VAR_ERROR = 3;
 
@@ -91,7 +91,7 @@ namespace sat
    * @brief Returns the integer corresponding to the given literal.
    * @param lit literal to evaluate.
    * @return integer corresponding to the literal.
-  */
-  inline int lit_to_int(Tlit lit) { return (int)lit_pol(lit) ? (int)lit_to_var(lit) : -(int)lit_to_var(lit); }
+   */
+  inline int lit_to_int(Tlit lit) { return (int) lit_pol(lit) ? (int) lit_to_var(lit) : -(int) lit_to_var(lit); }
 
 }

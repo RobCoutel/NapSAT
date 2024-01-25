@@ -23,6 +23,31 @@ namespace sat::gui
 {
   class observer;
   const unsigned MAX_UNSIGNED = 0xFFFFFFFF;
+  const unsigned MARKED_LEVEL = 1;
+
+  enum NotificationType
+  {
+    CHECKPOINT,
+    DONE,
+    MARKER,
+    NEW_VARIABLE,
+    DELETE_VARIABLE,
+    DECISION,
+    IMPLICATION,
+    PROPAGATION,
+    CONFLICT,
+    BACKTRACKING_STARTED,
+    BACKTRACKING_DONE,
+    UNASSIGNMENT,
+    NEW_CLAUSE,
+    DELETE_CLAUSE,
+    WATCH,
+    UNWATCH,
+    REMOVE_LITERAL,
+    CHECK_INVARIANTS,
+    STAT
+  };
+  std::string notification_to_string(NotificationType type);
 
   /**
    * @brief Virtual class that defines notifications that can be sent by the SAT solver.
@@ -44,15 +69,19 @@ namespace sat::gui
      */
     static bool _suppress_warning;
 
+  public:
     /**
      * @brief Suppresses the warning that are displayed when notification do not make sense to the observer.
      */
     static void suppress_warning(bool suppress)
+
     {
       _suppress_warning = suppress;
     }
-
-  public:
+    /**
+     * @brief Returns a copy of the notification.
+     */
+    virtual notification* clone() const = 0;
     /**
      * @brief Get the level of the event.
      * - 0: reserved for checkpoints.
@@ -62,8 +91,14 @@ namespace sat::gui
      * - 4: reserved for backtracking started and done.
      * - 5: reserved for implications and unassignments.
      * - 6: reserved for propagations.
+     * - 9: watch list changes.
      */
-    virtual unsigned get_event_level() = 0;
+    virtual unsigned get_event_level(observer& observer) = 0;
+
+    /**
+     * @brief Returns the type of the notification.
+     */
+    virtual const NotificationType get_type() = 0;
 
     /**
      * @brief Returns a short string describing the event.
@@ -76,13 +111,13 @@ namespace sat::gui
      * @details Also updates internal variables of the notification to allow rollback.
      * @param observer The observer that will be modified.
      */
-    virtual void apply(observer &observer) = 0;
+    virtual void apply(observer& observer) = 0;
 
     /**
      * @brief Rollbacks the notification from the observer.
      * @param observer The observer that will be modified.
      */
-    virtual void rollback(observer &observer) = 0;
+    virtual void rollback(observer& observer) = 0;
 
     /**
      * @brief Destroy the notification object
@@ -102,11 +137,34 @@ namespace sat::gui
 
   public:
     checkpoint() {}
-    unsigned get_event_level() override { return event_level; }
+    checkpoint* clone() const override { return new checkpoint(); }
+    unsigned get_event_level(observer& observer) override { return event_level; }
+    const NotificationType get_type() override { return CHECKPOINT; }
     const std::string get_message() override { return "Checkpoint"; }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~checkpoint() override = default;
+  };
+
+  /**
+   * @brief Notification that the solving process is done.
+   */
+  class done : public notification
+  {
+  private:
+    unsigned event_level = 0;
+
+    bool sat;
+
+  public:
+    done(bool sat) : sat(sat) {}
+    done* clone() const override { return new done(sat); }
+    unsigned get_event_level(observer& observer) override { return event_level; }
+    const NotificationType get_type() override { return DONE; }
+    const std::string get_message() override { return "Done: " + std::to_string(sat); }
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer) {}
+    ~done() override = default;
   };
 
   /**
@@ -118,13 +176,20 @@ namespace sat::gui
   {
   private:
     unsigned event_level = 1;
+    /**
+     * @brief Additional information about the marker.
+     */
+    std::string description;
 
   public:
     marker() {}
-    unsigned get_event_level() override { return event_level; }
-    const std::string get_message() override { return "Marker"; }
-    virtual void apply(observer &observer) {}
-    virtual void rollback(observer &observer) {}
+    marker(std::string description) : description(description) {}
+    marker* clone() const override { return new marker(); }
+    unsigned get_event_level(observer& observer) override { return event_level; }
+    const NotificationType get_type() override { return MARKER; }
+    const std::string get_message() override { return "Marker : " + description; }
+    virtual void apply(observer& observer) {}
+    virtual void rollback(observer& observer) {}
     ~marker() override = default;
   };
 
@@ -143,10 +208,12 @@ namespace sat::gui
 
   public:
     new_variable(sat::Tvar var) : var(var) {}
-    unsigned get_event_level() override { return event_level; }
+    new_variable* clone() const override { return new new_variable(var); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return NEW_VARIABLE; }
     const std::string get_message() override { return "New variable " + std::to_string(var) + " added"; }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~new_variable() override = default;
   };
 
@@ -166,10 +233,12 @@ namespace sat::gui
 
   public:
     delete_variable(sat::Tvar var) : var(var) {}
-    unsigned get_event_level() override { return event_level; }
+    delete_variable* clone() const override { return new delete_variable(var); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return DELETE_VARIABLE; }
     const std::string get_message() override { return "Variable " + std::to_string(var) + " deleted"; }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~delete_variable() override = default;
   };
 
@@ -189,10 +258,12 @@ namespace sat::gui
 
   public:
     decision(sat::Tlit lit) : lit(lit) {}
-    unsigned get_event_level() override { return event_level; }
+    decision* clone() const override { return new decision(lit); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return DECISION; }
     const std::string get_message() override { return "Decision literal : " + std::to_string(sat::lit_to_int(lit)); }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~decision() override = default;
   };
 
@@ -225,10 +296,12 @@ namespace sat::gui
 
   public:
     implication(sat::Tlit lit, sat::Tclause cl, sat::Tlevel level) : lit(lit), reason(cl), level(level) {}
-    unsigned get_event_level() override { return event_level; }
+    implication* clone() const override { return new implication(lit, reason, level); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return IMPLICATION; }
     const std::string get_message() override { return "Implication : " + std::to_string(sat::lit_to_int(lit)) + " implied by clause " + std::to_string(reason); }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~implication() override = default;
   };
 
@@ -247,10 +320,12 @@ namespace sat::gui
 
   public:
     propagation(sat::Tlit lit) : lit(lit) {}
-    unsigned get_event_level() override { return event_level; }
+    propagation* clone() const override { return new propagation(lit); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return PROPAGATION; }
     const std::string get_message() override { return "Propagation : " + std::to_string(sat::lit_to_int(lit)) + " propagated"; }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~propagation() override = default;
   };
 
@@ -270,10 +345,12 @@ namespace sat::gui
 
   public:
     conflict(sat::Tclause cl) : cl(cl) {}
-    unsigned get_event_level() override { return event_level; }
+    conflict* clone() const override { return new conflict(cl); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return CONFLICT; }
     const std::string get_message() override { return "Conflict : clause " + std::to_string(cl) + " detected"; }
-    virtual void apply(observer &observer) {}
-    virtual void rollback(observer &observer) {}
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer) {}
     ~conflict() override = default;
   };
 
@@ -286,12 +363,16 @@ namespace sat::gui
   private:
     unsigned event_level = 4;
 
+    sat::Tlevel level = LEVEL_UNDEF;
+
   public:
-    backtracking_started() {}
-    unsigned get_event_level() override { return event_level; }
-    const std::string get_message() override { return "Backtracking started"; }
-    virtual void apply(observer &observer) {}
-    virtual void rollback(observer &observer) {}
+    backtracking_started(sat::Tlevel level) : level(level) {}
+    backtracking_started* clone() const override { return new backtracking_started(level); }
+    unsigned get_event_level(observer& observer) override { return event_level; }
+    const NotificationType get_type() override { return BACKTRACKING_STARTED; }
+    const std::string get_message() override { return "Backtracking started at level " + std::to_string(level); }
+    virtual void apply(observer& observer) {}
+    virtual void rollback(observer& observer) {}
     ~backtracking_started() override = default;
   };
 
@@ -302,6 +383,16 @@ namespace sat::gui
   {
   private:
     unsigned event_level = 4;
+
+  public:
+    backtracking_done() {}
+    backtracking_done* clone() const override { return new backtracking_done(); }
+    unsigned get_event_level(observer& observer) override { return event_level; }
+    const NotificationType get_type() override { return BACKTRACKING_DONE; }
+    const std::string get_message() override { return "Backtracking done"; }
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
+    ~backtracking_done() override = default;
   };
 
   /**
@@ -342,16 +433,18 @@ namespace sat::gui
 
   public:
     unassignment(sat::Tlit lit) : lit(lit) {}
-    unsigned get_event_level() override { return event_level; }
+    unassignment* clone() const override { return new unassignment(lit); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return UNASSIGNMENT; }
     const std::string get_message() override { return "Unassignment : " + std::to_string(sat::lit_to_int(lit)) + " unassigned"; }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~unassignment() override = default;
   };
 
   /**
    * @brief Notification that a new clause was added.
-  */
+   */
   class new_clause : public notification
   {
   private:
@@ -364,45 +457,46 @@ namespace sat::gui
 
     /**
      * @brief The literals of the clause.
-    */
+     */
     std::vector<sat::Tlit> lits;
 
     /**
      * @brief True if the clause was learnt.
-    */
+     */
     bool learnt = false;
 
     /**
      * @brief True if the clause was added externally (by the user or from the problem statement).
-    */
+     */
     bool external = false;
 
     /**
      * @brief Id computed by the observer to identify the clause when it is deleted.
      * @details The id is computed when the notification is applied.
-    */
+     */
     long unsigned hash = 0;
 
   public:
     new_clause(sat::Tclause cl, std::vector<sat::Tlit> lits, bool learnt, bool external) : cl(cl), lits(lits), learnt(learnt), external(external) {}
-    unsigned get_event_level() override { return event_level; }
+    new_clause* clone() const override { return new new_clause(cl, lits, learnt, external); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return NEW_CLAUSE; }
     const std::string get_message() override
     {
       std::string s = "New clause : " + std::to_string(cl) + ": ";
-      for (auto l : lits)
-      {
+      for (auto l : lits) {
         s += " " + std::to_string(sat::lit_to_int(l));
       }
       return s;
     }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~new_clause() override = default;
   };
 
   /**
    * @brief Notification that a clause was deleted.
-  */
+   */
   class delete_clause : public notification
   {
   private:
@@ -420,10 +514,129 @@ namespace sat::gui
 
   public:
     delete_clause(sat::Tclause cl) : cl(cl) {}
-    unsigned get_event_level() override { return event_level; }
+    delete_clause* clone() const override { return new delete_clause(cl); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return DELETE_CLAUSE; }
     const std::string get_message() override { return "Delete clause : " + std::to_string(cl); }
-    virtual void apply(observer &observer);
-    virtual void rollback(observer &observer);
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
     ~delete_clause() override = default;
   };
+
+  class watch : public notification
+  {
+  private:
+    unsigned event_level = 9;
+
+    /**
+     * @brief The clause id that was deleted.
+     */
+    sat::Tclause cl;
+
+    /**
+     * @brief The literal that was watched.
+     */
+    sat::Tlit lit;
+
+  public:
+    watch(sat::Tclause cl, sat::Tlit lit) : cl(cl), lit(lit) {}
+    watch* clone() const override { return new watch(cl, lit); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return WATCH; }
+    const std::string get_message() override { return "Watch literal : " + std::to_string(sat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
+  };
+
+  class unwatch : public notification
+  {
+  private:
+    unsigned event_level = 9;
+
+    /**
+     * @brief The clause id that was deleted.
+     */
+    sat::Tclause cl;
+
+    /**
+     * @brief The literal that was watched.
+     */
+    sat::Tlit lit;
+
+  public:
+    unwatch(sat::Tclause cl, sat::Tlit lit) : cl(cl), lit(lit) {}
+    unwatch* clone() const override { return new unwatch(cl, lit); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return UNWATCH; }
+    const std::string get_message() override { return "Unwatch literal : " + std::to_string(sat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
+  };
+
+  /**
+   * @brief Notification that a literal has be removed from a clause.
+   * @pre The literal should be a level 0 literal.
+   */
+  class remove_literal : public notification
+  {
+  private:
+    unsigned event_level = 9;
+
+    /**
+     * @brief The clause id that was deleted.
+     */
+    sat::Tclause cl;
+
+    /**
+     * @brief The literal that was removed.
+     */
+    sat::Tlit lit;
+
+  public:
+    remove_literal(sat::Tclause cl, sat::Tlit lit) : cl(cl), lit(lit) {}
+    remove_literal* clone() const override { return new remove_literal(cl, lit); }
+    const std::string get_message() override { return "Remove literal : " + std::to_string(sat::lit_to_int(lit)) + " from clause " + std::to_string(cl); }
+    unsigned get_event_level(observer& observer) override;
+    const NotificationType get_type() override { return REMOVE_LITERAL; }
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
+  };
+
+  class check_invariants : public notification
+  {
+  private:
+    unsigned event_level = 0xFFFFFFFF;
+
+  public:
+    check_invariants() {}
+    check_invariants* clone() const override { return new check_invariants(); }
+    const std::string get_message() override { return "Check invariants"; }
+    unsigned get_event_level(observer& observer) override { return event_level; }
+    const NotificationType get_type() override { return CHECK_INVARIANTS; }
+    virtual void apply(observer& observer);
+    virtual void rollback(observer& observer);
+  };
+
+
+  class stat : public notification
+  {
+  private:
+    unsigned event_level = 0xFFFFFFFF;
+    /**
+     * @brief The variable that was measured.
+     * @details The variable should be a string that can be used as a key in a map.
+     * @details This is what will be displayed at the end of the execution if the observer computes stats
+    */
+    std::string measured_variable;
+
+  public:
+    stat(std::string measured_variable) : measured_variable(measured_variable) {}
+    stat* clone() const override { return new stat(measured_variable); }
+    const std::string get_message() override { return "Stat : " + measured_variable; }
+    unsigned get_event_level(observer& observer) override { return event_level; }
+    const NotificationType get_type() override { return STAT; }
+    virtual void apply(observer& observer) {}
+    virtual void rollback(observer& observer) {}
+  };
+
 }

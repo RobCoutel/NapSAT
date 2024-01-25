@@ -40,8 +40,7 @@ namespace sat
     {
       std::string str = std::to_string(number);
       int i = str.size() - 3;
-      while (i > 0)
-      {
+      while (i > 0) {
         str.insert(i, ",");
         i -= 3;
       }
