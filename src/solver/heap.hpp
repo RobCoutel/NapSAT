@@ -28,7 +28,6 @@ namespace sat_utils
      * @brief The activity of each element in the heap.
     */
     std::vector<double> _activity;
-    unsigned _size;
 
     inline unsigned parent(unsigned i)
     {

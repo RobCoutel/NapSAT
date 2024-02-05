@@ -6,7 +6,6 @@
 #include <fstream>
 #include <cassert>
 #include <cmath>
-#include <map>
 
 using namespace sat;
 using namespace sat::gui;
@@ -38,9 +37,13 @@ sat::gui::observer::observer(const observer& other)
 
 void observer::notify(notification* notification)
 {
-  // cout << "notification: " << notification->get_message() << endl;
   assert(_location == _notifications.size() || _stats_only);
-  _notifications.push_back(notification);
+  if (notification->get_type() == STAT)
+    stat_count[notification->get_message()]++;
+  else {
+    notification_count[notification->get_type()]++;
+    _notifications.push_back(notification);
+  }
   if (_stats_only)
     return;
   _location++;
@@ -59,29 +62,18 @@ void observer::notify(notification* notification)
 
 std::string observer::get_statistics()
 {
-  std::unordered_map<sat::gui::NotificationType, unsigned> notification_count;
-  for (notification* notification : _notifications) {
-    if (notification_count.find(notification->get_type()) == notification_count.end())
-      notification_count[notification->get_type()] = 0;
-    notification_count[notification->get_type()]++;
-  }
   string s = "";
   s += "Core Statistics:\n";
   s += "  - Variables: " + to_string(_variables.size()) + "\n";
-  s += "  - Clauses: " + to_string(_active_clauses.size()) + "\n";
+  unsigned n_clauses = 0;
+  for (clause* cl : _active_clauses) {
+    if (cl && cl->active)
+      n_clauses++;
+  }
+  s += "  - Clauses: " + to_string(n_clauses) + "\n";
   s += "  - Notifications:\n";
   for (auto pair : notification_count) {
-    s += "    - " + notification_to_string(pair.first) + " " + to_string(pair.second) + "\n";
-  }
-
-  std::unordered_map<std::string, unsigned> stat_count;
-  for (notification* notification : _notifications) {
-    if (notification->get_type() == STAT) {
-      std::string stat_name = notification->get_message();
-      if (stat_count.find(stat_name) == stat_count.end())
-        stat_count[stat_name] = 0;
-      stat_count[stat_name]++;
-    }
+    s += "  - " + notification_type_to_string(pair.first) + ": " + to_string(pair.second) + "\n";
   }
 
   if (stat_count.size() > 0) {
@@ -112,8 +104,6 @@ unsigned observer::back()
   assert(_location > 0);
   _location--;
   notification* notification = _notifications[_location];
-  // cout << "notification " << _location << "/" << _notifications.size() << endl;
-  // cout << "notification: " << notification->get_message() << endl;
   notification->rollback(*this);
   if (_breakpoints.find(_location) != _breakpoints.end()) {
     cout << "Breakpoint reached" << endl;
@@ -162,6 +152,11 @@ bool sat::gui::observer::is_clause_marked(sat::Tclause cl)
 void sat::gui::observer::set_breakpoint(unsigned n_notifications)
 {
   _breakpoints.insert(n_notifications);
+}
+
+void sat::gui::observer::unset_breakpoint(unsigned n_notifications)
+{
+  _breakpoints.erase(n_notifications);
 }
 
 void sat::gui::observer::notify_checkpoint()

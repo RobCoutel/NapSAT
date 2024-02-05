@@ -1,15 +1,106 @@
-This modulariT-SAT is a CDCL SAT solver supporting both chronological and non-chronological backtracking. The solver will print "s SATISFIABLE" if the problem has a solution, and "s UNSATISFIABLE" otherwise.
+modulariT-SAT is a CDCL SAT solver supporting both chronological and non-chrono-
+logical backtracking. The solver will print "s SATISFIABLE" if the problem has a
+solution, and "s UNSATISFIABLE" otherwise.
 
 To use the solver, use the following command:
-    modulariT-SAT[-dbg] <input_file> [options]
+    modulariT-SAT-<version>[-dbg] <input_file/-h/-hs/-hn> [options]
 
 The options are the following:
-    -cb or --chronological-backtracking :
-        Use chronological backtracking
+*********************************** HELPERS ************************************
+  -h or --help
+    Print this helper
 
-    -i or --interactive [command file] :
-        Set the mode of solving to interactive, i.e., the solver can be commanded between decisions.
-        If [command file] is a valid file name and does not start with the character '-', each line of the file will serve as commands until it reaches the end.
+  -hs or --help-sat-commands
+    Print the documentation of SAT commands the interactive solver supports
 
-    -o or -observing :
-        Set the mode of the solver to observing, i.e., the solver will send notifications to an observer which will display the advancement of the solver.
+  -hn or --help-navigation
+    Print the documentation of the navigation commands the observer supports
+
+******************************* SOLVER BEHAVIOR *******************************
+  -cb or --chronological-backtracking
+    Enables the solver to use chronological backtracking.
+
+  -scb or --strong-chronological-backtracking
+    Enables  the solver to use strong chronological  backtracking.  That is, the
+    solver will use the lazy reimplication scheme.
+
+  -del or --delete-clauses
+    Enables the solver to delete learned clauses.
+
+*********************************** OBSERVER ***********************************
+  -sw or --suppress-warning
+    If true, the observer will not print warnings.
+    Requires: observing, interactive, check_invariants or print_stats is on
+
+  -i or --interactive
+    Sets the solver to interractive  mode. Before each decision, the solver will
+    wait for the user to enter a command before continuing.
+
+  -o or --observing
+    Sets an observer  to the solver. The observer will print information  about
+    the solver.
+
+  -c or --check-invariants
+    Enables the solver to check some invariants through the observers.
+
+  -stat or --print-stats
+    Enables the observer to print statistics at the end of the execution.
+    Requires: observing or interactive is on
+
+  -commands or --commands-file <string = "">
+    File containing the commands to be executed by the solver.
+    Requires: interactive is on
+
+  -s or --save-folder <string = "">
+    Folder  where  the solver  will save the LaTeX  files.  (see $ modulariT-SAT
+    --help-navigation for more information)
+
+****************************** VARIABLE ACTIVITY ******************************
+  --var-activity-decay <double = 0.95>
+    Decay factor of the _var_activity_increment.
+    Requires: 0 < decay < 1
+
+******************************* CLAUSE DELETION *******************************
+  --clause-elimination-multiplier <double = 1.5>
+    Multiplier of the number of clauses before elimination. When the
+    simplifying  procedure is called to eliminate clauses, the new threshold for
+    deletion is multiplied by this multiplier.
+    Requires: multiplier > 1
+
+  --clause-activity-multiplier <double = 1.001>
+    Multiplier for the activity increment of clauses. The higher the
+    multiplier, faster the clauses are considered irrelevant.
+    Requires: The multiplier must be greater than 1.
+
+  --clause-activity-threshold-decay <double = 0.85>
+    Decay factor  of the clause activity  threshold.  If the solver deletes  too
+    many clauses,  the solver will not make progress.  Therefore,  the threshold
+    is multiplied  by the threshold decay factor upon each clause deletion. This
+    hyper parameter must be set to a value lower than 1.
+    Requires: 0 < decay < 1
+
+*********************************** RESTARTS ***********************************
+  --agility-decay <double = 0.9999>
+    Decay factor the of moving average of the agility.
+    Requires: 0 < decay < 1
+
+  --agility-threshold <double = 0.4>
+    Threshold  of the agility.  If the agility is lower than the threshold,  the
+    solver restarts and the the threshold is multiplied by
+    agility_threshold_decay.
+    Requires: 0 < threshold < 1
+
+  --threshold-multiplier <double = 1>
+    Multiplier  for the agility threshold. Since formulas can be very different,
+    the agility  for one problem  may not be the same as the agility for another
+    problem. Therefore,  the threshold is multiplied by the threshold multiplier
+    upon each implication.  This hyper parameter  must be set to a value greater
+    than 1.
+    Requires: multiplier >= 1
+
+  --agility-threshold-decay <double = 1>
+    Decay factor of the threshold.  If the solver restarts too often, the solver
+    will  not  make  progress.  Therefore,  the threshold  is multiplied  by the
+    threshold  decay factor upon each restart. This hyper parameter  must be set
+    to a value lower than 1 and lower than 2 - threshold_multiplier.
+    Requires: 0 < decay < 1

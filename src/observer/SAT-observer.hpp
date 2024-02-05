@@ -5,9 +5,9 @@
 #include "SAT-notification.hpp"
 
 #include <vector>
-#include <map>
 #include <functional>
 #include <string>
+#include <map>
 #include <set>
 
 namespace sat::gui
@@ -146,6 +146,16 @@ namespace sat::gui
      */
     bool _stats_only = false;
 
+    /**
+     * @brief Hash map to count the number of notifications of each type.
+     */
+    std::unordered_map<sat::gui::ENotifType, unsigned> notification_count;
+
+    /**
+     * @brief Hash map to count the number of pure statistics notifications of each label.
+    */
+    std::unordered_map<std::string, unsigned> stat_count;
+
   public:
     /**
      * @brief Construct a new observer object
@@ -162,7 +172,7 @@ namespace sat::gui
     /**
      * @brief Send a notification to the observer and update its state.
      */
-    void notify(sat::gui::notification* notification);
+    void notify(notification* notification);
 
     /**
      * @brief Formats a string that contains the statistics of the run. That is, the number of notifications of each type.
@@ -238,6 +248,11 @@ namespace sat::gui
      * @brief Stops the execution of the observer at the notification with the id n_notifications.
      */
     void set_breakpoint(unsigned n_notifications);
+
+    /**
+     * @brief Removes the breakpoint.
+    */
+    void unset_breakpoint(unsigned n_notifications);
 
     /**  ALTERING EXECUTION  **/
     /**

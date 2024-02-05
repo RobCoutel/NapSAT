@@ -8,24 +8,20 @@
 using namespace sat;
 using namespace std;
 
-#if OBSERVER_ENABLED
-#define NOTIFY(obs, notif)   \
-    if (obs)                 \
-      obs->notify(notif);    \
-    else                     \
-      delete notif;
-#else
-#define NOTIFY(obs, notif)
-#endif
-
+#ifdef NDEBUG
 #if OBSERVED_ASSERTS
-#define ASSERT(cond) \
-  if (!(cond)) {      \
-    NOTIFY(_observer, new sat::gui::marker("Assetion failed: " #cond)) \
-    assert(cond);     \
+#define ASSERT(cond)                                                \
+  if (_observer) {                                                  \
+    if (!(cond))  {                                                 \
+      notify_obs(new sat::gui::marker("Assetion failed: " #cond));  \
+      assert(cond);                                                 \
+    }                                                               \
   }
 #else
 #define ASSERT(cond) assert(cond)
+#endif
+#else
+#define ASSERT(cond)
 #endif
 
 void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
@@ -39,22 +35,22 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
   svar.reason = reason;
   svar.waiting = true;
 
-  _agility *= _agility_decay;
-  _agility_threshold *= _threshold_multiplier;
+  _agility *= _options.agility_decay;
+  _options.agility_threshold *= _options.threshold_multiplier;
 
   if (reason == CLAUSE_UNDEF || reason == CLAUSE_LAZY) {
     // Decision
     // TODO this is going to bug if hints are not pushed at the highest level
     _decision_index.push_back(_trail.size() - 1);
     svar.level = _decision_index.size();
-    NOTIFY(_observer, new sat::gui::decision(lit))
+    notify_obs(new sat::gui::decision(lit));
   }
   else {
     // Implied literal
     ASSERT(lit == _clauses[reason].lits[0]);
     if (_clauses[reason].size == 1)
       svar.level = LEVEL_ROOT;
-    else if (_chronological_backtracking) {
+    else if (_options.chronological_backtracking) {
       // Find the level of the clause
       Tlevel level = LEVEL_ROOT;
       Tlit* end = _clauses[reason].lits + _clauses[reason].size;
@@ -65,14 +61,14 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
     }
     else {
       ASSERT(watched_levels(reason));
-      // ASSERT(most_relevant_watched_literals(reason));
+      ASSERT(most_relevant_watched_literals(reason));
       ASSERT(lit == _clauses[reason].lits[0]);
       svar.level = lit_level(_clauses[reason].lits[1]);
     }
-    NOTIFY(_observer, (new sat::gui::implication(lit, reason, svar.level)))
+    notify_obs((new sat::gui::implication(lit, reason, svar.level)));
   }
   if (lit_pol(lit) != svar.phase_cache)
-    _agility += 1 - _agility_decay;
+    _agility += 1 - _options.agility_decay;
   svar.phase_cache = lit_pol(lit);
 
   if (svar.level == LEVEL_ROOT)
@@ -99,9 +95,9 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
     Tlit lit2 = lits[0] ^ lits[1] ^ lit;
     lits[0] = lit2;
     lits[1] = lit;
-    if (lit_true(clause.blocker) && (!_chronological_backtracking || lit_level(clause.blocker) <= level))
+    if (lit_true(clause.blocker) && (!_options.chronological_backtracking || lit_level(clause.blocker) <= level))
       continue; // clause is satisfied by the blocker, do not do anything
-    if (lit_true(lit2) && (!_strong_chronological_backtracking || lit_level(lit2) <= level))
+    if (lit_true(lit2) && (!_options.strong_chronological_backtracking || lit_level(lit2) <= level))
       continue; // clause is satisfied, do not do anything
 
     // Tlit replacement = LIT_UNDEF;
@@ -122,7 +118,7 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       ASSERT(!lit_undef(*k) || lit_level(*k) > _decision_index.size());
       Tlevel curr_level = lit_level(*k);
       if (lit_true(*k)) {
-        if (!_strong_chronological_backtracking || curr_level <= highest_non_satisfied_level)
+        if (!_options.strong_chronological_backtracking || curr_level <= highest_non_satisfied_level)
           break;
         lowest_satisfied_level = lit_level(*k);
         lowest_satisfied_literal = k;
@@ -163,7 +159,7 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
        */
       if (n_satisfied_literals > 0) {
         // Maybe missed lower implication
-        ASSERT(_strong_chronological_backtracking);
+        ASSERT(_options.strong_chronological_backtracking);
         ASSERT(lowest_satisfied_literal != nullptr);
         ASSERT(lowest_satisfied_level > highest_non_satisfied_level);
         ASSERT(n_satisfied_literals == 1);
@@ -185,10 +181,10 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
 
           // update the watched literal
 #if NOTIFY_WATCH_CHANGES
-          NOTIFY(_observer, new sat::gui::unwatch(cl, lit))
+          notify_obs(new sat::gui::unwatch(cl, lit));
 #endif
-            // remove the clause from the watch list
-            watch_list[i--] = watch_list[--n];
+          // remove the clause from the watch list
+          watch_list[i--] = watch_list[--n];
           watch_list.pop_back();
           // watch new literal
           watch_lit(lits[1], cl);
@@ -201,10 +197,10 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
           lits[1] = *highest_non_satisfied_literal;
           *highest_non_satisfied_literal = lit;
 #if NOTIFY_WATCH_CHANGES
-          NOTIFY(_observer, new sat::gui::unwatch(cl, lit))
+          notify_obs(new sat::gui::unwatch(cl, lit));
 #endif
-            // remove the clause from the watch list
-            watch_list[i--] = watch_list[--n];
+          // remove the clause from the watch list
+          watch_list[i--] = watch_list[--n];
           watch_list.pop_back();
           // watch new literal
           watch_lit(lits[1], cl);
@@ -222,13 +218,13 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
         ASSERT(lazy_reason == CLAUSE_UNDEF || lazy_reason < _clauses.size());
         if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > highest_non_satisfied_level) {
           _lazy_reimplication_buffer[lit_to_var(lits[0])] = cl;
-          NOTIFY(_observer, new sat::gui::stat("Lazy reimplication detected"))
+          notify_obs(new sat::gui::stat("Lazy reimplication detected"));
         }
         continue;
       }
       if (lit_false(lit2)) {
         // the clause is conflicting
-        if (_chronological_backtracking) {
+        if (_options.chronological_backtracking) {
           // Replace the watched literal by the highest falsified literal
           // It is not really necessary, since if it is not backtracked after conflict analysis, it will be propagated again.
           // But since we already know the best candidate for replacement, we might as well do it now instead of waiting for the next propagation.
@@ -237,10 +233,10 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
             lits[1] = *highest_non_satisfied_literal;
             *highest_non_satisfied_literal = lit;
 #if NOTIFY_WATCH_CHANGES
-            NOTIFY(_observer, new sat::gui::unwatch(cl, lit))
+            notify_obs(new sat::gui::unwatch(cl, lit));
 #endif
-              // remove the clause from the watch list
-              watch_list[i--] = watch_list[--n];
+            // remove the clause from the watch list
+            watch_list[i--] = watch_list[--n];
             watch_list.pop_back();
             // watch new literal
             watch_lit(lits[1], cl);
@@ -262,10 +258,10 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
         lits[1] = *highest_non_satisfied_literal;
         *highest_non_satisfied_literal = lit;
 #if NOTIFY_WATCH_CHANGES
-        NOTIFY(_observer, new sat::gui::unwatch(cl, lit))
+        notify_obs(new sat::gui::unwatch(cl, lit));
 #endif
-          // remove the clause from the watch list
-          watch_list[i--] = watch_list[--n];
+        // remove the clause from the watch list
+        watch_list[i--] = watch_list[--n];
         watch_list.pop_back();
         // watch new literal
         watch_lit(lits[1], cl);
@@ -273,7 +269,6 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       }
       // clause is unit, propagate
       stack_lit(lit2, cl);
-      ASSERT(watch_lists_minimal());
       continue;
     }
 
@@ -281,24 +276,22 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
     lits[1] = *k;
     *k = lit;
 #if NOTIFY_WATCH_CHANGES
-    NOTIFY(_observer, new sat::gui::unwatch(cl, lit))
+    notify_obs(new sat::gui::unwatch(cl, lit));
 #endif
-      // remove the clause from the watch list
-      watch_list[i--] = watch_list[--n];
+    // remove the clause from the watch list
+    watch_list[i--] = watch_list[--n];
     watch_list.pop_back();
     // watch new literal
     watch_lit(lits[1], cl);
   }
 
   _vars[lit_to_var(lit)].waiting = false;
-
-  NOTIFY(_observer, new sat::gui::check_invariants())
-    return CLAUSE_UNDEF;
+  return CLAUSE_UNDEF;
 }
 
 void modulariT_SAT::backtrack(Tlevel level)
 {
-  ASSERT(!_chronological_backtracking);
+  ASSERT(!_options.chronological_backtracking);
   ASSERT(level <= _decision_index.size());
   if (level == _decision_index.size())
     return;
@@ -319,13 +312,13 @@ void modulariT_SAT::backtrack(Tlevel level)
 
 void sat::modulariT_SAT::CB_backtrack(Tlevel level)
 {
-  ASSERT(_chronological_backtracking);
+  ASSERT(_options.chronological_backtracking);
   ASSERT(level <= _decision_index.size());
   ASSERT(_backtrack_buffer.empty());
   if (level == _decision_index.size())
     return;
-  NOTIFY(_observer, new sat::gui::backtracking_started(level))
-    unsigned waiting_count = 0;
+  notify_obs(new sat::gui::backtracking_started(level));
+  unsigned waiting_count = 0;
 
   while (_decision_index.size() > level) {
     Tlit lit = _trail.back();
@@ -336,7 +329,7 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
     }
     if (lit_level(lit) > level) {
       var_unassign(lit_to_var(lit));
-      if (_strong_chronological_backtracking) {
+      if (_options.strong_chronological_backtracking) {
         // look if the literal can be reimplied at a lower level
         Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lit)];
         if (lazy_reason != CLAUSE_UNDEF && lit_level(_clauses[lazy_reason].lits[1]) <= level) {
@@ -358,7 +351,7 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
     _trail.push_back(lit);
   }
   _propagated_literals = _trail.size() - waiting_count;
-  if (_strong_chronological_backtracking && _reimplication_backtrack_buffer.size() > 0) {
+  if (_options.strong_chronological_backtracking && _reimplication_backtrack_buffer.size() > 0) {
     // adds the literals on the lazy reimplication buffer to the trail by order of increasing level
     // Sort the literals by increasing level
     // The topological order will automatically be respected because the reimplied literals cannot depend on each other.
@@ -369,7 +362,7 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
       Tlit reimpl_lit = _clauses[lazy_clause].lits[0];
       ASSERT(lit_undef(reimpl_lit));
       stack_lit(reimpl_lit, lazy_clause);
-      NOTIFY(_observer, new sat::gui::stat("Lazy reimplication used"))
+      notify_obs(new sat::gui::stat("Lazy reimplication used"));
     }
     _reimplication_backtrack_buffer.clear();
   }
@@ -439,7 +432,7 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
         break;
       }
       else {
-        NOTIFY(_observer, new sat::gui::stat("Lazy reimplication used"))
+        notify_obs(new sat::gui::stat("Lazy reimplication used"));
       }
       // The missed lower implication will be propagated again after backtracking.
       // So we anticipate and continue conflict analysis directly
@@ -488,7 +481,7 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
     if (reason == CLAUSE_UNDEF)
       reason = lit_reason(lit);
     else {
-      NOTIFY(_observer, new sat::gui::stat("Lazy reimplication used"))
+      notify_obs(new sat::gui::stat("Lazy reimplication used"));
     }
     ASSERT(reason != CLAUSE_UNDEF);
     TSclause& clause = _clauses[reason];
@@ -612,7 +605,7 @@ void modulariT_SAT::analyze_conflict(Tclause conflict)
   for (unsigned j = 0; j < _next_literal_index; j++)
     lit_unmark_seen(_literal_buffer[j]);
   // backtrack depending on the chronological backtracking strategy
-  if (_chronological_backtracking)
+  if (_options.chronological_backtracking)
     CB_backtrack(conflict_level - 1);
   else {
     Tlevel second_highest_level = LEVEL_ROOT;
@@ -629,9 +622,9 @@ void modulariT_SAT::analyze_conflict(Tclause conflict)
 
 void modulariT_SAT::repair_conflict(Tclause conflict)
 {
-  NOTIFY(_observer, new sat::gui::conflict(conflict))
-    if (_status == SAT)
-      _status = UNDEF;
+  notify_obs(new sat::gui::conflict(conflict));
+  if (_status == SAT)
+    _status = UNDEF;
   ASSERT(_clauses[conflict].size > 0);
   ASSERT(lit_false(_clauses[conflict].lits[0]));
   if (lit_level(_clauses[conflict].lits[0]) == LEVEL_ROOT) {
@@ -639,13 +632,13 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
     return;
   }
   if (_clauses[conflict].size == 1) {
-    if (_chronological_backtracking)
+    if (_options.chronological_backtracking)
       CB_backtrack(lit_level(_clauses[conflict].lits[0]) - 1);
     else
       backtrack(LEVEL_ROOT);
     // In strong chronological backtracking, the literal might have been propagated again during reimplication
     // Therefore, we might need to trigger another conflict analysis
-    ASSERT(_strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]));
+    ASSERT(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]));
     if (!lit_undef(_clauses[conflict].lits[0])) {
       // the problem is unsat
       // The literal could have been propagated by the reimplication
@@ -656,8 +649,8 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
 
     return;
   }
-  ASSERT(_chronological_backtracking || lit_level(_clauses[conflict].lits[0]) == _decision_index.size());
-  if (_chronological_backtracking) {
+  ASSERT(_options.chronological_backtracking || lit_level(_clauses[conflict].lits[0]) == _decision_index.size());
+  if (_options.chronological_backtracking) {
     unsigned n_literal_at_highest_level = 1;
     Tlevel highest_level = lit_level(_clauses[conflict].lits[0]);
     for (unsigned i = 1; i < _clauses[conflict].size; i++) {
@@ -672,7 +665,7 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
       CB_backtrack(lit_level(_clauses[conflict].lits[0]) - 1);
       // In strong chronological backtracking, the literal might have been propagated again during reimplication
       // Therefore, we might need to trigger another conflict analysis
-      ASSERT(_strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]));
+      ASSERT(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]));
       if (!lit_undef(_clauses[conflict].lits[0])) {
         // the first literal might not be at the highest level anymore
         // therefore we want to bring the highest level literal to the front
@@ -701,23 +694,24 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
       return;
     }
   }
-  if (_strong_chronological_backtracking)
+  if (_options.strong_chronological_backtracking)
     analyze_conflict_reimply(conflict);
   else {
     analyze_conflict(conflict);
   }
-  _var_activity_increment /= _var_activity_decay;
+  _var_activity_increment /= _options.var_activity_decay;
 }
 
 void modulariT_SAT::restart()
 {
   _agility = 1;
-  _agility_threshold *= _threshold_decay;
-  if (_chronological_backtracking)
+  _options.agility_threshold *= _options.agility_threshold_decay;
+  if (_options.chronological_backtracking)
     CB_backtrack(LEVEL_ROOT);
   else
     backtrack(LEVEL_ROOT);
   ASSERT(trail_consistency());
+  notify_obs(new sat::gui::stat("Restart"));
 }
 
 void sat::modulariT_SAT::purge_clauses()
@@ -756,7 +750,7 @@ void sat::modulariT_SAT::purge_clauses()
       if (lit_undef(_clauses[cl].lits[0]))
         stack_lit(_clauses[cl].lits[0], cl);
       else {
-        ASSERT(_chronological_backtracking);
+        ASSERT(_options.chronological_backtracking);
         CB_backtrack(LEVEL_ROOT);
         if (lit_false(_clauses[cl].lits[0])) {
           _status = UNSAT;
@@ -782,8 +776,8 @@ void sat::modulariT_SAT::purge_clauses()
 
 void sat::modulariT_SAT::simplify_clause_set()
 {
-  _next_clause_elimination *= _clause_elimination_multiplier;
-  _clause_activity_threshold *= _clause_activity_threshold_decay;
+  _next_clause_elimination *= _options.clause_elimination_multiplier;
+  _clause_activity_threshold *= _options.clause_activity_threshold_decay;
   double threshold = _max_clause_activity * _clause_activity_threshold;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
     ASSERT(_clauses[cl].activity <= _max_clause_activity);
@@ -796,9 +790,12 @@ void sat::modulariT_SAT::simplify_clause_set()
       continue;
     if (_clauses[cl].activity < threshold) {
       delete_clause(cl);
+      notify_obs(new sat::gui::stat("Clause deleted"));
     }
   }
   repair_watch_lists();
+  ASSERT(watch_lists_complete());
+  notify_obs(new sat::gui::stat("Clause set simplified"));
 }
 
 void sat::modulariT_SAT::order_trail()
@@ -849,8 +846,8 @@ void sat::modulariT_SAT::select_watched_literals(Tlit* lits, unsigned size)
 
 Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size, bool learned, bool external)
 {
-  // for (unsigned i = 0; i < size; i++)
-  //   bump_var_activity(lit_to_var(lits_input[i]));
+  for (unsigned i = 0; i < size; i++)
+    bump_var_activity(lit_to_var(lits_input[i]));
   Tlit* lits;
   Tclause cl;
   TSclause* clause;
@@ -895,9 +892,6 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
     _observer->notify(new sat::gui::new_clause(cl, lits_vector, learned, external));
   }
 
-  if (_n_learned_clauses >= _next_clause_elimination)
-    simplify_clause_set();
-
   ASSERT(clause_soundness(cl));
   if (size == 0) {
     clause->watched = false;
@@ -926,11 +920,13 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
     Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lits[0])];
     if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > lit_level(lits[1])) {
       _lazy_reimplication_buffer[lit_to_var(lits[0])] = cl;
-      NOTIFY(_observer, new sat::gui::stat("Lazy reimplication detected"))
+      notify_obs(new sat::gui::stat("Lazy reimplication detected"));
     }
   }
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
+  if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination)
+    simplify_clause_set();
   return cl;
 }
 
@@ -938,7 +934,8 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
 /*                            Public interface                               */
 /*****************************************************************************/
 
-modulariT_SAT::modulariT_SAT(unsigned int n_var, unsigned int n_clauses)
+sat::modulariT_SAT::modulariT_SAT(unsigned n_var, unsigned n_clauses, sat::options& options) :
+  _options(options)
 {
   _vars = vector<TSvar>(n_var + 1);
   _trail = vector<Tlit>();
@@ -946,8 +943,8 @@ modulariT_SAT::modulariT_SAT(unsigned int n_var, unsigned int n_clauses)
   _watch_lists = vector<vector<Tclause>>(2 * n_var + 2);
 
   for (Tvar var = 1; var <= n_var; var++) {
-    NOTIFY(_observer, new sat::gui::new_variable(var))
-      _variable_heap.insert(var, 0);
+    notify_obs(new sat::gui::new_variable(var));
+    _variable_heap.insert(var, 0);
   }
 
   _clauses = vector<TSclause>();
@@ -955,6 +952,23 @@ modulariT_SAT::modulariT_SAT(unsigned int n_var, unsigned int n_clauses)
 
   _literal_buffer = new Tlit[n_var];
   _next_literal_index = 0;
+
+  if (options.interactive) {
+    _observer = new sat::gui::observer();
+  }
+  else if (options.observing) {
+    _observer = new sat::gui::observer();
+  }
+  else if (options.check_invariants) {
+    _observer = new sat::gui::observer();
+    _observer->toggle_checking_only(true);
+  }
+  else if (options.print_stats) {
+    _observer = new sat::gui::observer();
+    _observer->toggle_stats_only(true);
+  }
+  else
+    _observer = nullptr;
 }
 
 modulariT_SAT::~modulariT_SAT()
@@ -966,110 +980,9 @@ modulariT_SAT::~modulariT_SAT()
   delete[] _literal_buffer;
 }
 
-void modulariT_SAT::toggle_chronological_backtracking(bool on)
-{
-  if (!on)
-    order_trail();
-  _chronological_backtracking = on;
-  if (_observer) {
-    if (on)
-      _observer->load_invariant_configuration("invariant-configurations/weak-chronological-backtracking.conf");
-    else
-      _observer->load_invariant_configuration("invariant-configurations/non-chronological-backtracking.conf");
-  }
-}
-
-void sat::modulariT_SAT::toggle_strong_chronological_backtracking(bool on)
-{
-  _strong_chronological_backtracking = on;
-  if (on)
-    toggle_chronological_backtracking(true);
-  if (_observer) {
-    if (on)
-      _observer->load_invariant_configuration("invariant-configurations/strong-chronological-backtracking.conf");
-    else if (_chronological_backtracking)
-      _observer->load_invariant_configuration("invariant-configurations/weak-chronological-backtracking.conf");
-    else
-      _observer->load_invariant_configuration("invariant-configurations/non-chronological-backtracking.conf");
-  }
-}
-
 void modulariT_SAT::set_proof_callback(void (*proof_callback)(void))
 {
   _proof_callback = proof_callback;
-}
-
-void modulariT_SAT::toggle_proofs(bool on)
-{
-  ASSERT(_proof_callback);
-  _proofs = on;
-}
-
-void sat::modulariT_SAT::toggle_interactive(bool on)
-{
-  if (on) {
-    toggle_observing(true);
-    _interactive = true;
-    ASSERT(_observer);
-    _observer->set_command_parser([this](const std::string& command)
-      { return this->parse_command(command); });
-  }
-  else {
-    if (_observer)
-      delete _observer;
-    _observer = nullptr;
-  }
-}
-
-void sat::modulariT_SAT::toggle_observing(bool on)
-{
-  if (on) {
-  build_observer:;
-    if (!_observer) {
-      _observer = new sat::gui::observer();
-      for (unsigned i = 1; i < _vars.size(); i++)
-        _observer->notify(new sat::gui::new_variable(i));
-      for (unsigned i = 0; i < _clauses.size(); i++) {
-        vector<Tlit> lits;
-        for (unsigned j = 0; j < _clauses[i].size; j++)
-          lits.push_back(_clauses[i].lits[j]);
-        _observer->notify(new sat::gui::new_clause(i, lits, _clauses[i].learned, _clauses[i].external));
-      }
-      for (unsigned i = 0; i < _trail.size(); i++) {
-        if (lit_reason(_trail[i]) == CLAUSE_UNDEF)
-          _observer->notify(new sat::gui::decision(_trail[i]));
-        else
-          _observer->notify(new sat::gui::implication(_trail[i], lit_reason(_trail[i]), lit_level(_trail[i])));
-        if (i < _propagated_literals)
-          _observer->notify(new sat::gui::propagation(_trail[i]));
-      }
-    }
-    else {
-      cout << "Warning: observer already set" << endl;
-      cout << "Do you want to rebuild the observer? (y/n)" << endl;
-      char c;
-      cin >> c;
-      if (c == 'y') {
-        delete _observer;
-        _observer = nullptr;
-        goto build_observer;
-      }
-      else
-        cout << "Observer not rebuilt" << endl;
-    }
-  }
-  else {
-    if (_observer)
-      delete _observer;
-    _observer = nullptr;
-    _interactive = false;
-  }
-}
-
-bool sat::modulariT_SAT::is_interactive() const
-{
-  ASSERT(!_interactive || _observer);
-  return _interactive;
 }
 
 bool sat::modulariT_SAT::is_observing() const
@@ -1090,22 +1003,22 @@ bool modulariT_SAT::propagate()
     Tlit lit = _trail[_propagated_literals];
     Tclause conflict = propagate_lit(lit);
     if (conflict != CLAUSE_UNDEF) {
-      NOTIFY(_observer, new sat::gui::conflict(conflict))
-        repair_conflict(conflict);
+      notify_obs(new sat::gui::conflict(conflict));
+      repair_conflict(conflict);
       if (_status == UNSAT)
         return false;
-      if (_agility < _agility_threshold)
+      if (_agility < _options.agility_threshold)
         restart();
       continue;
     }
     _propagated_literals++;
-    NOTIFY(_observer, new sat::gui::propagation(lit))
-      if (_purge_counter >= _purge_threshold) {
-        purge_clauses();
-        _purge_counter = 0;
-        if (_status == UNSAT)
-          return false;
-      }
+    notify_obs(new sat::gui::propagation(lit));
+    if (_purge_counter >= _purge_threshold) {
+      purge_clauses();
+      _purge_counter = 0;
+      if (_status == UNSAT)
+        return false;
+    }
   }
   ASSERT(trail_consistency());
   ASSERT(no_unit_clauses());
@@ -1121,20 +1034,21 @@ status modulariT_SAT::solve()
   if (_status != UNDEF)
     return _status;
   while (true) {
+    notify_obs(new sat::gui::check_invariants());
     if (!propagate()) {
-      if (_status == UNSAT || !_interactive)
+      if (_status == UNSAT || !_options.interactive)
         break;
-      NOTIFY(_observer, new sat::gui::done(_status == SAT))
+      notify_obs(new sat::gui::done(_status == SAT));
     }
     ASSERT(trail_consistency());
-    if (_observer && _interactive)
+    if (_observer && _options.interactive)
       _observer->notify(new sat::gui::checkpoint());
     else
       decide();
   }
   ASSERT(trail_consistency());
-  NOTIFY(_observer, new sat::gui::done(_status == SAT))
-    return _status;
+  notify_obs(new sat::gui::done(_status == SAT));
+  return _status;
 }
 
 status modulariT_SAT::get_status()
@@ -1202,13 +1116,13 @@ status sat::modulariT_SAT::add_clause(Tlit* lits, unsigned size)
 
 const Tlit* sat::modulariT_SAT::get_clause(Tclause cl) const
 {
-  ASSERT(cl < _clauses.size());
+  assert(cl < _clauses.size());
   return _clauses[cl].lits;
 }
 
 unsigned sat::modulariT_SAT::get_clause_size(Tclause cl) const
 {
-  ASSERT(cl < _clauses.size());
+  assert(cl < _clauses.size());
   return _clauses[cl].size;
 }
 

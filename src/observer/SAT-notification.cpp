@@ -433,44 +433,44 @@ void sat::gui::check_invariants::rollback(observer& obs)
   obs.check_invariants();
 }
 
-std::string sat::gui::notification_to_string(NotificationType type)
+std::string sat::gui::notification_type_to_string(ENotifType type)
 {
   switch (type) {
-  case NotificationType::CHECKPOINT:
+  case ENotifType::CHECKPOINT:
   return "CHECKPOINT";
-  case NotificationType::DONE:
+  case ENotifType::DONE:
   return "DONE";
-  case NotificationType::MARKER:
+  case ENotifType::MARKER:
   return "MARKER";
-  case NotificationType::NEW_VARIABLE:
+  case ENotifType::NEW_VARIABLE:
   return "NEW_VARIABLE";
-  case NotificationType::DELETE_VARIABLE:
+  case ENotifType::DELETE_VARIABLE:
   return "DELETE_VARIABLE";
-  case NotificationType::DECISION:
+  case ENotifType::DECISION:
   return "DECISION";
-  case NotificationType::IMPLICATION:
+  case ENotifType::IMPLICATION:
   return "IMPLICATION";
-  case NotificationType::PROPAGATION:
+  case ENotifType::PROPAGATION:
   return "PROPAGATION";
-  case NotificationType::CONFLICT:
+  case ENotifType::CONFLICT:
   return "CONFLICT";
-  case NotificationType::BACKTRACKING_STARTED:
+  case ENotifType::BACKTRACKING_STARTED:
   return "BACKTRACKING_STARTED";
-  case NotificationType::BACKTRACKING_DONE:
+  case ENotifType::BACKTRACKING_DONE:
   return "BACKTRACKING_DONE";
-  case NotificationType::UNASSIGNMENT:
+  case ENotifType::UNASSIGNMENT:
   return "UNASSIGNMENT";
-  case NotificationType::NEW_CLAUSE:
+  case ENotifType::NEW_CLAUSE:
   return "NEW_CLAUSE";
-  case NotificationType::DELETE_CLAUSE:
+  case ENotifType::DELETE_CLAUSE:
   return "DELETE_CLAUSE";
-  case NotificationType::WATCH:
+  case ENotifType::WATCH:
   return "WATCH";
-  case NotificationType::UNWATCH:
+  case ENotifType::UNWATCH:
   return "UNWATCH";
-  case NotificationType::REMOVE_LITERAL:
+  case ENotifType::REMOVE_LITERAL:
   return "REMOVE_LITERAL";
-  case NotificationType::CHECK_INVARIANTS:
+  case ENotifType::CHECK_INVARIANTS:
   return "CHECK_INVARIANTS";
   default:
   return "UNKNOWN";

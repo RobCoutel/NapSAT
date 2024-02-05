@@ -33,6 +33,12 @@ namespace sat::gui
     unsigned _display_level = 1;
 
     /**
+     * @brief Whether the display has been updated since the last user input.
+     * If it has not, the display is not refreshed.
+    */
+    bool _updated = true;
+
+    /**
      * @brief Set the display level.
      */
     void set_display_level(unsigned level);

@@ -1,0 +1,76 @@
+This documentation shows the different navigation commands the user can enter
+to observe the execution of the SAT solver.
+
+The commands are the following:
+    ********************************* HELPERS *********************************
+    help
+        Print this helper
+
+    ******************************** NAVIGATION *******************************
+    `enter key` or next
+        Advances in the execution until the next notification with a level lower
+        than the `display level`
+
+    b or back
+        Goes backward in the execution until the next notification with a level
+        lower than the `display level`
+
+    set level <level>
+        Sets the `display level` to <level>
+
+    ******************************* OBSERVATION *******************************
+    sort clauses
+        Sorts the literals in the display by their status (satisfied/undefined/
+        falsified)
+
+    p or print
+        Prints the state of the observer.
+
+    ******************************* WATCH POINTS ******************************
+    mark var <variable>
+        Marks the variable <variable>.
+        All notifications involving marked variables have a level 1 (`display
+        level`)
+        <variable> should be a positive integer between 0 and the number of
+        variables in the solver
+
+    mark clause <cl>
+        Marks the clause <cl>.
+        All notifications involving marked variables a have a level 1 (`display
+        level`)
+        <cl> should be a positive integer
+
+    unmark var <variable>
+        Removes the variable <var> from the marked variables.
+
+    unmark clause <cl>
+        Removes the clause <cl> from the marked clauses.
+
+    set breakpoint <bp>
+        Sets a new breakpoing <bp>
+        The notification number <bp> will be assigned level 1 (`display level`)
+
+    remove breakpoint <bp>
+        Removes the breakpoint <bp>
+
+    ***************************** LATEX GENERATION ****************************
+    save
+        Saves the clause set and trail as LaTeX tikz figures in the files
+        that were configured by the --save option (see "$ modulariT-SAT -h")
+
+    print trail latex [file name]
+        Prints the LaTeX code for the trail as a tikz picture on the standard
+        ouput.
+        If [file name] is a valid location, the trail is saved as a file called
+        [file name] instead.
+
+    print clauses latex [file name]
+        Prints the LaTeX code of the clauses as a tabular on the standard output.
+        If [file name] is a valid location, the clauses is saved as a file called
+        [file name] instead.
+
+    print implications latex [file name]
+        Prints the LaTeX code of the implication graph as a tikz picture on the
+        standard output.
+        If [file name] is a valid location, the implication graph is saved as a
+        file called [file name] instead.

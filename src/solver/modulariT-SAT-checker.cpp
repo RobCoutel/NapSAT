@@ -125,7 +125,7 @@ bool sat::modulariT_SAT::watch_lists_complete()
       }
       if (!found) {
         success = false;
-        cerr << error << "Invariant violation: Watch lists complete: clause " << cl << " is not in the watch list of its watched literal " << lit << "\n";
+        cerr << error << "Invariant violation: Watch lists complete: clause " << cl << " is not in the watch list of its watched literal " << literal_to_string(lit) << "\n";
         cout << error << "Invariant violation: ";
         print_clause(cl);
         cout << " is not in the watch list of its watched literal ";
@@ -301,7 +301,7 @@ bool sat::modulariT_SAT::weak_non_falsified_clause(Tclause clause)
 
 bool sat::modulariT_SAT::no_unit_clauses()
 {
-  if (_chronological_backtracking)
+  if (_options.chronological_backtracking)
     return true;
   bool success = true;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {

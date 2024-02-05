@@ -8,10 +8,11 @@
 
 #include "SAT-config.hpp"
 #include "SAT-types.hpp"
+#include "SAT-options.hpp"
+#include "heap.hpp"
 #include "../observer/SAT-stats.hpp"
 #include "../observer/SAT-notification.hpp"
 #include "../observer/SAT-observer.hpp"
-#include "heap.hpp"
 
 #include <vector>
 #include <set>
@@ -149,6 +150,10 @@ namespace sat
     /*                          Fields definitions                           */
     /*************************************************************************/
     /**
+     * @brief Options of the solver.
+    */
+    sat::options _options;
+    /**
      * @brief Status of the solver.
      */
     status _status = UNDEF;
@@ -208,10 +213,7 @@ namespace sat
      * TODO update the definition
      */
     double _var_activity_increment = 1.0;
-    /**
-     * @brief Decay factor of the _var_activity_increment.
-     */
-    const double _var_activity_decay = 0.95;
+
     /**
      * @brief Priority queue of variables. The variables are ordered by their activity.
      */
@@ -234,19 +236,9 @@ namespace sat
      */
     unsigned _next_clause_elimination = 0;
     /**
-     * @brief Multiplier of the number of clauses before elimination.
-     */
-    double _clause_elimination_multiplier = 1.5;
-    /**
      * @brief Activity increment for clauses. Each time a clause is used to resolve a conflict, its activity is increased by _clause_activity_increment and _clause_activity_increment is multiplied by _clause_activity_multiplier.
      */
-    double _clause_activity_increment = 0.0001;
-    /**
-     * @brief Multiplier for the activity increment of clauses.
-     * @details The higher the multiplier, faster the clauses are considered irrelevant.
-     * @details The multiplier must be greater than 1.
-     */
-    double _clause_activity_multiplier = 1.0001;
+    double _clause_activity_increment = 1;
     /**
      * @brief Maximum possible activity of a clause. It is the sum of the activity increments.
      */
@@ -255,11 +247,7 @@ namespace sat
      * @brief Threshold of the clause activity. If the activity of a clause is lower than the threshold multiplied by the maximum possible activity, the clause is deleted.
      * @details The threshold is a value between 0 and 1. The higher the threshold, the more clauses are deleted.
      */
-    double _clause_activity_threshold = 0;
-    /**
-     * @brief Decay factor of the clause activity threshold. If the solver deletes too many clauses, the solver will not make progress. Therefore, the threshold is multiplied by the threshold decay factor upon each clause deletion. This hyper parameter must be set to a value lower than 1.
-     */
-    double _clause_activity_threshold_decay = 0.85;
+    double _clause_activity_threshold = 1;
 
     /**
      * @brief Increases the activity of a clause and updates the maximum possible activity.
@@ -294,22 +282,6 @@ namespace sat
      * TODO Check if there is not a limit to the decay factor such that it is not possible to finish propagating all literals. It probably depends on the threshold decay factor too.
      */
     double _agility = 1;
-    /**
-     * @brief Decay factor the of moving average of the agility.
-     */
-    double _agility_decay = 0.9999;
-    /**
-     * @brief Threshold of the agility. If the agility is lower than the threshold, the solver restarts and the the threshold is multiplied by threshold_decay.
-     */
-    double _agility_threshold = 0.4;
-    /**
-     * @brief Multiplier for the agility threshold. Since formulas can be very different, the agility for one problem may not be the same as the agility for another problem. Therefore, the threshold is multiplied by the threshold multiplier upon each implication. This hyper parameter must be set to a value greater than 1.
-     */
-    double _threshold_multiplier = 1;
-    /**
-     * @brief Decay factor of the threshold. If the solver restarts too often, the solver will not make progress. Therefore, the threshold is multiplied by the threshold decay factor upon each restart. This hyper parameter must be set to a value lower than 1 and lower than 2 - threshold_multiplier.
-     */
-    double _threshold_decay = 1;
 
     /**  PURGE  **/
     /**
@@ -327,12 +299,6 @@ namespace sat
     unsigned _purge_inc = 1;
 
     /**  CHRONOLOGICAL BACKTRACKING  **/
-
-    /**
-     * @brief True if the solver is using chronological backtracking.
-     */
-    bool _chronological_backtracking = false;
-
     /**
      * @brief Buffer used in chronological backtracking to store literals that were removed from the trail and must be put back in the trail.
      */
@@ -346,10 +312,6 @@ namespace sat
     void order_trail();
 
     /**  MISSED LOWER IMPLICATIONS  **/
-    /**
-     * @brief True if the solver is using strong chronological backtracking. In strong chronological backtracking, the solver will log missed lower implication and reimply them lazyly when backtracking.
-     */
-    bool _strong_chronological_backtracking = false;
     /**
      * @brief For each variable, contains the lowest clause that can propagate the variable.
      * The clause must be ordered such that the first literal is the one that could have been propagated earlier. And the second literal is the highest literal in the clause.
@@ -373,7 +335,6 @@ namespace sat
     void (*_proof_callback)(void) = nullptr;
 
     /**  SMT SYNCHRONIZATION  **/
-
     /**
      * @brief Number of literals that were valid since the last synchronization.
      */
@@ -400,6 +361,13 @@ namespace sat
      */
     bool _interactive = false;
 
+    void inline notify_obs(sat::gui::notification* notif)
+    {
+      if (_observer)
+        _observer->notify(notif);
+      else
+        delete notif;
+    }
     /*************************************************************************/
     /*                       Quality of life functions                       */
     /*************************************************************************/
@@ -462,8 +430,7 @@ namespace sat
     inline void watch_lit(Tlit lit, Tclause cl)
     {
 #if NOTIFY_WATCH_CHANGES
-      if (_observer)
-        _observer->notify(new sat::gui::watch(cl, lit));
+      notify_obs(new sat::gui::watch(cl, lit));
 #endif
       _watch_lists[lit].push_back(cl);
     }
@@ -476,8 +443,7 @@ namespace sat
     {
       assert(std::find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl) != _watch_lists[lit].end());
 #if NOTIFY_WATCH_CHANGES
-      if (_observer)
-        _observer->notify(new sat::gui::unwatch(cl, lit));
+      notify_obs(new sat::gui::unwatch(cl, lit));
 #endif
       * std::find(_watch_lists[lit].begin(),
         _watch_lists[lit].end(), cl) = _watch_lists[lit].back();
@@ -559,8 +525,7 @@ namespace sat
     inline void var_unassign(Tvar var)
     {
       TSvar& v = _vars[var];
-      if (_observer)
-        _observer->notify(new sat::gui::unassignment(literal(var, v.state)));
+      notify_obs(new sat::gui::unassignment(literal(var, v.state)));
       v.state = VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
@@ -577,8 +542,7 @@ namespace sat
     {
       for (Tvar i = _vars.size(); i <= var; i++) {
         _variable_heap.insert(i, 0.0);
-        if (_observer)
-          _observer->notify(new sat::gui::new_variable(i));
+        notify_obs(new sat::gui::new_variable(i));
       }
       if (var >= _vars.size() - 1) {
         _vars.resize(var + 1);
@@ -709,7 +673,7 @@ namespace sat
      * @param n_var initial number of variables. Can be increased later.
      * @param n_clauses initial number of clauses. Can be increased later by adding clauses.
      */
-    modulariT_SAT(unsigned int n_var, unsigned int n_clauses);
+    modulariT_SAT(unsigned n_var, unsigned n_clauses, sat::options& options);
 
     /**
      * @brief Parse a DIMACS file and add the clauses to the clause set.
@@ -717,41 +681,9 @@ namespace sat
     void parse_dimacs(const char* filename);
 
     /**
-     * @brief Switch the solver to chronological backtracking mode. By default, the solver uses non-chronological backtracking.
-     */
-    void toggle_chronological_backtracking(bool on);
-
-    /**
-     * @brief Switch the solver to strong chronological backtracking mode. By default, the solver uses strong chronological backtracking.
-     */
-    void toggle_strong_chronological_backtracking(bool on);
-
-    /**
      * @brief Set the callback function to print the proof of unsatisfiability.
      */
     void set_proof_callback(void (*proof_callback)(void));
-
-    /**
-     * @brief Asks the solver to keep track of the proof of unsatisfiability of the clause set. The proof can be printed with print_refutation(). By default, the solver does not keep track of the proof.
-     * @pre The trail must be empty and no learning must have been done.
-     * @pre The callback function must be set.
-     */
-    void toggle_proofs(bool on);
-
-    /**
-     * @brief Enable or disable interactivity of the solver. The solver is interactive if it stops between decisions to let the user make a decision, hint or learn a clause.
-     * @details If on, this option significantly slows down the solver.
-     * @details If on, the solver will also switch on observing.
-     * @param on true to enable interactivity, false to disable it.
-     */
-    void toggle_interactive(bool on);
-
-    /**
-     * @brief Enable or disable observing of the solver. The solver is observed if it notifies an observer of its progress.
-     * @details If on, this option significantly slows down the solver.
-     * @param on true to enable observing, false to disable it.
-     */
-    void toggle_observing(bool on);
 
     /**
      * @brief Returns true if the solver is in interactive mode.

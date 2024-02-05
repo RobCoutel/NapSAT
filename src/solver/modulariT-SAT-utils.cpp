@@ -61,7 +61,7 @@ void sat::modulariT_SAT::bump_var_activity(Tvar var)
 void sat::modulariT_SAT::bump_clause_activity(Tclause cl)
 {
   _clauses.at(cl).activity += _clause_activity_increment;
-  _clause_activity_increment *= _clause_activity_multiplier;
+  _clause_activity_increment *= _options.clause_activity_multiplier;
   _max_clause_activity += _clause_activity_increment;
   if (_max_clause_activity > 1e100) {
     for (Tclause i = 0; i < _clauses.size(); i++) {
@@ -78,8 +78,7 @@ void sat::modulariT_SAT::delete_clause(Tclause cl)
   _clauses[cl].deleted = true;
   _clauses[cl].watched = false;
   _deleted_clauses.push_back(cl);
-  if (_observer)
-    _observer->notify(new sat::gui::delete_clause(cl));
+  notify_obs(new sat::gui::delete_clause(cl));
 }
 
 static const char esc_char = 27; // the decimal code for escape character is 27
@@ -94,8 +93,7 @@ void sat::modulariT_SAT::repair_watch_lists()
       TSclause& clause = _clauses[cl];
       if (clause.deleted || !clause.watched || clause.size < 2 || (clause.lits[0] != lit && clause.lits[1] != lit)) {
 #if NOTIFY_WATCH_CHANGES
-        if (_observer)
-          _observer->notify(new sat::gui::unwatch(cl, lit));
+        notify_obs(new sat::gui::unwatch(cl, lit));
 #endif
         continue;
       }
@@ -205,14 +203,12 @@ void modulariT_SAT::print_clause(Tclause cl)
     cout << "undef";
     return;
   }
-  // if (_clauses[cl].watched)
-  // {
+  // if (_clauses[cl].watched) {
   //   cout << "w";
   // }
-  // if (_clauses[cl].deleted)
-  // {
-  //   cout << "d";
-  // }
+  if (_clauses[cl].deleted) {
+    cout << "d";
+  }
   cout << cl << ": ";
   for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses[cl].original_size; i++) {
     if (i == _clauses[cl].lits + _clauses[cl].size)
