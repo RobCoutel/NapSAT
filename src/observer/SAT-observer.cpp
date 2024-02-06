@@ -37,19 +37,21 @@ sat::gui::observer::observer(const observer& other)
 
 void observer::notify(notification* notification)
 {
-  assert(_location == _notifications.size() || _stats_only);
   if (notification->get_type() == STAT) {
     stat_count[notification->get_message()]++;
     delete notification;
   }
   else {
     notification_count[notification->get_type()]++;
-    _notifications.push_back(notification);
+    if (_stats_only)
+      delete notification;
+    else
+      _notifications.push_back(notification);
   }
-  if (_stats_only) {
-    delete notification;
+  if (_stats_only)
     return;
-  }
+  assert(_location == _notifications.size());
+
   _location++;
   // cout << "notification " << _location << "/" << _notifications.size() << endl;
   // cout << "notification: " << notification->get_message() << endl;
