@@ -78,7 +78,7 @@ void sat::modulariT_SAT::delete_clause(Tclause cl)
   _clauses[cl].deleted = true;
   _clauses[cl].watched = false;
   _deleted_clauses.push_back(cl);
-  notify_obs(new sat::gui::delete_clause(cl));
+  NOTIFY_OBSERVER(_observer, new sat::gui::delete_clause(cl));
 }
 
 static const char esc_char = 27; // the decimal code for escape character is 27
@@ -93,7 +93,7 @@ void sat::modulariT_SAT::repair_watch_lists()
       TSclause& clause = _clauses[cl];
       if (clause.deleted || !clause.watched || clause.size < 2 || (clause.lits[0] != lit && clause.lits[1] != lit)) {
 #if NOTIFY_WATCH_CHANGES
-        notify_obs(new sat::gui::unwatch(cl, lit));
+        NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
 #endif
         continue;
       }

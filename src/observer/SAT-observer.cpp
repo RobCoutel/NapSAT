@@ -40,6 +40,7 @@ void observer::notify(notification* notification)
   if (notification->get_type() == STAT) {
     stat_count[notification->get_message()]++;
     delete notification;
+    return;
   }
   else {
     notification_count[notification->get_type()]++;
@@ -50,9 +51,9 @@ void observer::notify(notification* notification)
   }
   if (_stats_only)
     return;
-  assert(_location == _notifications.size());
 
   _location++;
+  assert(_location == _notifications.size());
   // cout << "notification " << _location << "/" << _notifications.size() << endl;
   // cout << "notification: " << notification->get_message() << endl;
   notification->apply(*this);

@@ -21,6 +21,10 @@
 #include <cassert>
 #include <algorithm>
 
+#define NOTIFY_OBSERVER(observer, notification) \
+  if (observer) \
+    observer->notify(notification); \
+
 namespace sat
 {
   class modulariT_SAT
@@ -183,6 +187,10 @@ namespace sat
      * @brief _watch_lists[i] is the list of clauses watched by the literal i.
      */
     std::vector<std::vector<Tclause>> _watch_lists;
+    /**
+     * @brief _binary_clauses[l] is the contains the pairs <lit, cl> where lit is a literal to be propagated if l is falsified, and <cl> is the clause that propagates lit.
+    */
+    std::vector<std::vector<std::pair<Tlit, Tclause>>> _binary_clauses;
     /**
      * @brief _decision_index[i] is the index of the made after level i.
      * @remark _decision_index[0] is the index of the first decision.
@@ -361,13 +369,6 @@ namespace sat
      */
     bool _interactive = false;
 
-    void inline notify_obs(sat::gui::notification* notif)
-    {
-      if (_observer)
-        _observer->notify(notif);
-      else
-        delete notif;
-    }
     /*************************************************************************/
     /*                       Quality of life functions                       */
     /*************************************************************************/
@@ -430,7 +431,7 @@ namespace sat
     inline void watch_lit(Tlit lit, Tclause cl)
     {
 #if NOTIFY_WATCH_CHANGES
-      notify_obs(new sat::gui::watch(cl, lit));
+      NOTIFY_OBSERVER(_observer, new sat::gui::watch(cl, lit));
 #endif
       _watch_lists[lit].push_back(cl);
     }
@@ -443,7 +444,7 @@ namespace sat
     {
       assert(std::find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl) != _watch_lists[lit].end());
 #if NOTIFY_WATCH_CHANGES
-      notify_obs(new sat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
 #endif
       * std::find(_watch_lists[lit].begin(),
         _watch_lists[lit].end(), cl) = _watch_lists[lit].back();
@@ -525,7 +526,7 @@ namespace sat
     inline void var_unassign(Tvar var)
     {
       TSvar& v = _vars[var];
-      notify_obs(new sat::gui::unassignment(literal(var, v.state)));
+      NOTIFY_OBSERVER(_observer, new sat::gui::unassignment(literal(var, v.state)));
       v.state = VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
@@ -542,12 +543,13 @@ namespace sat
     {
       for (Tvar i = _vars.size(); i <= var; i++) {
         _variable_heap.insert(i, 0.0);
-        notify_obs(new sat::gui::new_variable(i));
+        NOTIFY_OBSERVER(_observer, new sat::gui::new_variable(i));
       }
       if (var >= _vars.size() - 1) {
         _vars.resize(var + 1);
         _lazy_reimplication_buffer.resize(var + 1, CLAUSE_UNDEF);
         _watch_lists.resize(2 * var + 2);
+        _binary_clauses.resize(2 * var + 2);
         // reallocate the literal buffer to make sure it is big enough
         Tlit* new_literal_buffer = new Tlit[_vars.size()];
         std::memcpy(new_literal_buffer, _literal_buffer, _next_literal_index * sizeof(Tlit));
