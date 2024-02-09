@@ -9,6 +9,7 @@
 #include "SAT-config.hpp"
 #include "SAT-types.hpp"
 #include "SAT-options.hpp"
+#include "custom-assert.hpp"
 #include "heap.hpp"
 #include "../observer/SAT-stats.hpp"
 #include "../observer/SAT-notification.hpp"
@@ -100,6 +101,8 @@ namespace sat
     {
       TSclause(Tlit* lits, unsigned size, bool learned, bool external)
         : lits(lits),
+        first_watched(CLAUSE_UNDEF),
+        second_watched(CLAUSE_UNDEF),
         deleted(false),
         learned(learned),
         watched(true),
@@ -114,6 +117,14 @@ namespace sat
        * @brief Pointer to the first literal of the clause.
        */
       Tlit* lits;
+      /**
+       * @brief Next clause in the watch list of the first watched literal.
+      */
+      Tclause first_watched = CLAUSE_UNDEF;
+      /**
+       * @brief Next clause in the watch list of the second watched literal.
+       */
+      Tclause second_watched = CLAUSE_UNDEF;
       /**
        * @brief Boolean indicating whether the clause is deleted. That is, the clause is not in the clause set anymore and the memory is available for reuse.
        */
@@ -184,9 +195,9 @@ namespace sat
      */
     std::vector<Tclause> _deleted_clauses;
     /**
-     * @brief _watch_lists[i] is the list of clauses watched by the literal i.
+     * @brief _watch_lists[i] is the first clause of the watch list of the literal i.
      */
-    std::vector<std::vector<Tclause>> _watch_lists;
+    std::vector<Tclause> _watch_lists;
     /**
      * @brief _binary_clauses[l] is the contains the pairs <lit, cl> where lit is a literal to be propagated if l is falsified, and <cl> is the clause that propagates lit.
     */
@@ -433,7 +444,23 @@ namespace sat
 #if NOTIFY_WATCH_CHANGES
       NOTIFY_OBSERVER(_observer, new sat::gui::watch(cl, lit));
 #endif
-      _watch_lists[lit].push_back(cl);
+      ASSERT(cl != CLAUSE_UNDEF);
+      ASSERT(cl < _clauses.size());
+      ASSERT(_clauses[cl].size > 2);
+      ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
+      // std::cout << "watching " << lit_to_string(lit) << " in clause " << clause_to_string(cl) << std::endl;
+      Tclause tmp = _watch_lists[lit];
+      _watch_lists[lit] = cl;
+      if (lit == _clauses[cl].lits[0])
+        _clauses[cl].first_watched = tmp;
+      else
+        _clauses[cl].second_watched = tmp;
+      ASSERT(_clauses[cl].first_watched == CLAUSE_UNDEF
+        || _clauses[_clauses[cl].first_watched].lits[0] == _clauses[cl].lits[0]
+        || _clauses[_clauses[cl].first_watched].lits[1] == _clauses[cl].lits[0]);
+      ASSERT(_clauses[cl].second_watched == CLAUSE_UNDEF
+        || _clauses[_clauses[cl].second_watched].lits[0] == _clauses[cl].lits[1]
+        || _clauses[_clauses[cl].second_watched].lits[1] == _clauses[cl].lits[1]);
     }
 
     /**
@@ -442,13 +469,42 @@ namespace sat
      */
     inline void stop_watch(Tlit lit, Tclause cl)
     {
-      assert(std::find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl) != _watch_lists[lit].end());
 #if NOTIFY_WATCH_CHANGES
       NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
 #endif
-      * std::find(_watch_lists[lit].begin(),
-        _watch_lists[lit].end(), cl) = _watch_lists[lit].back();
-      _watch_lists[lit].pop_back();
+      ASSERT(cl != CLAUSE_UNDEF);
+      ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
+      Tclause current = _watch_lists[lit];
+      Tclause previous = CLAUSE_UNDEF;
+      while (current != cl) {
+        previous = current;
+        if (_clauses[current].lits[0] == lit)
+          current = _clauses[current].first_watched;
+        else
+          current = _clauses[current].second_watched;
+        ASSERT(current != CLAUSE_UNDEF);
+      }
+      ASSERT(current == cl);
+      if (previous == CLAUSE_UNDEF) {
+        ASSERT(_watch_lists[lit] == cl);
+        if (_clauses[current].lits[0] == lit)
+          _watch_lists[lit] = _clauses[current].first_watched;
+        else
+          _watch_lists[lit] = _clauses[current].second_watched;
+      }
+      else {
+        Tclause replacement = _clauses[current].lits[0] == lit ? _clauses[current].first_watched : _clauses[current].second_watched;
+        if (_clauses[previous].lits[0] == lit) {
+          ASSERT(_clauses[previous].first_watched == cl);
+          _clauses[previous].first_watched = replacement;
+        }
+        else {
+          ASSERT_MSG(_clauses[previous].second_watched == cl,
+            "lit = " + lit_to_string(lit) + ", previous = " + clause_to_string(previous) + ", current = " + clause_to_string(current));
+          _clauses[previous].second_watched = replacement;
+        }
+      }
+
     }
 
     /**
@@ -548,7 +604,7 @@ namespace sat
       if (var >= _vars.size() - 1) {
         _vars.resize(var + 1);
         _lazy_reimplication_buffer.resize(var + 1, CLAUSE_UNDEF);
-        _watch_lists.resize(2 * var + 2);
+        _watch_lists.resize(2 * var + 2, CLAUSE_UNDEF);
         _binary_clauses.resize(2 * var + 2);
         // reallocate the literal buffer to make sure it is big enough
         Tlit* new_literal_buffer = new Tlit[_vars.size()];
@@ -595,6 +651,19 @@ namespace sat
      * @pre The literal must not be in the propagation queue.
      */
     void stack_lit(Tlit lit, Tclause reason);
+
+    /**
+     * @brief Searches for a replacement literal for the second watched literal of a clause.
+     * @details In Non-Chronological Backtracking, a suitable replacement is any literal that is not falsified. In Strong Chronological Backtracking, a suitable replacement is a literal ...
+     * TODO finish the description
+    */
+    Tlit* seach_replacement(Tlit* lits, unsigned size);
+
+    /**
+     * @brief Propagate a literal at level 0
+     * @param lit literal to propagate.
+     */
+    Tclause propagate_fact(Tlit lit);
 
     /**
      * @brief Propagate one literal.
@@ -837,7 +906,7 @@ namespace sat
      * @param lit literal to print.
      * @return colored string of the literal.
      */
-    std::string literal_to_string(Tlit lit);
+    std::string lit_to_string(Tlit lit);
 
     /**
      * @brief Returns a string of a clause. The clause is printed in the form "cl : lit1 lit2 ... litm | litm+1 ... litn" where lit1, ..., litn are the literals of the clause, litm+1, ..., litn are disabled literals (false at level 0) and cl is the clause id.
@@ -870,7 +939,7 @@ namespace sat
     /**
      * @brief Prints the watch lists on the standard output in a human-readable format.
      */
-    void print_watch_lists();
+    void print_watch_lists(Tlit lit = LIT_UNDEF);
 
     /**
      * @brief Destroy the modulariT_SAT::modulari T_SAT object
@@ -915,6 +984,11 @@ namespace sat
      * @brief returns true if no clause is unisat by propagated literals and the decision level of the satisfied literal is higher than the decision level of the falsified literals.
      */
     bool bcp_safety();
+
+    /**
+     * @brief returns true if the clause cl is in the watch list of the literal lit.
+    */
+    bool is_watched(Tlit lit, Tclause cl);
 
     /**
      * @brief returns true if the watch lists of watched literals of a clause contain the clause.

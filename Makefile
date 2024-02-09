@@ -28,7 +28,7 @@ INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
 REL_FLAGS ?= -O3 -DNDEBUG
-DBG_FLAGS ?= -O0 -g -g3 -gdwarf-2 -ftrapv -DDEBUG=1
+DBG_FLAGS ?= -O0 -g -g3 -gdwarf-2 -ftrapv
 
 # c source
 $(BUILD_DIR)/%.o: %.cpp $(HEAD)

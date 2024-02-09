@@ -299,7 +299,7 @@ static unsigned string_length_escaped(string str)
   return length;
 }
 
-std::string sat::gui::observer::literal_to_string(sat::Tlit lit)
+std::string sat::gui::observer::lit_to_string(sat::Tlit lit)
 {
   string s = "";
   Tvar var = lit_to_var(lit);
@@ -439,7 +439,7 @@ std::string sat::gui::observer::clause_to_string(Tclause cl)
   for (Tlit lit : lits) {
     if (_active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end())
       s += "w";
-    s += literal_to_string(lit) + " ";
+    s += lit_to_string(lit) + " ";
   }
   return s;
 }
@@ -502,7 +502,7 @@ void sat::gui::observer::print_assignment()
       Tlit lit = _assignment_stack[i];
       Tvar var = lit_to_var(lit);
       if (_variables[var].level == lvl) {
-        cout << literal_to_string(lit) << " ";
+        cout << lit_to_string(lit) << " ";
         cout << pad(lit_to_var(lit), _variables.size());
         if (lit_pol(lit))
           cout << " ";

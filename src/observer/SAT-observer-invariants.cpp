@@ -162,7 +162,7 @@ bool sat::gui::observer::check_level_ordering()
       if (lit_level(lit2) > lit_level(lit))
       {
         success = false;
-        _error_message += error_header + "clause " + clause_to_string(lit_reason(lit)) + " has a literal " + literal_to_string(lit2) + " with a higher level than " + literal_to_string(lit) + ".\n";
+        _error_message += error_header + "clause " + clause_to_string(lit_reason(lit)) + " has a literal " + lit_to_string(lit2) + " with a higher level than " + lit_to_string(lit) + ".\n";
       }
     }
   }
@@ -179,7 +179,7 @@ bool sat::gui::observer::check_trail_monoticity()
     if (lit_level(lit) < last_level)
     {
       success = false;
-      _error_message += error_header + "literal " + literal_to_string(lit) + " has a lower level than the previous literal " + literal_to_string(_assignment_stack[_assignment_stack.size() - 1]) + ".\n";
+      _error_message += error_header + "literal " + lit_to_string(lit) + " has a lower level than the previous literal " + lit_to_string(_assignment_stack[_assignment_stack.size() - 1]) + ".\n";
     }
     last_level = lit_level(lit);
   }
@@ -217,7 +217,7 @@ bool sat::gui::observer::check_no_missed_implications()
     if (n_undef == 1)
     {
       success = false;
-      _error_message += error_header + "clause " + clause_to_string(cl) + " has only one undefined literal " + literal_to_string(last_undef) + ".\n";
+      _error_message += error_header + "clause " + clause_to_string(cl) + " has only one undefined literal " + lit_to_string(last_undef) + ".\n";
     }
   next_clause:;
   }
@@ -248,7 +248,7 @@ bool sat::gui::observer::check_topological_order()
       if (!visited[lit_to_var(lit2)])
       {
         success = false;
-        _error_message += error_header + "the reason clause " + clause_to_string(lit_reason(lit)) + " for the implication of literal " + literal_to_string(lit) + " has a literal " + literal_to_string(lit2) + " that is not visited yet.\n";
+        _error_message += error_header + "the reason clause " + clause_to_string(lit_reason(lit)) + " for the implication of literal " + lit_to_string(lit) + " has a literal " + lit_to_string(lit2) + " that is not visited yet.\n";
       }
     }
   }
@@ -274,11 +274,11 @@ bool sat::gui::observer::check_strong_watch_literals()
       success = false;
       if (lit_value(c->watched[0]) == VAR_FALSE && lit_propagated(c->watched[0]))
       {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + literal_to_string(c->watched[0]) + " that is propagated.\n";
+        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + lit_to_string(c->watched[0]) + " that is propagated.\n";
       }
       if (lit_value(c->watched[1]) == VAR_FALSE && lit_propagated(c->watched[1]))
       {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + literal_to_string(c->watched[1]) + " that is propagated.\n";
+        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + lit_to_string(c->watched[1]) + " that is propagated.\n";
       }
       continue;
     }
@@ -310,11 +310,11 @@ bool sat::gui::observer::check_blocked_watch_literals()
           goto next_clause;
       _error_message += error_header + "clause " + clause_to_string(cl) + " is not satisfied but ";
       if (lit_value(watched[0]) == VAR_FALSE && lit_propagated(watched[0]))
-        _error_message += "watched literal " + literal_to_string(watched[0]) + " is false and propagated";
+        _error_message += "watched literal " + lit_to_string(watched[0]) + " is false and propagated";
       if (lit_value(watched[0]) == VAR_FALSE && lit_propagated(watched[0]) && lit_value(watched[1]) == VAR_FALSE && lit_propagated(watched[1]))
         _error_message += " and ";
       if (lit_value(watched[1]) == VAR_FALSE && lit_propagated(watched[1]))
-        _error_message += "watched literal " + literal_to_string(watched[1]) + " is false and propagated";
+        _error_message += "watched literal " + lit_to_string(watched[1]) + " is false and propagated";
       _error_message += ".\n";
     }
   next_clause:
@@ -344,11 +344,11 @@ bool sat::gui::observer::check_weak_watch_literals()
       success = false;
       if (lit_value(c->watched[0]) == VAR_FALSE && lit_propagated(c->watched[0]))
       {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + literal_to_string(c->watched[0]) + " that is propagated.\n";
+        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + lit_to_string(c->watched[0]) + " that is propagated.\n";
       }
       if (lit_value(c->watched[1]) == VAR_FALSE && lit_propagated(c->watched[1]))
       {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + literal_to_string(c->watched[1]) + " that is propagated.\n";
+        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + lit_to_string(c->watched[1]) + " that is propagated.\n";
       }
       continue;
     }
@@ -442,7 +442,7 @@ bool sat::gui::observer::check_assignment_coherence()
       if (lit_value(l) != VAR_FALSE)
       {
         success = false;
-        _error_message += error_header + "clause " + clause_to_string(reason) + " is satisfied by literal " + literal_to_string(l) + " but not by " + literal_to_string(lit) + ".\n";
+        _error_message += error_header + "clause " + clause_to_string(reason) + " is satisfied by literal " + lit_to_string(l) + " but not by " + lit_to_string(lit) + ".\n";
       }
     }
   }

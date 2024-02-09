@@ -25,6 +25,12 @@ static void print_man_page(string man_file)
 
 int main(int argc, char** argv)
 {
+  // #ifdef NDEBUG
+  //   cout << warning_msg << "NDEBUG = " << NDEBUG << endl;
+  // #else
+  //   cout << warning_msg << "NDEBUG not defined" << endl;
+  // #endif
+
   if (argc < 2) {
     cout << "Usage: " << argv[0] << " <input_file> [options]" << endl;
     return 1;

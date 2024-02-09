@@ -6,6 +6,9 @@
  * @author Robin Coutelier
  */
 #include "modulariT-SAT.hpp"
+#include "custom-assert.hpp"
+
+#include <unordered_set>
 
 using namespace std;
 using namespace sat;
@@ -107,6 +110,34 @@ bool sat::modulariT_SAT::bcp_safety()
   return true;
 }
 
+bool sat::modulariT_SAT::is_watched(Tlit lit, Tclause cl)
+{
+  if (_clauses[cl].size == 2) {
+    // check the binary clause list
+    for (pair bin : _binary_clauses[lit])
+      if (bin.second == cl)
+        return true;
+    return false;
+  }
+  Tclause watched = _watch_lists[lit];
+  unsigned count = 0;
+  while (watched != CLAUSE_UNDEF) {
+    if (watched == cl)
+      return true;
+    if (count++ > _clauses.size()) {
+      cerr << error << "Invariant violation: Watch lists no cycle: cycle detected in the watch list of literal " << lit_to_string(lit) << "\n";
+      return false;
+    }
+    TSclause clause = _clauses[watched];
+    ASSERT_MSG(lit == clause.lits[0] || lit == clause.lits[1],
+      "Invariant violation: Watch lists correct: clause " + clause_to_string(cl) + " is not in the watch list of its watched literal " + lit_to_string(lit) + "\n");
+    watched = clause.first_watched;
+    if (lit == clause.lits[1])
+      watched = clause.second_watched;
+  }
+  return false;
+}
+
 bool sat::modulariT_SAT::watch_lists_complete()
 {
   bool success = true;
@@ -116,16 +147,9 @@ bool sat::modulariT_SAT::watch_lists_complete()
       continue;
     for (unsigned i = 0; i < 2; i++) {
       Tlit lit = clause.lits[i];
-      bool found = false;
-      for (Tclause watched : _watch_lists[lit]) {
-        if (watched == cl) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
+      if (!is_watched(lit, cl)) {
         success = false;
-        cerr << error << "Invariant violation: Watch lists complete: clause " << cl << " is not in the watch list of its watched literal " << literal_to_string(lit) << "\n";
+        cerr << error << "Invariant violation: Watch lists complete: clause " << cl << " is not in the watch list of its watched literal " << lit_to_string(lit) << "\n";
         cout << error << "Invariant violation: ";
         print_clause(cl);
         cout << " is not in the watch list of its watched literal ";
@@ -141,8 +165,20 @@ bool sat::modulariT_SAT::watch_lists_minimal()
 {
   bool success = true;
   for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
-    for (Tclause cl : _watch_lists[lit]) {
+    Tclause cl = _watch_lists[lit];
+    unsigned count = 0;
+    while (cl != CLAUSE_UNDEF) {
       TSclause clause = _clauses[cl];
+      if (count++ > _clauses.size()) {
+        success = false;
+        cerr << error << "Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit << " but it is not a watched clause\n";
+        cout << error << "Invariant violation: ";
+        print_clause(cl);
+        cout << " is in the watch list of literal ";
+        print_lit(lit);
+        cout << " but it is not a watched clause" << endl;
+        goto loop_end;
+      }
       if (clause.size < 2) {
         success = false;
         cerr << error << "Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit << " but it is too small\n";
@@ -151,7 +187,7 @@ bool sat::modulariT_SAT::watch_lists_minimal()
         cout << " is in the watch list of literal ";
         print_lit(lit);
         cout << " but it is too small" << endl;
-        continue;
+        goto loop_end;
       }
       if (clause.deleted) {
         success = false;
@@ -161,7 +197,7 @@ bool sat::modulariT_SAT::watch_lists_minimal()
         cout << " is in the watch list of literal ";
         print_lit(lit);
         cout << " but it is a deleted clause" << endl;
-        continue;
+        goto loop_end;
       }
       if (!clause.watched) {
         success = false;
@@ -171,7 +207,7 @@ bool sat::modulariT_SAT::watch_lists_minimal()
         cout << " is in the watch list of literal ";
         print_lit(lit);
         cout << " but it is not a watched clause" << endl;
-        continue;
+        goto loop_end;
       }
 
       if (lit != clause.lits[0] && lit != clause.lits[1]) {
@@ -183,23 +219,34 @@ bool sat::modulariT_SAT::watch_lists_minimal()
         print_lit(lit);
         cout << " but it is not a watched literal" << endl;
       }
+    loop_end:;
+      cl = clause.first_watched;
+      if (lit == clause.lits[1])
+        cl = clause.second_watched;
     }
   }
 
   // Check that that are not multiple copies of the same clause in the watch lists
+  std::unordered_set<Tclause> seen_clauses;
   for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
-    for (unsigned i = 0; i < _watch_lists[lit].size(); i++) {
-      for (unsigned j = i + 1; j < _watch_lists[lit].size(); j++) {
-        if (_watch_lists[lit][i] == _watch_lists[lit][j]) {
-          success = false;
-          cerr << error << "Invariant violation: Watch lists minimal: clause " << _watch_lists[lit][i] << " is in the watch list of literal " << lit << " multiple times\n";
-          cout << error << "Invariant violation: ";
-          print_clause(_watch_lists[lit][i]);
-          cout << " is in the watch list of literal ";
-          print_lit(lit);
-          cout << " multiple times" << endl;
-        }
+    Tclause cl = _watch_lists[lit];
+    seen_clauses.clear();
+    while (cl != CLAUSE_UNDEF) {
+      if (seen_clauses.find(cl) != seen_clauses.end()) {
+        success = false;
+        cerr << error << "Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit << " multiple times\n";
+        cout << error << "Invariant violation: ";
+        print_clause(cl);
+        cout << " is in the watch list of literal ";
+        print_lit(lit);
+        cout << " multiple times" << endl;
+        break;
       }
+      seen_clauses.insert(cl);
+      TSclause clause = _clauses[cl];
+      cl = clause.first_watched;
+      if (lit == clause.lits[1])
+        cl = clause.second_watched;
     }
   }
   if (!success) {
@@ -231,7 +278,7 @@ bool sat::modulariT_SAT::strong_watched_literals()
 
 bool sat::modulariT_SAT::weak_watched_literals()
 {
-  assert(SAT_BLOCKERS);
+  ASSERT(SAT_BLOCKERS);
   bool success = true;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
     TSclause clause = _clauses[cl];
@@ -338,7 +385,7 @@ bool sat::modulariT_SAT::most_relevant_watched_literals(Tclause clause)
   bool success = true;
   Tlit* lits = _clauses[clause].lits;
   unsigned size = _clauses[clause].size;
-  assert(size > 1);
+  ASSERT(size > 1);
   success &= utility_heuristic(lits[0]) >= utility_heuristic(lits[1]);
   if (!success) {
     cerr << error << "Invariant violation: Most relevant watched literals: clause " << clause << " has its first watched literal with a lower utility heuristic than its second watched literal\n";
@@ -352,10 +399,10 @@ bool sat::modulariT_SAT::most_relevant_watched_literals(Tclause clause)
   if (!success) {
     cerr << error << "Property violation: Most relevant watched literals: clause " << clause << " are not the correct watched literals\n";
     cout << error << "Property violation: "
-      << "clause " << clause << ": ";
+      << "clause: ";
     print_clause(clause);
     cout << " are not the correct watched literals" << endl;
-    print_trail();
+    // print_trail();
   }
   return success;
 }

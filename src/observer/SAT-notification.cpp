@@ -294,7 +294,7 @@ void sat::gui::new_clause::apply(observer& obs)
   obs._active_clauses[cl] = obs._clauses_dict[hash];
   obs._active_clauses[cl]->active = true;
   for (Tlit l : obs._active_clauses[cl]->watched)
-    cout << obs.literal_to_string(l) << endl;
+    cout << obs.lit_to_string(l) << endl;
 }
 
 void sat::gui::new_clause::rollback(observer& obs)
@@ -387,7 +387,7 @@ unsigned sat::gui::unwatch::get_event_level(observer& observer)
 
 void sat::gui::unwatch::apply(observer& obs)
 {
-  // cout << "unwatch " << cl << " " << obs.literal_to_string(lit) << endl;
+  // cout << "unwatch " << cl << " " << obs.lit_to_string(lit) << endl;
   assert(obs._active_clauses.size() > cl);
   assert(obs._active_clauses[cl] != nullptr);
   sat::gui::observer::clause* c = obs._active_clauses[cl];

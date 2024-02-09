@@ -352,7 +352,7 @@ namespace sat::gui
 
     /**  PRINTING  **/
 
-    std::string literal_to_string(sat::Tlit lit);
+    std::string lit_to_string(sat::Tlit lit);
 
     std::string variable_to_string(sat::Tvar var);
 

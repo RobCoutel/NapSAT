@@ -22,12 +22,6 @@ make debug
 ```
 This will generate the build files and compile the project with debug flags. The executable will be located in the build folder. In debug mode, the executable will be named `modulariT-SAT-dbg`. This executable aggressively checks for invariant violations and will be much slower than the release version.
 
-### Options
-A few compilation options are available. For the time being, they must be modified in the `src/SAT-config.hpp` file. The following options are available:
-- `LOG_LEVEL`: The log level of the solver. The higher the level, the more verbose the solver will be. The default value is 0.
-- `STATS`: Whether or not to collect statistics about the solving process. The default value is 0.
-- `DEBUG_CLAUSE`: If this option is enabled, the solver will print information about the clause whose ID is equal to the value of `DEBUG_CLAUSE`. The default value is 0 (prints nothing).
-
 ## Usage
 Building the project will generate two executables in the build folder: `modulariT-SAT` and `test-SAT`. The first one is the SAT solver itself and the second one is the unit tests executable.
 

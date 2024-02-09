@@ -2,16 +2,6 @@
 
 #define VERSION "1.0.0"
 
-#ifndef NDEBUG
-#define LOG_LEVEL 0
-#define DEBUG_CLAUSE 0
-#define STATS 0
-#else
-#define LOG_LEVEL 0
-#define DEBUG_CLAUSE 0
-#define STATS 0
-#endif
-
 #define OBSERVED_ASSERTS 1
 
 

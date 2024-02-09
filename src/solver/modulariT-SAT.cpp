@@ -1,32 +1,17 @@
 #include "modulariT-SAT.hpp"
+#include "custom-assert.hpp"
 
 #include <iostream>
 #include <cstring>
-#include <cassert>
 #include <functional>
 
 using namespace sat;
 using namespace std;
 
-#ifdef NDEBUG
-#if OBSERVED_ASSERTS
-#define ASSERT(cond)                                                \
-  if (_observer) {                                                  \
-    if (!(cond))  {                                                 \
-      NOTIFY_OBSERVER(_observer, new sat::gui::marker("Assetion failed: " #cond));  \
-      assert(cond);                                                 \
-    }                                                               \
-  }
-#else
-#define ASSERT(cond) assert(cond)
-#endif
-#else
-#define ASSERT(cond)
-#endif
-
 void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
 {
-  ASSERT(lit_undef(lit));
+  ASSERT_MSG(lit_undef(lit),
+    "Literal: " + lit_to_string(lit) + "\nReason: " + clause_to_string(reason));
   Tvar var = lit_to_var(lit);
   _trail.push_back(lit);
   TSvar& svar = _vars[var];
@@ -50,19 +35,16 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
     ASSERT(lit == _clauses[reason].lits[0]);
     if (_clauses[reason].size == 1)
       svar.level = LEVEL_ROOT;
-    else if (_options.chronological_backtracking) {
-      // Find the level of the clause
-      Tlevel level = LEVEL_ROOT;
-      Tlit* end = _clauses[reason].lits + _clauses[reason].size;
-      for (Tlit* i = _clauses[reason].lits; i < end; i++)
-        if (lit_level(*i) > level && *i != lit)
-          level = lit_level(*i);
-      svar.level = level;
-    }
     else {
       ASSERT(watched_levels(reason));
       ASSERT(most_relevant_watched_literals(reason));
       ASSERT(lit == _clauses[reason].lits[0]);
+#ifndef NDEBUG
+      for (unsigned i = 1; i < _clauses[reason].size; i++) {
+        ASSERT(lit_false(_clauses[reason].lits[i]));
+        ASSERT(lit_level(_clauses[reason].lits[i]) <= lit_level(lit));
+      }
+#endif
       svar.level = lit_level(_clauses[reason].lits[1]);
     }
     NOTIFY_OBSERVER(_observer, new sat::gui::implication(lit, reason, svar.level));
@@ -77,12 +59,69 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
   ASSERT(svar.level <= _decision_index.size());
 }
 
+Tlit* sat::modulariT_SAT::seach_replacement(Tlit* lits, unsigned size)
+{
+  // This must be as efficient as possible!
+  ASSERT(size >= 2);
+  Tlit* end = lits + size;
+  Tlit* k = lits + 2;
+  Tlevel low_sat_lvl = lit_true(lits[0]) ? lit_level(lits[0]) : LEVEL_UNDEF;
+  Tlevel high_non_sat_lvl = lit_level(lits[1]);
+  Tlit* high_non_sat_lit = lits + 1;
+  while (k < end) {
+    // we assume that undefined literals have an infinite decision level.
+    ASSERT(!lit_undef(*k) || lit_level(*k) > _decision_index.size());
+    if (!lit_false(*k))
+      return k;
+    if (lit_level(*k) > high_non_sat_lvl) {
+      // in non-chronological backtracking, the watched literals are always at the highest level
+      ASSERT(_options.chronological_backtracking);
+      high_non_sat_lvl = lit_level(*k);
+      high_non_sat_lit = k;
+      continue;
+    }
+    if (low_sat_lvl <= high_non_sat_lvl)
+      return k;
+    k++;
+  }
+  return high_non_sat_lit;
+}
+
+Tclause sat::modulariT_SAT::propagate_fact(Tlit lit)
+{
+  return Tclause();
+}
+
 Tclause modulariT_SAT::propagate_lit(Tlit lit)
 {
+  // cout << "*************\nPropagating " << lit_to_string(lit) << " at level " << lit_level(lit) << endl;
+  // NOTIFY_OBSERVER(_observer, new sat::gui::marker("Propagating " + lit_to_string(lit)));
   lit = lit_neg(lit);
+  // print_watch_lists(lit);
+  ASSERT(lit_false(lit));
 
-  // go through the binary clauses
+  /** BINARY CLAUSES **/
   for (pair<Tlit, Tclause> bin : _binary_clauses[lit]) {
+    ASSERT_MSG(_clauses[bin.second].size == 2, "Clause: " + clause_to_string(bin.second) + ",Literal: " + lit_to_string(lit));
+    if (lit_true(bin.first)) {
+      if (_options.strong_chronological_backtracking && lit_level(bin.first) > lit_level(lit)) {
+        // missed lower implication
+        Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(bin.first)];
+        if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > lit_level(bin.first)) {
+          // reorder the literals such that the satisfied literal is at the first position
+          Tlit* lits = _clauses[bin.second].lits;
+          if (lits[0] != bin.first) {
+            lits[0] = lits[0] ^ lits[1];
+            lits[1] = lits[0] ^ lits[1];
+            lits[0] = lits[0] ^ lits[1];
+            // no need to update the watch lists because the clause is binary
+          }
+          _lazy_reimplication_buffer[lit_to_var(bin.first)] = bin.second;
+          NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication detected"));
+        }
+      }
+      continue;
+    }
     if (lit_undef(bin.first)) {
       // ensure that the stacked literal is positioned at the first position
       Tlit* lits = _clauses[bin.second].lits;
@@ -91,228 +130,240 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       lits[0] = bin.first;
       lits[1] = lit;
       stack_lit(bin.first, bin.second);
+      continue;
     }
-    else if (lit_false(bin.first)) {
+    // Conflict
+    ASSERT(_options.chronological_backtracking || lit_level(bin.first) == lit_level(lit));
+    if (_options.chronological_backtracking) {
       // make sure that the highest literal is at the first position
       Tlit* lits = _clauses[bin.second].lits;
       if (lit_level(lits[0]) < lit_level(lits[1])) {
         // in place swapping
-        lits[0] = lits[0] ^ lits[1];
-        lits[1] = lits[0] ^ lits[1];
-        lits[0] = lits[0] ^ lits[1];
+        lits[0] ^= lits[1];
+        lits[1] ^= lits[0];
+        lits[0] ^= lits[1];
+        // we do not need to update the next watched clause because the clause is binary
       }
-      return bin.second;
     }
-    // missed lower implications are not possible for binary clauses
-    ASSERT(lit_true(bin.first));
-    ASSERT(lit_level(bin.first) <= lit_level(lit));
+    ASSERT(lit_level(_clauses[bin.second].lits[0]) >= lit_level(_clauses[bin.second].lits[1]));
+    return bin.second;
   }
 
+  /** LONGER CLAUSES **/
   // level of the propagation
-  Tlevel level = lit_level(lit);
-  vector<Tclause>& watch_list = _watch_lists[lit];
-  unsigned n = watch_list.size();
-  for (unsigned i = 0; i < n; i++) {
-    Tclause cl = watch_list[i];
+  Tlevel lvl = lit_level(lit);
+  Tclause cl = _watch_lists[lit];
+  Tclause prev = CLAUSE_UNDEF;
+  Tclause next = CLAUSE_UNDEF;
+  while (cl != CLAUSE_UNDEF) {
+    ASSERT(cl != prev);
+    // cout << "Before: " << clause_to_string(cl) << endl;
     TSclause& clause = _clauses[cl];
     ASSERT(clause.watched);
     ASSERT(clause.size >= 2);
     Tlit* lits = clause.lits;
-    ASSERT(lit == lits[0] || lit == lits[1]);
-    Tlit lit2 = lits[0] ^ lits[1] ^ lit;
-    lits[0] = lit2;
-    lits[1] = lit;
-    if (lit_true(clause.blocker) && (!_options.chronological_backtracking || lit_level(clause.blocker) <= level))
-      continue; // clause is satisfied by the blocker, do not do anything
-    if (lit_true(lit2) && (!_options.strong_chronological_backtracking || lit_level(lit2) <= level))
-      continue; // clause is satisfied, do not do anything
+    ASSERT_MSG(lit == lits[0] || lit == lits[1],
+      "Clause: " + clause_to_string(cl) + ",Literal: " + lit_to_string(lit));
+    ASSERT_MSG(clause.first_watched == CLAUSE_UNDEF
+      || _clauses[clause.first_watched].lits[0] == lits[0]
+      || _clauses[clause.first_watched].lits[1] == lits[0],
+      "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
+      + " clause " + clause_to_string(clause.first_watched) + " does not watch " + lit_to_string(lits[0]));
+    ASSERT_MSG(clause.second_watched == CLAUSE_UNDEF
+      || _clauses[clause.second_watched].lits[0] == lits[1]
+      || _clauses[clause.second_watched].lits[1] == lits[1],
+      "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
+      + " clause " + clause_to_string(clause.second_watched) + " does not watch " + lit_to_string(lits[1]));
+    if (lit == lits[0]) {
+      lits[0] ^= lits[1];
+      lits[1] ^= lits[0];
+      lits[0] ^= lits[1];
+      // also swap the next watched clause
+      clause.first_watched ^= clause.second_watched;
+      clause.second_watched ^= clause.first_watched;
+      clause.first_watched ^= clause.second_watched;
+    }
+    // cout << "After: " << clause_to_string(cl) << endl;
+    ASSERT_MSG(clause.first_watched == CLAUSE_UNDEF
+      || _clauses[clause.first_watched].lits[0] == lits[0]
+      || _clauses[clause.first_watched].lits[1] == lits[0],
+      "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
+      + " clause " + clause_to_string(clause.first_watched) + " does not watch " + lit_to_string(lits[0]));
+    ASSERT_MSG(clause.second_watched == CLAUSE_UNDEF
+      || _clauses[clause.second_watched].lits[0] == lits[1]
+      || _clauses[clause.second_watched].lits[1] == lits[1],
+      "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
+      + " clause " + clause_to_string(clause.second_watched) + " does not watch " + lit_to_string(lits[1]));
+    ASSERT(prev == CLAUSE_UNDEF || _clauses[prev].lits[1] == lit);
+    ASSERT(prev == CLAUSE_UNDEF || _clauses[prev].lits[1] == lit);
 
-    // Tlit replacement = LIT_UNDEF;
-    Tlit* end = clause.lits + clause.size;
-    Tlit* k = lits + 2;
+    Tlit lit2 = lits[0];
+    ASSERT(lit == lits[1]);
+    ASSERT(lit != lit2);
 
-    ASSERT(lit2 == *lits);
-    Tlevel lowest_satisfied_level = lit_true(lit2) ? lit_level(lit2) : LEVEL_UNDEF;
-    Tlit* lowest_satisfied_literal = lit_true(lit2) ? lits : nullptr;
-    ASSERT(lit_false(lit));
-    ASSERT(lit == *(lits + 1));
-    Tlevel highest_non_satisfied_level = level;
-    Tlit* highest_non_satisfied_literal = lits + 1;
-    unsigned n_satisfied_literals = lit_true(lit2);
-
-    while (k < end) {
-      // we assume that undefined literals have an infinite decision level.
-      ASSERT(!lit_undef(*k) || lit_level(*k) > _decision_index.size());
-      Tlevel curr_level = lit_level(*k);
-      if (lit_true(*k)) {
-        if (!_options.strong_chronological_backtracking || curr_level <= highest_non_satisfied_level)
-          break;
-        lowest_satisfied_level = lit_level(*k);
-        lowest_satisfied_literal = k;
-        n_satisfied_literals++;
-      }
-      else if (curr_level > highest_non_satisfied_level) {
-        highest_non_satisfied_level = curr_level;
-        highest_non_satisfied_literal = k;
-        continue;
-      }
-      if (lowest_satisfied_level <= highest_non_satisfied_level ||
-        n_satisfied_literals > 1) {
-        // If the lowest satisfied literal is lower than the highest falsified literal, then we might still have a missed lower implication.
-        // Here, we know that this is not the case, and we can swap lit with either the highest falsified literal or the lowest satisfied literal.
-        // If we swap with the highest falsified literal, we will need to set the blocker to the lowest satisfied literal.
-        ASSERT(k == highest_non_satisfied_literal || k == lowest_satisfied_literal);
-        break;
-      }
-      k++;
+    /** SKIP CONDITIONS **/
+    if (lit_true(clause.blocker)
+      && (!_options.chronological_backtracking || lit_level(clause.blocker) <= lvl)) {
+      // cout << "Blocked: " << clause_to_string(cl) << endl;
+      prev = cl;
+      cl = clause.second_watched;
+      continue;
+    }
+    if (lit_true(lit2)
+      && (!_options.strong_chronological_backtracking || lit_level(lit2) <= lvl)) {
+      // cout << "Other literal is true: " << clause_to_string(cl) << endl;
+      prev = cl;
+      cl = clause.second_watched;
+      continue;
+    }
+    if (lit_true(lit2) && lit_true(clause.blocker) && lit2 != clause.blocker) {
+      // the clause is satisfied by two different literals. So we are sure that there is no missed lower implication
+      ASSERT(_options.strong_chronological_backtracking);
+      // cout << "Two literals are true: " << clause_to_string(cl) << endl;
+      prev = cl;
+      cl = clause.second_watched;
+      continue;
     }
 
-    if (lowest_satisfied_literal && lowest_satisfied_level <= level) {
+    /** SEARCH REPLACEMENT **/
+    Tlit* replacement = seach_replacement(lits, clause.size);
+    ASSERT(replacement != nullptr);
+
+    Tlevel replacement_lvl = lit_level(*replacement);
+
+    /** TRUE literal **/
+    if (lit_true(*replacement) && replacement_lvl <= lvl) {
+      // in non-chronological backtracking, this will always be the case
+      // TODO is is ok to block if the other watched literal is lower? Not in SCB, but in CB?
       // set blocker and go next
-      clause.blocker = *lowest_satisfied_literal;
+      clause.blocker = *replacement;
+      // cout << "Found blocker: " << clause_to_string(cl) << endl;
+      prev = cl;
+      cl = clause.second_watched;
       continue;
     }
 
-    if (k >= end) {
-      /**
-       * If we reach this point, then we have either:
-       * - only one satisfied literal at a level higher than the falsified literals => missed lower implication
-       *    - if lit2 is true, then lit is swapped with the highest falsified literal
-       *    - otherwise (lit2 is false): lit is swapped with the highest falsified literal and lit2 is swapped with the lowest satisfied literal
-       *        - in both cases, the clause is added to the lazy reimplication buffer if the highest falsified literal is lower than the current reimplication level
-       * - no satisfied literal in lit[2:end]
-       *    - if lit2 is false, then the clause is conflicting
-       *    - if lit2 is undef, then the clause is unit
-       */
-      if (n_satisfied_literals > 0) {
-        // Maybe missed lower implication
-        ASSERT(_options.strong_chronological_backtracking);
-        ASSERT(lowest_satisfied_literal != nullptr);
-        ASSERT(lowest_satisfied_level > highest_non_satisfied_level);
-        ASSERT(n_satisfied_literals == 1);
-        /**
-         * If we have only one satisfied literal that does not quality as blocker, then we know that it must be the first one, or the first literal is not propagated yet.
-         *
-         * Indeed, in the case where a missed lower implication is detected, the satisfied literal is put as a watched literal. Therefore, when we ensure that lit is at the second possition, we know that the satisfied literal is at the first position (lit2).
-         *
-         * We just need to make sure that the second watched literal gets the higest level in the clause, such that future routines can detect the level the missed lower implication.
-         *
-         * We are garanteed that the clause will not change anymore, because we just finished propagating the falsified literal and the other one is the satisfied literal.
-         */
-        if (!lit_true(lit2)) {
-          // just swap lit with the satisfied literal
-          // we know that propagating the second literal will detect the missed lower implication if there is one.
-          ASSERT(lits != lowest_satisfied_literal);
-          lits[1] = *lowest_satisfied_literal;
-          *lowest_satisfied_literal = lit;
+    /** UNDEF or TRUE literal **/
+    if (!lit_false(*replacement)) {
+      // watch the replacement and stop watching lit
+      lits[1] = *replacement;
+      *replacement = lit;
+#if NOTIFY_WATCH_CHANGES
+      NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
+#endif
+      // remove the clause from the watch list
+      // first store the next clause in the list
+      next = clause.second_watched;
+      if (prev == CLAUSE_UNDEF) {
+        ASSERT(_watch_lists[lit] == cl);
+        _watch_lists[lit] = next;
+      }
+      else {
+        ASSERT(_clauses[prev].second_watched == cl);
+        _clauses[prev].second_watched = next;
+      }
+      // watch new literal
+      watch_lit(lits[1], cl);
+      // we do not update prev because cl is removed from the watch list
+      //   prev  ->  cl  ->  next
+      //   prev  ->  next
+      cl = next;
+      // cout << "Replacement: " << clause_to_string(cl) << endl;
+      continue;
+    }
 
-          // update the watched literal
+    /** NO GOOD REPLACEMENT **/
+    ASSERT(lit_false(*replacement));
+    if (replacement != lits + 1) {
+      ASSERT(_options.chronological_backtracking);
+      // In strong chronological backtracking, we need to swap the literals such that the highest falsified literal is at the second position. In weak chronological backtracking, it is not necessary, but it is still useful to determine the level of the conflict or the implication.
+      // swap the literals
+      next = clause.second_watched;
+      lits[1] = *replacement;
+      *replacement = lit;
 #if NOTIFY_WATCH_CHANGES
-          NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
 #endif
-          // remove the clause from the watch list
-          watch_list[i--] = watch_list[--n];
-          watch_list.pop_back();
-          // watch new literal
-          watch_lit(lits[1], cl);
-          continue;
-        }
-        ASSERT(lit_true(lit2));
-        ASSERT(lowest_satisfied_literal == lits);
-        if (highest_non_satisfied_literal != lits + 1) {
-          // bring the highest falsified literal to the front such that when reimplication happen, we know which level the reimplication is at
-          lits[1] = *highest_non_satisfied_literal;
-          *highest_non_satisfied_literal = lit;
-#if NOTIFY_WATCH_CHANGES
-          NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
-#endif
-          // remove the clause from the watch list
-          watch_list[i--] = watch_list[--n];
-          watch_list.pop_back();
-          // watch new literal
-          watch_lit(lits[1], cl);
-        }
-        // Definition of a missed lower implication:
-        ASSERT(lit_level(lits[0]) > lit_level(lits[1]));
-        ASSERT(lit_true(lits[0]));
-        ASSERT(lit_false(lits[1]));
+      // remove the clause from the watch list
+      if (prev == CLAUSE_UNDEF) {
+        ASSERT(_watch_lists[lit] == cl);
+        _watch_lists[lit] = next;
+      }
+      else {
+        ASSERT(_clauses[prev].second_watched == cl);
+        _clauses[prev].second_watched = next;
+      }
+      // watch new literal
+      watch_lit(lits[1], cl);
+      // cout << "Replacement: " << clause_to_string(cl) << endl;
+      // Since we remove the clause from the watch list, we do not update prev
+      // prev -> cl -> next
+      // prev -> next
+    }
+    else {
+      // Since the clause stayed in the watch list, we will need to update prev
+      // prev -> cl -> next
+      // cl -> next
+      prev = cl;
+      next = clause.second_watched;
+    }
 
-        // push the missed lower implication to the lazy reimplication buffer
-        ASSERT(lit2 == lits[0]);
-        Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lit2)];
-        ASSERT(lit_true(_clauses[cl].lits[0]));
-        ASSERT(lit_false(_clauses[cl].lits[1]));
-        ASSERT(lazy_reason == CLAUSE_UNDEF || lazy_reason < _clauses.size());
-        if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > highest_non_satisfied_level) {
-          _lazy_reimplication_buffer[lit_to_var(lits[0])] = cl;
-          NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication detected"));
-        }
-        continue;
+    // We know that all literals in clause[1:end] are false
+    /** CONFLICT **/
+    if (lit_false(lit2)) {
+      // Conflict
+      ASSERT(lit_level(lits[1]) == replacement_lvl);
+      if (lit_level(lit2) < replacement_lvl) {
+        // swap the literals
+        // we want the highest literal to be at the first position
+        lits[1] ^= lits[0];
+        lits[0] ^= lits[1];
+        lits[1] ^= lits[0];
+        // also swap the next watched clause
+        clause.first_watched ^= clause.second_watched;
+        clause.second_watched ^= clause.first_watched;
+        clause.first_watched ^= clause.second_watched;
       }
-      if (lit_false(lit2)) {
-        // the clause is conflicting
-        if (_options.chronological_backtracking) {
-          // Replace the watched literal by the highest falsified literal
-          // It is not really necessary, since if it is not backtracked after conflict analysis, it will be propagated again.
-          // But since we already know the best candidate for replacement, we might as well do it now instead of waiting for the next propagation.
-          // However, we do not touch the other watched literal because it will be propagated later anyway if it is not backtracked.
-          if (highest_non_satisfied_literal > lits + 1) {
-            lits[1] = *highest_non_satisfied_literal;
-            *highest_non_satisfied_literal = lit;
-#if NOTIFY_WATCH_CHANGES
-            NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
-#endif
-            // remove the clause from the watch list
-            watch_list[i--] = watch_list[--n];
-            watch_list.pop_back();
-            // watch new literal
-            watch_lit(lits[1], cl);
-            // swap the first and second literals
-            // the highest falsified literal is now at the second position
-          }
-          if (lit_level(lits[0]) < lit_level(lits[1])) {
-            lits[1] = lits[0] ^ lits[1];
-            lits[0] = lits[0] ^ lits[1];
-            lits[1] = lits[0] ^ lits[1];
-          }
-        }
-        ASSERT(lit_level(lits[0]) >= lit_level(lits[1]));
-        return cl;
-      }
-      ASSERT(lit_false(*highest_non_satisfied_literal));
-      if (highest_non_satisfied_literal != lits + 1) {
-        // Replace the literal with the highest falsified literal
-        lits[1] = *highest_non_satisfied_literal;
-        *highest_non_satisfied_literal = lit;
-#if NOTIFY_WATCH_CHANGES
-        NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
-#endif
-        // remove the clause from the watch list
-        watch_list[i--] = watch_list[--n];
-        watch_list.pop_back();
-        // watch new literal
-        watch_lit(lits[1], cl);
-        ASSERT(lit_undef(lit2));
-      }
-      // clause is unit, propagate
+      ASSERT_MSG(lit_level(lits[0]) >= lit_level(lits[1]),
+        "Conflict: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
+      // cout << "Conflict: " << clause_to_string(cl) << endl;
+      // NOTIFY_OBSERVER(_observer, new sat::gui::marker("Conflict detected " + clause_to_string(cl)));
+      // ASSERT(watch_lists_complete());
+      // ASSERT(watch_lists_minimal());
+      return cl;
+    }
+
+    /** UNIT CLAUSE **/
+    if (lit_undef(lit2)) {
+      // unit clause
       stack_lit(lit2, cl);
+      // cout << "Unit: " << clause_to_string(cl) << endl;
+      cl = next;
       continue;
     }
 
-    // watch the replacement and stop watching lit
-    lits[1] = *k;
-    *k = lit;
-#if NOTIFY_WATCH_CHANGES
-    NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
-#endif
-    // remove the clause from the watch list
-    watch_list[i--] = watch_list[--n];
-    watch_list.pop_back();
-    // watch new literal
-    watch_lit(lits[1], cl);
+    /** MISSED LOWER IMPLICATION **/
+    if (lit_level(lit2) <= replacement_lvl) {
+      // This is not a real missed lower implication. The level of the satisfied literal is lower than or equal to the level of the replacement.
+      cl = next;
+      continue;
+    }
+    // We know that lit2 is true, and it is a missed lower implication
+    // lit2 is the only satisfied literal in the clause and all other literals are propagated at a level lower than the highest falsified literal
+    ASSERT(_options.strong_chronological_backtracking);
+    ASSERT(lit_true(lit2));
+    Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lit2)];
+    ASSERT(lazy_reason == CLAUSE_UNDEF || lazy_reason < _clauses.size());
+    if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > replacement_lvl) {
+      _lazy_reimplication_buffer[lit_to_var(lit2)] = cl;
+      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication detected"));
+    }
+    cl = next;
   }
 
   _vars[lit_to_var(lit)].waiting = false;
+  // ASSERT(watch_lists_complete());
+  // ASSERT(watch_lists_minimal());
   return CLAUSE_UNDEF;
 }
 
@@ -402,7 +453,8 @@ bool sat::modulariT_SAT::lit_is_required_in_learned_clause(Tlit lit)
     return true;
   ASSERT(lit_reason(lit) < _clauses.size());
   TSclause& clause = _clauses[lit_reason(lit)];
-  ASSERT(!clause.deleted);
+  ASSERT_MSG(!clause.deleted,
+    "Literal: " + lit_to_string(lit) + "\nClause: " + clause_to_string(lit_reason(lit)));
   for (unsigned i = 1; i < clause.size; i++)
     if (!lit_seen(clause.lits[i]))
       return true;
@@ -411,7 +463,7 @@ bool sat::modulariT_SAT::lit_is_required_in_learned_clause(Tlit lit)
 
 void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
 {
-  ASSERT(watch_lists_minimal());
+  // ASSERT(watch_lists_minimal());
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(!_writing_clause);
   unsigned count = 0;
@@ -454,13 +506,11 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
     /*************************************************************************/
     if (count == 1) {
       Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lit)];
-      if (lazy_reason == CLAUSE_UNDEF) {
+      if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > conflict_level) {
         _literal_buffer[_next_literal_index++] = lit_neg(_trail[i]);
         break;
       }
-      else {
-        NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication used"));
-      }
+      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication used"));
       // The missed lower implication will be propagated again after backtracking.
       // So we anticipate and continue conflict analysis directly
       count = 0;
@@ -510,11 +560,13 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
     else {
       NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication used"));
     }
-    ASSERT(reason != CLAUSE_UNDEF);
+    ASSERT_MSG(reason != CLAUSE_UNDEF,
+      "Conflict: " + clause_to_string(conflict) + "\nLiteral: " + lit_to_string(lit));
     TSclause& clause = _clauses[reason];
     ASSERT(lit_true(clause.lits[0]));
     // start at 1 because the first literal is the one that was propagated
-    ASSERT(lit == clause.lits[0]);
+    ASSERT_MSG(lit == clause.lits[0],
+      "Conflict: " + clause_to_string(reason) + "\nLiteral: " + lit_to_string(lit));
     for (unsigned j = 1; j < clause.size; j++) {
       Tlit curr_lit = clause.lits[j];
       bump_var_activity(lit_to_var(curr_lit));
@@ -558,7 +610,7 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
 
 void modulariT_SAT::analyze_conflict(Tclause conflict)
 {
-  ASSERT(watch_lists_minimal());
+  // ASSERT(watch_lists_minimal());
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(!_writing_clause);
   unsigned count = 0;
@@ -606,7 +658,8 @@ void modulariT_SAT::analyze_conflict(Tclause conflict)
     // start at 1 because the first literal is the one that was propagated
     for (unsigned j = 1; j < clause.size; j++) {
       Tlit lit = clause.lits[j];
-      ASSERT(lit_false(lit));
+      ASSERT_MSG(lit_false(lit),
+        "Conflict: " + clause_to_string(conflict));
       bump_var_activity(lit_to_var(lit));
       if (lit_seen(lit))
         continue;
@@ -679,45 +732,79 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
   ASSERT(_options.chronological_backtracking || lit_level(_clauses[conflict].lits[0]) == _decision_index.size());
   if (_options.chronological_backtracking) {
     unsigned n_literal_at_highest_level = 1;
-    Tlevel highest_level = lit_level(_clauses[conflict].lits[0]);
+    Tlevel high_lvl = lit_level(_clauses[conflict].lits[0]);
     for (unsigned i = 1; i < _clauses[conflict].size; i++) {
       Tlevel level = lit_level(_clauses[conflict].lits[i]);
-      ASSERT(level <= highest_level);
-      if (level == highest_level) {
+      ASSERT(level <= high_lvl);
+      if (level == high_lvl) {
         n_literal_at_highest_level++;
         break;
       }
     }
     if (n_literal_at_highest_level == 1) {
+      NOTIFY_OBSERVER(_observer, new sat::gui::stat("One literal at highest level"));
+      ASSERT(_options.chronological_backtracking);
       CB_backtrack(lit_level(_clauses[conflict].lits[0]) - 1);
+      // NOTIFY_OBSERVER(_observer, new sat::gui::marker("One literal at highest level " + clause_to_string(conflict)));
       // In strong chronological backtracking, the literal might have been propagated again during reimplication
       // Therefore, we might need to trigger another conflict analysis
       ASSERT(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]));
+      Tlit* lits = _clauses[conflict].lits;
+      Tlit* end = lits + _clauses[conflict].size;
       if (!lit_undef(_clauses[conflict].lits[0])) {
+        // cout << "before swap 1: " << clause_to_string(conflict) << endl;
+        Tlit* high_lit = lits;
+        Tlevel high_lvl = lit_level(*high_lit);
+        for (Tlit* i = lits + 1; i < end; i++) {
+          if (lit_level(*i) > high_lvl) {
+            ASSERT(lit_false(*i));
+            high_lvl = lit_level(*i);
+            high_lit = i;
+          }
+        }
+        // cout << "highest level: " << lit_to_string(*high_lit) << endl;
+        if (high_lit == lits + 1) {
+          lits[0] ^= lits[1];
+          lits[1] ^= lits[0];
+          lits[0] ^= lits[1];
+          // swap the first and second watch. We just swapped lits[0] and lits[1]
+          _clauses[conflict].first_watched ^= _clauses[conflict].second_watched;
+          _clauses[conflict].second_watched ^= _clauses[conflict].first_watched;
+          _clauses[conflict].first_watched ^= _clauses[conflict].second_watched;
+        }
+        else if (high_lit > lits + 1) {
+          stop_watch(*lits, conflict);
+          Tlit tmp = *lits;
+          *lits = *high_lit;
+          *high_lit = tmp;
+          watch_lit(*lits, conflict);
+        }
+        // cout << "after swap 1: " << clause_to_string(conflict) << endl;
         // the first literal might not be at the highest level anymore
         // therefore we want to bring the highest level literal to the front
         // and then we can restart conflict analysis
-        Tlit* lits = _clauses[conflict].lits;
-        Tlit* end = lits + _clauses[conflict].size;
-        Tlit* highest_level_literal = lits;
-        Tlevel highest_level = lit_level(*lits);
-        for (Tlit* i = lits + 1; i < end; i++) {
-          if (lit_level(*i) > highest_level) {
-            highest_level = lit_level(*i);
-            highest_level_literal = i;
-          }
-        }
-        Tlit tmp = *lits;
-        *lits = *highest_level_literal;
-        *highest_level_literal = tmp;
-        if (highest_level_literal != lits + 1) {
-          stop_watch(*highest_level_literal, conflict);
-          watch_lit(*lits, conflict);
-        }
         repair_conflict(conflict);
+        return;
       }
-      else
-        stack_lit(_clauses[conflict].lits[0], conflict);
+      // cout << "before swap 2: " << clause_to_string(conflict) << endl;
+      Tlit* high_lit = lits + 1;
+      Tlevel high_lvl = lit_level(*high_lit);
+      for (Tlit* i = lits + 2; i < end; i++) {
+        if (lit_level(*i) > high_lvl) {
+          high_lvl = lit_level(*i);
+          high_lit = i;
+        }
+      }
+      // cout << "highest level: " << lit_to_string(*highest_level_literal) << endl;
+      if (high_lit > lits + 1) {
+        stop_watch(lits[1], conflict);
+        Tlit tmp = lits[1];
+        lits[1] = *high_lit;
+        *high_lit = tmp;
+        watch_lit(lits[1], conflict);
+      }
+      // cout << "after swap 2: " << clause_to_string(conflict) << endl;
+      stack_lit(_clauses[conflict].lits[0], conflict);
       return;
     }
   }
@@ -743,28 +830,146 @@ void modulariT_SAT::restart()
 
 void sat::modulariT_SAT::purge_clauses()
 {
-  _purge_threshold += _purge_inc;
+  ASSERT(watch_lists_complete());
+  ASSERT(watch_lists_minimal());
+  // print_watch_lists();
+  _purge_threshold = _purge_counter + _purge_inc;
+  // We assume that all the literals are propagated
+  ASSERT(_propagated_literals == _trail.size());
+
+  if (_options.chronological_backtracking && !_options.strong_chronological_backtracking) {
+    /** PURGE THE WATCH LISTS **/
+    // in weak chronological backtracking, a missed lower implication can create a clause that has a watched literal falsified at level 0 while not being satisfied at level 0
+    // Therefore we need to clean the watch lists
+    for (unsigned i = 0; i < _propagated_literals; i++) {
+      Tlit lit = _trail[i];
+      if (lit_level(lit) != LEVEL_ROOT) {
+        continue;
+      }
+      lit = lit_neg(lit);
+      print_watch_lists(lit);
+
+      Tclause cl = _watch_lists[lit];
+      // since we are purging the watch lists, we can set the watch head to CLAUSE_UNDEF
+      _watch_lists[lit] = CLAUSE_UNDEF;
+      while (cl != CLAUSE_UNDEF) {
+        TSclause& clause = _clauses[cl];
+        if (!clause.watched || clause.deleted) {
+          cl = clause.second_watched;
+          continue;
+        }
+        // cout << "Purging clause: " << clause_to_string(cl) << endl;
+        if (cl == lit_reason(clause.lits[0])) {
+          clause.watched = false;
+          cl = clause.second_watched;
+          continue;
+        }
+
+        ASSERT_MSG(clause.size > 2,
+          "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
+        Tlit* lits = clause.lits;
+        if (lit_true(clause.blocker) && lit_level(clause.blocker) == LEVEL_ROOT) {
+          // delete the clause. repair_watch_lists will take care of the rest
+          delete_clause(cl);
+          cl = clause.second_watched;
+          if (lit == lits[0])
+            cl = clause.first_watched;
+          continue;
+        }
+
+        if (lit == lits[0]) {
+          // swap the two watched literals such that the second one is the one that is falsified at level 0
+          lits[0] ^= lits[1];
+          lits[1] ^= lits[0];
+          lits[0] ^= lits[1];
+          // also swap the next watched clause
+          clause.first_watched ^= clause.second_watched;
+          clause.second_watched ^= clause.first_watched;
+          clause.first_watched ^= clause.second_watched;
+        }
+        ASSERT(lit == lits[1]);
+        if (lit_true(lits[0]) && lit_level(lits[0]) == LEVEL_ROOT) {
+          // delete the clause. repair_watch_lists will take care of the rest
+          delete_clause(cl);
+          cl = clause.second_watched;
+          continue;
+        }
+        Tclause next = clause.second_watched;
+        while (clause.size > 2) {
+          if (lit_level(lits[1]) != LEVEL_ROOT || lit_true(lits[1]))
+            break;
+          // bring the last literal to the front and reduce the size of the clause
+          lits[1] ^= lits[clause.size - 1];
+          lits[clause.size - 1] ^= lits[1];
+          lits[1] ^= lits[clause.size - 1];
+          clause.size--;
+        }
+        // cout << "After: " << clause_to_string(cl) << endl;
+        if (clause.size > 2) {
+          watch_lit(lits[1], cl);
+          cl = next;
+          continue;
+        }
+        if (clause.size == 2 && !lit_false(lits[1])) {
+          clause.watched = false;
+          _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
+          _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
+          cl = next;
+          continue;
+        }
+        // The clause is propagating a literal at level 0
+        // However, adding it to the stack may create a conflict, which we do not want to handle here.
+        // The conflict will remain until it gets propagated later.
+        // We add it to the stack and let the propagation handle it.
+        if (lit_undef(lits[0])) {
+          stack_lit(lits[0], cl);
+          clause.watched = false;
+          // we do not need to udpate the watch lists because the clause is satified at level 0
+          // we just need to remove cl from the watch list of lits[1] because it is now binary
+          // the repair_watch_lists will take care of the rest
+        }
+        else {
+          // we need to push the clause in the binary watch list
+          _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
+          _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
+        }
+        cl = next;
+      }
+    }
+  } // end if (_options.chronological_backtracking && !_options.strong_chronological_backtracking)
 
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
     // Do not remove clauses that are used as reasons
     if (cl == lit_reason(_clauses[cl].lits[0]))
       continue;
-    if (_clauses[cl].deleted || !_clauses[cl].watched)
+    if (_clauses[cl].deleted || !_clauses[cl].watched || _clauses[cl].size <= 2)
       continue;
-    for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses[cl].size; i++) {
-      if (lit_level(*i) > LEVEL_ROOT)
+    // Since all literals are propagated, if a clause has a watched literal falsified at level 0, then the other must be satisfied.
+    // In strong chronological backtracking, the other watched literal must be satisfied at level 0 too.
+    Tlit* lits = _clauses[cl].lits;
+    ASSERT_MSG(!(lit_false(lits[1]) && lit_level(lits[1]) == LEVEL_ROOT && !lit_waiting(lits[1]))
+      || lit_true(lits[0]) || lit_true(_clauses[cl].blocker),
+      "Clause : " + clause_to_string(cl) + " Watched? " + to_string(_clauses[cl].watched) + " Deleted? " + to_string(_clauses[cl].deleted));
+    if ((lit_true(lits[0]) && lit_level(lits[0]) == LEVEL_ROOT)
+      || (lit_true(lits[1]) && lit_level(lits[1]) == LEVEL_ROOT)) {
+      delete_clause(cl);
+      continue;
+    }
+
+    Tlit* i = lits + 2;
+    Tlit* end = lits + _clauses[cl].size - 1;
+    while (i <= end) {
+      if (lit_level(*i) != LEVEL_ROOT) {
+        i++;
         continue;
+      }
       if (lit_false(*i)) {
+        // remove the literal and push it to the back
         Tlit tmp = *i;
-        *i = _clauses[cl].lits[_clauses[cl].size - 1];
-        _clauses[cl].lits[_clauses[cl].size - 1] = tmp;
-        _clauses[cl].size--;
-        if (i < _clauses[cl].lits + 2 && _clauses[cl].size >= 2) {
-          // the temporary set the clause to be in more than two watch lists.
-          // The function repair_watch_lists will fix this.
-          watch_lit(*i, cl);
-        }
-        i--;
+        *i = *end;
+        *end = tmp;
+        end--;
+        continue;
       }
       else {
         ASSERT(lit_true(*i));
@@ -772,38 +977,15 @@ void sat::modulariT_SAT::purge_clauses()
         break;
       }
     }
-    if (_clauses[cl].watched && _clauses[cl].size == 1) {
-      _clauses[cl].watched = false;
-      if (lit_undef(_clauses[cl].lits[0]))
-        stack_lit(_clauses[cl].lits[0], cl);
-      else {
-        ASSERT(_options.chronological_backtracking);
-        CB_backtrack(LEVEL_ROOT);
-        if (lit_false(_clauses[cl].lits[0])) {
-          _status = UNSAT;
-          return;
-        }
-        if (lit_undef(_clauses[cl].lits[0]))
-          stack_lit(_clauses[cl].lits[0], cl);
-        // the clause is satisfied at level 0
-        // delete it if it is not the current reason
-        else if (cl != lit_reason(_clauses[cl].lits[0]))
-          delete_clause(cl);
-      }
-    }
-    else if (_clauses[cl].watched && _clauses[cl].size == 1) {
-      _clauses[cl].watched = false;
-      // insert in the binary clause watch list
-      Tlit* lits = _clauses[cl].lits;
-      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Binary clause created"));
+    _clauses[cl].size = end - lits + 1;
+    if (_clauses[cl].size == 2) {
+      // _clauses[cl].watched = false;
       _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
       _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
-    }
-    else if (_clauses[cl].size == 0) {
-      _status = UNSAT;
-      return;
+      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Binary clause simplified"));
     }
   }
+  // remove the deleted clauses
   repair_watch_lists();
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
@@ -830,6 +1012,7 @@ void sat::modulariT_SAT::simplify_clause_set()
   }
   repair_watch_lists();
   ASSERT(watch_lists_complete());
+  ASSERT(watch_lists_minimal());
   NOTIFY_OBSERVER(_observer, new sat::gui::stat("Clause set simplified"));
 }
 
@@ -918,6 +1101,8 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
     clause->deleted = false;
     clause->watched = true;
     clause->blocker = LIT_UNDEF;
+    clause->first_watched = CLAUSE_UNDEF;
+    clause->second_watched = CLAUSE_UNDEF;
   }
   clause->activity = _max_clause_activity;
   if (_observer) {
@@ -945,7 +1130,7 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
   }
   else if (size == 2) {
     NOTIFY_OBSERVER(_observer, new sat::gui::stat("Binary clause added"));
-    clause->watched = false;
+    // clause->watched = false;
     _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
     _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
     if (lit_false(lits[0]) && !lit_false(lits[1])) {
@@ -953,6 +1138,7 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
       lits[1] = lits[0] ^ lits[1];
       lits[0] = lits[0] ^ lits[1];
       lits[1] = lits[0] ^ lits[1];
+      // no need to update the watch list
     }
     if (lit_false(lits[1])) {
       if (lit_undef(lits[0]))
@@ -976,8 +1162,6 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
         NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication detected"));
       }
     }
-    ASSERT(watch_lists_complete());
-    ASSERT(watch_lists_minimal());
   }
   if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination)
     simplify_clause_set();
@@ -994,7 +1178,7 @@ sat::modulariT_SAT::modulariT_SAT(unsigned n_var, unsigned n_clauses, sat::optio
   _vars = vector<TSvar>(n_var + 1);
   _trail = vector<Tlit>();
   _trail.reserve(n_var);
-  _watch_lists = vector<vector<Tclause>>(2 * n_var + 2);
+  _watch_lists = vector<Tclause>(2 * n_var + 2, CLAUSE_UNDEF);
 
   for (Tvar var = 1; var <= n_var; var++) {
     NOTIFY_OBSERVER(_observer, new sat::gui::new_variable(var));
@@ -1009,9 +1193,11 @@ sat::modulariT_SAT::modulariT_SAT(unsigned n_var, unsigned n_clauses, sat::optio
 
   if (options.interactive) {
     _observer = new sat::gui::observer();
+    _observer->notify(new sat::gui::marker("Start"));
   }
   else if (options.observing) {
     _observer = new sat::gui::observer();
+    _observer->notify(new sat::gui::marker("Start"));
   }
   else if (options.check_invariants) {
     _observer = new sat::gui::observer();
@@ -1051,6 +1237,8 @@ sat::gui::observer* sat::modulariT_SAT::get_observer() const
 
 bool modulariT_SAT::propagate()
 {
+  ASSERT(watch_lists_complete());
+  ASSERT(watch_lists_minimal());
   if (_status != UNDEF)
     return false;
   while (_propagated_literals < _trail.size()) {
@@ -1067,12 +1255,6 @@ bool modulariT_SAT::propagate()
     }
     _propagated_literals++;
     NOTIFY_OBSERVER(_observer, new sat::gui::propagation(lit));
-    if (_purge_counter >= _purge_threshold) {
-      purge_clauses();
-      _purge_counter = 0;
-      if (_status == UNSAT)
-        return false;
-    }
   }
   ASSERT(trail_consistency());
   ASSERT(no_unit_clauses());
@@ -1093,6 +1275,12 @@ status modulariT_SAT::solve()
       if (_status == UNSAT || !_options.interactive)
         break;
       NOTIFY_OBSERVER(_observer, new sat::gui::done(_status == SAT));
+    }
+    if (_purge_counter >= _purge_threshold) {
+      purge_clauses();
+      _purge_counter = 0;
+      if (_status == UNSAT)
+        return _status;
     }
     ASSERT(trail_consistency());
     if (_observer && _options.interactive)
