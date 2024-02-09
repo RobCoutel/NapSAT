@@ -216,14 +216,6 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       cl = clause.second_watched;
       continue;
     }
-    if (lit_true(lit2) && lit_true(clause.blocker) && lit2 != clause.blocker) {
-      // the clause is satisfied by two different literals. So we are sure that there is no missed lower implication
-      ASSERT(_options.strong_chronological_backtracking);
-      // cout << "Two literals are true: " << clause_to_string(cl) << endl;
-      prev = cl;
-      cl = clause.second_watched;
-      continue;
-    }
 
     /** SEARCH REPLACEMENT **/
     Tlit* replacement = seach_replacement(lits, clause.size);
@@ -237,6 +229,9 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       // TODO is is ok to block if the other watched literal is lower? Not in SCB, but in CB?
       // set blocker and go next
       clause.blocker = *replacement;
+#if NOTIFY_WATCH_CHANGES
+      NOTIFY_OBSERVER(_observer, new sat::gui::block(cl, *replacement));
+#endif
       // cout << "Found blocker: " << clause_to_string(cl) << endl;
       prev = cl;
       cl = clause.second_watched;
@@ -847,7 +842,6 @@ void sat::modulariT_SAT::purge_clauses()
         continue;
       }
       lit = lit_neg(lit);
-      print_watch_lists(lit);
 
       Tclause cl = _watch_lists[lit];
       // since we are purging the watch lists, we can set the watch head to CLAUSE_UNDEF

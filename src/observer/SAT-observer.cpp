@@ -416,7 +416,7 @@ void sat::gui::observer::sort_clauses(Tclause cl)
   }
 }
 
-const static unsigned TERMINAL_WIDTH = 167;
+const static unsigned TERMINAL_WIDTH = 279;
 std::string sat::gui::observer::clause_to_string(Tclause cl)
 {
   string s = "";
@@ -439,6 +439,8 @@ std::string sat::gui::observer::clause_to_string(Tclause cl)
   for (Tlit lit : lits) {
     if (_active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end())
       s += "w";
+    if (_active_clauses[cl]->blocker == lit)
+      s += "b";
     s += lit_to_string(lit) + " ";
   }
   return s;

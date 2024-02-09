@@ -2,6 +2,7 @@
 #include "SAT-observer.hpp"
 
 #include <cassert>
+#include <algorithm>
 #include <iostream>
 #include <fstream>
 
@@ -475,4 +476,30 @@ std::string sat::gui::notification_type_to_string(ENotifType type)
   default:
   return "UNKNOWN";
   }
+}
+
+unsigned sat::gui::block::get_event_level(observer& observer)
+{
+  return observer.is_variable_marked(lit_to_var(lit)) || observer.is_clause_marked(cl) ? 0 : event_level;
+}
+
+void sat::gui::block::apply(observer& observer)
+{
+  assert(observer._active_clauses.size() > cl);
+  assert(observer._active_clauses[cl] != nullptr);
+  observer::clause* c = observer._active_clauses[cl];
+  assert(c->active);
+  assert(find(c->literals.begin(), c->literals.end(), lit) != c->literals.end());
+  previous_blocker = c->blocker;
+  c->blocker = lit;
+}
+
+void sat::gui::block::rollback(observer& observer)
+{
+  assert(observer._active_clauses.size() > cl);
+  assert(observer._active_clauses[cl] != nullptr);
+  observer::clause* c = observer._active_clauses[cl];
+  assert(c->active);
+  assert(c->blocker == lit);
+  c->blocker = previous_blocker;
 }

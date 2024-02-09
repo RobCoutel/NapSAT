@@ -32,6 +32,7 @@ namespace sat::gui
     friend class done;
     friend class watch;
     friend class unwatch;
+    friend class block;
 
   public:
     using command_parser = std::function<bool(std::string)>;
@@ -58,6 +59,7 @@ namespace sat::gui
       std::vector<sat::Tlit> literals;
       sat::Tclause cl;
       std::set<sat::Tlit> watched;
+      Tlit blocker = LIT_UNDEF;
       bool active = false;
       bool learnt = false;
       bool external = false;

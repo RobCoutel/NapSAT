@@ -404,7 +404,7 @@ void sat::modulariT_SAT::print_watch_lists(Tlit lit)
         ASSERT(cl != _clauses[cl].second_watched);
         cl = _clauses[cl].second_watched;
       }
-      if (count++ > _vars.size()) {
+      if (count++ > _clauses.size()) {
         cout << "Error: infinite loop in watch list\n";
         ASSERT(false);
         break;

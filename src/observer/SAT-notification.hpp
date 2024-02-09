@@ -47,6 +47,7 @@ namespace sat::gui
     DELETE_CLAUSE,
     WATCH,
     UNWATCH,
+    BLOCKER,
     REMOVE_LITERAL,
     CHECK_INVARIANTS,
     STAT
@@ -573,6 +574,38 @@ namespace sat::gui
     unsigned get_event_level(observer& observer) override;
     const ENotifType get_type() override { return UNWATCH; }
     const std::string get_message() override { return "Unwatch literal : " + std::to_string(sat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+    virtual void apply(observer& observer) override;
+    virtual void rollback(observer& observer) override;
+  };
+
+  /**
+   * @brief Notification that a blocker was set to a clause.
+  */
+  class block : public notification
+  {
+  private:
+    unsigned event_level = 9;
+
+    /**
+     * @brief The clause id that was deleted.
+     */
+    sat::Tclause cl;
+
+    /**
+     * @brief The literal that was watched.
+     */
+    sat::Tlit lit;
+    /**
+     * @brief The previous blocker of the clause (for rollback)
+    */
+    sat::Tlit previous_blocker;
+
+  public:
+    block(sat::Tclause cl, sat::Tlit lit) : cl(cl), lit(lit) {}
+    block* clone() const override { return new block(cl, lit); }
+    unsigned get_event_level(observer& observer) override;
+    const ENotifType get_type() override { return BLOCKER; }
+    const std::string get_message() override { return "Block literal : " + std::to_string(sat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
     virtual void apply(observer& observer) override;
     virtual void rollback(observer& observer) override;
   };
