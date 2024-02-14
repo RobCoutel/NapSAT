@@ -14,7 +14,8 @@ using namespace std;
 static bool test_new_variables_forward()
 {
   bool success = true;
-  observer obs;
+  options opt(nullptr, 0);
+  observer obs(opt);
   obs.notify(new new_variable(1));
   obs.notify(new new_variable(2));
   obs.notify(new new_variable(3));
@@ -34,7 +35,8 @@ static bool test_new_variables_forward()
 static bool test_new_variables_backward()
 {
   bool success = true;
-  observer obs;
+  options opt(nullptr, 0);
+  observer obs(opt);
   obs.notify(new new_variable(1));
   obs.notify(new new_variable(2));
   obs.notify(new new_variable(3));
@@ -84,11 +86,12 @@ static bool test_new_variables_backward()
 static bool test_new_clause()
 {
   bool success = true;
-  observer obs;
+  options opt(nullptr, 0);
+  observer obs(opt);
   obs.notify(new new_variable(1));
   obs.notify(new new_variable(2));
   obs.notify(new new_variable(3));
-  obs.notify(new new_clause(0, {literal(1, 1), literal(2, 1), literal(3, 1)}, false, true));
+  obs.notify(new new_clause(0, { literal(1, 1), literal(2, 1), literal(3, 1) }, false, true));
   auto clauses = obs.get_clauses();
   success &= clauses.size() == 1;
   assert(clauses.size() > 0);
@@ -111,8 +114,7 @@ int main()
     {"new_clause", test_new_clause}
   };
 
-  for (auto test : tests)
-  {
+  for (auto test : tests) {
     cout << "Test " << left << setw(30) << test.first << " : ";
     if (test.second())
       cout << "OK" << endl;

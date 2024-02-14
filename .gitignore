@@ -11,3 +11,5 @@ test.exe
 uf*
 
 log.ansi
+perf.data
+perf.data.old

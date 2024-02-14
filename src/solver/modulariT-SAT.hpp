@@ -657,13 +657,18 @@ namespace sat
      * @details In Non-Chronological Backtracking, a suitable replacement is any literal that is not falsified. In Strong Chronological Backtracking, a suitable replacement is a literal ...
      * TODO finish the description
     */
-    Tlit* seach_replacement(Tlit* lits, unsigned size);
+    Tlit* search_replacement(Tlit* lits, unsigned size);
 
     /**
      * @brief Propagate a literal at level 0
      * @param lit literal to propagate.
      */
     Tclause propagate_fact(Tlit lit);
+
+    /**
+     * @brief Propagate the literal lit on the binary clauses.
+    */
+    Tclause propagate_binary_clauses(Tlit lit);
 
     /**
      * @brief Propagate one literal.

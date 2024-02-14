@@ -24,12 +24,44 @@ long unsigned sat::gui::observer::hash_clause(const std::vector<sat::Tlit>& lits
   return seed;
 }
 
-sat::gui::observer::observer()
+sat::gui::observer::observer(sat::options& options) : _options(options)
 {
   _display = new sat::gui::display(this);
+  assert(options.interactive || options.observing || options.check_invariants || options.print_stats);
+  if (options.interactive || options.observing) {
+    notify(new sat::gui::marker("Start"));
+  }
+  else {
+    if (options.check_invariants) {
+      toggle_checking_only(true);
+    }
+    else {
+      assert(options.print_stats);
+      toggle_stats_only(true);
+    }
+  }
+  if (options.commands_file != "") {
+    load_commands(options.commands_file);
+  }
+  if (options.save_folder != "") {
+    if (options.save_folder[options.save_folder.size() - 1] != '/') {
+      options.save_folder += "/";
+    }
+    string save_folder = options.save_folder;
+    for (unsigned i = 0; i < save_folder.size(); i++) {
+      if (save_folder[i] == ' ') {
+        save_folder.insert(i, "\\");
+        i++;
+      }
+    }
+    // create the folder if it does not exist
+    if (system(("mkdir -p " + save_folder).c_str()) != 0) {
+      cerr << "Error: could not create folder \"" << options.save_folder << "\"\n";
+    }
+  }
 }
 
-sat::gui::observer::observer(const observer& other)
+sat::gui::observer::observer(const observer& other) : _options(other._options)
 {
   for (auto notification : other._notifications)
     _notifications.push_back(notification->clone());
@@ -56,14 +88,14 @@ void observer::notify(notification* notification)
   assert(_location == _notifications.size());
   // cout << "notification " << _location << "/" << _notifications.size() << endl;
   // cout << "notification: " << notification->get_message() << endl;
-  notification->apply(*this);
+  notification->apply(this);
   if (!_check_invariants_only) {
     if (_breakpoints.find(_location) != _breakpoints.end()) {
       cout << "Breakpoint reached" << endl;
       _display->notify_change(1);
     }
     else
-      _display->notify_change(notification->get_event_level(*this));
+      _display->notify_change(notification->get_event_level(this));
   }
 }
 
@@ -98,12 +130,12 @@ unsigned observer::next()
     cerr << "\033[0;33mWARNING\033[0m: trying to navigate in statistics only mode" << endl;
   }
   assert(_location < _notifications.size());
-  _notifications[_location++]->apply(*this);
+  _notifications[_location++]->apply(this);
   if (_breakpoints.find(_location) != _breakpoints.end()) {
     cout << "Breakpoint reached" << endl;
     return 1;
   }
-  return _notifications[_location - 1]->get_event_level(*this);
+  return _notifications[_location - 1]->get_event_level(this);
 }
 
 unsigned observer::back()
@@ -111,12 +143,12 @@ unsigned observer::back()
   assert(_location > 0);
   _location--;
   notification* notification = _notifications[_location];
-  notification->rollback(*this);
+  notification->rollback(this);
   if (_breakpoints.find(_location) != _breakpoints.end()) {
     cout << "Breakpoint reached" << endl;
     return 1;
   }
-  return notification->get_event_level(*this);
+  return notification->get_event_level(this);
 }
 
 std::string sat::gui::observer::last_message()
@@ -416,7 +448,7 @@ void sat::gui::observer::sort_clauses(Tclause cl)
   }
 }
 
-const static unsigned TERMINAL_WIDTH = 279;
+const static unsigned TERMINAL_WIDTH = 167;
 std::string sat::gui::observer::clause_to_string(Tclause cl)
 {
   string s = "";
@@ -548,7 +580,7 @@ void sat::gui::observer::print_variables()
   cout << "\n";
 }
 
-std::string sat::gui::observer::literal_to_latex(Tlit lit)
+std::string sat::gui::observer::literal_to_latex(Tlit lit, bool watched, bool blocked)
 {
   string s = "";
   if (lit_value(lit) == VAR_FALSE)
@@ -567,7 +599,7 @@ std::string sat::gui::observer::literal_to_latex(Tlit lit)
   return s;
 }
 
-std::string sat::gui::observer::literal_to_aligned_latex(Tlit lit)
+std::string sat::gui::observer::literal_to_aligned_latex(Tlit lit, bool watched, bool blocked)
 {
   string s = "";
   if (lit_value(lit) == VAR_FALSE)
@@ -578,6 +610,11 @@ std::string sat::gui::observer::literal_to_aligned_latex(Tlit lit)
     s += "\\neg ";
   else
     s += "\\phantom{\\neg} ";
+
+  if (watched)
+    s += "\\underline{";
+  if (blocked)
+    s += "\\boxed{";
   s += "v";
   s += "_{" + to_string(lit_to_var(lit));
 
@@ -593,6 +630,10 @@ std::string sat::gui::observer::literal_to_aligned_latex(Tlit lit)
   }
 
   s += "}";
+  if (watched)
+    s += "}";
+  if (blocked)
+    s += "}";
   if (lit_value(lit) == VAR_FALSE || lit_value(lit) == VAR_TRUE)
     s += "}";
   return s;
@@ -612,7 +653,11 @@ std::string sat::gui::observer::clause_to_latex(Tclause cl)
       s += "\\red{\\dots}";
       break;
     }
-    s += literal_to_latex(_active_clauses[cl]->literals[i]);
+    clause* cl_ptr = _active_clauses[cl];
+    Tlit lit = cl_ptr->literals[i];
+    bool watched = cl_ptr->watched.find(lit) != cl_ptr->watched.end();
+    bool blocked = cl_ptr->blocker == lit;
+    s += literal_to_latex(lit, watched, blocked);
   }
   s += "$";
   return s;
@@ -626,15 +671,11 @@ std::string sat::gui::observer::clause_to_aligned_latex(Tclause cl)
   for (unsigned i = 0; i < _active_clauses[cl]->literals.size(); i++) {
     if (i > 0)
       s += "\\lor ";
-    Tlit lit = _active_clauses[cl]->literals[i];
-    bool watched = false;
-    if (_active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end()) {
-      s += "\\underline{";
-      watched = true;
-    }
-    s += literal_to_aligned_latex(lit);
-    if (watched)
-      s += "}";
+    clause* cl_ptr = _active_clauses[cl];
+    Tlit lit = cl_ptr->literals[i];
+    bool watched = cl_ptr->watched.find(lit) != cl_ptr->watched.end();
+    bool blocked = cl_ptr->blocker == lit;
+    s += literal_to_aligned_latex(lit, watched, blocked);
   }
   return s;
 }
@@ -833,15 +874,11 @@ std::string sat::gui::observer::implication_graph_to_latex()
   return s;
 }
 
-static string fileTrail = "Figures/trails/weak-blocker-";
-static string fileClause = "Figures/clauses/weak-blocker-";
-static unsigned fileNumber = 0;
-
 void sat::gui::observer::save_state()
 {
   if (!_recording)
     return;
-  string filename = fileTrail + to_string(fileNumber) + ".tex";
+  string filename = _options.save_folder + "/trail-" + to_string(file_number) + ".tex";
   string trail_latex = trail_to_latex();
   ofstream file(filename);
   if (!file.is_open()) {
@@ -851,7 +888,7 @@ void sat::gui::observer::save_state()
     file << trail_latex;
     file.close();
   }
-  filename = fileClause + to_string(fileNumber) + ".tex";
+  filename = _options.save_folder + "/clauses-" + to_string(file_number) + ".tex";
   string clause_latex;
   if (_active_clauses.size() > 20)
     clause_latex = used_clauses_to_latex();
@@ -865,7 +902,7 @@ void sat::gui::observer::save_state()
     file << clause_latex;
     file.close();
   }
-  fileNumber++;
+  file_number++;
 }
 
 sat::gui::observer::~observer()

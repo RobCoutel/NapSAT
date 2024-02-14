@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../solver/SAT-types.hpp"
+#include "../solver/SAT-options.hpp"
 #include "../display/SAT-display.hpp"
 #include "SAT-notification.hpp"
 
@@ -64,6 +65,8 @@ namespace sat::gui
       bool learnt = false;
       bool external = false;
     };
+
+    sat::options _options;
 
     std::vector<notification*> _notifications;
 
@@ -158,11 +161,16 @@ namespace sat::gui
     */
     std::unordered_map<std::string, unsigned> stat_count;
 
+    /**
+     * @brief Number of the next file to be written
+     */
+    unsigned file_number = 0;
+
   public:
     /**
      * @brief Construct a new observer object
      */
-    observer();
+    observer(sat::options& options);
 
     /**
      * @brief Clone an observer object
@@ -389,12 +397,12 @@ namespace sat::gui
      * @brief Returns a LaTeX string to represent a literal.
      * @details The returned string does not contain the '$' bounding symbols
      */
-    std::string literal_to_latex(Tlit lit);
+    std::string literal_to_latex(Tlit lit, bool watched = false, bool blocked = false);
 
     /**
      * @brief Returns a LaTeX string to represent a literal. The compiled LaTeX will see all theses literals to have the same length on the resulting pdf.
      */
-    std::string literal_to_aligned_latex(Tlit lit);
+    std::string literal_to_aligned_latex(Tlit lit, bool watched = false, bool blocked = false);
 
     /**
      * @brief Returns a LaTeX string to represent a clause.
