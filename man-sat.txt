@@ -1,1 +1,36 @@
-TODO
+When the solver is in `interactive` mode (-i or --interactive), it will ask
+the user to enter a command between decisions. These commands take the following
+form
+
+  - HELP
+    Prints this helper file.
+
+  - "empty command"
+    The solver makes an arbitrary decision. If no decision can be made, the solver returns.
+
+  - DECIDE [lit]
+    If [lit] is not provided, performs an arbitrary decision.
+    [lit] should be undefined.
+    Pushes [lit] as a new decision on the trail
+
+  - HINT <lit> <reason> /!\ Not yet implemented
+    <lit> should be undefined.
+    Add a theory propagation to the trail
+
+  - LEARN [lit0] [lit1] [...] [litn]
+    Adds the clause lit0 V lit1 V .. V litn to the clause set
+
+  - EXIT
+    Kills the program
+
+  - PRINT <trail/trail-simple/clause-set/watch-lists>
+    Prints to the terminal
+      trail: The trail in a linear format with the level and reason of each
+        literal
+      trail-simple: The trail in a flatten format. More compact, does not show
+        the reasons.
+      clause-set: The set of clauses that are still active (not deleted)
+      watch-lists: The watch lists for each literal.
+
+  - DELETE_CLAUSE <clause_number> /!\ Probably buggy, not tested much
+    Deletes a clause from the clause set.

@@ -1,5 +1,6 @@
 #include "modulariT-SAT.hpp"
 #include "custom-assert.hpp"
+#include "../environment.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -527,47 +528,19 @@ bool sat::modulariT_SAT::parse_command(std::string input)
     }
     delete_clause(cl);
   }
-  // else if (tokens[0] == "DELETE_VARIABLE")
-  // {
-  //   if (tokens.size() != 2) {
-  //     cout << "Error: wrong number of arguments (expected 1)\n";
-  //     return false;
-  //   }
-  //   int var = stoi(tokens[1]);
-  //   if (var < 0 || var >= _vars.size()) {
-  //     cout << "Error: variable " << var << " does not exist\n";
-  //     return false;
-  //   }
-  //   if (!_vars[var].active) {
-  //     cout << "Error: variable " << var << " is already deleted\n";
-  //     return false;
-  //   }
-  // }
-  // else if (tokens[0] == "COMMAND")
-  // {
-  //   if (tokens.size() == 2) {
-  //     // open the the file provided as second argument and store the commands in a vector
-
-  //     ifstream file(tokens[1]);
-  //     if (!file.is_open()) {
-  //       cout << "Error: could not open file \"" << tokens[1] << "\"\n";
-  //       return false;
-  //     }
-  //     string line;
-  //     while (getline(file, line)) {
-  //       commands.push_back(line);
-  //     }
-  //     file.close();
-  //   }
-  // }
   else if (tokens[0] == "HELP") {
-    cout << "DECIDE [lit]: decide the value of a literal\n";
-    cout << "HINT <lit> [level]: hint the value of a literal\n";
-    cout << "LEARN <lit1> [lit2] [...] [litn]: learn a new clause\n";
-    cout << "PRINT <trail/clause-set/watch-lists>: print the trail, the clause set or the watch lists\n";
-    // cout << "COMMAND <file>: read commands from a file\n";
-    cout << "HELP: print this help\n";
-    cout << "EXIT: exit the program\n";
+    // print the content of the help file
+    string man_file = sat::env::man_page_directory + "man-sat.txt";
+    ifstream file(man_file);
+    if (file.is_open()) {
+      string line;
+      while (getline(file, line))
+        cout << line << endl;
+      file.close();
+    }
+    else {
+      cerr << "Error: could not load the manual page." << endl;
+    }
   }
   else {
     cout << "Error: unknown command \"" << tokens[0] << "\"; try \"HELP\" to get the list of commands\n";

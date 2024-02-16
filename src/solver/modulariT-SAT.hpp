@@ -91,7 +91,14 @@ namespace sat
        */
       Tval state_last_sync : 2;
 
+      /**
+       * @brief Stores the a clause that could propagate the variable at a lower level.
+      */
+      Tclause missed_lower_implication = CLAUSE_UNDEF;
+
     } TSvar;
+
+#define CLAUSE_HEAD_SIZE 5
 
     /**
      * @brief Structure to store a clause and its metadata.
@@ -99,16 +106,20 @@ namespace sat
      */
     typedef struct TSclause
     {
-      TSclause(Tlit* lits, unsigned size, bool learned, bool external)
-        : lits(lits),
+      /**
+       * @brief Constructor of the clause.
+       * @details This constructor is non-destructive. It initializes the requited memory for the literals.
+      */
+      TSclause(Tlit* lits, unsigned size, bool learned, bool external) :
+        lits(lits),
         first_watched(CLAUSE_UNDEF),
         second_watched(CLAUSE_UNDEF),
         deleted(false),
         learned(learned),
         watched(true),
         external(external),
-        size(size),
         original_size(size),
+        size(size),
         blocker(*lits)
       {
         assert(size < (1 << 28));
@@ -143,13 +154,14 @@ namespace sat
        */
       unsigned external : 1;
       /**
+       * @brief Size of the clause when it was added to the clause set
+       * @details Used to know the size of the allocated memory.
+       */
+      unsigned original_size : 28;
+      /**
        * @brief Size of the clause.
        */
-      unsigned size : 28; // this is not really necessary but we have some space left
-      /**
-       * @brief Size of the clause when it was added to the clause set
-       */
-      unsigned original_size;
+      unsigned size;
       /**
        * @brief Blocking literal. If the clause is satisfied by the blocking literal, the watched literals are allowed to be falsified.
        * @details In chronological backtracking, the blocking literal must be at a lower level than the watched literals.
@@ -332,12 +344,6 @@ namespace sat
 
     /**  MISSED LOWER IMPLICATIONS  **/
     /**
-     * @brief For each variable, contains the lowest clause that can propagate the variable.
-     * The clause must be ordered such that the first literal is the one that could have been propagated earlier. And the second literal is the highest literal in the clause.
-     */
-    std::vector<Tclause> _lazy_reimplication_buffer;
-
-    /**
      * @brief Buffer used in strong chronological backtracking to store literals that were removed from the trail and should be reimplied after backtracking.
      */
     std::vector<Tclause> _reimplication_backtrack_buffer;
@@ -400,7 +406,7 @@ namespace sat
      */
     inline bool lit_true(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].state == lit_pol(lit);
+      return !(_vars[lit_to_var(lit)].state ^ lit_pol(lit));
     }
 
     /**
@@ -410,7 +416,7 @@ namespace sat
      */
     inline bool lit_false(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].state == (lit_pol(lit) ^ 1);
+      return !(_vars[lit_to_var(lit)].state ^ lit_pol(lit) ^ 1);
     }
 
     /**
@@ -431,6 +437,48 @@ namespace sat
     inline Tclause lit_reason(Tlit lit) const
     {
       return _vars[lit_to_var(lit)].reason;
+    }
+
+    /**
+     * @brief Returns an alternative reason for propagating the variable at a lower level.
+     * If no such reason exists, returns CLAUSE_UNDEF.
+     * @param var variable to evaluate.
+     * @return a missed lower implication of the variable.
+     */
+    inline Tclause var_lazy_reason(Tvar var) const
+    {
+      return _vars[var].missed_lower_implication;
+    }
+
+    /**
+     * @brief Returns an alternative reason for propagating the literal at a lower level.
+     * If no such reason exists, returns CLAUSE_UNDEF.
+     * @param lit literal to evaluate.
+     * @return a missed lower implication of the literal.
+     */
+    inline Tclause lit_lazy_reason(Tlit lit) const
+    {
+      return _vars[lit_to_var(lit)].missed_lower_implication;
+    }
+
+    /**
+     * @brief Sets a missed lower implication for a variable.
+     * @param var variable to set the missed lower implication.
+     */
+    inline void var_set_lazy_reason(Tvar var, Tclause cl)
+    {
+      _vars[var].missed_lower_implication = cl;
+      NOTIFY_OBSERVER(_observer, new sat::gui::missed_lower_implication(var, cl));
+    }
+
+    /**
+     * @brief Sets a missed lower implication for a literal.
+     * @param lit literal to set the missed lower implication.
+     */
+    inline void lit_set_lazy_reason(Tlit lit, Tclause cl)
+    {
+      _vars[lit_to_var(lit)].missed_lower_implication = cl;
+      NOTIFY_OBSERVER(_observer, new sat::gui::missed_lower_implication(lit_to_var(lit), cl));
     }
 
     /**
@@ -586,6 +634,9 @@ namespace sat
       v.state = VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
+      if (v.missed_lower_implication != CLAUSE_UNDEF)
+        NOTIFY_OBSERVER(_observer, new sat::gui::remove_lower_implication(var));
+      v.missed_lower_implication = CLAUSE_UNDEF;
       if (!_variable_heap.contains(var))
         _variable_heap.insert(var, v.activity);
     }
@@ -603,7 +654,6 @@ namespace sat
       }
       if (var >= _vars.size() - 1) {
         _vars.resize(var + 1);
-        _lazy_reimplication_buffer.resize(var + 1, CLAUSE_UNDEF);
         _watch_lists.resize(2 * var + 2, CLAUSE_UNDEF);
         _binary_clauses.resize(2 * var + 2);
         // reallocate the literal buffer to make sure it is big enough

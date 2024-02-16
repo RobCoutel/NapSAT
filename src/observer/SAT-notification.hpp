@@ -50,6 +50,8 @@ namespace sat::gui
     BLOCKER,
     REMOVE_LITERAL,
     CHECK_INVARIANTS,
+    MISSED_LOWER_IMPLICATION,
+    REMOVE_LOWER_IMPLICATION,
     STAT
   };
   std::string notification_type_to_string(ENotifType type);
@@ -653,6 +655,45 @@ namespace sat::gui
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
   };
+
+  class missed_lower_implication : public notification
+  {
+  private:
+    unsigned event_level = 5;
+
+    Tvar var;
+    Tclause cl;
+    Tclause last_cl;
+
+  public:
+    missed_lower_implication(Tvar var, Tclause cl) : var(var), cl(cl) {}
+    missed_lower_implication* clone() const override { return new missed_lower_implication(var, cl); }
+    const std::string get_message() override { return "Missed lower implication: " + std::to_string(var) + " in clause " + std::to_string(cl); }
+    unsigned get_event_level(observer* observer) override { return event_level; }
+    const ENotifType get_type() override { return MISSED_LOWER_IMPLICATION; }
+    virtual void apply(observer* observer) override;
+    virtual void rollback(observer* observer) override;
+  };
+
+  class remove_lower_implication : public notification
+  {
+  private:
+    unsigned event_level = 5;
+
+    Tvar var;
+    Tclause last_cl;
+
+  public:
+    remove_lower_implication(Tvar var) : var(var) {}
+    remove_lower_implication* clone() const override { return new remove_lower_implication(var); }
+    const std::string get_message() override { return "Remove lower implication: " + std::to_string(var) + " in clause " + std::to_string(last_cl); }
+    unsigned get_event_level(observer* observer) override { return event_level; }
+    const ENotifType get_type() override { return REMOVE_LOWER_IMPLICATION; }
+    virtual void apply(observer* observer) override;
+    virtual void rollback(observer* observer) override;
+  };
+
+
 
 
   class stat : public notification

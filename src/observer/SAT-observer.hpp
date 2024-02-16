@@ -34,6 +34,8 @@ namespace sat::gui
     friend class watch;
     friend class unwatch;
     friend class block;
+    friend class missed_lower_implication;
+    friend class remove_lower_implication;
 
   public:
     using command_parser = std::function<bool(std::string)>;
@@ -48,6 +50,7 @@ namespace sat::gui
       sat::Tval value = sat::VAR_UNDEF;
       sat::Tlevel level = sat::LEVEL_UNDEF;
       sat::Tclause reason = sat::CLAUSE_UNDEF;
+      sat::Tclause lazy_reason = sat::CLAUSE_UNDEF;
       bool active = false;
       bool propagated = false;
     };

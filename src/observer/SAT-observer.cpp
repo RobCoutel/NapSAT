@@ -401,6 +401,8 @@ std::string sat::gui::observer::variable_to_string(sat::Tvar var)
       s += "lazy";
     else
       s += std::to_string(_variables[var].reason);
+    if (_variables[var].lazy_reason != CLAUSE_UNDEF)
+      s += "/" + std::to_string(_variables[var].lazy_reason);
   }
   else
     s += "deleted";
@@ -853,21 +855,34 @@ std::string sat::gui::observer::implication_graph_to_latex()
   for (unsigned i = 1; i < _assignment_stack.size(); i++) {
     Tlit lit = _assignment_stack[i];
     Tclause reason = lit_reason(lit);
-    if (reason == CLAUSE_UNDEF)
-      continue;
-    for (unsigned j = 0; j < _active_clauses[reason]->literals.size(); j++) {
-      Tlit lit2 = _active_clauses[reason]->literals[j];
-      if (lit2 == lit)
-        continue;
-      // cout << "lit2: " << lit2 << endl;
-      // cout << "lit: " << lit << endl;
-      if (lit_level(lit2) != lit_level(lit) || lit_to_var(lit2) == lit_to_var(_assignment_stack[i - 1])) {
-        s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr] (v" + to_string(lit_to_var(lit)) + ");";
+    if (reason != CLAUSE_UNDEF) {
+      for (unsigned j = 0; j < _active_clauses[reason]->literals.size(); j++) {
+        Tlit lit2 = _active_clauses[reason]->literals[j];
+        if (lit2 == lit)
+          continue;
+        // cout << "lit2: " << lit2 << endl;
+        // cout << "lit: " << lit << endl;
+        if (lit_level(lit2) != lit_level(lit) || lit_to_var(lit2) == lit_to_var(_assignment_stack[i - 1])) {
+          s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr] (v" + to_string(lit_to_var(lit)) + ");";
+        }
+        else {
+          s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, bend right=30] (v" + to_string(lit_to_var(lit)) + ");";
+        }
+        s += "\n";
       }
-      else {
-        s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, bend right=30] (v" + to_string(lit_to_var(lit)) + ");";
+    }
+    reason = _variables[lit_to_var(lit)].lazy_reason;
+    if (reason != CLAUSE_UNDEF) {
+      for (unsigned j = 0; j < _active_clauses[reason]->literals.size(); j++) {
+        Tlit lit2 = _active_clauses[reason]->literals[j];
+        if (lit2 == lit)
+          continue;
+        // cout << "lit2: " << lit2 << endl;
+        // cout << "lit: " << lit << endl;
+        assert(lit_level(lit2) != lit_level(lit) || lit_to_var(lit2) == lit_to_var(_assignment_stack[i - 1]));
+        s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, dashed] (v" + to_string(lit_to_var(lit)) + ");";
+        s += "\n";
       }
-      s += "\n";
     }
     s += "\n";
   }

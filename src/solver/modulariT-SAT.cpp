@@ -101,7 +101,7 @@ Tclause sat::modulariT_SAT::propagate_binary_clauses(Tlit lit)
     if (lit_true(bin.first)) {
       if (_options.strong_chronological_backtracking && lit_level(bin.first) > lit_level(lit)) {
         // missed lower implication
-        Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(bin.first)];
+        Tclause lazy_reason = lit_lazy_reason(bin.first);
         if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > lit_level(bin.first)) {
           // reorder the literals such that the satisfied literal is at the first position
           Tlit* lits = _clauses[bin.second].lits;
@@ -111,8 +111,7 @@ Tclause sat::modulariT_SAT::propagate_binary_clauses(Tlit lit)
             lits[0] = lits[0] ^ lits[1];
             // no need to update the watch lists because the clause is binary
           }
-          _lazy_reimplication_buffer[lit_to_var(bin.first)] = bin.second;
-          NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication detected"));
+          lit_set_lazy_reason(bin.first, bin.second);
         }
       }
       continue;
@@ -341,11 +340,10 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
     // lit2 is the only satisfied literal in the clause and all other literals are propagated at a level lower than the highest falsified literal
     ASSERT(_options.strong_chronological_backtracking);
     ASSERT(lit_true(lit2));
-    Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lit2)];
+    Tclause lazy_reason = lit_lazy_reason(lit2);
     ASSERT(lazy_reason == CLAUSE_UNDEF || lazy_reason < _clauses.size());
     if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > replacement_lvl) {
-      _lazy_reimplication_buffer[lit_to_var(lit2)] = cl;
-      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication detected"));
+      lit_set_lazy_reason(lit2, cl);
     }
     cl = next;
   }
@@ -395,18 +393,17 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
       _decision_index.pop_back();
     }
     if (lit_level(lit) > level) {
-      var_unassign(lit_to_var(lit));
+      ASSERT(_options.strong_chronological_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
       if (_options.strong_chronological_backtracking) {
         // look if the literal can be reimplied at a lower level
-        Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lit)];
+        Tclause lazy_reason = lit_lazy_reason(lit);
         if (lazy_reason != CLAUSE_UNDEF && lit_level(_clauses[lazy_reason].lits[1]) <= level) {
           ASSERT(_clauses[lazy_reason].lits[0] == lit);
-          ASSERT(lit_undef(_clauses[lazy_reason].lits[0]));
+          ASSERT(lit_true(_clauses[lazy_reason].lits[0]));
           _reimplication_backtrack_buffer.push_back(lazy_reason);
         }
-        // we need to reset it regardless of whether it was useful or not
-        _lazy_reimplication_buffer[lit_to_var(lit)] = CLAUSE_UNDEF;
       }
+      var_unassign(lit_to_var(lit));
       continue;
     }
     _backtrack_buffer.push_back(lit);
@@ -494,14 +491,12 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
     /*                         LAZY RE-IMPLICATION                           */
     /*************************************************************************/
     if (count == 1) {
-      Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lit)];
+      Tclause lazy_reason = lit_lazy_reason(lit);
       if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > conflict_level) {
         _literal_buffer[_next_literal_index++] = lit_neg(_trail[i]);
         break;
       }
       NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication used"));
-      // cout << "FOUND" << endl;
-      // NOTIFY_OBSERVER(_observer, new sat::gui::marker("Lazy reimplication used: " + clause_to_string(lazy_reason)));
       // The missed lower implication will be propagated again after backtracking.
       // So we anticipate and continue conflict analysis directly
       count = 0;
@@ -545,7 +540,7 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
     /*                             STANDARD FUIP                             */
     /*************************************************************************/
     // process the literals at highest level
-    Tclause reason = _lazy_reimplication_buffer[lit_to_var(lit)];
+    Tclause reason = lit_lazy_reason(lit);
     if (reason == CLAUSE_UNDEF)
       reason = lit_reason(lit);
     else {
@@ -677,8 +672,9 @@ void modulariT_SAT::analyze_conflict(Tclause conflict)
   for (unsigned j = 0; j < _next_literal_index; j++)
     lit_unmark_seen(_literal_buffer[j]);
   // backtrack depending on the chronological backtracking strategy
-  if (_options.chronological_backtracking)
+  if (_options.chronological_backtracking) {
     CB_backtrack(conflict_level - 1);
+  }
   else {
     Tlevel second_highest_level = LEVEL_ROOT;
     for (unsigned j = 0; j < _next_literal_index - 1; j++) {
@@ -740,7 +736,8 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
       // NOTIFY_OBSERVER(_observer, new sat::gui::marker("One literal at highest level " + clause_to_string(conflict)));
       // In strong chronological backtracking, the literal might have been propagated again during reimplication
       // Therefore, we might need to trigger another conflict analysis
-      ASSERT(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]));
+      ASSERT_MSG(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]),
+        "Conflict: " + clause_to_string(conflict) + "\nLiteral: " + lit_to_string(_clauses[conflict].lits[0]));
       Tlit* lits = _clauses[conflict].lits;
       Tlit* end = lits + _clauses[conflict].size;
       if (!lit_undef(_clauses[conflict].lits[0])) {
@@ -1141,10 +1138,9 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
     else if (lit_false(lits[1]) && lit_undef(lits[0]))
       stack_lit(lits[0], cl);
     else if (lit_false(lits[1]) && lit_true(lits[0]) && (lit_level(lits[1]) < lit_level(lits[0]))) {
-      Tclause lazy_reason = _lazy_reimplication_buffer[lit_to_var(lits[0])];
+      Tclause lazy_reason = lit_lazy_reason(lits[1]);
       if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > lit_level(lits[1])) {
-        _lazy_reimplication_buffer[lit_to_var(lits[0])] = cl;
-        NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication detected"));
+        lit_set_lazy_reason(lits[1], cl);
       }
     }
   }
@@ -1268,6 +1264,8 @@ status modulariT_SAT::solve()
       _observer->notify(new sat::gui::checkpoint());
     else
       decide();
+    if (_status == SAT || _status == UNSAT)
+      break;
   }
   ASSERT(trail_consistency());
   NOTIFY_OBSERVER(_observer, new sat::gui::done(_status == SAT));

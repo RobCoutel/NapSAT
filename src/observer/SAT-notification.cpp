@@ -12,6 +12,57 @@ using namespace std;
 
 bool sat::gui::notification::_suppress_warning = false;
 
+
+std::string sat::gui::notification_type_to_string(ENotifType type)
+{
+  switch (type) {
+  case ENotifType::CHECKPOINT:
+  return "Checkpoint";
+  case ENotifType::DONE:
+  return "Done";
+  case ENotifType::MARKER:
+  return "Marker";
+  case ENotifType::NEW_VARIABLE:
+  return "New variable";
+  case ENotifType::DELETE_VARIABLE:
+  return "variable deleted";
+  case ENotifType::DECISION:
+  return "Decision";
+  case ENotifType::IMPLICATION:
+  return "Implication";
+  case ENotifType::PROPAGATION:
+  return "Propagation";
+  case ENotifType::CONFLICT:
+  return "Conflict";
+  case ENotifType::BACKTRACKING_STARTED:
+  return "Backtracking started";
+  case ENotifType::BACKTRACKING_DONE:
+  return "Backtracking completed";
+  case ENotifType::UNASSIGNMENT:
+  return "Unassignement";
+  case ENotifType::NEW_CLAUSE:
+  return "New clause";
+  case ENotifType::DELETE_CLAUSE:
+  return "Clause deleted";
+  case ENotifType::WATCH:
+  return "Watch";
+  case ENotifType::UNWATCH:
+  return "Stop watching";
+  case ENotifType::REMOVE_LITERAL:
+  return "Remove literal";
+  case ENotifType::CHECK_INVARIANTS:
+  return "Invariants checking";
+  case ENotifType::BLOCKER:
+  return "Blocker set";
+  case ENotifType::MISSED_LOWER_IMPLICATION:
+  return "Missed lower implication";
+  case ENotifType::REMOVE_LOWER_IMPLICATION:
+  return "Remove lower implication";
+  default:
+  return "UNKNOWN";
+  }
+}
+
 unsigned sat::gui::new_variable::get_event_level(observer* obs)
 {
   assert(obs);
@@ -470,52 +521,6 @@ void sat::gui::check_invariants::rollback(observer* obs)
   obs->check_invariants();
 }
 
-std::string sat::gui::notification_type_to_string(ENotifType type)
-{
-  switch (type) {
-  case ENotifType::CHECKPOINT:
-  return "Checkpoint";
-  case ENotifType::DONE:
-  return "Done";
-  case ENotifType::MARKER:
-  return "Marker";
-  case ENotifType::NEW_VARIABLE:
-  return "New variable";
-  case ENotifType::DELETE_VARIABLE:
-  return "variable deleted";
-  case ENotifType::DECISION:
-  return "Decision";
-  case ENotifType::IMPLICATION:
-  return "Implication";
-  case ENotifType::PROPAGATION:
-  return "Propagation";
-  case ENotifType::CONFLICT:
-  return "Conflict";
-  case ENotifType::BACKTRACKING_STARTED:
-  return "Backtracking started";
-  case ENotifType::BACKTRACKING_DONE:
-  return "Backtracking completed";
-  case ENotifType::UNASSIGNMENT:
-  return "Unassignement";
-  case ENotifType::NEW_CLAUSE:
-  return "New clause";
-  case ENotifType::DELETE_CLAUSE:
-  return "Clause deleted";
-  case ENotifType::WATCH:
-  return "Watch";
-  case ENotifType::UNWATCH:
-  return "Stop watching";
-  case ENotifType::REMOVE_LITERAL:
-  return "Remove literal";
-  case ENotifType::CHECK_INVARIANTS:
-  return "Invariants checking";
-  case ENotifType::BLOCKER:
-  return "Blocker set";
-  default:
-  return "UNKNOWN";
-  }
-}
-
 unsigned sat::gui::block::get_event_level(observer* obs)
 {
   assert(obs);
@@ -543,4 +548,40 @@ void sat::gui::block::rollback(observer* obs)
   assert(c->active);
   assert(c->blocker == lit);
   c->blocker = previous_blocker;
+}
+
+void sat::gui::missed_lower_implication::apply(observer* obs)
+{
+  assert(obs);
+  assert(obs->_variables.size() > var);
+  assert(obs->_active_clauses.size() > cl);
+  assert(obs->_active_clauses[cl] != nullptr);
+  last_cl = obs->_variables[var].lazy_reason;
+  obs->_variables[var].lazy_reason = cl;
+}
+
+void sat::gui::missed_lower_implication::rollback(observer* obs)
+{
+  assert(obs);
+  assert(obs->_variables.size() > var);
+  // assert(obs->_active_clauses.size() > cl);
+  assert(obs->_active_clauses[cl] != nullptr);
+  assert(obs->_variables[var].lazy_reason == cl);
+  obs->_variables[var].lazy_reason = last_cl;
+}
+
+void sat::gui::remove_lower_implication::apply(observer* obs)
+{
+  last_cl = obs->_variables[var].lazy_reason;
+  obs->_variables[var].lazy_reason = CLAUSE_UNDEF;
+}
+
+void sat::gui::remove_lower_implication::rollback(observer* obs)
+{
+  assert(obs);
+  assert(obs->_variables.size() > var);
+  assert(obs->_active_clauses.size() > last_cl);
+  assert(obs->_active_clauses[last_cl] != nullptr);
+  assert(obs->_variables[var].lazy_reason == CLAUSE_UNDEF);
+  obs->_variables[var].lazy_reason = last_cl;
 }

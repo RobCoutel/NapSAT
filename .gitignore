@@ -13,3 +13,4 @@ uf*
 log.ansi
 perf.data
 perf.data.old
+cachegrind.out.*
