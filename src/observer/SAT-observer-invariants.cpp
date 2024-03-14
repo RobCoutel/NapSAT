@@ -1,3 +1,10 @@
+/**
+ * @file src/observer/SAT-observer-invariants.cpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the observer of the SMT Solver modulariT. It contains the
+ * implementation of the invariant checkers in the observer.
+ */
 #include "SAT-observer.hpp"
 
 #include <iostream>
@@ -9,6 +16,7 @@ static const string error = "\033[1;31m" + string("Error: ") + "\033[0m";
 
 void sat::gui::observer::load_invariant_configuration(std::string filename)
 {
+  // TODO this is a bit brutal. Do like in the options.
   ifstream file(filename);
   if (!file.is_open())
   {
@@ -255,7 +263,41 @@ bool sat::gui::observer::check_topological_order()
   return success;
 }
 
-#if NOTIFY_WATCH_CHANGE
+#if NOTIFY_WATCH_CHANGES
+bool sat::gui::observer::check_weak_watch_literals()
+{
+  const string error_header = error + "Invariant violation (weak watch literals): ";
+  bool success = true;
+  for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
+  {
+    clause *c = _active_clauses[cl];
+    if (!c->active || c->literals.size() < 2)
+      continue;
+    if (c->watched.size() != 2)
+    {
+      _error_message += error_header + "clause " + clause_to_string(cl) + " has " + to_string(c->watched.size()) + " watched literals.\n";
+      continue;
+    }
+    // ¬c₁ ∈ τ ⇒ c₂ ∉ τ
+    bool non_falsified = false;
+    for (Tlit lit : c->literals) {
+      if (lit_value(lit) != VAR_FALSE || !lit_propagated(lit)) {
+        non_falsified = true;
+        break;
+      }
+    }
+    if (non_falsified)
+      continue;
+
+    success = false;
+    _error_message += error_header + "clause " + clause_to_string(cl) + " has two falsified propagated watched literals ";
+    for (Tlit lit : c->watched)
+      _error_message += lit_to_string(lit) + " ";
+    _error_message += ".\n";
+  }
+  return success;
+}
+
 
 bool sat::gui::observer::check_strong_watch_literals()
 {
@@ -266,91 +308,29 @@ bool sat::gui::observer::check_strong_watch_literals()
     clause *c = _active_clauses[cl];
     if (!c->active || c->literals.size() < 2)
       continue;
-    if (lit_value(c->watched[0]) == VAR_TRUE || lit_value(c->watched[1]) == VAR_TRUE)
+    if (c->watched.size() != 2)
+    {
+      _error_message += error_header + "clause " + clause_to_string(cl) + " has " + to_string(c->watched.size()) + " watched literals.\n";
+      continue;
+    }
+    // ¬c₁ ∈ τ ⇒ c₂ ∈ π
+    bool at_least_one_satisfied = false;
+    bool at_least_one_falsified_propagated = false;
+    for (Tlit lit : c->literals) {
+      if (lit_value(lit) == VAR_TRUE) {
+        at_least_one_satisfied = true;
+        break;
+      }
+      if (lit_value(lit) == VAR_FALSE && lit_propagated(lit)) {
+        at_least_one_falsified_propagated = true;
+      }
+    }
+    if (at_least_one_satisfied)
       continue;
 
-    if ((lit_value(c->watched[0]) == VAR_FALSE && lit_propagated(c->watched[0])) || (lit_value(c->watched[1]) == VAR_FALSE && lit_propagated(c->watched[1])))
-    {
+    if (at_least_one_falsified_propagated) {
       success = false;
-      if (lit_value(c->watched[0]) == VAR_FALSE && lit_propagated(c->watched[0]))
-      {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + lit_to_string(c->watched[0]) + " that is propagated.\n";
-      }
-      if (lit_value(c->watched[1]) == VAR_FALSE && lit_propagated(c->watched[1]))
-      {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + lit_to_string(c->watched[1]) + " that is propagated.\n";
-      }
-      continue;
-    }
-  }
-  return success;
-}
-
-bool sat::gui::observer::check_blocked_watch_literals()
-{
-  const string error_header = error + "Invariant violation (blocked watch literals): ";
-  bool success = true;
-  for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
-  {
-    clause *c = _active_clauses[cl];
-    if (!c->active)
-      continue;
-    vector<Tlit> lits = c->literals;
-    vector<Tlit> watched = c->watched;
-    if (watched.size() != 2)
-    {
-      _error_message += error_header + "clause " + clause_to_string(cl) + " has " + to_string(watched.size()) + " watched literals.\n";
-    }
-    // check that one of the watched literals is false and propagated
-    if (lit_value(watched[0]) == VAR_FALSE && lit_propagated(watched[0]) || lit_value(watched[1]) == VAR_FALSE && lit_propagated(watched[1]))
-    {
-      // the clause should be satisfied
-      for (Tlit lit : lits)
-        if (lit_value(lit) == VAR_TRUE)
-          goto next_clause;
-      _error_message += error_header + "clause " + clause_to_string(cl) + " is not satisfied but ";
-      if (lit_value(watched[0]) == VAR_FALSE && lit_propagated(watched[0]))
-        _error_message += "watched literal " + lit_to_string(watched[0]) + " is false and propagated";
-      if (lit_value(watched[0]) == VAR_FALSE && lit_propagated(watched[0]) && lit_value(watched[1]) == VAR_FALSE && lit_propagated(watched[1]))
-        _error_message += " and ";
-      if (lit_value(watched[1]) == VAR_FALSE && lit_propagated(watched[1]))
-        _error_message += "watched literal " + lit_to_string(watched[1]) + " is false and propagated";
-      _error_message += ".\n";
-    }
-  next_clause:
-  }
-  return success;
-}
-
-bool sat::gui::observer::check_weak_watch_literals()
-{
-  const string error_header = error + "Invariant violation (weak watch literals): ";
-  bool success = true;
-  for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
-  {
-    clause *c = _active_clauses[cl];
-    if (!c->active || c->literals.size() < 2)
-      continue;
-    if (lit_value(c->watched[0]) == VAR_TRUE && lit_level(c->watched[0]) < lit_level(c->watched[1]))
-    {
-      continue;
-    }
-    if (lit_value(c->watched[1]) == VAR_TRUE && lit_level(c->watched[1]) < lit_level(c->watched[0]))
-    {
-      continue;
-    }
-    if ((lit_value(c->watched[0]) == VAR_FALSE && lit_propagated(c->watched[0])) || (lit_value(c->watched[1]) == VAR_FALSE && lit_propagated(c->watched[1])))
-    {
-      success = false;
-      if (lit_value(c->watched[0]) == VAR_FALSE && lit_propagated(c->watched[0]))
-      {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + lit_to_string(c->watched[0]) + " that is propagated.\n";
-      }
-      if (lit_value(c->watched[1]) == VAR_FALSE && lit_propagated(c->watched[1]))
-      {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified watched literal " + lit_to_string(c->watched[1]) + " that is propagated.\n";
-      }
-      continue;
+      _error_message += error_header + "clause " + clause_to_string(cl) + " has a falsified propagated literal and is not satisfied.\n";
     }
   }
   return success;
@@ -358,40 +338,80 @@ bool sat::gui::observer::check_weak_watch_literals()
 
 bool sat::gui::observer::check_weak_blocked_watch_literals()
 {
-  const string error_header = error + "Invariant violation (weak watch literals): ";
+  const string error_header = error + "Invariant violation (weak blocked watch literals): ";
   bool success = true;
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
   {
     clause *c = _active_clauses[cl];
-    if (!c->active)
+    if (!c->active || c->literals.size() < 2)
       continue;
-    vector<Tlit> lits = c->literals;
-    vector<Tlit> watched = c->watched;
-    if (watched.size() != 2)
+    if (c->watched.size() != 2)
     {
-      _error_message += error_header + "clause " + clause_to_string(cl) + " has " + to_string(watched.size()) + " watched literals.\n";
+      _error_message += error_header + "clause " + clause_to_string(cl) + " has " + to_string(c->watched.size()) + " watched literals.\n";
+      continue;
     }
-    // check that one of the watched literals is false and propagated
-    if (lit_value(watched[0]) == VAR_FALSE && lit_propagated(watched[0]) || lit_value(watched[1]) == VAR_FALSE && lit_propagated(watched[1]))
-    {
-      Tlit highest_unsatisfied_watched = LIT_UNDEF;
-      for (Tlit lit : watched)
-        if (lit_value(lit) == VAR_FALSE && lit_propagated(lit))
-          if (lit_level(lit) > lit_level(highest_unsatisfied_watched))
-            highest_unsatisfied_watched = lit;
-      // the clause should be satisfied
-      Tlit satisfied_lit = LIT_UNDEF;
-      for (Tlit lit : lits)
-        if (lit_value(lit) == VAR_TRUE)
-          if (lit_level(lit) < lit_level(satisfied_lit))
-            satisfied_lit = lit;
+    // ¬c₁ ∈ τ ⇒ c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
+    Tlevel blocker_lvl = LEVEL_UNDEF;
+    if (lit_value(c->blocker) == VAR_TRUE)
+      blocker_lvl = lit_level(c->blocker);
 
-      if (satisfied_lit == LIT_UNDEF)
-      {
-        _error_message += error_header + "clause " + clause_to_string(cl) + " has a watched literal falsified and propagated but is not satisfied at a lower level.\n";
+    bool ok = false;
+    for (Tlit lit : c->literals) {
+      if (lit_value(lit) != VAR_FALSE || !lit_propagated(lit) || lit_level(lit) <= blocker_lvl) {
+        ok = true;
+        break;
       }
     }
-  next_clause:
+    if (ok)
+      continue;
+
+    success = false;
+    _error_message += error_header + "clause " + clause_to_string(cl) + " has two falsified propagated watched literals ";
+    for (Tlit lit : c->watched)
+      _error_message += lit_to_string(lit) + " ";
+    _error_message += " and the blocker " + lit_to_string(c->blocker) + " is not falsified or has a higher level.\n";
+  }
+  return success;
+}
+
+bool sat::gui::observer::check_blocked_watch_literals()
+{
+  const string error_header = error + "Invariant violation (weak blocked watch literals): ";
+  bool success = true;
+  for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
+  {
+    clause *c = _active_clauses[cl];
+    if (!c->active || c->literals.size() < 2)
+      continue;
+    if (c->watched.size() != 2)
+    {
+      _error_message += error_header + "clause " + clause_to_string(cl) + " has " + to_string(c->watched.size()) + " watched literals.\n";
+      continue;
+    }
+    // ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
+    Tlevel blocker_lvl = LEVEL_UNDEF;
+    if (lit_value(c->blocker) == VAR_TRUE)
+      blocker_lvl = lit_level(c->blocker);
+
+    bool at_least_one_satisfied = false;
+    bool at_least_one_non_blocked_falsified_propagated = false;
+    for (Tlit lit : c->literals) {
+      if (lit_value(lit) == VAR_TRUE) {
+        at_least_one_satisfied = true;
+        break;
+      }
+      if (lit_value(lit) == VAR_FALSE && lit_propagated(lit) && lit_level(lit) <= blocker_lvl){
+        at_least_one_non_blocked_falsified_propagated = true;
+      }
+    }
+
+    if (at_least_one_satisfied)
+      continue;
+
+    if (at_least_one_non_blocked_falsified_propagated) {
+      success = false;
+      _error_message += error_header + "clause " + clause_to_string(cl) + " has a non blocked falsified propagated literal and is not satisfied.\n";
+    }
   }
   return success;
 }

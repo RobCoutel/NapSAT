@@ -1,3 +1,10 @@
+/**
+ * @file src/solver/modulariT-SAT-utils.cpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the SMT Solver modulariT. It implements auxiliary functions for the
+ * SAT solver such as printing, cleaning watch lists, parsing,...
+ */
 #include "modulariT-SAT.hpp"
 #include "custom-assert.hpp"
 #include "../environment.hpp"
@@ -83,6 +90,69 @@ void sat::modulariT_SAT::delete_clause(Tclause cl)
 }
 
 static const char esc_char = 27; // the decimal code for escape character is 27
+
+void sat::modulariT_SAT::watch_lit(Tlit lit, Tclause cl)
+{
+#if NOTIFY_WATCH_CHANGES
+  NOTIFY_OBSERVER(_observer, new sat::gui::watch(cl, lit));
+#endif
+  ASSERT(cl != CLAUSE_UNDEF);
+  ASSERT(cl < _clauses.size());
+  ASSERT(_clauses[cl].size > 2);
+  ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
+  // std::cout << "watching " << lit_to_string(lit) << " in clause " << clause_to_string(cl) << std::endl;
+  Tclause tmp = _watch_lists[lit];
+  _watch_lists[lit] = cl;
+  if (lit == _clauses[cl].lits[0])
+    _clauses[cl].first_watched = tmp;
+  else
+    _clauses[cl].second_watched = tmp;
+  ASSERT(_clauses[cl].first_watched == CLAUSE_UNDEF
+    || _clauses[_clauses[cl].first_watched].lits[0] == _clauses[cl].lits[0]
+    || _clauses[_clauses[cl].first_watched].lits[1] == _clauses[cl].lits[0]);
+  ASSERT(_clauses[cl].second_watched == CLAUSE_UNDEF
+    || _clauses[_clauses[cl].second_watched].lits[0] == _clauses[cl].lits[1]
+    || _clauses[_clauses[cl].second_watched].lits[1] == _clauses[cl].lits[1]);
+}
+
+void sat::modulariT_SAT::stop_watch(Tlit lit, Tclause cl)
+{
+#if NOTIFY_WATCH_CHANGES
+  NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
+#endif
+  ASSERT(cl != CLAUSE_UNDEF);
+  ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
+  Tclause current = _watch_lists[lit];
+  Tclause previous = CLAUSE_UNDEF;
+  while (current != cl) {
+    previous = current;
+    if (_clauses[current].lits[0] == lit)
+      current = _clauses[current].first_watched;
+    else
+      current = _clauses[current].second_watched;
+    ASSERT(current != CLAUSE_UNDEF);
+  }
+  ASSERT(current == cl);
+  if (previous == CLAUSE_UNDEF) {
+    ASSERT(_watch_lists[lit] == cl);
+    if (_clauses[current].lits[0] == lit)
+      _watch_lists[lit] = _clauses[current].first_watched;
+    else
+      _watch_lists[lit] = _clauses[current].second_watched;
+  }
+  else {
+    Tclause replacement = _clauses[current].lits[0] == lit ? _clauses[current].first_watched : _clauses[current].second_watched;
+    if (_clauses[previous].lits[0] == lit) {
+      ASSERT(_clauses[previous].first_watched == cl);
+      _clauses[previous].first_watched = replacement;
+    }
+    else {
+      ASSERT_MSG(_clauses[previous].second_watched == cl,
+        "lit = " + lit_to_string(lit) + ", previous = " + clause_to_string(previous) + ", current = " + clause_to_string(current));
+      _clauses[previous].second_watched = replacement;
+    }
+  }
+}
 
 void sat::modulariT_SAT::repair_watch_lists()
 {

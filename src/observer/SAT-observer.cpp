@@ -1,3 +1,11 @@
+/**
+ * @file src/observer/SAT-observer.cpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the SMT Solver modulariT. It contains the implementation of the
+ * class observer.
+ */
+
 #include "SAT-observer.hpp"
 #include "../solver/SAT-config.hpp"
 

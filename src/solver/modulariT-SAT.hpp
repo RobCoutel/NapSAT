@@ -1,8 +1,90 @@
 /**
- * @file modulariT-SAT.hpp
+ * @file src/solver/modulariT-SAT.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It defines the interface of the SAT solver and its data structures.
+ * @brief This file is part of the SMT Solver modulariT. It defines the inter-
+ * face of the SAT solver and its data structures.
+ * @details
+ * we call: F the set of clauses
+ *          π the complete partial assignment
+ *          πᵈ the set of decision literals
+ *          τ the set of propagated literals
+ *          ω the propagation queue
+ *          δ(ℓ) the decision level of ℓ
+ *          ρ(ℓ) the reason of ℓ
+ *          λ(ℓ) the lazy reason of ℓ. That is, a missed lower implication of ℓ.
+ *          WL(ℓ) the watch list of ℓ
+ *          ■ the undefined clause
+ *
+ * The SAT solver complies to the following invariants:
+ * (Trail construction): The partial assignment is the concatenation of the
+ * propagated literals and the propagation queue
+ *    π = τ ⋅ ω
+ *    πᵈ ⊆ π
+ * (No duplicate atoms): No atom is assigned twice in π
+ *    ∀ℓ ∈ π. ¬ℓ ∉ π
+ * (Implications): Each assigned literal is either a decision or is implied by
+ * its reason
+ *    ∀ℓ ∈ π. ℓ ∈ πᵈ ∨ [ℓ ∈ ρ(ℓ) ∧ C ∖ {ℓ}, π ⊧ ⊥]
+ *    ∀ℓ ∈ π. ℓ ∉ πᵈ ⇔ ρ(ℓ) ∈ F
+ *    ∀ℓ ∉ π. ρ(ℓ) = ■
+ * (Decision level): The decision level of a literal is the highest decision
+ * level of its reason if the literal was implied, and the number of decisions
+ * before the literal if the literal was a decision. If p(ℓ) is the position of
+ * ℓ in π, then:
+ *    ∀ℓ ∈ π. ℓ ∈ πᵈ ⇒ δ(ℓ) = |{ℓ' ∈ πᵈ: p(ℓ') < p(ℓ)}| + 1
+ *    ∀ℓ ∈ π. ℓ ∉ πᵈ ⇒ δ(ℓ) = δ(ρ(ℓ) \ {ℓ})
+ * (Weak watched literals): If one of the watched literals is falsified, either
+ * the other watched literal is satisfied, or the clause is satisfied by the
+ * blocking literal. For each clause C = {c₁, c₂, ...} in F watched by c₁ and
+ * c₂ and with a blocker b:
+ *    c₁ ∈ C ∧ c₂ ∈ C ∧ b ∈ C ∧ c₁ ≠ c₂
+ *    ¬c₁ ∈ τ ⇒ ¬c₂ ∉ τ ∨ b ∈ π
+ * (Watcher lists): The watcher lists of the literals are consistent. That is,
+ * if a clause is watched by a literal, the clause is in the watch list of the
+ * literal. For each clause C = {c₁, c₂, ...} in F watched by c₁ and c₂:
+ *    C ∈ WL(c₁) ∧ C ∈ WL(c₂)
+ *    C ∉ WL(ℓ) ⇒ [c₁ ≠ ℓ ∧ c₂ ≠ ℓ]
+ * (Topological order): The trail is a topological sort of the implication
+ * graph. If p(ℓ) is the position of ℓ in π, then:
+ *    ∀ℓ ∈ π. ∀ℓ' ∈ ρ(ℓ). p(ℓ') ≤ p(ℓ)
+ *
+ * In NCB, we have the additional invariants:
+ * (Trail monotonicity): The level of the literals in the trail is non-
+ * decreasing. If p(ℓ) is the position of ℓ in π, then:
+ *     ∀ℓ ∈ π. ∀ℓ' ∈ π. p(ℓ') < p(ℓ) ⇒ δ(ℓ') ≤ δ(ℓ)
+ * (Strong watched literals): If one of the watched literals is falsified,
+ * either the other watched literal is satisfied, or the clause is satisfied by
+ * the blocking literal. For each clause C = {c₁, c₂, ...} in F watched by c₁
+ * and c₂ and with a blocker b:
+ *    c₁ ∈ C ∧ c₂ ∈ C ∧ b ∈ C ∧ c₁ ≠ c₂
+ *    ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∨ b ∈ π]
+ *
+ * In WCB, the blockers have to be weakened:
+ * (Weak blocked watched literals): If one of the watched literals is falsified,
+ * either the other watched literal is satisfied, or the clause is satisfied by
+ * the blocking literal at a level lower than the falsified literal. For each
+ * clause C = {c₁, c₂, ...} in F watched by c₁ and c₂ and with a blocker b:
+ *    c₁ ∈ C ∧ c₂ ∈ C ∧ b ∈ C ∧ c₁ ≠ c₂
+ *    ¬c₁ ∈ τ ⇒ ¬c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+ *
+ * In SCB, we have the additional invariants:
+ * (Lazy reason): If a lazy reason is set for a literal, then the lazy reason
+ * is a missed lower implication of the literal. That is, a clause that could
+ * propagate the literal at a lower level.
+ *     ∀ℓ ∉ π. λ(ℓ) = ■
+ *     ∀ℓ ∈ π. λ(ℓ) ≠ ■ ⇒ ℓ ∈ π ∧ ℓ ∈ λ(ℓ)
+ *                       ∧ λ(ℓ) \ {ℓ}, π ⊧ ⊥
+ *                       ∧ δ(λ(ℓ) \ {ℓ}) < δ(ℓ)
+ *
+ * (Lazy backtrack compatible watched literals): If one of the watched literals
+ * is falsified, either the other watched literal is satisfied at a lower
+ * level, or it is satisfied and the lazy reason has a lower decision level, or
+ * the clause is satisfied by the blocking literal. For each clause
+ * C = {c₁, c₂, ...} in F watched by c₁ and c₂ and with a blocker b:
+ *    c₁ ∈ C ∧ c₂ ∈ C ∧ b ∈ C ∧ c₁ ≠ c₂
+ *    ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+ *             ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
  */
 #pragma once
 
@@ -60,7 +142,10 @@ namespace sat
       Tlevel level;
       /**
        * @brief Clause that propagated the variable.
-       * @details If the variable is assigned by a decision, the reason is CLAUSE_UNDEF.
+       * @details If the variable is assigned by a decision, the reason is
+       * CLAUSE_UNDEF.
+       * @note In mathematical symbols, we write ρ(ℓ) as the reason of the
+       * literal ℓ or ¬ℓ.
        */
       Tclause reason;
       /**
@@ -68,12 +153,15 @@ namespace sat
        */
       double activity;
       /**
-       * @brief Boolean indicating if the variable was already seen. It is used in conflict analysis.
-       * @details Variables must remain marked locally. That is, upon exiting the method, all variables must be unmarked.
+       * @brief Boolean indicating if the variable was already seen. It is used
+       * in conflict analysis.
+       * @details Variables must remain marked locally. That is, upon exiting
+       * the method, all variables must be unmarked.
        */
       unsigned seen : 1;
       /**
-       * @brief Boolean indicating whether the variable is in the propagation queue.
+       * @brief Boolean indicating whether the variable is in the propagation
+       * queue.
        */
       unsigned waiting : 1;
       /**
@@ -87,15 +175,21 @@ namespace sat
       unsigned phase_cache : 1;
 
       /**
-       * @brief Last value assigned to the variable before the last synchronization.
+       * @brief Last value assigned to the variable before the last
+       * synchronization.
        */
       Tval state_last_sync : 2;
 
       /**
-       * @brief Stores the a clause that could propagate the variable at a lower level.
-      */
+       * @brief Stores the a clause that could propagate the variable at a
+       * lower level.
+       * @details The missed lower implication follows the following invariant
+       * in strong chronological backtracking:
+       * λ(ℓ) ≠ ■ ⇒ ℓ ∈ π ∧ ℓ ∈ λ(ℓ)
+       *          ∧ λ(ℓ) \ {ℓ}, π' ⊧ ⊥
+       *          ∧ δ(λ(ℓ) \ {ℓ}) < δ(ℓ)
+       */
       Tclause missed_lower_implication = CLAUSE_UNDEF;
-
     } TSvar;
 
 #define CLAUSE_HEAD_SIZE 5
@@ -108,7 +202,8 @@ namespace sat
     {
       /**
        * @brief Constructor of the clause.
-       * @details This constructor is non-destructive. It initializes the requited memory for the literals.
+       * @details This constructor is destructive. It initializes uses the
+       * memory of the lits pointer to store the clause.
       */
       TSclause(Tlit* lits, unsigned size, bool learned, bool external) :
         lits(lits),
@@ -126,6 +221,8 @@ namespace sat
       }
       /**
        * @brief Pointer to the first literal of the clause.
+       * @details The two first literals (if they exist) are the watched
+       * literals.
        */
       Tlit* lits;
       /**
@@ -137,7 +234,9 @@ namespace sat
        */
       Tclause second_watched = CLAUSE_UNDEF;
       /**
-       * @brief Boolean indicating whether the clause is deleted. That is, the clause is not in the clause set anymore and the memory is available for reuse.
+       * @brief Boolean indicating whether the clause is deleted. That is, the
+       * clause is not in the clause set anymore and the memory is available
+       * for reuse.
        */
       unsigned deleted : 1;
       /**
@@ -150,7 +249,8 @@ namespace sat
        */
       unsigned watched : 1;
       /**
-       * @brief Boolean indicating whether the clause comes from an external source.
+       * @brief Boolean indicating whether the clause comes from an external
+       * source.
        */
       unsigned external : 1;
       /**
@@ -163,8 +263,10 @@ namespace sat
        */
       unsigned size;
       /**
-       * @brief Blocking literal. If the clause is satisfied by the blocking literal, the watched literals are allowed to be falsified.
-       * @details In chronological backtracking, the blocking literal must be at a lower level than the watched literals.
+       * @brief Blocking literal. If the clause is satisfied by the blocking
+       * literal, the watched literals are allowed to be falsified.
+       * @details In chronological backtracking, the blocking literal must be
+       * at a lower level than the watched literals.
        */
       Tlit blocker = LIT_UNDEF;
       /**
@@ -190,10 +292,13 @@ namespace sat
     std::vector<TSvar> _vars;
     /**
      * @brief Trail of assigned literals.
+     * @details The trail is devided into two parts π = τ ⋅ ω
+     * where τ is the set of propagated literals and ω is the propagation queue.
      */
     std::vector<Tlit> _trail;
     /**
      * @brief Number of propagated literals
+     * @details This is the boundary between τ and ω.
      */
     unsigned _propagated_literals = 0;
 
@@ -203,15 +308,19 @@ namespace sat
      */
     std::vector<TSclause> _clauses;
     /**
-     * @brief List of deleted clauses. The memory of these clauses is available for reuse.
+     * @brief List of deleted clauses. The memory of these clauses is available
+     * for reuse.
      */
     std::vector<Tclause> _deleted_clauses;
     /**
-     * @brief _watch_lists[i] is the first clause of the watch list of the literal i.
+     * @brief _watch_lists[i] is the first clause of the watch list of the
+     * literal i.
      */
     std::vector<Tclause> _watch_lists;
     /**
-     * @brief _binary_clauses[l] is the contains the pairs <lit, cl> where lit is a literal to be propagated if l is falsified, and <cl> is the clause that propagates lit.
+     * @brief _binary_clauses[l] is the contains the pairs <lit, cl> where lit
+     * is a literal to be propagated if l is falsified, and <cl> is the clause
+     * that propagates lit.
     */
     std::vector<std::vector<std::pair<Tlit, Tclause>>> _binary_clauses;
     /**
@@ -220,7 +329,8 @@ namespace sat
      */
     std::vector<unsigned> _decision_index;
     /**
-     * @brief Position of the last literal on the trail that was left unchanged since the last synchronization.
+     * @brief Position of the last literal on the trail that was left unchanged
+     * since the last synchronization.
      */
     unsigned sync_validity_index;
 
@@ -230,23 +340,29 @@ namespace sat
      */
     bool _writing_clause = false;
     /**
-     * @brief When in clause input mode, contains a pointer to the first literal of the clause being written.
+     * @brief When in clause input mode, contains a pointer to the first
+     * literal of the clause being written.
      */
     Tlit* _literal_buffer;
     /**
-     * @brief When in clause input mode, contains the index of the next literal to write.
+     * @brief When in clause input mode, contains the index of the next literal
+     * to write.
      */
     unsigned _next_literal_index;
 
     /**  ACTIVITY HEAP  **/
     /**
-     * @brief Activity increment for variables. This value is multiplied by the _var_activity_multiplier until the activity of a variable becomes greater than 10^9. In which case, the activity of all variables is divided by 10^9 and the increment is set to 1.0.
+     * @brief Activity increment for variables. This value is multiplied by the
+     * _var_activity_multiplier until the activity of a variable becomes
+     * greater than 10^9. In which case, the activity of all variables is
+     * divided by 10^9 and the increment is set to 1.0.
      * TODO update the definition
      */
     double _var_activity_increment = 1.0;
 
     /**
-     * @brief Priority queue of variables. The variables are ordered by their activity.
+     * @brief Priority queue of variables. The variables are ordered by their
+     * activity.
      */
     sat_utils::heap _variable_heap;
 
@@ -262,12 +378,17 @@ namespace sat
      */
     unsigned _n_learned_clauses = 0;
     /**
-     * @brief Number of learned clauses before a clause elimination procedure is called
-     * @note At first, the number of learned clauses before elimination is the number of external clauses.
+     * @brief Number of learned clauses before a clause elimination procedure
+     * is called
+     * @note At first, the number of learned clauses before elimination is the
+     * number of external clauses.
      */
     unsigned _next_clause_elimination = 0;
     /**
-     * @brief Activity increment for clauses. Each time a clause is used to resolve a conflict, its activity is increased by _clause_activity_increment and _clause_activity_increment is multiplied by _clause_activity_multiplier.
+     * @brief Activity increment for clauses. Each time a clause is used to
+     * resolve a conflict, its activity is increased by
+     * _clause_activity_increment and _clause_activity_increment is multiplied
+     * by _clause_activity_multiplier.
      */
     double _clause_activity_increment = 1;
     /**
@@ -275,15 +396,23 @@ namespace sat
      */
     double _max_clause_activity = 1;
     /**
-     * @brief Threshold of the clause activity. If the activity of a clause is lower than the threshold multiplied by the maximum possible activity, the clause is deleted.
-     * @details The threshold is a value between 0 and 1. The higher the threshold, the more clauses are deleted.
+     * @brief Threshold of the clause activity. If the activity of a clause is
+     * lower than the threshold multiplied by the maximum possible activity,
+     * the clause is deleted.
+     * @details The threshold is a value between 0 and 1. The higher the
+     * threshold, the more clauses are deleted.
      */
     double _clause_activity_threshold = 1;
 
     /**
-     * @brief Increases the activity of a clause and updates the maximum possible activity.
-     * @details If the maximum possible activity is greater than 1e100, the activity of all clauses is divided by 1e100 and the maximum possible activity is divided by 1e100.
-     * @details This procedure keeps a relative order identical to decaying the activity of all clauses by a factor d < 1 and increasing the activity of the clause by 1 - d. Where _clause_activity_multiplier = (1 - d) / d.
+     * @brief Increases the activity of a clause and updates the maximum
+     * possible activity.
+     * @details If the maximum possible activity is greater than 1e100, the
+     * activity of all clauses is divided by 1e100 and the maximum possible
+     * activity is divided by 1e100.
+     * @details This procedure keeps a relative order identical to decaying the
+     * activity of all clauses by a factor d < 1 and increasing the activity of
+     * the clause by 1 - d. Where _clause_activity_multiplier = (1 - d) / d.
      */
     void bump_clause_activity(Tclause cl);
 
@@ -294,7 +423,8 @@ namespace sat
 
     /**
      * @brief Deletes clauses with a low activity.
-     * @details Deletes clauses with an activity lower than the threshold multiplied by the maximum possible activity.
+     * @details Deletes clauses with an activity lower than the threshold
+     * multiplied by the maximum possible activity.
      * @details Does not delete external and propagating clauses.
      */
     void simplify_clause_set();
@@ -302,14 +432,20 @@ namespace sat
     /**  RESTART AGILITY  **/
     /**
      * @brief Progress metric of the solver
-     * @details The agility measures a moving average of the number of flips of polarity for literals.
-     * If the agility is high, the solver is making a lot of progress and changes the polarity of literals often.
-     * If the agility is low, the solver is not making much progress and changes the polarity of literals rarely.
+     * @details The agility measures a moving average of the number of flips of
+     * polarity for literals.
+     * If the agility is high, the solver is making a lot of progress and
+     * changes the polarity of literals often.
+     * If the agility is low, the solver is not making much progress and
+     * changes the polarity of literals rarely.
      * This metric is used to decide when to restart the solver.
-     * @details The agility is updated upon implying a literal with the following formula:
+     * @details The agility is updated upon implying a literal with the
+     * following formula:
      * agility = agility * _agility_decay + (1 - _agility_decay) * change_of_polarity
-     * where change_of_polarity is 1 if the polarity of the literal is changed, 0 otherwise.
-     * @details The idea is inspired by [2008 - Biere, Armin. "Adaptive restart strategies for conflict driven SAT solvers."]
+     * where change_of_polarity is 1 if the polarity of the literal is changed,
+     * 0 otherwise.
+     * @details The idea is inspired by [2008 - Biere, Armin. "Adaptive restart
+     * strategies for conflict driven SAT solvers."]
      * TODO Check if there is not a limit to the decay factor such that it is not possible to finish propagating all literals. It probably depends on the threshold decay factor too.
      */
     double _agility = 1;
@@ -317,7 +453,8 @@ namespace sat
     /**  PURGE  **/
     /**
      * @brief Current progress before next purge.
-     * @details Count the number of not yet purged level 0 literals on the trail.
+     * @details Count the number of not yet purged level 0 literals on the
+     * trail.
      */
     unsigned _purge_counter = 0;
     /**
@@ -331,41 +468,53 @@ namespace sat
 
     /**  CHRONOLOGICAL BACKTRACKING  **/
     /**
-     * @brief Buffer used in chronological backtracking to store literals that were removed from the trail and must be put back in the trail.
+     * @brief Buffer used in chronological backtracking to store literals that
+     * were removed from the trail and must be put back in the trail.
+     * @details In mathematical symbols, _backtrack_buffer is written as β
      */
     std::vector<Tlit> _backtrack_buffer;
 
     /**
      * @brief Reorder the trail by decision level.
-     * @details The sorting algorithm should be stable. That is, the relative order of literals with the same decision level should not be changed.
+     * @details The sorting algorithm should be stable. That is, the relative
+     * order of literals with the same decision level should not be changed.
+     * @details The goal of this function is to be able to go from chronological
+     * backtracking to non-chronological backtracking during the search.
      * @todo This function is not yet implemented.
      */
     void order_trail();
 
     /**  MISSED LOWER IMPLICATIONS  **/
     /**
-     * @brief Buffer used in strong chronological backtracking to store literals that were removed from the trail and should be reimplied after backtracking.
+     * @brief Buffer used in strong chronological backtracking to store
+     * literals that were removed from the trail and should be reimplied after
+     * backtracking.
      */
     std::vector<Tclause> _reimplication_backtrack_buffer;
 
     /**  PROOFS  **/
     /**
-     * @brief True if the solver is keeping track of the proof of unsatisfiability.
+     * @brief True if the solver is keeping track of the proof of
+     * unsatisfiability.
+     * @todo Not supported yet.
      */
     bool _proofs = false;
 
     /**
      * @brief Callback function to print the proof of unsatisfiability.
+     * @todo Not supported yet.
      */
     void (*_proof_callback)(void) = nullptr;
 
     /**  SMT SYNCHRONIZATION  **/
     /**
      * @brief Number of literals that were valid since the last synchronization.
+     * @todo Not supported yet.
      */
     unsigned _number_of_valid_literals = 0;
     /**
-     * @brief Set of variables that were touched by the SAT solver since the last synchronization.
+     * @brief Set of variables that were touched by the SAT solver since the
+     * last synchronization.
      */
     std::set<Tvar> _touched_variables;
 
@@ -377,12 +526,14 @@ namespace sat
 
     /**  INTERACTIVE SOLVER  **/
     /**
-     * @brief Observer of the solver. If _observer is not nullptr, the solver notifies the observer of its progress.
+     * @brief Observer of the solver. If _observer is not nullptr, the solver
+     * notifies the observer of its progress.
      */
     sat::gui::observer* _observer = nullptr;
     /**
      * @brief True if the solver is interactive.
-     * @details The solver is interactive if it stops between decisions to let the user make a decision, hint or learn a clause.
+     * @details The solver is interactive if it stops between decisions to let
+     * the user make a decision, hint or learn a clause.
      */
     bool _interactive = false;
 
@@ -390,7 +541,8 @@ namespace sat
     /*                       Quality of life functions                       */
     /*************************************************************************/
     /**
-     * @brief Returns the level of the given literal. If the literal is not assigned, returns LEVEL_UNDEF.
+     * @brief Returns the level of the given literal. If the literal is not
+     * assigned, returns LEVEL_UNDEF.
      * @param lit literal to evaluate.
      * @return level of the literal.
      */
@@ -430,7 +582,8 @@ namespace sat
     }
 
     /**
-     * @brief Returns the reason of the literal. If the literal is not assigned, returns CLAUSE_UNDEF.
+     * @brief Returns the reason of the literal. If the literal is not
+     * assigned, returns CLAUSE_UNDEF.
      * @param lit literal to evaluate.
      * @return reason of the literal.
      */
@@ -440,7 +593,8 @@ namespace sat
     }
 
     /**
-     * @brief Returns an alternative reason for propagating the variable at a lower level.
+     * @brief Returns an alternative reason for propagating the variable at a
+     * lower level.
      * If no such reason exists, returns CLAUSE_UNDEF.
      * @param var variable to evaluate.
      * @return a missed lower implication of the variable.
@@ -451,7 +605,8 @@ namespace sat
     }
 
     /**
-     * @brief Returns an alternative reason for propagating the literal at a lower level.
+     * @brief Returns an alternative reason for propagating the literal at a
+     * lower level.
      * If no such reason exists, returns CLAUSE_UNDEF.
      * @param lit literal to evaluate.
      * @return a missed lower implication of the literal.
@@ -468,7 +623,8 @@ namespace sat
     inline void var_set_lazy_reason(Tvar var, Tclause cl)
     {
       _vars[var].missed_lower_implication = cl;
-      NOTIFY_OBSERVER(_observer, new sat::gui::missed_lower_implication(var, cl));
+      NOTIFY_OBSERVER(_observer,
+                      new sat::gui::missed_lower_implication(var, cl));
     }
 
     /**
@@ -478,7 +634,9 @@ namespace sat
     inline void lit_set_lazy_reason(Tlit lit, Tclause cl)
     {
       _vars[lit_to_var(lit)].missed_lower_implication = cl;
-      NOTIFY_OBSERVER(_observer, new sat::gui::missed_lower_implication(lit_to_var(lit), cl));
+      NOTIFY_OBSERVER(_observer,
+                      new sat::gui::missed_lower_implication(lit_to_var(lit),
+                                                             cl));
     }
 
     /**
@@ -486,82 +644,24 @@ namespace sat
      * @param lit literal to watch.
      * @param clause clause to add to the watch list.
      * @pre The literal must be the first or second literal of the clause.
+     * @post
      */
-    inline void watch_lit(Tlit lit, Tclause cl)
-    {
-#if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new sat::gui::watch(cl, lit));
-#endif
-      ASSERT(cl != CLAUSE_UNDEF);
-      ASSERT(cl < _clauses.size());
-      ASSERT(_clauses[cl].size > 2);
-      ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
-      // std::cout << "watching " << lit_to_string(lit) << " in clause " << clause_to_string(cl) << std::endl;
-      Tclause tmp = _watch_lists[lit];
-      _watch_lists[lit] = cl;
-      if (lit == _clauses[cl].lits[0])
-        _clauses[cl].first_watched = tmp;
-      else
-        _clauses[cl].second_watched = tmp;
-      ASSERT(_clauses[cl].first_watched == CLAUSE_UNDEF
-        || _clauses[_clauses[cl].first_watched].lits[0] == _clauses[cl].lits[0]
-        || _clauses[_clauses[cl].first_watched].lits[1] == _clauses[cl].lits[0]);
-      ASSERT(_clauses[cl].second_watched == CLAUSE_UNDEF
-        || _clauses[_clauses[cl].second_watched].lits[0] == _clauses[cl].lits[1]
-        || _clauses[_clauses[cl].second_watched].lits[1] == _clauses[cl].lits[1]);
-    }
+    void watch_lit(Tlit lit, Tclause cl);
 
     /**
      * @brief Find the clause cl in the watch list of lit and remove it.
      * @details Complexity: O(n), where n is the length of the watch list.
      */
-    inline void stop_watch(Tlit lit, Tclause cl)
-    {
-#if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
-#endif
-      ASSERT(cl != CLAUSE_UNDEF);
-      ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
-      Tclause current = _watch_lists[lit];
-      Tclause previous = CLAUSE_UNDEF;
-      while (current != cl) {
-        previous = current;
-        if (_clauses[current].lits[0] == lit)
-          current = _clauses[current].first_watched;
-        else
-          current = _clauses[current].second_watched;
-        ASSERT(current != CLAUSE_UNDEF);
-      }
-      ASSERT(current == cl);
-      if (previous == CLAUSE_UNDEF) {
-        ASSERT(_watch_lists[lit] == cl);
-        if (_clauses[current].lits[0] == lit)
-          _watch_lists[lit] = _clauses[current].first_watched;
-        else
-          _watch_lists[lit] = _clauses[current].second_watched;
-      }
-      else {
-        Tclause replacement = _clauses[current].lits[0] == lit ? _clauses[current].first_watched : _clauses[current].second_watched;
-        if (_clauses[previous].lits[0] == lit) {
-          ASSERT(_clauses[previous].first_watched == cl);
-          _clauses[previous].first_watched = replacement;
-        }
-        else {
-          ASSERT_MSG(_clauses[previous].second_watched == cl,
-            "lit = " + lit_to_string(lit) + ", previous = " + clause_to_string(previous) + ", current = " + clause_to_string(current));
-          _clauses[previous].second_watched = replacement;
-        }
-      }
-
-    }
+    void stop_watch(Tlit lit, Tclause cl);
 
     /**
-     * @brief Removes deleted and non-watched clauses from the watch lists. Also removes clauses which are not watched by the literal of the list.
+     * @brief Removes deleted and non-watched clauses from the watch lists. Also
+     * removes clauses which are not watched by the literal of the list.
      */
     void repair_watch_lists();
 
     /**
-     * @brief Returns true if the literal is currently in the propagation queue
+     * @brief Returns true if the literal is currently in the propagation queue.
      */
     inline bool lit_waiting(Tlit lit) const
     {
@@ -630,19 +730,23 @@ namespace sat
     inline void var_unassign(Tvar var)
     {
       TSvar& v = _vars[var];
-      NOTIFY_OBSERVER(_observer, new sat::gui::unassignment(literal(var, v.state)));
+      NOTIFY_OBSERVER(_observer,
+                      new sat::gui::unassignment(literal(var, v.state)));
       v.state = VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
-      if (v.missed_lower_implication != CLAUSE_UNDEF)
-        NOTIFY_OBSERVER(_observer, new sat::gui::remove_lower_implication(var));
-      v.missed_lower_implication = CLAUSE_UNDEF;
+      if (v.missed_lower_implication != CLAUSE_UNDEF) {
+        NOTIFY_OBSERVER(_observer,
+                        new sat::gui::remove_lower_implication(var));
+        v.missed_lower_implication = CLAUSE_UNDEF;
+      }
       if (!_variable_heap.contains(var))
         _variable_heap.insert(var, v.activity);
     }
 
     /**
-     * @brief If var is an unknown variable, reallocate the data structures to take into account the new variable.
+     * @brief If var is an unknown variable, reallocate the data structures to
+     * take into account the new variable.
      * @param var variable to allocate.
      * @note Every variable with an index lower than var will be allocated.
      */
@@ -658,7 +762,8 @@ namespace sat
         _binary_clauses.resize(2 * var + 2);
         // reallocate the literal buffer to make sure it is big enough
         Tlit* new_literal_buffer = new Tlit[_vars.size()];
-        std::memcpy(new_literal_buffer, _literal_buffer, _next_literal_index * sizeof(Tlit));
+        std::memcpy(new_literal_buffer, _literal_buffer,
+                    _next_literal_index * sizeof(Tlit));
         delete[] _literal_buffer;
         _literal_buffer = new_literal_buffer;
       }
@@ -668,7 +773,10 @@ namespace sat
      * @brief Returns a literal utility metric to choose the literals to watch.
      * @param lit literal to evaluate.
      * @return utility metric of the literal.
-     * @details The utility of a falsified literal is its decision level. The utility of an undefined literal is higher than the utility of a falsified literal. The utility of a satisfied literal is higher than the utility of an undefined literal and decreases with the decision level.
+     * @details The utility of a falsified literal is its decision level. The
+     * utility of an undefined literal is higher than the utility of a falsified
+     * literal. The utility of a satisfied literal is higher than the utility of
+     * an undefined literal and decreases with the decision level.
      */
     unsigned utility_heuristic(Tlit lit);
 
@@ -681,12 +789,13 @@ namespace sat
     /**
      * @brief Parses a command and executes it.
      * @details A valid command is a command of the type
-     * DECIDE [literal]   (to decide a literal, if literal is not provided, the solver decides)
-     * HINT <literal>     (to hint a literal)
-     * LEARN [literal]+   (to learn a clause from the given literals)
+     * DECIDE [literal]       (to decide a literal, if literal is not provided,
+     *                         the solver decides)
+     * HINT <literal>         (to hint a literal)
+     * LEARN [literal]+       (to learn a clause from the given literals)
      * DELETE_CLAUSE <clause> (to delete a clause)
-     * HELP               (to print the list of commands)
-     * QUIT               (to quit the solver)
+     * HELP                   (to print the list of commands)
+     * QUIT                   (to quit the solver)
      * @param command command to parse.
      * @return true if the command was parsed successfully, false otherwise.
      */
@@ -697,54 +806,122 @@ namespace sat
     /*************************************************************************/
     /**
      * @brief Add one literal to the propagation queue.
-     * @pre The literal must be unassigned.
-     * @pre The literal must not be in the propagation queue.
+     * @pre The literal ℓ must be unassigned.
+     *     ℓ ∉ π
+     * @pre The first literal of the clause is ℓ
+     *    C ≠ ■ ⇒ C[0] = ℓ
+     * @pre The second literal of the clause is at the highest level in C
+     *    C ≠ ■ ⇒ δ(ℓ) = δ(C ∖ {ℓ})
+     * @pre The reason C must be a propagating clause or CLAUSE_UNDEF.
+     *    C = ■ ∨ [ℓ ∈ C ∧ C \ {ℓ}, π ⊧ ⊥]
+     * @post The literal ℓ is added to the propagation queue.
+     *    ℓ ∈ ω ∧ ℓ ∈ π
+     *    C = ■ ⇔ ℓ ∈ πᵈ
+     * @post The reason of the literal ℓ is set to C.
+     *    ρ(ℓ) = C
+     * @post The level of the literal ℓ is set to the highest level of the
+     * reason clause if the reason is not CLAUSE_UNDEF.
+     *    C ≠ ■ ⇔ δ(ℓ) = max(δ(C) \ {ℓ})
+     *    C = ■ ⇔ δ(ℓ) = |πᵈ| + 1
      */
     void stack_lit(Tlit lit, Tclause reason);
 
     /**
-     * @brief Searches for a replacement literal for the second watched literal of a clause.
-     * @details In Non-Chronological Backtracking, a suitable replacement is any literal that is not falsified. In Strong Chronological Backtracking, a suitable replacement is a literal ...
-     * TODO finish the description
+     * @brief Searches for a replacement literal for the second watched literal
+     * of a clause.
+     * @details Provided a clause C = {c₂, c₁, ...} and a partial assignment
+     * π = τ ⋅ ω search_replacement(C) returns a literal r ∈ C \ {c₂} such that
+     * it either is a good replacement with
+     *   ¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
+     * or C \ {c₂} is conflicting with π and r is the highest literal in
+     * C \ {c₂}
+     *   C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})
+     * @pre ¬c₁ ∈ ω
     */
     Tlit* search_replacement(Tlit* lits, unsigned size);
 
     /**
-     * @brief Propagate a literal at level 0
-     * @param lit literal to propagate.
-     */
-    Tclause propagate_fact(Tlit lit);
-
-    /**
      * @brief Propagate the literal lit on the binary clauses.
-    */
+     * @pre The literal ℓ being propagated is in the propagation queue
+     *     ℓ ∈ ω ∧ ℓ ∈ π
+     * @post After the execution, if no clause is returned, the following
+     * property hold:
+     * For each binary clause C = {c₁, c₂} ∈ F:
+     * NCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π
+     * WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∉ (τ ⋅ ℓ)
+     * SCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π
+     *                    ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+     */
     Tclause propagate_binary_clauses(Tlit lit);
 
     /**
      * @brief Propagate one literal.
      * @param lit literal to propagate.
+     * @pre We assume that the following invariants hold for the different
+     * backtracking strategies:
+     *    ∀C ∈ F watched by c₁ and c₂ and with a blocker b:
+     *    - NCB: ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ b ∈ π
+     *    - WCB: ¬c₁ ∈ τ ⇒ ¬c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+     *    - SCB: ¬c₁ ∈ τ ⇒ [c₂ ∈ π
+     *                      ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+     *                    ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+     * @post After the execution, the following properties hold:
+     *    ∀C ∈ F : |C| > 2 watched by c₁ and c₂ and with a blocker b:
+     *    - NCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
+     *    - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+     *    - SCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π
+     *                           ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+     *                         ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
      */
     Tclause propagate_lit(Tlit lit);
 
     /**
      * @brief Undo literals above the given level.
      * @param level level to backtrack to.
+     * @pre The solver runs in non-chronological backtracking mode. Let π be
+     * the state of the trail before backtracking
+     * @post Let π' be the state of the trail after backtracking at level d,
+     * the following properties must hold:
+     *    ∀ℓ ∈ π. [ℓ ∈ π ∧ δ(ℓ) ≤ d] ⇔ ℓ ∈ π'
      */
-    void backtrack(Tlevel level);
+    void NCB_backtrack(Tlevel level);
 
     /**
      * @brief Backtrack literals in the chronological setting.
+     * @param level level to backtrack to.
+     * @pre The solver runs in chronological backtracking mode. Let π be the
+     * state of the trail before backtracking
+     * @post Let π' be the state of the trail after backtracking at level d,
+     *           λ' be the state of the lazy reimplication buffer after
+     *           backtracking at level d,
+     *  the following properties must hold:
+     * WCB: ∀ℓ ∈ π. [ℓ ∈ π ∧ δ(ℓ) ≤ d] ⇔ ℓ ∈ π'
+     * WCB: ∀ℓ ∈ π. [[ℓ ∈ π ∧ δ(ℓ) ≤ d] ∨ δ(λ(ℓ) ∖ {ℓ}) ≤ d] ⇔ ℓ ∈ π'
+     *      ∀ℓ. λ'(ℓ) ≠ ■ ⇒ ℓ ∈ π ∧ ℓ ∈ λ'(ℓ)
+     *                    ∧ λ'(ℓ) \ {ℓ}, π' ⊧ ⊥
+     *                    ∧ δ(λ'(ℓ) \ {ℓ}) < δ(ℓ)
+     *      ∃C ∈ F ∃ℓ ∈ C. [¬c₁ ∈ τ ∧ C \ {ℓ}, π ⊧ ⊥ ∧ δ(C \ {ℓ})] < δ(ℓ)
+     *                   ⇒ δ(λ(ℓ) \ {ℓ}) ≤ δ(C \ {ℓ})
      */
     void CB_backtrack(Tlevel level);
 
     /**
-     * @brief Repairs the conflict by analyzing it if needed and backtracking to the appropriate level.
+     * @brief Repairs the conflict by analyzing it if needed and backtracking
+     * to the appropriate level.
      * @param conflict clause that caused the conflict.
+     * @pre The conflict clause C is conflicting with the current partial
+     * assignment
+     *    C, π ⊧ ⊥
+     * @pre The level of the first literal of the conflict clause is at the
+     * highest decision level in C
+     *    δ(C[0]) = δ(C)
      */
     void repair_conflict(Tclause conflict);
 
     /**
-     * @brief Returns true if the literal is required in the learned clause. Returns false if the literal is already implied by the other literals of the clause.
+     * @brief Returns true if the literal is required in the learned clause.
+     * Returns false if the literal is already implied by the other literals of
+     * the clause.
      *
      * @param lit literal to evaluate.
      * @return false if the literal is redundant with the current learned clause
@@ -754,41 +931,94 @@ namespace sat
     /**
      * Analyze a conflict and learn a new clause.
      * @param conflict clause that caused the conflict.
+     * @pre The conflict clause C is conflicting with the current partial assig-
+     * nment
+     *    C, π ⊧ ⊥
+     * @pre The conflicting clause should have more than one literal at the
+     * highest decision level
+     *    |{ℓ ∈ C : δ(ℓ) = δ(C)}| > 1
+     * @post A new clause C' is added to the clause set such that
+     * The clause C' is implied by the formula
+     *    F ⊧ C'
+     * The clause C' is conflicting with the current partial assignment
+     *    C', π ⊧ ⊥
+     * The clause has one unique literal at the highest decision level
+     *    |{ℓ ∈ C' : δ(ℓ) = δ(C')}| = 1
+     * The highest literal in the clause cannot be lazily re-implied
+     *    ∀ℓ ∈ C'. δ(ℓ) = δ(C') ⇒ λ(ℓ) = ■
      */
     void analyze_conflict_reimply(Tclause conflict);
 
     /**
      * Analyze a conflict and learn a new clause.
      * @param conflict clause that caused the conflict.
+     * @pre The solver is not in Strong Chronological Backtracking mode
+     * @pre The conflict clause C is conflicting with the current partial assig-
+     * nment
+     *    C, π ⊧ ⊥
+     * @pre The first literal of the conflicting clause C should be at the
+     * highest decision level in the clause.
+     *    δ(C[0]) = δ(C)
+     * @pre The conflicting clause should have more than one literal at the
+     * highest decision level or have the highest literal be a missed lower
+     * implication
+     *    |{ℓ ∈ C : δ(ℓ) = δ(C)}| > 1 ∨ λ(C[0]) ≠ ■
+     * @post A new clause C' is added to the clause set such that
+     * The clause C' is distinct from the conflict clause C
+     *    C' ≠ C
+     * The clause C' is implied by the formula
+     *    F ⊧ C'
+     * The clause C' is conflicting with the current partial assignment
+     *    C', π ⊧ ⊥
+     * The clause has one unique literal at the highest decision level
+     *    |{ℓ ∈ C' : δ(ℓ) = δ(C')}| = 1
      */
     void analyze_conflict(Tclause conflict);
 
     /**
      * @brief Restarts the solver by resetting the trail
+     * @post The trail is empty
+     *    π = ∅
      */
     void restart();
 
     /**
-     * @brief Remove clauses satisfied at level 0 and remove literals falsified at level 0 from the clauses.
+     * @brief Remove clauses satisfied at level 0 and remove literals falsified
+     * at level 0 from the clauses.
+     * @pre Before the purge, the formula is called F
+     * @post After the purge, the formula is called F'
+     * @post For each clause C in F:
+     * If the clause is satisfied at level 0, it is removed from the clause set
+     *    [∃ℓ ∈ C [ℓ ∈ π ∧ δ(ℓ) = 0]] ⇒ C ∉ F'
+     * Falsified literals at level 0 are removed from the clause
      */
     void purge_clauses();
 
     /**
-     * @brief Brings forward the two most relevant literals of the clause. A literal is more relevant if it has a higher utility (see utility_heuristic()). The literals are moved to the first two positions of the clause.
+     * @brief Brings forward the two most relevant literals of the clause. A
+     * literal is more relevant if it has a higher utility (see utility
+     * _heuristic). The literals are moved to the first two positions of the
+     * clause.
      * @param lits array of literals to reorder.
      * @param size size of the clause.
      */
     void select_watched_literals(Tlit* lits, unsigned size);
 
     /**
-     * @brief allocates a new chunk of memory for a clause, and adds to the clause set. The clause is added to the watch lists if needed (size >= 2).
-     * TODO add binary clause set?
+     * @brief allocates a new chunk of memory for a clause, and adds to the
+     * clause set. The clause is added to the watch lists if needed (size >= 2).
      * @param lits array of literals to add to the clause set.
      * @param size size of the clause.
      * @param learned true if the clause is a learned clause, false otherwise.
-     * @param external true if the clause is an external clause, false otherwise.
+     * @param external true if the clause is an external clause, false
+     * otherwise.
+     * @details This function does not alter the memory space of lits. Either
+     * new
+     * memory is allocated for the clause, or the clause is added in place of a
+     * deleted clause.
      */
-    Tclause internal_add_clause(Tlit* lits, unsigned size, bool learned, bool external);
+    Tclause internal_add_clause(Tlit* lits, unsigned size,
+                                bool learned, bool external);
 
     /*************************************************************************/
     /*                          Public interface                             */
@@ -797,7 +1027,8 @@ namespace sat
     /**
      * @brief Construct a new modulariT_SAT::modulariT_SAT object
      * @param n_var initial number of variables. Can be increased later.
-     * @param n_clauses initial number of clauses. Can be increased later by adding clauses.
+     * @param n_clauses initial number of clauses. Can be increased later by
+     * adding clauses.
      */
     modulariT_SAT(unsigned n_var, unsigned n_clauses, sat::options& options);
 
@@ -808,6 +1039,7 @@ namespace sat
 
     /**
      * @brief Set the callback function to print the proof of unsatisfiability.
+     * @todo Not supported yet.
      */
     void set_proof_callback(void (*proof_callback)(void));
 
@@ -827,20 +1059,28 @@ namespace sat
      * @brief Returns a pointer to the observer of the solver.
      * @return pointer to the observer of the solver.
      * @note The pointer is nullptr if the solver is not observing.
-     * @note It is the responsibility of the user querying the observer to not compromise the integrity of the observer. That is, the user must not delete the observer or modify its state.
-     * @warning This method is just a convenience for the main. It is not meant to be used in a library.
+     * @note It is the responsibility of the user querying the observer to not
+     * compromise the integrity of the observer. That is, the user must not
+     * delete the observer or modify its state.
+     * @warning This method is just a convenience for the main. It is not meant
+     * to be used in a library.
      */
     sat::gui::observer* get_observer() const;
 
     /**
-     * @brief Propagate literals in the queue and resolve conflicts if needed. The procedure stops when all variables are assigned, or a decision is needed. If the solver is in input mode, it will switch to propagation mode.
+     * @brief Propagate literals in the queue and resolve conflicts if needed.
+     * The procedure stops when all variables are assigned, or a decision is
+     * needed. If the solver is in input mode, it will switch to propagation
+     * mode.
      * @pre The solver status must be undef
-     * @return true if the solver may make a decision, false if all variables are assigned or the clause set is unsatisfiable.
+     * @return true if the solver may make a decision, false if all variables
+     * are assigned or the clause set is unsatisfiable.
      */
     bool propagate();
 
     /**
-     * @brief Solves the clause set. The procedure stops when all variables are assigned, of the solver concludes that the clause set is unsatisfiable.
+     * @brief Solves the clause set. The procedure stops when all variables are
+     * assigned, of the solver concludes that the clause set is unsatisfiable.
      */
     status solve();
 
@@ -854,18 +1094,21 @@ namespace sat
      * @brief Decides the value of a variable. The variable must be unassigned.
      * @pre The solver status must be undef
      * @pre The propagation queue must be empty
-     * @return true if the solver is still undef after the decision, false if all variables are assigned.
+     * @return true if the solver is still undef after the decision, false if
+     * all variables are assigned.
      */
     bool decide();
 
     /**
-     * @brief Forces the solver to decide the given literal. The literal must be unassigned.
+     * @brief Forces the solver to decide the given literal. The literal must be
+     * unassigned.
      * @param lit literal to decide.
      */
     bool decide(Tlit lit);
 
     /**
-     * @brief Set up the solver to lits a new clause. Sets the solver in clause_input mode.
+     * @brief Set up the solver to lits a new clause. Sets the solver in
+     * clause_input mode.
      */
     void start_clause();
 
@@ -878,7 +1121,8 @@ namespace sat
     void add_literal(Tlit lit);
 
     /**
-     * @brief Finalize the current clause and add it to the clause set. If the solver is in propagation mode, it will propagate literals if needed.
+     * @brief Finalize the current clause and add it to the clause set. If the
+     * solver is in propagation mode, it will propagate literals if needed.
      * @pre The solver must be in clause_input mode.
      * @return status of the solver after adding the clause.
      */
@@ -889,7 +1133,8 @@ namespace sat
      * @param lits array of literals to add to the clause set.
      * @param size size of the clause.
      * @return status of the solver after adding the clause.
-     * @note The memory of the clause is allocated by the solver. Therefore, the pointer lits is managed by the user and is not freed by the solver.
+     * @note The memory of the clause is allocated by the solver. Therefore, the
+     * pointer lits is managed by the user and is not freed by the solver.
      */
     status add_clause(Tlit* lits, unsigned size);
 
@@ -897,7 +1142,8 @@ namespace sat
      * @brief Returns the literals of a clause.
      * @param clause clause id of the clause.
      * @return pointer to the first literal of the clause.
-     * @note should be called in conjunction with get_clause_size() to get the size of the clause.
+     * @note should be called in conjunction with get_clause_size() to get the
+     * size of the clause.
      */
     const Tlit* get_clause(Tclause cl) const;
 
@@ -909,42 +1155,57 @@ namespace sat
     unsigned get_clause_size(Tclause cl) const;
 
     /**
-     * @brief Provide a hint to the SAT solver. The hint will be considered as a decision.
+     * @brief Provide a hint to the SAT solver. The hint will be considered as a
+     * decision.
      * @param lit literal to assign
+     * @todo Not supported yet.
      */
     void hint(Tlit lit);
 
     /**
-     * @brief Provide a hint to the SAT solver. The hint will be assigned at the given decision level.
+     * @brief Provide a hint to the SAT solver. The hint will be assigned at the
+     * given decision level.
      * @param lit literal to assign
      * @param level decision level of the assignment
      * @pre The level must be lower than or equal to the current decision level.
+     * @todo Not supported yet.
      */
     void hint(Tlit lit, unsigned int level);
 
     /**
-     * @brief Notify the solver that the trail was synchronized by the user. This function will reset the colors of the variables.
+     * @brief Notify the solver that the trail was synchronized by the user.
+     * This function will reset the colors of the variables.
+     * @todo Not supported yet.
      */
     void synchronize();
 
     /**
-     * @brief Returns the index of the last literal that remains valid since the last synchronization. That is, every literal with an index lower than the returned value has been unchanged since the last synchronization.
+     * @brief Returns the index of the last literal that remains valid since the
+     * last synchronization. That is, every literal with an index lower than the
+     * returned value has been unchanged since the last synchronization.
+     * @todo Not supported yet.
      */
     unsigned sync_validity_limit();
 
     /**
-     * @brief Returns the modification of state of a variable since the last synchronization.
-     * @return 0 if no change, 1 if the variable was assigned, 2 if the variable was unassigned, 3 if the variable changed polarity.
+     * @brief Returns the modification of state of a variable since the last
+     * synchronization.
+     * @return 0 if no change, 1 if the variable was assigned, 2 if the variable
+     * was unassigned, 3 if the variable changed polarity.
+     * @todo Not supported yet.
      */
     unsigned sync_color(Tvar var);
 
     /**
-     * @brief Set a markup to the last literal on the trail. The markup function will be called when the literal is backtracked.
+     * @brief Set a markup to the last literal on the trail. The markup function
+     * will be called when the literal is backtracked.
+     * @todo Not supported yet.
      */
     void set_markup(void (*markup_function)(void));
 
     /**
-     * @brief Returns a reference to the trail. The trail should not be modified by the user.
+     * @brief Returns a reference to the trail. The trail should not be modified
+     * by the user.
      */
     const std::vector<Tlit>& trail() const;
 
@@ -957,26 +1218,32 @@ namespace sat
     /*                        Printing the state                             */
     /*************************************************************************/
     /**
-     * @brief Returns a colored string of a literal. The literal is printed green if satisfied, red if falsified, and yellow if unassigned
+     * @brief Returns a colored string of a literal. The literal is printed
+     * green if satisfied, red if falsified, and yellow if unassigned
      * @param lit literal to print.
      * @return colored string of the literal.
      */
     std::string lit_to_string(Tlit lit);
 
     /**
-     * @brief Returns a string of a clause. The clause is printed in the form "cl : lit1 lit2 ... litm | litm+1 ... litn" where lit1, ..., litn are the literals of the clause, litm+1, ..., litn are disabled literals (false at level 0) and cl is the clause id.
+     * @brief Returns a string of a clause. The clause is printed in the form
+     * "cl : lit1 lit2 ... litm | litm+1 ... litn" where lit1, ..., litn are the
+     * literals of the clause, litm+1, ..., litn are disabled literals (false at
+     * level 0) and cl is the clause id.
      * @param clause clause to print.
      * @return string of the clause.
      */
     std::string clause_to_string(Tclause cl);
 
     /**
-     * @brief Prints the current assignment of the solver on the standard output in a human-readable format.
+     * @brief Prints the current assignment of the solver on the standard
+     * output in a human-readable format.
      */
     void print_trail();
 
     /**
-     * @brief Prints the current assignment of the solver on the standard output in a human-readable format.
+     * @brief Prints the current assignment of the solver on the standard
+     * output in a human-readable format.
      */
     void print_trail_simple();
 
@@ -987,12 +1254,14 @@ namespace sat
     void print_clause(Tclause cl);
 
     /**
-     * @brief Prints the clause set on the standard output in a human-readable format.
+     * @brief Prints the clause set on the standard output in a human-readable
+     * format.
      */
     void print_clause_set();
 
     /**
-     * @brief Prints the watch lists on the standard output in a human-readable format.
+     * @brief Prints the watch lists on the standard output in a human-readable
+     * format.
      */
     void print_watch_lists(Tlit lit = LIT_UNDEF);
 
@@ -1004,101 +1273,31 @@ namespace sat
     /*************************************************************************/
     /*                     Functions for the checker                         */
     /*************************************************************************/
+    // Note that some invariants are checked by the observer. Therefore, not
+    // all relevant invariants are checked here.
   private:
     /**
-     * @brief returns true if no clause is falsified by the propagated literals.
-     */
-    bool trail_consistency();
-
-    /**
-     * @brief Returns trues if every variable in the trail is assigned and that every assigned variable is in the trail.
+     * @brief Returns trues if every variable in the trail is assigned and that
+     * every assigned variable is in the trail.
      */
     bool trail_variable_consistency();
 
     /**
-     * @brief returns true if the levels of the literals in the trail are monotonically increasing.
-     */
-    bool trail_monotonicity();
-
-    /**
-     * @brief returns true if for each decision, the literals in the trail before that decision are at a level lower than the decision level.
-     */
-    bool trail_decision_levels();
-
-    /**
-     * @brief returns true if the trail is a topological sort of the implication graph.
-     */
-    bool trail_topological_sort();
-
-    /**
-     * @brief returns true if no clause is made unit by propagated literals
-     */
-    bool trail_unit_propagation();
-
-    /**
-     * @brief returns true if no clause is unisat by propagated literals and the decision level of the satisfied literal is higher than the decision level of the falsified literals.
-     */
-    bool bcp_safety();
-
-    /**
-     * @brief returns true if the clause cl is in the watch list of the literal lit.
+     * @brief returns true if the clause cl is in the watch list of the literal
+     * lit.
     */
     bool is_watched(Tlit lit, Tclause cl);
 
     /**
-     * @brief returns true if the watch lists of watched literals of a clause contain the clause.
+     * @brief returns true if the watch lists of watched literals of a clause
+     * contain the clause.
      */
     bool watch_lists_complete();
 
     /**
-     * @brief returns true if each clause in a watch list is watched by the corresponding literal.
+     * @brief returns true if each clause in a watch list is watched by the
+     * corresponding literal.
      */
     bool watch_lists_minimal();
-
-    /**
-     * @brief Returns true if, for each clause, at least one watched literal is not falsified by propagated literals. Otherwise, prints an error message on cout and cerr and returns false.
-     */
-    bool strong_watched_literals();
-
-    /**
-     * @brief Returns true if, for each clause, at least one watched literal is not falsified by propagated literals or the clause is satisfied at a lower level than the watched literals. Otherwise, prints an error message on cout and cerr and returns false.
-     */
-    bool weak_watched_literals();
-
-    /**
-     * @brief Returns true if the clause is watched by at least one literal at the highest decision level, or one non-falsified literal. Otherwise, prints an error message on cout and cerr and returns false.
-     * @param clause clause to check.
-     */
-    bool watched_levels(Tclause cl);
-
-    /**
-     * @brief returns true if the clause is not falsified by the trail. Otherwise, prints an error message on cout and cerr and returns false.
-     * @param clause clause to check.
-     */
-    bool non_falsified_clause(Tclause cl);
-
-    /**
-     * @brief Returns true if the clause is not falsified by propagated literals. Otherwise, prints an error message on cout and cerr and returns false.
-     * @param clause clause to check.
-     * @note This method is distinct from non_falsified_clause() because it allows the clause to be falsified if one of the falsified literals is in the propagation queue.
-     */
-    bool weak_non_falsified_clause(Tclause cl);
-
-    /**
-     * @brief returns true if no clause is made unit by propagated literals. Otherwise, prints an error message on cout and cerr and returns false.
-     */
-    bool no_unit_clauses();
-
-    /**
-     * @brief Returns true is the clause does not contain the same literal multiple times and the clause is not trivially satisfied (contains both a literal and its negation). Otherwise, prints an error message on cout and cerr and returns false.
-     * @param clause clause to check.
-     */
-    bool clause_soundness(Tclause cl);
-
-    /**
-     * @brief Returns true if the watched literals of the clause are the two most relevant literals of the clause following the utility heuristic. Otherwise, prints an error message on cout and cerr and returns false.
-     * @param clause clause to check.
-     */
-    bool most_relevant_watched_literals(Tclause cl);
   };
 }

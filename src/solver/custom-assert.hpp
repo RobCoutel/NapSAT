@@ -1,3 +1,9 @@
+/**
+ * @file src/solver/custom-assert.hpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the SAT solver modulariT-SAT. It defines custom assertions to send notifications to the observer.
+ */
 #pragma once
 
 #include <cassert>

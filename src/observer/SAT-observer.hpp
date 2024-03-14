@@ -1,3 +1,12 @@
+/**
+ * @file src/observer/SAT-observer.hpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the SAT solver modulariT-SAT. It defines an
+ * observer for the SAT solver. That is, a duplicate of the state of the solver.
+ * It does not do any reasoning, but is used to check invariants and display the
+ * state of the solver, while being able to navigate through the historyof the execution.
+ */
 #pragma once
 
 #include "../solver/SAT-types.hpp"
@@ -18,6 +27,7 @@ namespace sat::gui
   class observer;
   class observer
   {
+    // The notification have to be able to access private members of the observer to make the code more readable
     friend class notification;
     friend class new_variable;
     friend class delete_variable;
@@ -38,16 +48,30 @@ namespace sat::gui
     friend class remove_lower_implication;
 
   public:
+    /**
+     * @brief Function type for the command parser. The command parser is called when the observer reaches a checkpoint and the user enters a command.
+     * @param command The command to parse.
+     * @return true if the command was successfully parsed, and false otherwise.
+    */
     using command_parser = std::function<bool(std::string)>;
 
   private:
+    /**
+     * @brief Structure to represent a variable in the observer. It contains only the information that is necessary to display the state of the solver.
+    */
     struct variable
     {
       variable() = default;
       variable(sat::Tval value, sat::Tlevel level, sat::Tclause reason, bool active) : value(value), level(level), reason(reason), active(active) {}
       variable(const variable& other) : value(other.value), level(other.level), reason(other.reason), active(other.active) {}
 
+      /**
+       * @brief The truth value of the variable. It can be either true, false, or undefined.
+       */
       sat::Tval value = sat::VAR_UNDEF;
+      /**
+       * @brief The decision level of the variable. /if the variable is not assigned, the decision level is \infty.
+       */
       sat::Tlevel level = sat::LEVEL_UNDEF;
       sat::Tclause reason = sat::CLAUSE_UNDEF;
       sat::Tclause lazy_reason = sat::CLAUSE_UNDEF;
@@ -537,7 +561,7 @@ namespace sat::gui
      * @details Let P be the partial assignement. check_topological_order returns true if and only if for all literal i in {0, ..., |P| - 1}, for all literal l in the reason of P[i], there exists j such that P[j] = l and j < i.
      */
     bool check_topological_order();
-#if NOTIFY_WATCH_CHANGE
+#if NOTIFY_WATCH_CHANGES
     /**
      * @brief Checks that if a literal is falsified by a propagated literal, then it the other watched literal is satisfied by the partial assignment.
      * @details Let T be the set of propagated literals, and W be the set of literals in the propagation queue. check_watch_literals returns true if and only if for all clause C in the clause set watched by l1 and l2, if ~l1 in T or ~l2 in T, then l1 or l2 is satisfied by T union W.

@@ -1,3 +1,10 @@
+/**
+ * @file src/solver/modulariT-SAT.cpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the SMT Solver modulariT. It implements the core functions of the
+ * solver such as the CDCL loop, BCP, conflict analysis, backtacking and clause set simplification.
+ */
 #include "modulariT-SAT.hpp"
 #include "custom-assert.hpp"
 
@@ -10,8 +17,28 @@ using namespace std;
 
 void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
 {
+  /**
+   * Preconditions:
+   * - lit ℓ is undefined
+   *    ℓ ∉ π
+   * - the reason C is either undefined or a propagating clause
+   *    C = ■ ∨ [ℓ ∈ C ∧ C \ {ℓ}, π ⊧ ⊥]
+   * - the first literal of the clause is ℓ
+   *    C ≠ ■ ⇒ C[0] = ℓ
+   * - the second literal of the clause is at the highest level in C
+   *    δ(ℓ) = δ(C ∖ {ℓ})
+   */
   ASSERT_MSG(lit_undef(lit),
     "Literal: " + lit_to_string(lit) + "\nReason: " + clause_to_string(reason));
+#ifndef NDEBUG
+  if (reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY) {
+    for (unsigned i = 1; i < _clauses[reason].size; i++) {
+      ASSERT(lit_false(_clauses[reason].lits[i]));
+      ASSERT(lit_level(_clauses[reason].lits[i]) <= lit_level(lit));
+    }
+  }
+#endif
+
   Tvar var = lit_to_var(lit);
   _trail.push_back(lit);
   TSvar& svar = _vars[var];
@@ -23,12 +50,15 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
   _agility *= _options.agility_decay;
   _options.agility_threshold *= _options.threshold_multiplier;
 
-  if (reason == CLAUSE_UNDEF || reason == CLAUSE_LAZY) {
+  if (reason == CLAUSE_UNDEF) {
     // Decision
-    // TODO this is going to bug if hints are not pushed at the highest level
     _decision_index.push_back(_trail.size() - 1);
     svar.level = _decision_index.size();
     NOTIFY_OBSERVER(_observer, new sat::gui::decision(lit));
+  }
+  else if (reason == CLAUSE_LAZY) {
+    // Theory propagation
+    ASSERT_MSG(false, "Lazy reason is not implemented yet");
   }
   else {
     // Implied literal
@@ -36,15 +66,7 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
     if (_clauses[reason].size == 1)
       svar.level = LEVEL_ROOT;
     else {
-      ASSERT(watched_levels(reason));
-      ASSERT(most_relevant_watched_literals(reason));
       ASSERT(lit == _clauses[reason].lits[0]);
-#ifndef NDEBUG
-      for (unsigned i = 1; i < _clauses[reason].size; i++) {
-        ASSERT(lit_false(_clauses[reason].lits[i]));
-        ASSERT(lit_level(_clauses[reason].lits[i]) <= lit_level(lit));
-      }
-#endif
       svar.level = lit_level(_clauses[reason].lits[1]);
     }
     NOTIFY_OBSERVER(_observer, new sat::gui::implication(lit, reason, svar.level));
@@ -61,16 +83,22 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
 
 Tlit* sat::modulariT_SAT::search_replacement(Tlit* lits, unsigned size)
 {
-  // This must be as efficient as possible!
+  /**
+   * Pre conditions:
+   * - The set of literals C = {c₂, ¬ℓ, ..., cₙ} has more than two literals
+   *    |C| > 2
+   * - The second literal ¬ℓ of the clause is falsified but not yet propagated
+   *    ℓ ∈ ω
+   */
   ASSERT(size >= 2);
+  ASSERT(lit_false(lits[1]));
+  // This must be as efficient as possible!
   Tlit* end = lits + size;
   Tlit* k = lits + 2;
   Tlevel low_sat_lvl = lit_true(lits[0]) ? lit_level(lits[0]) : LEVEL_UNDEF;
   Tlevel high_non_sat_lvl = lit_level(lits[1]);
   Tlit* high_non_sat_lit = lits + 1;
   while (k < end) {
-    // we assume that undefined literals have an infinite decision level.
-    ASSERT(!lit_undef(*k) || lit_level(*k) > _decision_index.size());
     if (!lit_false(*k))
       return k;
     if (lit_level(*k) > high_non_sat_lvl) {
@@ -78,17 +106,15 @@ Tlit* sat::modulariT_SAT::search_replacement(Tlit* lits, unsigned size)
       ASSERT(_options.chronological_backtracking);
       high_non_sat_lvl = lit_level(*k);
       high_non_sat_lit = k;
-      continue;
     }
-    if (low_sat_lvl <= high_non_sat_lvl)
+    if (low_sat_lvl <= high_non_sat_lvl) {
+      ASSERT(_options.chronological_backtracking);
+      ASSERT(k == high_non_sat_lit);
       return k;
+    }
     k++;
   }
   return high_non_sat_lit;
-}
-Tclause sat::modulariT_SAT::propagate_fact(Tlit lit)
-{
-  return Tclause();
 }
 
 Tclause sat::modulariT_SAT::propagate_binary_clauses(Tlit lit)
@@ -117,7 +143,7 @@ Tclause sat::modulariT_SAT::propagate_binary_clauses(Tlit lit)
       continue;
     }
     if (lit_undef(bin.first)) {
-      // ensure that the stacked literal is positioned at the first position
+      // ensure that the implied literal is positioned at the first position
       Tlit* lits = _clauses[bin.second].lits;
       ASSERT(lits[0] == lit || lits[1] == lit);
       ASSERT(lits[0] == bin.first || lits[1] == bin.first);
@@ -147,6 +173,9 @@ Tclause sat::modulariT_SAT::propagate_binary_clauses(Tlit lit)
 
 Tclause modulariT_SAT::propagate_lit(Tlit lit)
 {
+  /**
+   * The mathematical notations and the contract of this function are defined in modulariT-SAT.hpp
+  */
   lit = lit_neg(lit);
   ASSERT(lit_false(lit));
 
@@ -156,14 +185,52 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
   Tclause prev = CLAUSE_UNDEF;
   Tclause next = CLAUSE_UNDEF;
 
+  /**
+   * Let F* be a set of clauses such that each clause in the set satisfies
+   * - NCB:  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
+   *        δ(b) ≤ δ(c₂) is trivially true in NCB since the levels are monotonicaly increasing
+   * - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ (τ ⋅ ℓ) ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+   *        We actually want to enforce ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] but cannot
+   *        guarantee that this will hold after backtracking.
+   * - LSCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+   *                     ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+   *
+   * We initialise F* with all the clauses that are not watched by ¬ℓ. If they satisfied the invarian
+   * ts
+   * before the propagation, they will satisfy them after ℓ is added to τ without any action.
+   *
+   * For the clauses watched by ¬ℓ, C = c₁ ∨ c₂ ∨ ... ∨ cₙ with b, a blocker such that b ∈ C
+   * we will reason over the Haore triplets {P} loop body {Q}
+   * where P is the precondition that the invariant holds before the loop
+   * and Q is the postcondition that the invariant holds after the loop if ℓ = ¬c₁ is added to τ
+   * - NCB:  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
+   *        δ(b) ≤ δ(c₂) is trivially true in NCB since the levels are monotonicaly increasing
+   * - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ (τ ⋅ ℓ) ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+   *        We actually want to enforce ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] but cannot
+   *        guarantee that this will hold after backtracking.
+   * - LSCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+   *                       ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+   *
+   * If Q is true, then we can add C to F* and we know that the invariants are preserved.
+   * If we cannot make Q true, then there is a conflict and we can return C.
+   *
+   * If we have not returned a conflict, at then end of the loop, we will have explored
+   * all the clauses watched by ¬ℓ and F* = F. Therefore, we satisfy our contract.
+   */
   while (cl != CLAUSE_UNDEF) {
     ASSERT(cl != prev);
     TSclause& clause = _clauses[cl];
     ASSERT(clause.watched);
     ASSERT(clause.size >= 2);
     Tlit* lits = clause.lits;
+    /**
+     * we call c₁ and c₂ the watched literals of the clause
+     * we assume that c₁ = ¬ℓ
+     */
+    //check that c₁ = C[0] or c₁ = C[1]
     ASSERT_MSG(lit == lits[0] || lit == lits[1],
       "Clause: " + clause_to_string(cl) + ",Literal: " + lit_to_string(lit));
+    // check that the next clause in the watch list contains the right literal.
     ASSERT_MSG(clause.first_watched == CLAUSE_UNDEF
       || _clauses[clause.first_watched].lits[0] == lits[0]
       || _clauses[clause.first_watched].lits[1] == lits[0],
@@ -174,6 +241,8 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       || _clauses[clause.second_watched].lits[1] == lits[1],
       "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
       + " clause " + clause_to_string(clause.second_watched) + " does not watch " + lit_to_string(lits[1]));
+
+    // ensure that c₁ = ¬ℓ and c₂ = the other watched literal
     if (lit == lits[0]) {
       lits[0] ^= lits[1];
       lits[1] ^= lits[0];
@@ -183,16 +252,6 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       clause.second_watched ^= clause.first_watched;
       clause.first_watched ^= clause.second_watched;
     }
-    ASSERT_MSG(clause.first_watched == CLAUSE_UNDEF
-      || _clauses[clause.first_watched].lits[0] == lits[0]
-      || _clauses[clause.first_watched].lits[1] == lits[0],
-      "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
-      + " clause " + clause_to_string(clause.first_watched) + " does not watch " + lit_to_string(lits[0]));
-    ASSERT_MSG(clause.second_watched == CLAUSE_UNDEF
-      || _clauses[clause.second_watched].lits[0] == lits[1]
-      || _clauses[clause.second_watched].lits[1] == lits[1],
-      "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
-      + " clause " + clause_to_string(clause.second_watched) + " does not watch " + lit_to_string(lits[1]));
     ASSERT(prev == CLAUSE_UNDEF || _clauses[prev].lits[1] == lit);
     ASSERT(prev == CLAUSE_UNDEF || _clauses[prev].lits[1] == lit);
 
@@ -201,21 +260,48 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
     ASSERT(lit != lit2);
 
     /** SKIP CONDITIONS **/
+    // TODO could put this before the clause dereferencing?
     if (lit_true(clause.blocker)
       && (!_options.chronological_backtracking || lit_level(clause.blocker) <= lvl)) {
+      /**
+       * NCB: b ∈ π
+       * WCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
+       * SCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
+       * the invariants are preserved without any action
+       * */
       prev = cl;
       cl = clause.second_watched;
       continue;
     }
     if (lit_true(lit2)
       && (!_options.strong_chronological_backtracking || lit_level(lit2) <= lvl)) {
+      /**
+       * NCB: c₂ ∈ π
+       * WCB: c₂ ∈ π
+       * SCB: c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)
+       * the invariants are preserved without any action
+       */
       prev = cl;
       cl = clause.second_watched;
       continue;
     }
-
     /** SEARCH REPLACEMENT **/
     Tlit* replacement = search_replacement(lits, clause.size);
+    /**
+     * Search replacement returns a literal r ∈ C \ {c₂} such that it either is a good replacement such that
+     *   ¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
+     * or C \ {c₂} is conflicting with π and r is the highest literal in C \ {c₂}
+     *   C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})
+     * NCB: If c₂ ∈ π, then we would have stopped at the skip conditions
+     *      We know that [C ∖ {c₂}, π ⊧ ⊥] ⇒ δ(c₁) = δ(c₂) = δ(C) and c₁ will be returned
+     *      if C \ {c₂} is conflicting
+     *
+     * We know that
+     * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})]
+     * NCB: c₂ ∉ π                   ∧ b ∉ π
+     * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+    */
     ASSERT(replacement != nullptr);
 
     Tlevel replacement_lvl = lit_level(*replacement);
@@ -224,8 +310,12 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit) + "\nReplacement: " + lit_to_string(*replacement) + "\nLevel: " + to_string(lvl));
     /** TRUE literal **/
     if (lit_true(*replacement) && replacement_lvl <= lvl) {
-      // in non-chronological backtracking, this will always be the case
-      // set blocker and go next
+      /**
+       * r ∈ π ∧ δ(r) ≤ δ(c₁)
+       * NCB: We know that r ∈ π ⇒ δ(r) ≤ δ(c₁). Therefore after this codition is satisfied in NCB,
+       *      we know that r ∉ π
+       * ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] is satisfied if we set b = r
+      */
       clause.blocker = *replacement;
 #if NOTIFY_WATCH_CHANGES
       NOTIFY_OBSERVER(_observer, new sat::gui::block(cl, *replacement));
@@ -234,9 +324,20 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       cl = clause.second_watched;
       continue;
     }
+    /**
+     * We know that
+     * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})]
+     * NCB: r ∉ π                  ∧ c₂ ∉ π                   ∧ b ∉ π
+     * WCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * SCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+    */
 
     /** UNDEF or TRUE literal **/
     if (!lit_false(*replacement)) {
+      /**
+       * We now know that ¬r ∉ π, and a fortiori ¬r ∉ (τ ⋅ ¬c₁) since ¬c₁ ∈ ω ⊆ π
+       * Therefore, we can replace c₁ by r and satisfy the invariant
+       */
       // watch the replacement and stop watching lit
       lits[1] = *replacement;
       *replacement = lit;
@@ -264,8 +365,22 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
     }
 
     /** NO GOOD REPLACEMENT **/
+    /**
+     * We know that [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})]
+     * We also know that ¬r ∈ π and therefore δ(r) = δ(C ∖ {c₂}) or c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
+     * ALL: ¬r ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})]]
+     * NCB: c₂ ∉ π                   ∧ b ∉ π
+     * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     */
     ASSERT(lit_false(*replacement));
     if (replacement != lits + 1) {
+      /**
+       * If r ≠ c₁, we know that we are in WCB since in NCB we have
+       *    [C ∖ {c₂}, π ⊧ ⊥] ⇒ δ(c₁) = δ(c₂) = δ(C) and r = c₁
+       * We know that δ(r) > δ(c₁)
+       * We swap the literals such that c₁ ← r
+      */
       ASSERT(_options.chronological_backtracking);
       // In strong chronological backtracking, we need to swap the literals such that the highest falsified literal is at the second position. In weak chronological backtracking, it is not necessary, but it is still useful to determine the level of the conflict or the implication.
       // swap the literals
@@ -297,11 +412,26 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
       prev = cl;
       next = clause.second_watched;
     }
+    /**
+     * We no longer need r since it is now in place of c₁
+     * ALL: ¬c₁ ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})]]
+     * NCB: c₂ ∉ π                   ∧ b ∉ π
+     * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     */
 
     // We know that all literals in clause[1:end] are false
     /** CONFLICT **/
     if (lit_false(lit2)) {
       // Conflict
+      /**
+       * We know that C ∖ {c₂}, π ⊧ ⊥, therefore, if ¬c₂ ∈ π then C, π ⊧ ⊥ and we have a conflict
+       * We cannot safely add ¬c₁ to the trail.
+       * ALL: ¬c₁ ∈ (τ ⋅ ¬c₁) ∧ C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})
+       * NCB: b ∉ π
+       * WCB: [b ∉ π ∨ δ(b) > δ(c₁)]
+       * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
+      */
       ASSERT(lit_level(lits[1]) == replacement_lvl);
       if (lit_level(lit2) < replacement_lvl) {
         // swap the literals
@@ -325,26 +455,67 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
     /** UNIT CLAUSE **/
     if (lit_undef(lit2)) {
       // unit clause
+      /**
+       * We add the information that c₂ ∉ π
+       * We know that C ∖ {c₂}, π ⊧ ⊥, therefore the only way to satisfy C is to set c₂ to true
+       * In SCB we additionnaly need δ(c₂) ≤ δ(c₁), and since c₂ will be implied at level δ(C ∖ {c₂}),
+       * we need to ensure that δ(c₁) = δ(C ∖ {c₂}). This is why we changed the watched literals earlier.
+       * ALL: c₂ ∉ π ∧ ¬c₁ ∈ π ∧ C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})
+       * NCB: b ∉ π
+       * WCB: [b ∉ π ∨ δ(b) > δ(c₁)]
+       * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
+      */
       stack_lit(lit2, cl);
       cl = next;
       continue;
     }
 
     /** MISSED LOWER IMPLICATION **/
+    /**
+     * We know that we can only be in SCB since the skip condition
+     * We know that c₂ ∈ π is now satisfied
+     * ALL: c₂ ∈ π ∧ ¬c₁ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})]]
+     * NCB: c₂ ∉ π                   ∧ b ∉ π                   => not possible
+     * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]  => not possible
+     * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
+     * We shall now only consider SCB
+    */
     if (lit_level(lit2) <= replacement_lvl) {
       // This is not a real missed lower implication. The level of the satisfied literal is lower than or equal to the level of the replacement.
+      /**
+       * We have δ(c₂) ≤ δ(c₁) as well as c₂ ∈ π ∧ ¬c₁ ∈ π
+       * Which satisfies the invariant:
+       * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+       *               ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+       * and we do not need to do anything more
+       */
       cl = next;
       continue;
     }
     // We know that lit2 is true, and it is a missed lower implication
     // lit2 is the only satisfied literal in the clause and all other literals are propagated at a level lower than the highest falsified literal
+    /**
+     * We now also know that δ(c₂) > δ(c₁), so we can simplify our knowledge as
+     * c₂ ∈ π ∧ ¬c₁ ∈ π ∧ C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})
+     */
     ASSERT(_options.strong_chronological_backtracking);
     ASSERT(lit_true(lit2));
     Tclause lazy_reason = lit_lazy_reason(lit2);
     ASSERT(lazy_reason == CLAUSE_UNDEF || lazy_reason < _clauses.size());
     if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > replacement_lvl) {
+      /**
+       * We have δ(λ(c₂) \ {c₂}) > δ(c₁)
+       * The only way to satisfy the invariant is to add C to the lazy reimplication list of c₂
+       * λ(c₂) ← λ[c₂ ← C] and therefore δ(λ(c₂) \ {c₂}) =  δ(c₁)
+      */
       lit_set_lazy_reason(lit2, cl);
     }
+    /**
+     * We now have in addition that δ(λ(c₂) \ {c₂}) ≤ δ(c₁)
+     * that safifies
+     * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+     *               ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+    */
     cl = next;
   }
 
@@ -354,7 +525,7 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
   return CLAUSE_UNDEF;
 }
 
-void modulariT_SAT::backtrack(Tlevel level)
+void modulariT_SAT::NCB_backtrack(Tlevel level)
 {
   ASSERT(!_options.chronological_backtracking);
   ASSERT(level <= _decision_index.size());
@@ -371,8 +542,6 @@ void modulariT_SAT::backtrack(Tlevel level)
     var_unassign(var);
   }
   _propagated_literals = _trail.size();
-  ASSERT(trail_consistency());
-  ASSERT(trail_monotonicity());
 }
 
 void sat::modulariT_SAT::CB_backtrack(Tlevel level)
@@ -477,7 +646,7 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
     }
   }
 
-  ASSERT(count > 1);
+  ASSERT(count > 1 || lit_lazy_reason(clause.lits[0]) != CLAUSE_UNDEF);
   // replace the literals in the clause by their reason
   unsigned i = _trail.size() - 1;
 
@@ -545,7 +714,6 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
       reason = lit_reason(lit);
     else {
       NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication used"));
-      NOTIFY_OBSERVER(_observer, new sat::gui::marker("Lazy reimplication used 2: " + clause_to_string(reason)));
     }
     ASSERT_MSG(reason != CLAUSE_UNDEF,
       "Conflict: " + clause_to_string(conflict) + "\nLiteral: " + lit_to_string(lit));
@@ -683,17 +851,28 @@ void modulariT_SAT::analyze_conflict(Tclause conflict)
       ASSERT(lit_level(lit) <= conflict_level);
       second_highest_level = max(second_highest_level, lit_level(lit));
     }
-    backtrack(second_highest_level);
+    NCB_backtrack(second_highest_level);
   }
   internal_add_clause(_literal_buffer, _next_literal_index, true, false);
 }
 
 void modulariT_SAT::repair_conflict(Tclause conflict)
 {
+  /**
+   * Precondition:
+   * - The conflict clause C is conflicting with the current partial assignment π
+   *    C, π ⊧ ⊥
+   * - The conflict clause is not a unit clause
+   *    |C| > 0
+   * - The first literal in the conflict clause is the highest level literal
+   *    δ(c₁) = δ(C)
+  */
+  ASSERT(_clauses[conflict].size > 0);
+
+
   NOTIFY_OBSERVER(_observer, new sat::gui::conflict(conflict));
   if (_status == SAT)
     _status = UNDEF;
-  ASSERT(_clauses[conflict].size > 0);
   ASSERT(lit_false(_clauses[conflict].lits[0]));
   if (lit_level(_clauses[conflict].lits[0]) == LEVEL_ROOT) {
     _status = UNSAT;
@@ -703,7 +882,7 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
     if (_options.chronological_backtracking)
       CB_backtrack(lit_level(_clauses[conflict].lits[0]) - 1);
     else
-      backtrack(LEVEL_ROOT);
+      NCB_backtrack(LEVEL_ROOT);
     // In strong chronological backtracking, the literal might have been propagated again during reimplication
     // Therefore, we might need to trigger another conflict analysis
     ASSERT(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]));
@@ -723,17 +902,20 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
     Tlevel high_lvl = lit_level(_clauses[conflict].lits[0]);
     for (unsigned i = 1; i < _clauses[conflict].size; i++) {
       Tlevel level = lit_level(_clauses[conflict].lits[i]);
+      /**
+       * The first literal in the conflict clause is the highest level literal
+       *    δ(c₁) = δ(C) */
       ASSERT(level <= high_lvl);
       if (level == high_lvl) {
         n_literal_at_highest_level++;
         break;
       }
     }
-    if (n_literal_at_highest_level == 1) {
+    if (n_literal_at_highest_level == 1
+     && lit_lazy_reason(_clauses[conflict].lits[0]) == CLAUSE_UNDEF) {
       NOTIFY_OBSERVER(_observer, new sat::gui::stat("One literal at highest level"));
       ASSERT(_options.chronological_backtracking);
       CB_backtrack(lit_level(_clauses[conflict].lits[0]) - 1);
-      // NOTIFY_OBSERVER(_observer, new sat::gui::marker("One literal at highest level " + clause_to_string(conflict)));
       // In strong chronological backtracking, the literal might have been propagated again during reimplication
       // Therefore, we might need to trigger another conflict analysis
       ASSERT_MSG(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]),
@@ -769,7 +951,7 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
         // the first literal might not be at the highest level anymore
         // therefore we want to bring the highest level literal to the front
         // and then we can restart conflict analysis
-        repair_conflict(conflict);
+        // repair_conflict(conflict);
         return;
       }
       Tlit* high_lit = lits + 1;
@@ -806,8 +988,7 @@ void modulariT_SAT::restart()
   if (_options.chronological_backtracking)
     CB_backtrack(LEVEL_ROOT);
   else
-    backtrack(LEVEL_ROOT);
-  ASSERT(trail_consistency());
+    NCB_backtrack(LEVEL_ROOT);
   NOTIFY_OBSERVER(_observer, new sat::gui::stat("Restart"));
 }
 
@@ -917,7 +1098,7 @@ void sat::modulariT_SAT::purge_clauses()
         cl = next;
       }
     }
-  } // end if (_options.chronological_backtracking && !_options.strong_chronological_backtracking)
+  }
 
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
     // Do not remove clauses that are used as reasons
@@ -1094,7 +1275,6 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
     _observer->notify(new sat::gui::new_clause(cl, lits_vector, learned, external));
   }
 
-  ASSERT(clause_soundness(cl));
   if (size == 0) {
     clause->watched = false;
     _status = UNSAT;
@@ -1200,6 +1380,11 @@ void modulariT_SAT::set_proof_callback(void (*proof_callback)(void))
   _proof_callback = proof_callback;
 }
 
+bool sat::modulariT_SAT::is_interactive() const
+{
+  return _options.interactive;
+}
+
 bool sat::modulariT_SAT::is_observing() const
 {
   return _observer != nullptr;
@@ -1233,8 +1418,6 @@ bool modulariT_SAT::propagate()
     _propagated_literals++;
     NOTIFY_OBSERVER(_observer, new sat::gui::propagation(lit));
   }
-  ASSERT(trail_consistency());
-  ASSERT(no_unit_clauses());
   if (_trail.size() == _vars.size() - 1) {
     _status = SAT;
     return false;
@@ -1259,7 +1442,6 @@ status modulariT_SAT::solve()
       if (_status == UNSAT)
         return _status;
     }
-    ASSERT(trail_consistency());
     if (_observer && _options.interactive)
       _observer->notify(new sat::gui::checkpoint());
     else
@@ -1267,7 +1449,7 @@ status modulariT_SAT::solve()
     if (_status == SAT || _status == UNSAT)
       break;
   }
-  ASSERT(trail_consistency());
+  NOTIFY_OBSERVER(_observer, new sat::gui::check_invariants());
   NOTIFY_OBSERVER(_observer, new sat::gui::done(_status == SAT));
   return _status;
 }

@@ -1,3 +1,10 @@
+/**
+ * @file src/observer/SAT-notification.hpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of observer. It defines the notifications that can be sent by the SAT
+ * solver to the observer.
+ */
 #pragma once
 
 #include "../solver/SAT-config.hpp"
@@ -57,7 +64,7 @@ namespace sat::gui
   std::string notification_type_to_string(ENotifType type);
 
   /**
-   * @brief Virtual class that defines notifications that can be sent by the SAT solver.
+   * @brief Virtual class that defines notifications that can be sent by the SAT solver to the observer.
    */
   class notification
   {

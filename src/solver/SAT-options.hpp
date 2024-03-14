@@ -1,3 +1,10 @@
+/**
+ * @file src/solver/SAT-options.hpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the SMT Solver modulariT. It contains the runtime options of the SAT
+ * solver.
+ */
 #pragma once
 
 #include <string>

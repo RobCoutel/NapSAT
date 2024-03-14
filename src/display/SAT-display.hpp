@@ -1,3 +1,9 @@
+/**
+ * @file src/display/SAT-display.hpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the SMT Solver modulariT. It contains the display for the SAT solver.
+ */
 #pragma once
 
 #include "../solver/SAT-config.hpp"
@@ -9,11 +15,8 @@
 // TODO
 // Save runs in files and replay them
 // Toggle between one run or the other
-// Check invariants
 // Check and generate proofs
-// Read proof in DRAT or LRAT and create a possible execution
 // Drill down on variables and clauses
-// Mark variables and clauses to stop when they are involved in anything
 
 namespace sat::gui
 {
