@@ -39,6 +39,8 @@ std::string sat::gui::notification_type_to_string(ENotifType type)
   return "Implication";
   case ENotifType::PROPAGATION:
   return "Propagation";
+  case ENotifType::REMOVE_PROPAGATION:
+  return "Removed propagation";
   case ENotifType::CONFLICT:
   return "Conflict";
   case ENotifType::BACKTRACKING_STARTED:
@@ -256,6 +258,27 @@ void sat::gui::propagation::rollback(observer* obs)
   assert(obs->_assignment_stack[obs->_n_propagated] == lit);
   obs->_variables[lit_to_var(lit)].propagated = false;
 }
+
+unsigned sat::gui::remove_propagation::get_event_level(observer* obs)
+{
+  assert(obs);
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
+}
+
+void sat::gui::remove_propagation::apply(observer* obs)
+{
+  assert(obs);
+  assert(obs->_n_propagated > 0);
+  obs->_n_propagated--;
+  assert(obs->_variables.size() > lit_to_var(lit));
+  assert(obs->_variables[lit_to_var(lit)].active);
+  assert(obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
+  assert(obs->_assignment_stack[obs->_n_propagated] == lit);
+  obs->_variables[lit_to_var(lit)].propagated = false;
+}
+
+void sat::gui::remove_propagation::rollback(observer* obs)
+{}
 
 unsigned sat::gui::unassignment::get_event_level(observer* obs)
 {

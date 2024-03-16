@@ -15,6 +15,16 @@
 #include <cassert>
 #include <cmath>
 
+#ifdef __unix__
+#include <sys/ioctl.h> //ioctl() and TIOCGWINSZ
+#include <unistd.h> // for STDOUT_FILENO
+#endif
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+static unsigned TERMINAL_WIDTH = 169;
+
 using namespace sat;
 using namespace sat::gui;
 using namespace std;
@@ -48,6 +58,7 @@ sat::gui::observer::observer(sat::options& options) : _options(options)
       toggle_stats_only(true);
     }
   }
+  load_invariant_configuration();
   if (options.commands_file != "") {
     load_commands(options.commands_file);
   }
@@ -458,7 +469,6 @@ void sat::gui::observer::sort_clauses(Tclause cl)
   }
 }
 
-const static unsigned TERMINAL_WIDTH = 167;
 std::string sat::gui::observer::clause_to_string(Tclause cl)
 {
   string s = "";
@@ -490,6 +500,17 @@ std::string sat::gui::observer::clause_to_string(Tclause cl)
 
 void sat::gui::observer::print_clause_set()
 {
+#ifdef __unix__
+  struct winsize size;
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+  TERMINAL_WIDTH = size.ws_col;
+#endif
+#ifdef _WIN32
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+  TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#endif
+
   unsigned longest_clause = 0;
   cout << "Clauses: " << _clauses_dict.size() << "\n";
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
@@ -537,6 +558,16 @@ void sat::gui::observer::print_deleted_clauses()
 
 void sat::gui::observer::print_assignment()
 {
+#ifdef __unix__
+  struct winsize size;
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+  TERMINAL_WIDTH = size.ws_col;
+#endif
+#ifdef _WIN32
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+  TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#endif
   cout << "trail :\n";
   for (Tlevel lvl = _decision_level; lvl <= _decision_level; lvl--) {
     cout << lvl << ": ";
@@ -567,6 +598,16 @@ void sat::gui::observer::print_assignment()
 
 void sat::gui::observer::print_variables()
 {
+#ifdef __unix__
+  struct winsize size;
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+  TERMINAL_WIDTH = size.ws_col;
+#endif
+#ifdef _WIN32
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+  TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#endif
   const unsigned MAX_VARS_PER_LINE = 30;
   unsigned current_position = 0;
   cout << "variables :\n";
@@ -599,10 +640,10 @@ std::string sat::gui::observer::literal_to_latex(Tlit lit, bool watched, bool bl
     s += "\\green{";
   if (!lit_pol(lit))
     s += "\\neg ";
-  if (lit_reason(lit) == CLAUSE_UNDEF && lit_value(lit) != VAR_UNDEF)
-    s += "\\bm{v}";
-  else
-    s += "v";
+  // if (lit_reason(lit) == CLAUSE_UNDEF && lit_value(lit) != VAR_UNDEF)
+  //   s += "\\bm{v}";
+  // else
+  s += "v";
   s += "_{" + to_string(lit_to_var(lit)) + "}";
   if (lit_value(lit) == VAR_FALSE || lit_value(lit) == VAR_TRUE)
     s += "}";

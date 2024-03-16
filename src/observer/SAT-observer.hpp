@@ -34,6 +34,7 @@ namespace sat::gui
     friend class decision;
     friend class implication;
     friend class propagation;
+    friend class remove_propagation;
     friend class conflict;
     friend class unassignment;
     friend class new_clause;
@@ -505,7 +506,7 @@ namespace sat::gui
      * @brief Enables the invariant checker for trail sanity.
      * @details the file must contain a list of invariant name separated by a newline.
      */
-    void load_invariant_configuration(std::string filename);
+    void load_invariant_configuration();
 
     /**
      * @brief Checks all the enabled invariants of the observer.
@@ -582,7 +583,6 @@ namespace sat::gui
      * @brief Checks that, if a watched literals literal is falsified by a propagated literal, then the clause is satisfied at a lower level than the falsified literal.
      */
     bool check_weak_blocked_watch_literals();
-
 #endif
 
     /**

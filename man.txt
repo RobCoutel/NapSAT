@@ -24,6 +24,10 @@ The options are the following:
     Enables  the solver to use strong chronological  backtracking.  That is, the
     solver will use the lazy reimplication scheme.
 
+  -rscb or --restoring-chronological-backtracking
+    Enables  the solver to use restoring  chronological  backtracking.  That is,
+    the solver will repropagated literals that moved during backtacking.
+
   -del or --delete-clauses
     Enables the solver to delete learned clauses.
 

@@ -31,20 +31,21 @@ int main(int argc, char** argv)
   }
 
   string exec_dir = string(dirname(argv[0]));
-  sat::env::man_page_directory = exec_dir + "/../";
+  sat::env::set_man_page_directory(exec_dir + "/../");
+  sat::env::set_invariant_configuration_folder(exec_dir + "/../invariant-configurations/");
 
   if (string(argv[1]) == "-h" || string(argv[1]) == "--help") {
-    string man_file = sat::env::man_page_directory + "man.txt";
+    string man_file = sat::env::get_man_page_directory() + "man.txt";
     print_man_page(man_file);
     return 0;
   }
   else if (string(argv[1]) == "-hs" || string(argv[1]) == "--help-sat-commands") {
-    string man_file = sat::env::man_page_directory + "man-sat.txt";
+    string man_file = sat::env::get_man_page_directory() + "man-sat.txt";
     print_man_page(man_file);
     return 0;
   }
   else if (string(argv[1]) == "-hn" || string(argv[1]) == "--help-navigation") {
-    string man_file = sat::env::man_page_directory + "man-nav.txt";
+    string man_file = sat::env::get_man_page_directory() + "man-nav.txt";
     print_man_page(man_file);
     return 0;
   }
@@ -53,8 +54,8 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  sat::env::input_file = argv[1];
-  sat::env::problem_name = string(basename(argv[1]));
+  sat::env::set_input_file(argv[1]);
+  sat::env::set_problem_name(string(basename(argv[1])));
 
   sat::options options(argv + 2, argc - 2);
   sat::modulariT_SAT solver(0, 0, options);

@@ -519,7 +519,6 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
     cl = next;
   }
 
-  _vars[lit_to_var(lit)].waiting = false;
   // ASSERT(watch_lists_complete());
   // ASSERT(watch_lists_minimal());
   return CLAUSE_UNDEF;
@@ -546,6 +545,7 @@ void modulariT_SAT::NCB_backtrack(Tlevel level)
 
 void sat::modulariT_SAT::CB_backtrack(Tlevel level)
 {
+  // cout << "-----------------------------------" << endl;
   ASSERT(_options.chronological_backtracking);
   ASSERT(level <= _decision_index.size());
   ASSERT(_backtrack_buffer.empty());
@@ -554,6 +554,9 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
   NOTIFY_OBSERVER(_observer, new sat::gui::backtracking_started(level));
   unsigned waiting_count = 0;
 
+  unsigned restore_point = _decision_index[level];
+
+  // print_trail();
   while (_decision_index.size() > level) {
     Tlit lit = _trail.back();
     _trail.pop_back();
@@ -578,12 +581,31 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
     _backtrack_buffer.push_back(lit);
     waiting_count += _vars[lit_to_var(lit)].waiting;
   }
+  // cout << _backtrack_buffer.size() << " literals to restore" << endl;
+  // cout << "Waiting count: " << waiting_count << endl;
   while (!_backtrack_buffer.empty()) {
     Tlit lit = _backtrack_buffer.back();
     _backtrack_buffer.pop_back();
     _trail.push_back(lit);
   }
   _propagated_literals = _trail.size() - waiting_count;
+  // print_trail();
+  if (_options.restoring_chronological_backtracking
+   && restore_point < _propagated_literals) {
+    // cout << "_propagated_literals: " << _propagated_literals << ", restore_point: " << restore_point << endl;
+    while (_propagated_literals > restore_point) {
+      // print_trail();
+      // cout << "Restoring " << lit_to_string(_trail[_propagated_literals-1]) << endl;
+      Tlit lit = _trail[_propagated_literals - 1];
+      Tvar var = lit_to_var(lit);
+      ASSERT_MSG(!_vars[var].waiting,
+                  "Literal: " + lit_to_string(lit) + "\nLevel: " + to_string(lit_level(lit)));
+      _vars[var].waiting = true;
+      _propagated_literals--;
+      NOTIFY_OBSERVER(_observer, new sat::gui::remove_propagation(lit));
+    }
+    _propagated_literals = restore_point;
+  }
   if (_options.strong_chronological_backtracking && _reimplication_backtrack_buffer.size() > 0) {
     // adds the literals on the lazy reimplication buffer to the trail by order of increasing level
     // Sort the literals by increasing level
@@ -1267,6 +1289,19 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
     clause->first_watched = CLAUSE_UNDEF;
     clause->second_watched = CLAUSE_UNDEF;
   }
+  // Remove duplicate literals
+  if (size >= 2) {
+    sort(lits, lits + size);
+    unsigned j = 1;
+    for (unsigned i = 1; i < size; i++) {
+      if (lits[i] == lits[i - 1])
+        continue;
+      lits[j++] = lits[i];
+    }
+    size = j;
+    clause->size = size;
+  }
+
   clause->activity = _max_clause_activity;
   if (_observer) {
     vector<Tlit> lits_vector;
@@ -1305,8 +1340,13 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
     if (lit_false(lits[1])) {
       if (lit_undef(lits[0]))
         stack_lit(lits[0], cl);
-      else
+      else if (lit_false(lits[0]))
         repair_conflict(cl);
+      else if (_options.strong_chronological_backtracking) {
+        ASSERT(lit_true(lits[0]));
+        if (lit_lazy_reason(lits[0]) == CLAUSE_UNDEF || lit_level(_clauses[lit_lazy_reason(lits[0])].lits[1]) > lit_level(lits[0]))
+          lit_set_lazy_reason(lits[1], cl);
+      }
     }
   }
   else {
@@ -1406,17 +1446,18 @@ bool modulariT_SAT::propagate()
     Tclause conflict = propagate_binary_clauses(lit);
     if (conflict == CLAUSE_UNDEF)
       conflict = propagate_lit(lit);
-    if (conflict != CLAUSE_UNDEF) {
-      NOTIFY_OBSERVER(_observer, new sat::gui::conflict(conflict));
-      repair_conflict(conflict);
-      if (_status == UNSAT)
-        return false;
-      if (_agility < _options.agility_threshold)
-        restart();
+    if (conflict == CLAUSE_UNDEF) {
+      _vars[lit_to_var(lit)].waiting = false;
+      _propagated_literals++;
+      NOTIFY_OBSERVER(_observer, new sat::gui::propagation(lit));
       continue;
     }
-    _propagated_literals++;
-    NOTIFY_OBSERVER(_observer, new sat::gui::propagation(lit));
+    NOTIFY_OBSERVER(_observer, new sat::gui::conflict(conflict));
+    repair_conflict(conflict);
+    if (_status == UNSAT)
+      return false;
+    if (_agility < _options.agility_threshold)
+      restart();
   }
   if (_trail.size() == _vars.size() - 1) {
     _status = SAT;

@@ -26,6 +26,13 @@ namespace sat
      * @alias -scb
      */
     bool strong_chronological_backtracking = false;
+    /**
+     * @brief Enables the solver to use restoring chronological backtracking.
+     * That is, the solver will repropagated literals that moved during
+     * backtacking.
+     * @alias -rscb
+     */
+    bool restoring_chronological_backtracking = false;
 
     /**
      * @brief Enables the solver to delete learned clauses.
@@ -67,7 +74,6 @@ namespace sat
     /**
      * @brief File containing the commands to be executed by the solver.
      * @requires interactive is on
-     * @alias -commands
     */
     std::string commands_file = "";
 

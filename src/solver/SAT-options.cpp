@@ -30,6 +30,8 @@ sat::options::options(char** tokens, unsigned n_tokens)
     {"--chronological-backtracking", &chronological_backtracking},
     {"-scb", &strong_chronological_backtracking},
     {"--strong-chronological-backtracking", &strong_chronological_backtracking},
+    {"-rscb", &restoring_chronological_backtracking},
+    {"--restoring-chronological-backtracking", &restoring_chronological_backtracking},
     {"-o", &observing},
     {"--observing", &observing},
     {"-i", &interactive},
@@ -115,7 +117,7 @@ sat::options::options(char** tokens, unsigned n_tokens)
   if (chronological_backtracking && strong_chronological_backtracking) {
     cerr << "Warning: strong chronological backtracking subsumes chronological backtracking. The option is ignored." << endl;
   }
-  if (strong_chronological_backtracking) {
+  if (strong_chronological_backtracking || restoring_chronological_backtracking) {
     chronological_backtracking = true;
   }
   if (suppress_warning && !observing && !interactive && !check_invariants) {

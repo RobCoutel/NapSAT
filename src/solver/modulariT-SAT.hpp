@@ -324,7 +324,7 @@ namespace sat
     */
     std::vector<std::vector<std::pair<Tlit, Tclause>>> _binary_clauses;
     /**
-     * @brief _decision_index[i] is the index of the made after level i.
+     * @brief _decision_index[i] is the index of the decision made after level i.
      * @remark _decision_index[0] is the index of the first decision.
      */
     std::vector<unsigned> _decision_index;

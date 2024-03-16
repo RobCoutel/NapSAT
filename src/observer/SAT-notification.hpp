@@ -46,6 +46,7 @@ namespace sat::gui
     DECISION,
     IMPLICATION,
     PROPAGATION,
+    REMOVE_PROPAGATION,
     CONFLICT,
     BACKTRACKING_STARTED,
     BACKTRACKING_DONE,
@@ -341,6 +342,30 @@ namespace sat::gui
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
     ~propagation() override = default;
+  };
+
+  /**
+   * @brief Notification that a literal was propagated.
+   */
+  class remove_propagation : public notification
+  {
+  private:
+    unsigned event_level = 6;
+
+    /**
+     * @brief The literal that was propagated.
+     */
+    sat::Tlit lit;
+
+  public:
+    remove_propagation(sat::Tlit lit) : lit(lit) {}
+    remove_propagation* clone() const override { return new remove_propagation(lit); }
+    unsigned get_event_level(observer* observer) override;
+    const ENotifType get_type() override { return PROPAGATION; }
+    const std::string get_message() override { return "Propagation removed : " + std::to_string(sat::lit_to_int(lit)); }
+    virtual void apply(observer* observer) override;
+    virtual void rollback(observer* observer) override;
+    ~remove_propagation() override = default;
   };
 
   /**

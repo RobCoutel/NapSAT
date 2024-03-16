@@ -6,6 +6,7 @@
  * implementation of the invariant checkers in the observer.
  */
 #include "SAT-observer.hpp"
+#include "../environment.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -14,15 +15,26 @@ using namespace std;
 
 static const string error = "\033[1;31m" + string("Error: ") + "\033[0m";
 
-void sat::gui::observer::load_invariant_configuration(std::string filename)
+void sat::gui::observer::load_invariant_configuration()
 {
-  // TODO this is a bit brutal. Do like in the options.
+  string filename = sat::env::get_invariant_configuration_folder();
+  if (_options.strong_chronological_backtracking)
+    filename += "strong-chronological-backtracking";
+  else if (_options.restoring_chronological_backtracking)
+    filename += "restoring-strong-chronological-backtracking";
+  else if (_options.chronological_backtracking)
+    filename += "weak-chronological-backtracking";
+  else
+    filename += "non-chronological-backtracking";
+  filename += ".conf";
+  // cout << "Loading invariant configuration from " << filename << endl;
   ifstream file(filename);
   if (!file.is_open())
   {
     cerr << "Error: could not load the invariant configuration file." << endl;
     return;
   }
+  // TODO this is a bit brutal. Do like in the options.
   // reset all the invariants to false
   _check_trail_sanity = false;
   _check_level_ordering = false;
@@ -74,30 +86,30 @@ void sat::gui::observer::load_invariant_configuration(std::string filename)
   cout << "Invariant configuration loaded from " << filename << endl;
   file.close();
 
-  cout << "The following invariants are enabled:" << endl;
-  if (_check_trail_sanity)
-    cout << "trail sanity, " << endl;
-  if (_check_level_ordering)
-    cout << "level ordering, " << endl;
-  if (_check_trail_monoticity)
-    cout << "trail monoticity, " << endl;
-  if (_check_no_missed_implications)
-    cout << "no missed implications, " << endl;
-  if (_check_topological_order)
-    cout << "topological order, " << endl;
-#if NOTIFY_WATCH_CHANGE
-  if (_check_strong_watch_literals)
-    cout << "strong watch literals, " << endl;
-  if (_check_blocked_watch_literals)
-    cout << "blocked watch literals, " << endl;
-  if (_check_weak_watch_literals)
-    cout << "weak watch literals, " << endl;
-  if (_check_weak_blocked_watch_literals)
-    cout << "weak blocked watch literals, " << endl;
-#endif
-  if (_check_assignment_coherence)
-    cout << "assignment coherence" << endl;
-  cout << endl;
+//   cout << "The following invariants are enabled:" << endl;
+//   if (_check_trail_sanity)
+//     cout << "trail sanity, " << endl;
+//   if (_check_level_ordering)
+//     cout << "level ordering, " << endl;
+//   if (_check_trail_monoticity)
+//     cout << "trail monoticity, " << endl;
+//   if (_check_no_missed_implications)
+//     cout << "no missed implications, " << endl;
+//   if (_check_topological_order)
+//     cout << "topological order, " << endl;
+// #if NOTIFY_WATCH_CHANGE
+//   if (_check_strong_watch_literals)
+//     cout << "strong watch literals, " << endl;
+//   if (_check_blocked_watch_literals)
+//     cout << "blocked watch literals, " << endl;
+//   if (_check_weak_watch_literals)
+//     cout << "weak watch literals, " << endl;
+//   if (_check_weak_blocked_watch_literals)
+//     cout << "weak blocked watch literals, " << endl;
+// #endif
+//   if (_check_assignment_coherence)
+//     cout << "assignment coherence" << endl;
+//   cout << endl;
 }
 
 bool sat::gui::observer::check_invariants()
@@ -212,7 +224,7 @@ bool sat::gui::observer::check_no_missed_implications()
         goto next_clause;
     for (Tlit lit : c->literals)
     {
-      if (lit_value(lit) == VAR_TRUE)
+      if (lit_value(lit) == VAR_TRUE || !lit_propagated(lit))
       {
         goto next_clause;
       }
