@@ -1,4 +1,4 @@
-EXEC = modulariT-SAT-$(shell git rev-list --count --all)
+EXEC = NapSAT-$(shell git rev-list --count --all)
 MAIN = main.cpp
 
 CC := g++

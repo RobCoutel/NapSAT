@@ -2,7 +2,7 @@
  * @file src/display/SAT-display.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It contains the display for the SAT solver.
+ * @brief This file is part of the NapSAT solver. It contains the display for the SAT solver.
  */
 #pragma once
 

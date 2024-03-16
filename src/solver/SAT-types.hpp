@@ -2,7 +2,7 @@
  * @file src/solver/SAT-types.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It defines the basic types used in the SAT
+ * @brief This file is part of the NapSAT solver. It defines the basic types used in the SAT
  * solver, and some basic operations on these types.
  */
 #pragma once

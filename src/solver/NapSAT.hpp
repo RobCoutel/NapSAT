@@ -1,8 +1,8 @@
 /**
- * @file src/solver/modulariT-SAT.hpp
+ * @file src/solver/NapSAT.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It defines the inter-
+ * @brief This file is part of the NapSAT solver. It defines the inter-
  * face of the SAT solver and its data structures.
  * @details
  * we call: F the set of clauses
@@ -110,7 +110,7 @@
 
 namespace sat
 {
-  class modulariT_SAT
+  class NapSAT
   {
   public:
 #ifndef TEST
@@ -1025,12 +1025,12 @@ namespace sat
     /*************************************************************************/
   public:
     /**
-     * @brief Construct a new modulariT_SAT::modulariT_SAT object
+     * @brief Construct a new NapSAT::NapSAT object
      * @param n_var initial number of variables. Can be increased later.
      * @param n_clauses initial number of clauses. Can be increased later by
      * adding clauses.
      */
-    modulariT_SAT(unsigned n_var, unsigned n_clauses, sat::options& options);
+    NapSAT(unsigned n_var, unsigned n_clauses, sat::options& options);
 
     /**
      * @brief Parse a DIMACS file and add the clauses to the clause set.
@@ -1266,9 +1266,9 @@ namespace sat
     void print_watch_lists(Tlit lit = LIT_UNDEF);
 
     /**
-     * @brief Destroy the modulariT_SAT::modulari T_SAT object
+     * @brief Destroy the NapSAT::modulari T_SAT object
      */
-    ~modulariT_SAT();
+    ~NapSAT();
 
     /*************************************************************************/
     /*                     Functions for the checker                         */

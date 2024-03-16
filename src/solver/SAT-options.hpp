@@ -2,7 +2,7 @@
  * @file src/solver/SAT-options.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It contains the runtime options of the SAT
+ * @brief This file is part of the NapSAT solver. It contains the runtime options of the SAT
  * solver.
  */
 #pragma once
@@ -78,7 +78,7 @@ namespace sat
     std::string commands_file = "";
 
     /**
-     * @brief Folder where the solver will save the LaTeX files. (see $ modulariT-SAT --help-navigation for more information)
+     * @brief Folder where the solver will save the LaTeX files. (see $ NapSAT --help-navigation for more information)
      * @alias -s
     */
     std::string save_folder = "";

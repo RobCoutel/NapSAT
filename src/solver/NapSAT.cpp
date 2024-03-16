@@ -1,11 +1,11 @@
 /**
- * @file src/solver/modulariT-SAT.cpp
+ * @file src/solver/NapSAT.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It implements the core functions of the
+ * @brief This file is part of the NapSAT solver. It implements the core functions of the
  * solver such as the CDCL loop, BCP, conflict analysis, backtacking and clause set simplification.
  */
-#include "modulariT-SAT.hpp"
+#include "NapSAT.hpp"
 #include "custom-assert.hpp"
 
 #include <iostream>
@@ -15,7 +15,7 @@
 using namespace sat;
 using namespace std;
 
-void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
+void NapSAT::stack_lit(Tlit lit, Tclause reason)
 {
   /**
    * Preconditions:
@@ -81,7 +81,7 @@ void modulariT_SAT::stack_lit(Tlit lit, Tclause reason)
   ASSERT(svar.level <= _decision_index.size());
 }
 
-Tlit* sat::modulariT_SAT::search_replacement(Tlit* lits, unsigned size)
+Tlit* sat::NapSAT::search_replacement(Tlit* lits, unsigned size)
 {
   /**
    * Pre conditions:
@@ -117,7 +117,7 @@ Tlit* sat::modulariT_SAT::search_replacement(Tlit* lits, unsigned size)
   return high_non_sat_lit;
 }
 
-Tclause sat::modulariT_SAT::propagate_binary_clauses(Tlit lit)
+Tclause sat::NapSAT::propagate_binary_clauses(Tlit lit)
 {
   lit = lit_neg(lit);
   ASSERT(lit_false(lit));
@@ -171,10 +171,10 @@ Tclause sat::modulariT_SAT::propagate_binary_clauses(Tlit lit)
   return CLAUSE_UNDEF;
 }
 
-Tclause modulariT_SAT::propagate_lit(Tlit lit)
+Tclause NapSAT::propagate_lit(Tlit lit)
 {
   /**
-   * The mathematical notations and the contract of this function are defined in modulariT-SAT.hpp
+   * The mathematical notations and the contract of this function are defined in NapSAT.hpp
   */
   lit = lit_neg(lit);
   ASSERT(lit_false(lit));
@@ -524,7 +524,7 @@ Tclause modulariT_SAT::propagate_lit(Tlit lit)
   return CLAUSE_UNDEF;
 }
 
-void modulariT_SAT::NCB_backtrack(Tlevel level)
+void NapSAT::NCB_backtrack(Tlevel level)
 {
   ASSERT(!_options.chronological_backtracking);
   ASSERT(level <= _decision_index.size());
@@ -543,7 +543,7 @@ void modulariT_SAT::NCB_backtrack(Tlevel level)
   _propagated_literals = _trail.size();
 }
 
-void sat::modulariT_SAT::CB_backtrack(Tlevel level)
+void sat::NapSAT::CB_backtrack(Tlevel level)
 {
   // cout << "-----------------------------------" << endl;
   ASSERT(_options.chronological_backtracking);
@@ -623,7 +623,7 @@ void sat::modulariT_SAT::CB_backtrack(Tlevel level)
   }
 }
 
-bool sat::modulariT_SAT::lit_is_required_in_learned_clause(Tlit lit)
+bool sat::NapSAT::lit_is_required_in_learned_clause(Tlit lit)
 {
   ASSERT(lit_false(lit));
   if (lit_reason(lit) == CLAUSE_UNDEF)
@@ -638,7 +638,7 @@ bool sat::modulariT_SAT::lit_is_required_in_learned_clause(Tlit lit)
   return false;
 }
 
-void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
+void NapSAT::analyze_conflict_reimply(Tclause conflict)
 {
   // ASSERT(watch_lists_minimal());
   ASSERT(conflict != CLAUSE_UNDEF);
@@ -785,7 +785,7 @@ void modulariT_SAT::analyze_conflict_reimply(Tclause conflict)
   internal_add_clause(_literal_buffer, _next_literal_index, true, false);
 }
 
-void modulariT_SAT::analyze_conflict(Tclause conflict)
+void NapSAT::analyze_conflict(Tclause conflict)
 {
   // ASSERT(watch_lists_minimal());
   ASSERT(conflict != CLAUSE_UNDEF);
@@ -878,7 +878,7 @@ void modulariT_SAT::analyze_conflict(Tclause conflict)
   internal_add_clause(_literal_buffer, _next_literal_index, true, false);
 }
 
-void modulariT_SAT::repair_conflict(Tclause conflict)
+void NapSAT::repair_conflict(Tclause conflict)
 {
   /**
    * Precondition:
@@ -1003,7 +1003,7 @@ void modulariT_SAT::repair_conflict(Tclause conflict)
   _var_activity_increment /= _options.var_activity_decay;
 }
 
-void modulariT_SAT::restart()
+void NapSAT::restart()
 {
   _agility = 1;
   _options.agility_threshold *= _options.agility_threshold_decay;
@@ -1014,7 +1014,7 @@ void modulariT_SAT::restart()
   NOTIFY_OBSERVER(_observer, new sat::gui::stat("Restart"));
 }
 
-void sat::modulariT_SAT::purge_clauses()
+void sat::NapSAT::purge_clauses()
 {
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
@@ -1176,7 +1176,7 @@ void sat::modulariT_SAT::purge_clauses()
   ASSERT(watch_lists_minimal());
 }
 
-void sat::modulariT_SAT::simplify_clause_set()
+void sat::NapSAT::simplify_clause_set()
 {
   _next_clause_elimination *= _options.clause_elimination_multiplier;
   _clause_activity_threshold *= _options.clause_activity_threshold_decay;
@@ -1201,10 +1201,10 @@ void sat::modulariT_SAT::simplify_clause_set()
   NOTIFY_OBSERVER(_observer, new sat::gui::stat("Clause set simplified"));
 }
 
-void sat::modulariT_SAT::order_trail()
+void sat::NapSAT::order_trail()
 {}
 
-void sat::modulariT_SAT::select_watched_literals(Tlit* lits, unsigned size)
+void sat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
 {
   unsigned high_index = 0;
   unsigned second_index = 1;
@@ -1247,7 +1247,7 @@ void sat::modulariT_SAT::select_watched_literals(Tlit* lits, unsigned size)
   lits[second_index] = tmp;
 }
 
-Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size, bool learned, bool external)
+Tclause sat::NapSAT::internal_add_clause(Tlit* lits_input, unsigned size, bool learned, bool external)
 {
   for (unsigned i = 0; i < size; i++)
     bump_var_activity(lit_to_var(lits_input[i]));
@@ -1373,7 +1373,7 @@ Tclause sat::modulariT_SAT::internal_add_clause(Tlit* lits_input, unsigned size,
 /*                            Public interface                               */
 /*****************************************************************************/
 
-sat::modulariT_SAT::modulariT_SAT(unsigned n_var, unsigned n_clauses, sat::options& options) :
+sat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, sat::options& options) :
   _options(options)
 {
   _vars = vector<TSvar>(n_var + 1);
@@ -1406,7 +1406,7 @@ sat::modulariT_SAT::modulariT_SAT(unsigned n_var, unsigned n_clauses, sat::optio
     _observer = nullptr;
 }
 
-modulariT_SAT::~modulariT_SAT()
+NapSAT::~NapSAT()
 {
   for (unsigned i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
@@ -1415,27 +1415,27 @@ modulariT_SAT::~modulariT_SAT()
   delete[] _literal_buffer;
 }
 
-void modulariT_SAT::set_proof_callback(void (*proof_callback)(void))
+void NapSAT::set_proof_callback(void (*proof_callback)(void))
 {
   _proof_callback = proof_callback;
 }
 
-bool sat::modulariT_SAT::is_interactive() const
+bool sat::NapSAT::is_interactive() const
 {
   return _options.interactive;
 }
 
-bool sat::modulariT_SAT::is_observing() const
+bool sat::NapSAT::is_observing() const
 {
   return _observer != nullptr;
 }
 
-sat::gui::observer* sat::modulariT_SAT::get_observer() const
+sat::gui::observer* sat::NapSAT::get_observer() const
 {
   return _observer;
 }
 
-bool modulariT_SAT::propagate()
+bool NapSAT::propagate()
 {
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
@@ -1466,7 +1466,7 @@ bool modulariT_SAT::propagate()
   return true;
 }
 
-status modulariT_SAT::solve()
+status NapSAT::solve()
 {
   if (_status != UNDEF)
     return _status;
@@ -1495,12 +1495,12 @@ status modulariT_SAT::solve()
   return _status;
 }
 
-status modulariT_SAT::get_status()
+status NapSAT::get_status()
 {
   return _status;
 }
 
-bool modulariT_SAT::decide()
+bool NapSAT::decide()
 {
   while (!_variable_heap.empty() && !var_undef(_variable_heap.top()))
     _variable_heap.pop();
@@ -1514,21 +1514,21 @@ bool modulariT_SAT::decide()
   return true;
 }
 
-bool sat::modulariT_SAT::decide(Tlit lit)
+bool sat::NapSAT::decide(Tlit lit)
 {
   ASSERT(lit_undef(lit));
   stack_lit(lit, CLAUSE_UNDEF);
   return true;
 }
 
-void modulariT_SAT::start_clause()
+void NapSAT::start_clause()
 {
   ASSERT(!_writing_clause);
   _writing_clause = true;
   _next_literal_index = 0;
 }
 
-void modulariT_SAT::add_literal(Tlit lit)
+void NapSAT::add_literal(Tlit lit)
 {
   ASSERT(_writing_clause);
   Tvar var = lit_to_var(lit);
@@ -1537,7 +1537,7 @@ void modulariT_SAT::add_literal(Tlit lit)
   _literal_buffer[_next_literal_index++] = lit;
 }
 
-status modulariT_SAT::finalize_clause()
+status NapSAT::finalize_clause()
 {
   ASSERT(_writing_clause);
   _writing_clause = false;
@@ -1546,7 +1546,7 @@ status modulariT_SAT::finalize_clause()
   return _status;
 }
 
-status sat::modulariT_SAT::add_clause(Tlit* lits, unsigned size)
+status sat::NapSAT::add_clause(Tlit* lits, unsigned size)
 {
   Tvar max_var = 0;
   for (unsigned i = 0; i < size; i++)
@@ -1558,19 +1558,19 @@ status sat::modulariT_SAT::add_clause(Tlit* lits, unsigned size)
   return _status;
 }
 
-const Tlit* sat::modulariT_SAT::get_clause(Tclause cl) const
+const Tlit* sat::NapSAT::get_clause(Tclause cl) const
 {
   assert(cl < _clauses.size());
   return _clauses[cl].lits;
 }
 
-unsigned sat::modulariT_SAT::get_clause_size(Tclause cl) const
+unsigned sat::NapSAT::get_clause_size(Tclause cl) const
 {
   assert(cl < _clauses.size());
   return _clauses[cl].size;
 }
 
-void modulariT_SAT::hint(Tlit lit)
+void NapSAT::hint(Tlit lit)
 {
   ASSERT(lit_to_var(lit) < _vars.size());
   ASSERT(!_writing_clause);
@@ -1578,7 +1578,7 @@ void modulariT_SAT::hint(Tlit lit)
   stack_lit(lit, CLAUSE_LAZY);
 }
 
-void modulariT_SAT::hint(Tlit lit, unsigned int level)
+void NapSAT::hint(Tlit lit, unsigned int level)
 {
   ASSERT(lit_to_var(lit) < _vars.size());
   ASSERT(!_writing_clause);
@@ -1588,7 +1588,7 @@ void modulariT_SAT::hint(Tlit lit, unsigned int level)
   _vars[lit_to_var(lit)].level = level;
 }
 
-void modulariT_SAT::synchronize()
+void NapSAT::synchronize()
 {
   _number_of_valid_literals = _trail.size();
   for (Tvar var : _touched_variables)
@@ -1597,12 +1597,12 @@ void modulariT_SAT::synchronize()
   _touched_variables.clear();
 }
 
-unsigned modulariT_SAT::sync_validity_limit()
+unsigned NapSAT::sync_validity_limit()
 {
   return _number_of_valid_literals;
 }
 
-unsigned modulariT_SAT::sync_color(Tvar var)
+unsigned NapSAT::sync_color(Tvar var)
 {
   ASSERT(var < _vars.size() && var > 0);
   if (_vars[var].state == _vars[var].state_last_sync)
@@ -1614,17 +1614,17 @@ unsigned modulariT_SAT::sync_color(Tvar var)
   return 3;
 }
 
-void modulariT_SAT::set_markup(void (*markup_function)(void))
+void NapSAT::set_markup(void (*markup_function)(void))
 {
   ASSERT(markup_function);
 }
 
-const std::vector<Tlit>& modulariT_SAT::trail() const
+const std::vector<Tlit>& NapSAT::trail() const
 {
   return _trail;
 }
 
-Tlevel modulariT_SAT::decision_level() const
+Tlevel NapSAT::decision_level() const
 {
   return _decision_index.size();
 }

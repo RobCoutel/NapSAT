@@ -2,7 +2,7 @@
  * @file src/solver/SAT-config.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It contains the configuration of the SAT
+ * @brief This file is part of the NapSAT solver. It contains the configuration of the SAT
  * solver.
  */
 #pragma once

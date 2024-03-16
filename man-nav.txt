@@ -56,7 +56,7 @@ The commands are the following:
     ***************************** LATEX GENERATION ****************************
     save
         Saves the clause set and trail as LaTeX tikz figures in the files
-        that were configured by the --save option (see "$ modulariT-SAT -h")
+        that were configured by the --save option (see "$ NapSAT -h")
 
     print trail latex [file name]
         Prints the LaTeX code for the trail as a tikz picture on the standard

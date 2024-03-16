@@ -2,7 +2,7 @@
  * @file src/display/SAT-display.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It contains the display for the SAT
+ * @brief This file is part of the NapSAT solver. It contains the display for the SAT
  * solver's observer.
  */
 #include "SAT-display.hpp"

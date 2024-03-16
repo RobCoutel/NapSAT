@@ -2,7 +2,7 @@
  * @file src/observer/SAT-observer.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SAT solver modulariT-SAT. It defines an
+ * @brief This file is part of the SAT solver NapSAT. It defines an
  * observer for the SAT solver. That is, a duplicate of the state of the solver.
  * It does not do any reasoning, but is used to check invariants and display the
  * state of the solver, while being able to navigate through the historyof the execution.

@@ -2,7 +2,7 @@
  * @file src/solver/heap.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SAT solver modulariT-SAT. If defines a heap data structure for integer keys with double activities.
+ * @brief This file is part of the SAT solver NapSAT. If defines a heap data structure for integer keys with double activities.
 */
 #pragma once
 

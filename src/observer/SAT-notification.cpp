@@ -2,7 +2,7 @@
  * @file src/observer/SAT-notification.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the observer of the SMT Solver modulariT. It contains the
+ * @brief This file is part of the NapSAT solver. It contains the
  * implementation of the notifications' apply and rollback methods.
  */
 #include "SAT-notification.hpp"

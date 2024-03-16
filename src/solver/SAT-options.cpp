@@ -2,7 +2,7 @@
  * @file src/solver/SAT-options.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SMT Solver modulariT. It contains the option parser for the
+ * @brief This file is part of the NapSAT solver. It contains the option parser for the
  * standalone SAT solver.
  */
 #include "SAT-options.hpp"

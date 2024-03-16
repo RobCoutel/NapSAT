@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <libgen.h>
-#include "src/solver/modulariT-SAT.hpp"
+#include "src/solver/NapSAT.hpp"
 #include "src/environment.hpp"
 
 using namespace std;
@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     return 0;
   }
   else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
-    cout << "modulariT-SAT version " << VERSION << endl;
+    cout << "NapSAT version " << VERSION << endl;
     return 0;
   }
 
@@ -58,7 +58,7 @@ int main(int argc, char** argv)
   sat::env::set_problem_name(string(basename(argv[1])));
 
   sat::options options(argv + 2, argc - 2);
-  sat::modulariT_SAT solver(0, 0, options);
+  sat::NapSAT solver(0, 0, options);
 
   solver.parse_dimacs(argv[1]);
   solver.solve();

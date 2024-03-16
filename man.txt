@@ -1,9 +1,9 @@
-modulariT-SAT is a CDCL SAT solver supporting both chronological and non-chrono-
+NapSAT is a CDCL SAT solver supporting both chronological and non-chrono-
 logical backtracking. The solver will print "s SATISFIABLE" if the problem has a
 solution, and "s UNSATISFIABLE" otherwise.
 
 To use the solver, use the following command:
-    modulariT-SAT-<version>[-dbg] <input_file/-h/-hs/-hn> [options]
+    NapSAT-<version>[-dbg] <input_file/-h/-hs/-hn> [options]
 
 The options are the following:
 *********************************** HELPERS ************************************
@@ -56,7 +56,7 @@ The options are the following:
     Requires: interactive is on
 
   -s or --save-folder <string = "">
-    Folder  where  the solver  will save the LaTeX  files.  (see $ modulariT-SAT
+    Folder  where  the solver  will save the LaTeX  files.  (see $ NapSAT
     --help-navigation for more information)
 
 ****************************** VARIABLE ACTIVITY ******************************

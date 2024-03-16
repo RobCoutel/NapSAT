@@ -2,7 +2,7 @@
  * @file src/observer/SAT-observer-invariants.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the observer of the SMT Solver modulariT. It contains the
+ * @brief This file is part of the observer of the SAT solver NapSAT. It contains the
  * implementation of the invariant checkers in the observer.
  */
 #include "SAT-observer.hpp"

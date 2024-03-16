@@ -1,13 +1,13 @@
 /**
- * @file src/solver/modulariT-SAT-checker.cpp
+ * @file src/solver/NapSAT-checker.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SAT solver modulariT-SAT. It implements some invariant checkers
+ * @brief This file is part of the SAT solver NapSAT. It implements some invariant checkers
  * for the solver.
  * @details Not all the invariants are checked here since some are verified by the observer.
  * Only invariants on the integrity of the solver's data structure are checked here.
  */
-#include "modulariT-SAT.hpp"
+#include "NapSAT.hpp"
 #include "custom-assert.hpp"
 
 #include <unordered_set>
@@ -17,7 +17,7 @@ using namespace sat;
 
 static const string error = "\033[1;31m" + string("Error: ") + "\033[0m";
 
-bool sat::modulariT_SAT::trail_variable_consistency()
+bool sat::NapSAT::trail_variable_consistency()
 {
   bool success = true;
   for (Tlit lit : _trail) {
@@ -47,7 +47,7 @@ bool sat::modulariT_SAT::trail_variable_consistency()
   return success;
 }
 
-bool sat::modulariT_SAT::is_watched(Tlit lit, Tclause cl)
+bool sat::NapSAT::is_watched(Tlit lit, Tclause cl)
 {
   if (_clauses[cl].size == 2) {
     // check the binary clause list
@@ -75,7 +75,7 @@ bool sat::modulariT_SAT::is_watched(Tlit lit, Tclause cl)
   return false;
 }
 
-bool sat::modulariT_SAT::watch_lists_complete()
+bool sat::NapSAT::watch_lists_complete()
 {
   bool success = true;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
@@ -98,7 +98,7 @@ bool sat::modulariT_SAT::watch_lists_complete()
   return success;
 }
 
-bool sat::modulariT_SAT::watch_lists_minimal()
+bool sat::NapSAT::watch_lists_minimal()
 {
   bool success = true;
   for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
