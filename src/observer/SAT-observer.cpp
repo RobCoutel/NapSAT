@@ -7,7 +7,7 @@
  */
 
 #include "SAT-observer.hpp"
-#include "../solver/SAT-config.hpp"
+#include "SAT-config.hpp"
 
 #include <typeinfo>
 #include <iostream>

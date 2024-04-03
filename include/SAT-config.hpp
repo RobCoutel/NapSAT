@@ -1,5 +1,5 @@
 /**
- * @file src/solver/SAT-config.hpp
+ * @file include/SAT-config.hpp
  * @author Robin Coutelier
  *
  * @brief This file is part of the NapSAT solver. It contains the configuration of the SAT

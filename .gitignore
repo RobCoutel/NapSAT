@@ -14,3 +14,10 @@ log.ansi
 perf.data
 perf.data.old
 cachegrind.out.*
+scripts/cnfdd.c
+scripts/cnfudd
+scripts/cnfuzz
+scripts/cnfuzz.c
+scripts/fuzz-napsat.sh
+scripts/run-napsat.sh
+scripts/runcnfuzz

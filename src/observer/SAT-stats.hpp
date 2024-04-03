@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../solver/SAT-config.hpp"
+#include "SAT-config.hpp"
 
 #include <iostream>
 

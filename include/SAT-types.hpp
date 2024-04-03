@@ -1,5 +1,5 @@
 /**
- * @file src/solver/SAT-types.hpp
+ * @file include/SAT-types.hpp
  * @author Robin Coutelier
  *
  * @brief This file is part of the NapSAT solver. It defines the basic types used in the SAT

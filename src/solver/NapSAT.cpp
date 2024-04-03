@@ -1247,7 +1247,7 @@ void sat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
   lits[second_index] = tmp;
 }
 
-Tclause sat::NapSAT::internal_add_clause(Tlit* lits_input, unsigned size, bool learned, bool external)
+Tclause sat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned size, bool learned, bool external)
 {
   for (unsigned i = 0; i < size; i++)
     bump_var_activity(lit_to_var(lits_input[i]));
@@ -1537,25 +1537,25 @@ void NapSAT::add_literal(Tlit lit)
   _literal_buffer[_next_literal_index++] = lit;
 }
 
-status NapSAT::finalize_clause()
+sat::Tclause NapSAT::finalize_clause()
 {
   ASSERT(_writing_clause);
   _writing_clause = false;
-  internal_add_clause(_literal_buffer, _next_literal_index, false, true);
+  Tclause cl = internal_add_clause(_literal_buffer, _next_literal_index, false, true);
   propagate();
-  return _status;
+  return cl;
 }
 
-status sat::NapSAT::add_clause(Tlit* lits, unsigned size)
+sat::Tclause sat::NapSAT::add_clause(const Tlit* lits, unsigned size)
 {
   Tvar max_var = 0;
   for (unsigned i = 0; i < size; i++)
     if (lit_to_var(lits[i]) > max_var)
       max_var = lit_to_var(lits[i]);
   var_allocate(max_var);
-  internal_add_clause(lits, size, false, true);
+  Tclause cl = internal_add_clause(lits, size, false, true);
   propagate();
-  return _status;
+  return cl;
 }
 
 const Tlit* sat::NapSAT::get_clause(Tclause cl) const

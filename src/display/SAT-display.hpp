@@ -6,8 +6,8 @@
  */
 #pragma once
 
-#include "../solver/SAT-config.hpp"
-#include "../solver/SAT-types.hpp"
+#include "SAT-config.hpp"
+#include "SAT-types.hpp"
 #include "../observer/SAT-observer.hpp"
 
 #include <string>

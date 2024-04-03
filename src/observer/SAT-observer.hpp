@@ -9,8 +9,8 @@
  */
 #pragma once
 
-#include "../solver/SAT-types.hpp"
-#include "../solver/SAT-options.hpp"
+#include "SAT-types.hpp"
+#include "SAT-options.hpp"
 #include "../display/SAT-display.hpp"
 #include "SAT-notification.hpp"
 

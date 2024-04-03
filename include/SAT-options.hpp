@@ -1,5 +1,5 @@
 /**
- * @file src/solver/SAT-options.hpp
+ * @file include/SAT-options.hpp
  * @author Robin Coutelier
  *
  * @brief This file is part of the NapSAT solver. It contains the runtime options of the SAT

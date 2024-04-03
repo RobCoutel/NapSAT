@@ -1017,7 +1017,7 @@ namespace sat
      * memory is allocated for the clause, or the clause is added in place of a
      * deleted clause.
      */
-    Tclause internal_add_clause(Tlit* lits, unsigned size,
+    Tclause internal_add_clause(const Tlit* lits, unsigned size,
                                 bool learned, bool external);
 
     /*************************************************************************/
@@ -1124,19 +1124,19 @@ namespace sat
      * @brief Finalize the current clause and add it to the clause set. If the
      * solver is in propagation mode, it will propagate literals if needed.
      * @pre The solver must be in clause_input mode.
-     * @return status of the solver after adding the clause.
+     * @return A handle to the added clause.
      */
-    status finalize_clause();
+    Tclause finalize_clause();
 
     /**
      * @brief Add a complete clause to the clause set.
      * @param lits array of literals to add to the clause set.
      * @param size size of the clause.
-     * @return status of the solver after adding the clause.
+     * @return A handle to the added clause.
      * @note The memory of the clause is allocated by the solver. Therefore, the
      * pointer lits is managed by the user and is not freed by the solver.
      */
-    status add_clause(Tlit* lits, unsigned size);
+    Tclause add_clause(const Tlit* lits, unsigned size);
 
     /**
      * @brief Returns the literals of a clause.

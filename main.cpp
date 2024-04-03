@@ -1,7 +1,8 @@
 #include <iostream>
 #include <fstream>
 #include <libgen.h>
-#include "src/solver/NapSAT.hpp"
+#include "SAT-API.hpp"
+#include "SAT-config.hpp"
 #include "src/environment.hpp"
 
 using namespace std;
@@ -58,26 +59,20 @@ int main(int argc, char** argv)
   sat::env::set_problem_name(string(basename(argv[1])));
 
   sat::options options(argv + 2, argc - 2);
-  sat::NapSAT solver(0, 0, options);
+  sat::NapSAT* solver = create_solver(0, 0, options);
 
-  solver.parse_dimacs(argv[1]);
-  solver.solve();
+  parse_dimacs(solver, argv[1]);
+  solve(solver);
 
-  if (solver.get_status() == sat::SAT)
+  if (get_status(solver) == sat::SAT)
     cout << "s SATISFIABLE" << endl;
-  else if (solver.get_status() == sat::UNSAT)
+  else if (get_status(solver) == sat::UNSAT)
     cout << "s UNSATISFIABLE" << endl;
   else
     cout << "UNKNOWN" << endl;
 
   if (options.print_stats) {
-    sat::gui::observer* obs = solver.get_observer();
-    if (obs != nullptr)
-      cout << obs->get_statistics() << endl;
-    else {
-      cout << "The solver was not run with the observer enabled" << endl;
-      cout << "No statistics available" << endl;
-    }
+    print_statistics(solver);
   }
 
   return 0;

@@ -1,5 +1,7 @@
 EXEC = NapSAT-$(shell git rev-list --count --all)
+LIB_NAME = sat
 MAIN = main.cpp
+TARGET_EXEC ?= $(LIB_NAME).a
 
 CC := g++
 
@@ -42,6 +44,10 @@ $(BUILD_DIR)/%-dbg.o: %.cpp $(HEAD)
 $(BUILD_DIR)/tests/%.o: %.cpp $(TEST_HEAD)
 	$(MKDIR_P) $(dir $@)
 	$(CC) $(CFLAGS) $(DBG_FLAGS) -c $< -o $@
+
+# library
+$(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
+	ar rcs $@ $^
 
 # release
 $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
