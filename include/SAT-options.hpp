@@ -9,7 +9,7 @@
 
 #include <string>
 
-namespace sat
+namespace napsat
 {
   class options {
   public:
@@ -138,7 +138,12 @@ namespace sat
     /**
      * @brief Constructor
     */
+    options() = default;
+
+    /**
+     * @brief Constructor
+    */
     options(char** tokens, unsigned n_tokens);
   };
 
-} // namespace sat
+} // namespace napsat

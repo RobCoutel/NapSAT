@@ -6,5 +6,5 @@
 
 // int main()
 // {
-//   cout << "Size of a clause " << sizeof(sat::NapSAT::TSclause) << endl;
+//   cout << "Size of a clause " << sizeof(napsat::Napnapsat::TSclause) << endl;
 // }

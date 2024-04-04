@@ -16,12 +16,12 @@
 #include <execinfo.h>
 #include <unistd.h>
 
-void sat::gui::display::set_display_level(unsigned level)
+void napsat::gui::display::set_display_level(unsigned level)
 {
   _display_level = level;
 }
 
-void sat::gui::display::back()
+void napsat::gui::display::back()
 {
   while (!_observer->is_back_to_origin()) {
     unsigned level = _observer->back();
@@ -31,7 +31,7 @@ void sat::gui::display::back()
   _updated = true;
 }
 
-bool sat::gui::display::next()
+bool napsat::gui::display::next()
 {
   while (!_observer->is_real_time()) {
     unsigned level = _observer->next();
@@ -42,7 +42,7 @@ bool sat::gui::display::next()
   return _observer->is_real_time();
 }
 
-void sat::gui::display::notify_change(unsigned level)
+void napsat::gui::display::notify_change(unsigned level)
 {
   if (level > _display_level)
     return;
@@ -303,7 +303,7 @@ void sat::gui::display::notify_change(unsigned level)
     }
     else if (command == "help" || command == "h") {
       // read the man page on the navigation
-      std::string man_nav = sat::env::get_man_page_directory() + "man-nav.txt";
+      std::string man_nav = napsat::env::get_man_page_directory() + "man-nav.txt";
       std::ifstream file(man_nav);
       if (file.is_open()) {
         std::string line;
@@ -322,7 +322,7 @@ void sat::gui::display::notify_change(unsigned level)
   }
 }
 
-void sat::gui::display::notify_checkpoint()
+void napsat::gui::display::notify_checkpoint()
 {
   print_state();
   while (true) {
@@ -334,7 +334,7 @@ void sat::gui::display::notify_checkpoint()
   }
 }
 
-void sat::gui::display::print_state()
+void napsat::gui::display::print_state()
 {
   _observer->print_variables();
   _observer->print_clause_set();

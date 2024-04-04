@@ -12,7 +12,7 @@
 #include <cstring>
 #include <functional>
 
-using namespace sat;
+using namespace napsat;
 using namespace std;
 
 void NapSAT::stack_lit(Tlit lit, Tclause reason)
@@ -54,7 +54,7 @@ void NapSAT::stack_lit(Tlit lit, Tclause reason)
     // Decision
     _decision_index.push_back(_trail.size() - 1);
     svar.level = _decision_index.size();
-    NOTIFY_OBSERVER(_observer, new sat::gui::decision(lit));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::decision(lit));
   }
   else if (reason == CLAUSE_LAZY) {
     // Theory propagation
@@ -69,7 +69,7 @@ void NapSAT::stack_lit(Tlit lit, Tclause reason)
       ASSERT(lit == _clauses[reason].lits[0]);
       svar.level = lit_level(_clauses[reason].lits[1]);
     }
-    NOTIFY_OBSERVER(_observer, new sat::gui::implication(lit, reason, svar.level));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::implication(lit, reason, svar.level));
   }
   if (lit_pol(lit) != svar.phase_cache)
     _agility += 1 - _options.agility_decay;
@@ -81,7 +81,7 @@ void NapSAT::stack_lit(Tlit lit, Tclause reason)
   ASSERT(svar.level <= _decision_index.size());
 }
 
-Tlit* sat::NapSAT::search_replacement(Tlit* lits, unsigned size)
+Tlit* napsat::NapSAT::search_replacement(Tlit* lits, unsigned size)
 {
   /**
    * Pre conditions:
@@ -117,7 +117,7 @@ Tlit* sat::NapSAT::search_replacement(Tlit* lits, unsigned size)
   return high_non_sat_lit;
 }
 
-Tclause sat::NapSAT::propagate_binary_clauses(Tlit lit)
+Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
 {
   lit = lit_neg(lit);
   ASSERT(lit_false(lit));
@@ -318,7 +318,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       */
       clause.blocker = *replacement;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new sat::gui::block(cl, *replacement));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, *replacement));
 #endif
       prev = cl;
       cl = clause.second_watched;
@@ -342,7 +342,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       lits[1] = *replacement;
       *replacement = lit;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
 #endif
       // remove the clause from the watch list
       // first store the next clause in the list
@@ -388,7 +388,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       lits[1] = *replacement;
       *replacement = lit;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
 #endif
       // remove the clause from the watch list
       if (prev == CLAUSE_UNDEF) {
@@ -446,7 +446,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       }
       ASSERT_MSG(lit_level(lits[0]) >= lit_level(lits[1]),
         "Conflict: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
-      // NOTIFY_OBSERVER(_observer, new sat::gui::marker("Conflict detected " + clause_to_string(cl)));
+      // NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Conflict detected " + clause_to_string(cl)));
       // ASSERT(watch_lists_complete());
       // ASSERT(watch_lists_minimal());
       return cl;
@@ -543,7 +543,7 @@ void NapSAT::NCB_backtrack(Tlevel level)
   _propagated_literals = _trail.size();
 }
 
-void sat::NapSAT::CB_backtrack(Tlevel level)
+void napsat::NapSAT::CB_backtrack(Tlevel level)
 {
   // cout << "-----------------------------------" << endl;
   ASSERT(_options.chronological_backtracking);
@@ -551,7 +551,7 @@ void sat::NapSAT::CB_backtrack(Tlevel level)
   ASSERT(_backtrack_buffer.empty());
   if (level == _decision_index.size())
     return;
-  NOTIFY_OBSERVER(_observer, new sat::gui::backtracking_started(level));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::backtracking_started(level));
   unsigned waiting_count = 0;
 
   unsigned restore_point = _decision_index[level];
@@ -602,7 +602,7 @@ void sat::NapSAT::CB_backtrack(Tlevel level)
                   "Literal: " + lit_to_string(lit) + "\nLevel: " + to_string(lit_level(lit)));
       _vars[var].waiting = true;
       _propagated_literals--;
-      NOTIFY_OBSERVER(_observer, new sat::gui::remove_propagation(lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
     }
     _propagated_literals = restore_point;
   }
@@ -617,13 +617,13 @@ void sat::NapSAT::CB_backtrack(Tlevel level)
       Tlit reimpl_lit = _clauses[lazy_clause].lits[0];
       ASSERT(lit_undef(reimpl_lit));
       stack_lit(reimpl_lit, lazy_clause);
-      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication used"));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
     }
     _reimplication_backtrack_buffer.clear();
   }
 }
 
-bool sat::NapSAT::lit_is_required_in_learned_clause(Tlit lit)
+bool napsat::NapSAT::lit_is_required_in_learned_clause(Tlit lit)
 {
   ASSERT(lit_false(lit));
   if (lit_reason(lit) == CLAUSE_UNDEF)
@@ -687,7 +687,7 @@ void NapSAT::analyze_conflict_reimply(Tclause conflict)
         _literal_buffer[_next_literal_index++] = lit_neg(_trail[i]);
         break;
       }
-      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication used"));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
       // The missed lower implication will be propagated again after backtracking.
       // So we anticipate and continue conflict analysis directly
       count = 0;
@@ -735,7 +735,7 @@ void NapSAT::analyze_conflict_reimply(Tclause conflict)
     if (reason == CLAUSE_UNDEF)
       reason = lit_reason(lit);
     else {
-      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Lazy reimplication used"));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
     }
     ASSERT_MSG(reason != CLAUSE_UNDEF,
       "Conflict: " + clause_to_string(conflict) + "\nLiteral: " + lit_to_string(lit));
@@ -892,7 +892,7 @@ void NapSAT::repair_conflict(Tclause conflict)
   ASSERT(_clauses[conflict].size > 0);
 
 
-  NOTIFY_OBSERVER(_observer, new sat::gui::conflict(conflict));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(conflict));
   if (_status == SAT)
     _status = UNDEF;
   ASSERT(lit_false(_clauses[conflict].lits[0]));
@@ -935,7 +935,7 @@ void NapSAT::repair_conflict(Tclause conflict)
     }
     if (n_literal_at_highest_level == 1
      && lit_lazy_reason(_clauses[conflict].lits[0]) == CLAUSE_UNDEF) {
-      NOTIFY_OBSERVER(_observer, new sat::gui::stat("One literal at highest level"));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("One literal at highest level"));
       ASSERT(_options.chronological_backtracking);
       CB_backtrack(lit_level(_clauses[conflict].lits[0]) - 1);
       // In strong chronological backtracking, the literal might have been propagated again during reimplication
@@ -1011,10 +1011,10 @@ void NapSAT::restart()
     CB_backtrack(LEVEL_ROOT);
   else
     NCB_backtrack(LEVEL_ROOT);
-  NOTIFY_OBSERVER(_observer, new sat::gui::stat("Restart"));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
 }
 
-void sat::NapSAT::purge_clauses()
+void napsat::NapSAT::purge_clauses()
 {
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
@@ -1167,7 +1167,7 @@ void sat::NapSAT::purge_clauses()
       // clause.watched = false;
       _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
       _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
-      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Binary clause simplified"));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause simplified"));
     }
   }
   // remove the deleted clauses
@@ -1176,7 +1176,7 @@ void sat::NapSAT::purge_clauses()
   ASSERT(watch_lists_minimal());
 }
 
-void sat::NapSAT::simplify_clause_set()
+void napsat::NapSAT::simplify_clause_set()
 {
   _next_clause_elimination *= _options.clause_elimination_multiplier;
   _clause_activity_threshold *= _options.clause_activity_threshold_decay;
@@ -1192,19 +1192,19 @@ void sat::NapSAT::simplify_clause_set()
       continue;
     if (_clauses[cl].activity < threshold) {
       delete_clause(cl);
-      NOTIFY_OBSERVER(_observer, new sat::gui::stat("Clause deleted"));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Clause deleted"));
     }
   }
   repair_watch_lists();
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
-  NOTIFY_OBSERVER(_observer, new sat::gui::stat("Clause set simplified"));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Clause set simplified"));
 }
 
-void sat::NapSAT::order_trail()
+void napsat::NapSAT::order_trail()
 {}
 
-void sat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
+void napsat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
 {
   unsigned high_index = 0;
   unsigned second_index = 1;
@@ -1247,7 +1247,7 @@ void sat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
   lits[second_index] = tmp;
 }
 
-Tclause sat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned size, bool learned, bool external)
+Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned size, bool learned, bool external)
 {
   for (unsigned i = 0; i < size; i++)
     bump_var_activity(lit_to_var(lits_input[i]));
@@ -1307,7 +1307,7 @@ Tclause sat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned size, 
     vector<Tlit> lits_vector;
     for (unsigned i = 0; i < size; i++)
       lits_vector.push_back(lits[i]);
-    _observer->notify(new sat::gui::new_clause(cl, lits_vector, learned, external));
+    _observer->notify(new napsat::gui::new_clause(cl, lits_vector, learned, external));
   }
 
   if (size == 0) {
@@ -1326,7 +1326,7 @@ Tclause sat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned size, 
     return cl;
   }
   else if (size == 2) {
-    NOTIFY_OBSERVER(_observer, new sat::gui::stat("Binary clause added"));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause added"));
     // clause->watched = false;
     _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
     _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
@@ -1373,7 +1373,7 @@ Tclause sat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned size, 
 /*                            Public interface                               */
 /*****************************************************************************/
 
-sat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, sat::options& options) :
+napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options) :
   _options(options)
 {
   _vars = vector<TSvar>(n_var + 1);
@@ -1382,7 +1382,7 @@ sat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, sat::options& options) :
   _watch_lists = vector<Tclause>(2 * n_var + 2, CLAUSE_UNDEF);
 
   for (Tvar var = 1; var <= n_var; var++) {
-    NOTIFY_OBSERVER(_observer, new sat::gui::new_variable(var));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(var));
     _variable_heap.insert(var, 0);
   }
 
@@ -1393,7 +1393,7 @@ sat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, sat::options& options) :
   _next_literal_index = 0;
 
   if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
-    _observer = new sat::gui::observer(options);
+    _observer = new napsat::gui::observer(options);
     // make a functional object that will parse the command
     if (options.interactive) {
       std::function<bool(const std::string&)> command_parser = [this](const std::string& command) {
@@ -1420,17 +1420,17 @@ void NapSAT::set_proof_callback(void (*proof_callback)(void))
   _proof_callback = proof_callback;
 }
 
-bool sat::NapSAT::is_interactive() const
+bool napsat::NapSAT::is_interactive() const
 {
   return _options.interactive;
 }
 
-bool sat::NapSAT::is_observing() const
+bool napsat::NapSAT::is_observing() const
 {
   return _observer != nullptr;
 }
 
-sat::gui::observer* sat::NapSAT::get_observer() const
+napsat::gui::observer* napsat::NapSAT::get_observer() const
 {
   return _observer;
 }
@@ -1449,10 +1449,10 @@ bool NapSAT::propagate()
     if (conflict == CLAUSE_UNDEF) {
       _vars[lit_to_var(lit)].waiting = false;
       _propagated_literals++;
-      NOTIFY_OBSERVER(_observer, new sat::gui::propagation(lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
       continue;
     }
-    NOTIFY_OBSERVER(_observer, new sat::gui::conflict(conflict));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(conflict));
     repair_conflict(conflict);
     if (_status == UNSAT)
       return false;
@@ -1471,11 +1471,11 @@ status NapSAT::solve()
   if (_status != UNDEF)
     return _status;
   while (true) {
-    NOTIFY_OBSERVER(_observer, new sat::gui::check_invariants());
+    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
     if (!propagate()) {
       if (_status == UNSAT || !_options.interactive)
         break;
-      NOTIFY_OBSERVER(_observer, new sat::gui::done(_status == SAT));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
     }
     if (_purge_counter >= _purge_threshold) {
       purge_clauses();
@@ -1484,14 +1484,14 @@ status NapSAT::solve()
         return _status;
     }
     if (_observer && _options.interactive)
-      _observer->notify(new sat::gui::checkpoint());
+      _observer->notify(new napsat::gui::checkpoint());
     else
       decide();
     if (_status == SAT || _status == UNSAT)
       break;
   }
-  NOTIFY_OBSERVER(_observer, new sat::gui::check_invariants());
-  NOTIFY_OBSERVER(_observer, new sat::gui::done(_status == SAT));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
+  NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
   return _status;
 }
 
@@ -1514,7 +1514,7 @@ bool NapSAT::decide()
   return true;
 }
 
-bool sat::NapSAT::decide(Tlit lit)
+bool napsat::NapSAT::decide(Tlit lit)
 {
   ASSERT(lit_undef(lit));
   stack_lit(lit, CLAUSE_UNDEF);
@@ -1537,7 +1537,7 @@ void NapSAT::add_literal(Tlit lit)
   _literal_buffer[_next_literal_index++] = lit;
 }
 
-sat::Tclause NapSAT::finalize_clause()
+napsat::Tclause NapSAT::finalize_clause()
 {
   ASSERT(_writing_clause);
   _writing_clause = false;
@@ -1546,7 +1546,7 @@ sat::Tclause NapSAT::finalize_clause()
   return cl;
 }
 
-sat::Tclause sat::NapSAT::add_clause(const Tlit* lits, unsigned size)
+napsat::Tclause napsat::NapSAT::add_clause(const Tlit* lits, unsigned size)
 {
   Tvar max_var = 0;
   for (unsigned i = 0; i < size; i++)
@@ -1558,13 +1558,13 @@ sat::Tclause sat::NapSAT::add_clause(const Tlit* lits, unsigned size)
   return cl;
 }
 
-const Tlit* sat::NapSAT::get_clause(Tclause cl) const
+const Tlit* napsat::NapSAT::get_clause(Tclause cl) const
 {
   assert(cl < _clauses.size());
   return _clauses[cl].lits;
 }
 
-unsigned sat::NapSAT::get_clause_size(Tclause cl) const
+unsigned napsat::NapSAT::get_clause_size(Tclause cl) const
 {
   assert(cl < _clauses.size());
   return _clauses[cl].size;

@@ -13,11 +13,11 @@
 #include <unordered_set>
 
 using namespace std;
-using namespace sat;
+using namespace napsat;
 
 static const string error = "\033[1;31m" + string("Error: ") + "\033[0m";
 
-bool sat::NapSAT::trail_variable_consistency()
+bool napsat::NapSAT::trail_variable_consistency()
 {
   bool success = true;
   for (Tlit lit : _trail) {
@@ -47,7 +47,7 @@ bool sat::NapSAT::trail_variable_consistency()
   return success;
 }
 
-bool sat::NapSAT::is_watched(Tlit lit, Tclause cl)
+bool napsat::NapSAT::is_watched(Tlit lit, Tclause cl)
 {
   if (_clauses[cl].size == 2) {
     // check the binary clause list
@@ -75,7 +75,7 @@ bool sat::NapSAT::is_watched(Tlit lit, Tclause cl)
   return false;
 }
 
-bool sat::NapSAT::watch_lists_complete()
+bool napsat::NapSAT::watch_lists_complete()
 {
   bool success = true;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
@@ -98,7 +98,7 @@ bool sat::NapSAT::watch_lists_complete()
   return success;
 }
 
-bool sat::NapSAT::watch_lists_minimal()
+bool napsat::NapSAT::watch_lists_minimal()
 {
   bool success = true;
   for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {

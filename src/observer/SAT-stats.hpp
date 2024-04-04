@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-namespace sat
+namespace napsat
 {
   class statistics
   {

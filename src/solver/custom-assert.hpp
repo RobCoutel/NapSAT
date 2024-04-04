@@ -13,7 +13,7 @@
 #define ASSERT(cond)                                                \
   if (_observer) {                                                  \
     if (!(cond))  {                                                 \
-      NOTIFY_OBSERVER(_observer, new sat::gui::marker("Assertion failed: " #cond));  \
+      NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
       assert(cond);                                                 \
     }                                                               \
   } else {                                                          \
@@ -24,7 +24,7 @@
   if (_observer) {                                                  \
     if (!(cond))  {                                                 \
       std::cout << msg << std::endl;                                          \
-      NOTIFY_OBSERVER(_observer, new sat::gui::marker("Assertion failed: " #cond));  \
+      NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
       assert(cond);                                                 \
     }                                                               \
   } else {                                                          \

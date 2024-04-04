@@ -6,7 +6,7 @@
 
 #include <string>
 
-namespace sat::env
+namespace napsat::env
 {
   std::string get_input_file();
 
@@ -23,4 +23,4 @@ namespace sat::env
   void set_man_page_directory(std::string dir);
 
   void set_invariant_configuration_folder(std::string dir);
-} // namespace sat
+} // namespace napsat

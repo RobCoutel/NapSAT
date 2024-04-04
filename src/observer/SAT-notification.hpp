@@ -26,7 +26,7 @@
  * - A literal l is propagated when it has been checked that it does not create a conflict and the literals implied by l have been added to the assignment.
  * - A literal is a decision literal if it is not implied by the current assignment but does not create a conflict when it is added to the assignment.
  */
-namespace sat::gui
+namespace napsat::gui
 {
   const unsigned MAX_UNSIGNED = 0xFFFFFFFF;
   /**
@@ -219,10 +219,10 @@ namespace sat::gui
     /**
      * @brief The variable that was added.
      */
-    sat::Tvar var;
+    napsat::Tvar var;
 
   public:
-    new_variable(sat::Tvar var) : var(var) {}
+    new_variable(napsat::Tvar var) : var(var) {}
     new_variable* clone() const override { return new new_variable(var); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return NEW_VARIABLE; }
@@ -244,10 +244,10 @@ namespace sat::gui
     /**
      * @brief The variable that was deleted.
      */
-    sat::Tvar var;
+    napsat::Tvar var;
 
   public:
-    delete_variable(sat::Tvar var) : var(var) {}
+    delete_variable(napsat::Tvar var) : var(var) {}
     delete_variable* clone() const override { return new delete_variable(var); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return DELETE_VARIABLE; }
@@ -269,14 +269,14 @@ namespace sat::gui
     /**
      * @brief The literal that was decided.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
 
   public:
-    decision(sat::Tlit lit) : lit(lit) {}
+    decision(napsat::Tlit lit) : lit(lit) {}
     decision* clone() const override { return new decision(lit); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return DECISION; }
-    const std::string get_message() override { return "Decision literal : " + std::to_string(sat::lit_to_int(lit)); }
+    const std::string get_message() override { return "Decision literal : " + std::to_string(napsat::lit_to_int(lit)); }
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
     ~decision() override = default;
@@ -297,24 +297,24 @@ namespace sat::gui
     /**
      * @brief The literal that was propagated.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
 
     /**
      * @brief The clause that was used to propagate the literal.
      */
-    sat::Tclause reason;
+    napsat::Tclause reason;
 
     /**
      * @brief The level at which the literal was assigned.
      */
-    sat::Tlevel level = LEVEL_UNDEF;
+    napsat::Tlevel level = LEVEL_UNDEF;
 
   public:
-    implication(sat::Tlit lit, sat::Tclause cl, sat::Tlevel level) : lit(lit), reason(cl), level(level) {}
+    implication(napsat::Tlit lit, napsat::Tclause cl, napsat::Tlevel level) : lit(lit), reason(cl), level(level) {}
     implication* clone() const override { return new implication(lit, reason, level); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return IMPLICATION; }
-    const std::string get_message() override { return "Implication : " + std::to_string(sat::lit_to_int(lit)) + " implied by clause " + std::to_string(reason); }
+    const std::string get_message() override { return "Implication : " + std::to_string(napsat::lit_to_int(lit)) + " implied by clause " + std::to_string(reason); }
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
     ~implication() override = default;
@@ -331,14 +331,14 @@ namespace sat::gui
     /**
      * @brief The literal that was propagated.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
 
   public:
-    propagation(sat::Tlit lit) : lit(lit) {}
+    propagation(napsat::Tlit lit) : lit(lit) {}
     propagation* clone() const override { return new propagation(lit); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return PROPAGATION; }
-    const std::string get_message() override { return "Propagation : " + std::to_string(sat::lit_to_int(lit)) + " propagated"; }
+    const std::string get_message() override { return "Propagation : " + std::to_string(napsat::lit_to_int(lit)) + " propagated"; }
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
     ~propagation() override = default;
@@ -355,14 +355,14 @@ namespace sat::gui
     /**
      * @brief The literal that was propagated.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
 
   public:
-    remove_propagation(sat::Tlit lit) : lit(lit) {}
+    remove_propagation(napsat::Tlit lit) : lit(lit) {}
     remove_propagation* clone() const override { return new remove_propagation(lit); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return PROPAGATION; }
-    const std::string get_message() override { return "Propagation removed : " + std::to_string(sat::lit_to_int(lit)); }
+    const std::string get_message() override { return "Propagation removed : " + std::to_string(napsat::lit_to_int(lit)); }
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
     ~remove_propagation() override = default;
@@ -380,10 +380,10 @@ namespace sat::gui
     /**
      * @brief The clause that was used to detect the conflict.
      */
-    sat::Tclause cl;
+    napsat::Tclause cl;
 
   public:
-    conflict(sat::Tclause cl) : cl(cl) {}
+    conflict(napsat::Tclause cl) : cl(cl) {}
     conflict* clone() const override { return new conflict(cl); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return CONFLICT; }
@@ -402,10 +402,10 @@ namespace sat::gui
   private:
     unsigned event_level = 4;
 
-    sat::Tlevel level = LEVEL_UNDEF;
+    napsat::Tlevel level = LEVEL_UNDEF;
 
   public:
-    backtracking_started(sat::Tlevel level) : level(level) {}
+    backtracking_started(napsat::Tlevel level) : level(level) {}
     backtracking_started* clone() const override { return new backtracking_started(level); }
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return BACKTRACKING_STARTED; }
@@ -445,7 +445,7 @@ namespace sat::gui
     /**
      * @brief The literal that was unassigned.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
 
     /**
      * @brief True if the unassignment was a propagated literal.
@@ -462,20 +462,20 @@ namespace sat::gui
      * @brief The level at which the literal was assigned.
      * Should be set by the observer when the notification is received.
      */
-    sat::Tlevel level = LEVEL_UNDEF;
+    napsat::Tlevel level = LEVEL_UNDEF;
 
     /**
      * @brief The clause that was used to propagate the literal.
      * Should be set by the observer when the notification is received.
      */
-    sat::Tclause reason = CLAUSE_UNDEF;
+    napsat::Tclause reason = CLAUSE_UNDEF;
 
   public:
-    unassignment(sat::Tlit lit) : lit(lit) {}
+    unassignment(napsat::Tlit lit) : lit(lit) {}
     unassignment* clone() const override { return new unassignment(lit); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return UNASSIGNMENT; }
-    const std::string get_message() override { return "Unassignment : " + std::to_string(sat::lit_to_int(lit)) + " unassigned"; }
+    const std::string get_message() override { return "Unassignment : " + std::to_string(napsat::lit_to_int(lit)) + " unassigned"; }
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
     ~unassignment() override = default;
@@ -492,12 +492,12 @@ namespace sat::gui
     /**
      * @brief The clause id that was added.
      */
-    sat::Tclause cl;
+    napsat::Tclause cl;
 
     /**
      * @brief The literals of the clause.
      */
-    std::vector<sat::Tlit> lits;
+    std::vector<napsat::Tlit> lits;
 
     /**
      * @brief True if the clause was learnt.
@@ -516,7 +516,7 @@ namespace sat::gui
     long unsigned hash = 0;
 
   public:
-    new_clause(sat::Tclause cl, std::vector<sat::Tlit> lits, bool learnt, bool external) : cl(cl), lits(lits), learnt(learnt), external(external) {}
+    new_clause(napsat::Tclause cl, std::vector<napsat::Tlit> lits, bool learnt, bool external) : cl(cl), lits(lits), learnt(learnt), external(external) {}
     new_clause* clone() const override { return new new_clause(cl, lits, learnt, external); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return NEW_CLAUSE; }
@@ -524,7 +524,7 @@ namespace sat::gui
     {
       std::string s = "New clause : " + std::to_string(cl) + ": ";
       for (auto l : lits) {
-        s += " " + std::to_string(sat::lit_to_int(l));
+        s += " " + std::to_string(napsat::lit_to_int(l));
       }
       return s;
     }
@@ -544,7 +544,7 @@ namespace sat::gui
     /**
      * @brief The clause id that was deleted.
      */
-    sat::Tclause cl;
+    napsat::Tclause cl;
 
     /**
      * Id computed by the observer to identify the clause.
@@ -552,7 +552,7 @@ namespace sat::gui
     unsigned long hash;
 
   public:
-    delete_clause(sat::Tclause cl) : cl(cl) {}
+    delete_clause(napsat::Tclause cl) : cl(cl) {}
     delete_clause* clone() const override { return new delete_clause(cl); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return DELETE_CLAUSE; }
@@ -570,19 +570,19 @@ namespace sat::gui
     /**
      * @brief The clause id that was deleted.
      */
-    sat::Tclause cl;
+    napsat::Tclause cl;
 
     /**
      * @brief The literal that was watched.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
 
   public:
-    watch(sat::Tclause cl, sat::Tlit lit) : cl(cl), lit(lit) {}
+    watch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
     watch* clone() const override { return new watch(cl, lit); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return WATCH; }
-    const std::string get_message() override { return "Watch literal : " + std::to_string(sat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+    const std::string get_message() override { return "Watch literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
   };
@@ -595,19 +595,19 @@ namespace sat::gui
     /**
      * @brief The clause id that was deleted.
      */
-    sat::Tclause cl;
+    napsat::Tclause cl;
 
     /**
      * @brief The literal that was watched.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
 
   public:
-    unwatch(sat::Tclause cl, sat::Tlit lit) : cl(cl), lit(lit) {}
+    unwatch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
     unwatch* clone() const override { return new unwatch(cl, lit); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return UNWATCH; }
-    const std::string get_message() override { return "Unwatch literal : " + std::to_string(sat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+    const std::string get_message() override { return "Unwatch literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
   };
@@ -623,23 +623,23 @@ namespace sat::gui
     /**
      * @brief The clause id that was deleted.
      */
-    sat::Tclause cl;
+    napsat::Tclause cl;
 
     /**
      * @brief The literal that was watched.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
     /**
      * @brief The previous blocker of the clause (for rollback)
     */
-    sat::Tlit previous_blocker;
+    napsat::Tlit previous_blocker;
 
   public:
-    block(sat::Tclause cl, sat::Tlit lit) : cl(cl), lit(lit) {}
+    block(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
     block* clone() const override { return new block(cl, lit); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return BLOCKER; }
-    const std::string get_message() override { return "Block literal : " + std::to_string(sat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+    const std::string get_message() override { return "Block literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
     virtual void apply(observer* observer) override;
     virtual void rollback(observer* observer) override;
   };
@@ -656,17 +656,17 @@ namespace sat::gui
     /**
      * @brief The clause id that was deleted.
      */
-    sat::Tclause cl;
+    napsat::Tclause cl;
 
     /**
      * @brief The literal that was removed.
      */
-    sat::Tlit lit;
+    napsat::Tlit lit;
 
   public:
-    remove_literal(sat::Tclause cl, sat::Tlit lit) : cl(cl), lit(lit) {}
+    remove_literal(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
     remove_literal* clone() const override { return new remove_literal(cl, lit); }
-    const std::string get_message() override { return "Remove literal : " + std::to_string(sat::lit_to_int(lit)) + " from clause " + std::to_string(cl); }
+    const std::string get_message() override { return "Remove literal : " + std::to_string(napsat::lit_to_int(lit)) + " from clause " + std::to_string(cl); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return REMOVE_LITERAL; }
     virtual void apply(observer* observer) override;

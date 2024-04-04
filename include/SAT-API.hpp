@@ -3,7 +3,7 @@
 
 #include <vector>
 
-namespace sat
+namespace napsat
 {
   class NapSAT;
 
@@ -130,6 +130,11 @@ namespace sat
    * @pre the solver is a valid instance of NapSAT
    */
   const std::vector<Tlit>& get_partial_assignment(NapSAT* solver);
+
+  /**
+   * @brief Returns true if the given literal is decided.
+  */
+  bool is_decided(NapSAT* solver, Tlit lit);
 
   /**
    * @brief Prints on the standard output the statistics collected by the solver

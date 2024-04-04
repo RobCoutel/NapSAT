@@ -7,7 +7,7 @@
  */
 #pragma once
 
-namespace sat
+namespace napsat
 {
   enum status
   {

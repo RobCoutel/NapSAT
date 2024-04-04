@@ -7,8 +7,8 @@
 #include <iostream>
 #include <iomanip>
 
-using namespace sat;
-using namespace sat::gui;
+using namespace napsat;
+using namespace napsat::gui;
 using namespace std;
 
 static bool test_new_variables_forward()

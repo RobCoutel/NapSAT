@@ -15,9 +15,9 @@ using namespace std;
 
 static const string error = "\033[1;31m" + string("Error: ") + "\033[0m";
 
-void sat::gui::observer::load_invariant_configuration()
+void napsat::gui::observer::load_invariant_configuration()
 {
-  string filename = sat::env::get_invariant_configuration_folder();
+  string filename = napsat::env::get_invariant_configuration_folder();
   if (_options.strong_chronological_backtracking)
     filename += "strong-chronological-backtracking";
   else if (_options.restoring_chronological_backtracking)
@@ -112,7 +112,7 @@ void sat::gui::observer::load_invariant_configuration()
 //   cout << endl;
 }
 
-bool sat::gui::observer::check_invariants()
+bool napsat::gui::observer::check_invariants()
 {
   bool success = true;
   success &= !_check_trail_sanity || check_trail_sanity();
@@ -131,12 +131,12 @@ bool sat::gui::observer::check_invariants()
   return success;
 }
 
-bool sat::gui::observer::check_relevant_invariant(sat::gui::notification *notification)
+bool napsat::gui::observer::check_relevant_invariant(napsat::gui::notification *notification)
 {
   return false;
 }
 
-bool sat::gui::observer::check_trail_sanity()
+bool napsat::gui::observer::check_trail_sanity()
 {
   const string error_header = error + "Invariant violation (trail sanity): ";
   bool success = true;
@@ -160,7 +160,7 @@ bool sat::gui::observer::check_trail_sanity()
   return success;
 }
 
-bool sat::gui::observer::check_level_ordering()
+bool napsat::gui::observer::check_level_ordering()
 {
   const string error_header = error + "Invariant violation (level ordering): ";
   bool success = true;
@@ -189,7 +189,7 @@ bool sat::gui::observer::check_level_ordering()
   return success;
 }
 
-bool sat::gui::observer::check_trail_monoticity()
+bool napsat::gui::observer::check_trail_monoticity()
 {
   const string error_header = error + "Invariant violation (trail monoticity): ";
   bool success = true;
@@ -206,7 +206,7 @@ bool sat::gui::observer::check_trail_monoticity()
   return success;
 }
 
-bool sat::gui::observer::check_no_missed_implications()
+bool napsat::gui::observer::check_no_missed_implications()
 {
   const string error_header = error + "Invariant violation (no missed implications): ";
   bool success = true;
@@ -244,7 +244,7 @@ bool sat::gui::observer::check_no_missed_implications()
   return success;
 }
 
-bool sat::gui::observer::check_topological_order()
+bool napsat::gui::observer::check_topological_order()
 {
   const string error_header = error + "Invariant violation (topological order): ";
   bool success = true;
@@ -276,7 +276,7 @@ bool sat::gui::observer::check_topological_order()
 }
 
 #if NOTIFY_WATCH_CHANGES
-bool sat::gui::observer::check_weak_watch_literals()
+bool napsat::gui::observer::check_weak_watch_literals()
 {
   const string error_header = error + "Invariant violation (weak watch literals): ";
   bool success = true;
@@ -311,7 +311,7 @@ bool sat::gui::observer::check_weak_watch_literals()
 }
 
 
-bool sat::gui::observer::check_strong_watch_literals()
+bool napsat::gui::observer::check_strong_watch_literals()
 {
   const string error_header = error + "Invariant violation (strong watch literals): ";
   bool success = true;
@@ -348,7 +348,7 @@ bool sat::gui::observer::check_strong_watch_literals()
   return success;
 }
 
-bool sat::gui::observer::check_weak_blocked_watch_literals()
+bool napsat::gui::observer::check_weak_blocked_watch_literals()
 {
   const string error_header = error + "Invariant violation (weak blocked watch literals): ";
   bool success = true;
@@ -386,7 +386,7 @@ bool sat::gui::observer::check_weak_blocked_watch_literals()
   return success;
 }
 
-bool sat::gui::observer::check_blocked_watch_literals()
+bool napsat::gui::observer::check_blocked_watch_literals()
 {
   const string error_header = error + "Invariant violation (weak blocked watch literals): ";
   bool success = true;
@@ -430,7 +430,7 @@ bool sat::gui::observer::check_blocked_watch_literals()
 
 #endif
 
-bool sat::gui::observer::check_assignment_coherence()
+bool napsat::gui::observer::check_assignment_coherence()
 {
   const string error_header = error + "Invariant violation (assignment coherence): ";
   bool success = true;

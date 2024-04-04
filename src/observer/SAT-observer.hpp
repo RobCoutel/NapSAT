@@ -20,7 +20,7 @@
 #include <map>
 #include <set>
 
-namespace sat::gui
+namespace napsat::gui
 {
   class notification;
   class display;
@@ -63,19 +63,19 @@ namespace sat::gui
     struct variable
     {
       variable() = default;
-      variable(sat::Tval value, sat::Tlevel level, sat::Tclause reason, bool active) : value(value), level(level), reason(reason), active(active) {}
+      variable(napsat::Tval value, napsat::Tlevel level, napsat::Tclause reason, bool active) : value(value), level(level), reason(reason), active(active) {}
       variable(const variable& other) : value(other.value), level(other.level), reason(other.reason), active(other.active) {}
 
       /**
        * @brief The truth value of the variable. It can be either true, false, or undefined.
        */
-      sat::Tval value = sat::VAR_UNDEF;
+      napsat::Tval value = napsat::VAR_UNDEF;
       /**
        * @brief The decision level of the variable. /if the variable is not assigned, the decision level is \infty.
        */
-      sat::Tlevel level = sat::LEVEL_UNDEF;
-      sat::Tclause reason = sat::CLAUSE_UNDEF;
-      sat::Tclause lazy_reason = sat::CLAUSE_UNDEF;
+      napsat::Tlevel level = napsat::LEVEL_UNDEF;
+      napsat::Tclause reason = napsat::CLAUSE_UNDEF;
+      napsat::Tclause lazy_reason = napsat::CLAUSE_UNDEF;
       bool active = false;
       bool propagated = false;
     };
@@ -83,18 +83,18 @@ namespace sat::gui
     struct clause
     {
       clause() = default;
-      clause(const std::vector<sat::Tlit>& literals, sat::Tclause cl, bool learnt, bool external) : literals(literals), cl(cl), learnt(learnt), external(external) {}
+      clause(const std::vector<napsat::Tlit>& literals, napsat::Tclause cl, bool learnt, bool external) : literals(literals), cl(cl), learnt(learnt), external(external) {}
       clause(const clause& other) : literals(std::move(other.literals)), cl(other.cl), active(other.active), learnt(other.learnt), external(other.external) {}
-      std::vector<sat::Tlit> literals;
-      sat::Tclause cl;
-      std::set<sat::Tlit> watched;
+      std::vector<napsat::Tlit> literals;
+      napsat::Tclause cl;
+      std::set<napsat::Tlit> watched;
       Tlit blocker = LIT_UNDEF;
       bool active = false;
       bool learnt = false;
       bool external = false;
     };
 
-    sat::options _options;
+    napsat::options _options;
 
     std::vector<notification*> _notifications;
 
@@ -121,7 +121,7 @@ namespace sat::gui
     /**
      * @brief Stack of assignments. This is the trail of the solver.
      */
-    std::vector<sat::Tlit> _assignment_stack;
+    std::vector<napsat::Tlit> _assignment_stack;
 
     /**
      * @brief Number of propagated literals.
@@ -132,17 +132,17 @@ namespace sat::gui
     /**
      * @brief Highest decision level in the trail.
      */
-    sat::Tlevel _decision_level = 0;
+    napsat::Tlevel _decision_level = 0;
 
     /**
      * @brief The display interface used to view the state of the solver.
      */
-    sat::gui::display* _display = nullptr;
+    napsat::gui::display* _display = nullptr;
 
     /**
      * @brief Hash function for clauses.
      */
-    long unsigned hash_clause(const std::vector<sat::Tlit>& literals);
+    long unsigned hash_clause(const std::vector<napsat::Tlit>& literals);
 
     /**
      * @brief List of commands to be executed when the observer receives a checkpoint.
@@ -157,12 +157,12 @@ namespace sat::gui
     /**
      * @brief Set of variables that are marked.
      */
-    std::set<sat::Tvar> _marked_variables;
+    std::set<napsat::Tvar> _marked_variables;
 
     /**
      * @brief Set of clauses that are marked.
      */
-    std::set<sat::Tclause> _marked_clauses;
+    std::set<napsat::Tclause> _marked_clauses;
 
     /**
      * @brief Set of breakpoints.
@@ -182,7 +182,7 @@ namespace sat::gui
     /**
      * @brief Hash map to count the number of notifications of each type.
      */
-    std::unordered_map<sat::gui::ENotifType, unsigned> notification_count;
+    std::unordered_map<napsat::gui::ENotifType, unsigned> notification_count;
 
     /**
      * @brief Hash map to count the number of pure statistics notifications of each label.
@@ -198,7 +198,7 @@ namespace sat::gui
     /**
      * @brief Construct a new observer object
      */
-    observer(sat::options& options);
+    observer(napsat::options& options);
 
     /**
      * @brief Clone an observer object
@@ -253,34 +253,34 @@ namespace sat::gui
      * @note This function does not require the variable to already exist.
      * @details If the variable is deleted and then recreated, it will be marked in both cases.
      */
-    void mark_variable(sat::Tvar var);
+    void mark_variable(napsat::Tvar var);
 
     /**
      * @brief Marks a clause. When this clause is involved in a notification, level of that notification becomes 0.
      * @note This function does not require the clause to already exist.
      * @details If the clause is deleted and then recreated, it will be marked in both cases. If a future developer wants to change that behavior, they should use the hash of literals to identify clauses instead of their id. But for efficiency reasons, we use the id of the clause (which may not be unique).
      */
-    void mark_clause(sat::Tclause cl);
+    void mark_clause(napsat::Tclause cl);
 
     /**
      * @brief Unmarks a variable. No special behavior will be applied to this variable.
      */
-    void unmark_variable(sat::Tvar var);
+    void unmark_variable(napsat::Tvar var);
 
     /**
      * @brief Unmarks a clause. No special behavior will be applied to this clause.
      */
-    void unmark_clause(sat::Tclause cl);
+    void unmark_clause(napsat::Tclause cl);
 
     /**
      * @brief Returns true if the variable is marked.
      */
-    bool is_variable_marked(sat::Tvar var);
+    bool is_variable_marked(napsat::Tvar var);
 
     /**
      * @brief Returns true if the clause is marked.
      */
-    bool is_clause_marked(sat::Tclause cl);
+    bool is_clause_marked(napsat::Tclause cl);
 
     /**
      * @brief Stops the execution of the observer at the notification with the id n_notifications.
@@ -341,64 +341,64 @@ namespace sat::gui
     /**
      * @brief Returns the truth value of a variable in the assignment.
      */
-    sat::Tval var_value(sat::Tvar var);
+    napsat::Tval var_value(napsat::Tvar var);
 
     /**
      * @brief Returns the truth value of a literal in the assignment.
      */
-    sat::Tval lit_value(sat::Tlit lit);
+    napsat::Tval lit_value(napsat::Tlit lit);
 
     /**
      * @brief Returns the decision level of a variable in the assignment.
      */
-    sat::Tlevel var_level(sat::Tvar var);
+    napsat::Tlevel var_level(napsat::Tvar var);
 
     /**
      * @brief Returns the reason of a variable in the assignment.
      */
-    sat::Tclause var_reason(sat::Tvar var);
+    napsat::Tclause var_reason(napsat::Tvar var);
 
     /**
      * @brief Returns true if the variable was propagated.
      */
-    bool var_propagated(sat::Tvar var);
+    bool var_propagated(napsat::Tvar var);
 
     /**
      * @brief Returns the decision level of a literal in the assignment.
      */
-    sat::Tlevel lit_level(sat::Tlit lit);
+    napsat::Tlevel lit_level(napsat::Tlit lit);
 
     /**
      * @brief Returns the reason of a literal in the assignment.
      */
-    sat::Tclause lit_reason(sat::Tlit lit);
+    napsat::Tclause lit_reason(napsat::Tlit lit);
 
     /**
      * @brief Returns true if the literal was propagated.
      */
-    bool lit_propagated(sat::Tlit lit);
+    bool lit_propagated(napsat::Tlit lit);
 
     /**
      * @brief Returns a reference to the assignment stack.
      */
-    const std::vector<sat::Tlit>& get_assignment();
+    const std::vector<napsat::Tlit>& get_assignment();
 
     /**
      * @brief Returns the list of clauses that are currently active.
      */
-    std::vector<std::pair<sat::Tclause, const std::vector<sat::Tlit>*>> get_clauses();
+    std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> get_clauses();
 
     /**  PRINTING  **/
 
-    std::string lit_to_string(sat::Tlit lit);
+    std::string lit_to_string(napsat::Tlit lit);
 
-    std::string variable_to_string(sat::Tvar var);
+    std::string variable_to_string(napsat::Tvar var);
 
     static bool enable_sorting;
 
-    void sort_clauses(sat::Tclause cl);
+    void sort_clauses(napsat::Tclause cl);
 
-    std::string clause_to_string(sat::Tclause cl);
+    std::string clause_to_string(napsat::Tclause cl);
 
     /**
      * @brief Prints the clauses to the standard output of the terminal
@@ -531,7 +531,7 @@ namespace sat::gui
     /**
      * @brief Checks the enabled invariants of the observer which may be affected by the notification.
      */
-    bool check_relevant_invariant(sat::gui::notification* notification);
+    bool check_relevant_invariant(napsat::gui::notification* notification);
 
     /**
      * @brief Checks that the propagated literals do not falsify any clause.

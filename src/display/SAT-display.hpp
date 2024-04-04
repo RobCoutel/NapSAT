@@ -18,7 +18,7 @@
 // Check and generate proofs
 // Drill down on variables and clauses
 
-namespace sat::gui
+namespace napsat::gui
 {
   class observer;
 

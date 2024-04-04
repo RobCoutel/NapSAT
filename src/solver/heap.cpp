@@ -11,7 +11,7 @@
 #include <vector>
 #include <cstring>
 
-using namespace sat_utils;
+using namespace napsat::utils;
 
 void heap::swap(unsigned i, unsigned j)
 {
@@ -82,7 +82,7 @@ void heap::remove(unsigned key)
     heapify_down(i);
 }
 
-void sat_utils::heap::update(unsigned key, double activity)
+void napsat::utils::heap::update(unsigned key, double activity)
 {
   assert(_index[key] != LOCATION_UNDEF);
   _activity[key] = activity;
@@ -90,18 +90,18 @@ void sat_utils::heap::update(unsigned key, double activity)
   heapify_down(_index[key]);
 }
 
-void sat_utils::heap::normalize(double factor)
+void napsat::utils::heap::normalize(double factor)
 {
   for (unsigned i = 0; i < _activity.size(); i++)
     _activity[i] *= factor;
 }
 
-bool sat_utils::heap::contains(unsigned key)
+bool napsat::utils::heap::contains(unsigned key)
 {
   return key < _index.size() && _index[key] != LOCATION_UNDEF;
 }
 
-void sat_utils::heap::increase_activity(unsigned key, double activity)
+void napsat::utils::heap::increase_activity(unsigned key, double activity)
 {
   assert(_index[key] != LOCATION_UNDEF);
   assert(_activity[key] <= activity);
@@ -137,7 +137,7 @@ bool heap::empty()
   return _heap.empty();
 }
 
-void sat_utils::heap::print()
+void napsat::utils::heap::print()
 {
   static std::vector<unsigned> bfs_queue;
   bfs_queue.clear();

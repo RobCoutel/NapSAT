@@ -25,11 +25,11 @@
 
 static unsigned TERMINAL_WIDTH = 169;
 
-using namespace sat;
-using namespace sat::gui;
+using namespace napsat;
+using namespace napsat::gui;
 using namespace std;
 
-long unsigned sat::gui::observer::hash_clause(const std::vector<sat::Tlit>& lits)
+long unsigned napsat::gui::observer::hash_clause(const std::vector<napsat::Tlit>& lits)
 {
   // https://stackoverflow.com/questions/20511347/a-good-hash-function-for-a-vector
   std::size_t seed = lits.size();
@@ -42,12 +42,12 @@ long unsigned sat::gui::observer::hash_clause(const std::vector<sat::Tlit>& lits
   return seed;
 }
 
-sat::gui::observer::observer(sat::options& options) : _options(options)
+napsat::gui::observer::observer(napsat::options& options) : _options(options)
 {
-  _display = new sat::gui::display(this);
+  _display = new napsat::gui::display(this);
   assert(options.interactive || options.observing || options.check_invariants || options.print_stats);
   if (options.interactive || options.observing) {
-    notify(new sat::gui::marker("Start"));
+    notify(new napsat::gui::marker("Start"));
   }
   else {
     if (options.check_invariants) {
@@ -80,7 +80,7 @@ sat::gui::observer::observer(sat::options& options) : _options(options)
   }
 }
 
-sat::gui::observer::observer(const observer& other) : _options(other._options)
+napsat::gui::observer::observer(const observer& other) : _options(other._options)
 {
   for (auto notification : other._notifications)
     _notifications.push_back(notification->clone());
@@ -170,54 +170,54 @@ unsigned observer::back()
   return notification->get_event_level(this);
 }
 
-std::string sat::gui::observer::last_message()
+std::string napsat::gui::observer::last_message()
 {
   if (_location == 0)
     return "Initial state";
   return _notifications[_location - 1]->get_message();
 }
 
-void sat::gui::observer::mark_variable(sat::Tvar var)
+void napsat::gui::observer::mark_variable(napsat::Tvar var)
 {
   _marked_variables.insert(var);
 }
 
-void sat::gui::observer::mark_clause(sat::Tclause cl)
+void napsat::gui::observer::mark_clause(napsat::Tclause cl)
 {
   _marked_clauses.insert(cl);
 }
 
-void sat::gui::observer::unmark_variable(sat::Tvar var)
+void napsat::gui::observer::unmark_variable(napsat::Tvar var)
 {
   _marked_variables.erase(var);
 }
 
-void sat::gui::observer::unmark_clause(sat::Tclause cl)
+void napsat::gui::observer::unmark_clause(napsat::Tclause cl)
 {
   _marked_clauses.erase(cl);
 }
 
-bool sat::gui::observer::is_variable_marked(sat::Tvar var)
+bool napsat::gui::observer::is_variable_marked(napsat::Tvar var)
 {
   return _marked_variables.find(var) != _marked_variables.end();
 }
 
-bool sat::gui::observer::is_clause_marked(sat::Tclause cl)
+bool napsat::gui::observer::is_clause_marked(napsat::Tclause cl)
 {
   return _marked_clauses.find(cl) != _marked_clauses.end();
 }
 
-void sat::gui::observer::set_breakpoint(unsigned n_notifications)
+void napsat::gui::observer::set_breakpoint(unsigned n_notifications)
 {
   _breakpoints.insert(n_notifications);
 }
 
-void sat::gui::observer::unset_breakpoint(unsigned n_notifications)
+void napsat::gui::observer::unset_breakpoint(unsigned n_notifications)
 {
   _breakpoints.erase(n_notifications);
 }
 
-void sat::gui::observer::notify_checkpoint()
+void napsat::gui::observer::notify_checkpoint()
 {
   while (_commands.size() != 0) {
     string command = _commands[0];
@@ -229,7 +229,7 @@ void sat::gui::observer::notify_checkpoint()
   _display->notify_checkpoint();
 }
 
-void sat::gui::observer::load_commands(std::string filename)
+void napsat::gui::observer::load_commands(std::string filename)
 {
   ifstream file(filename);
   if (!file.is_open()) {
@@ -243,18 +243,18 @@ void sat::gui::observer::load_commands(std::string filename)
   file.close();
 }
 
-void sat::gui::observer::set_command_parser(command_parser parser)
+void napsat::gui::observer::set_command_parser(command_parser parser)
 {
   _command_parser = parser;
 }
 
-bool sat::gui::observer::transmit_command(std::string command)
+bool napsat::gui::observer::transmit_command(std::string command)
 {
   assert(_command_parser);
   return _command_parser(command);
 }
 
-sat::Tval observer::var_value(sat::Tvar var)
+napsat::Tval observer::var_value(napsat::Tvar var)
 {
   if (var >= _variables.size())
     return VAR_ERROR;
@@ -263,9 +263,9 @@ sat::Tval observer::var_value(sat::Tvar var)
   return _variables[var].value;
 }
 
-sat::Tval observer::lit_value(sat::Tlit lit)
+napsat::Tval observer::lit_value(napsat::Tlit lit)
 {
-  sat::Tval value = var_value(lit_to_var(lit));
+  napsat::Tval value = var_value(lit_to_var(lit));
   assert(value == VAR_TRUE || value == VAR_FALSE || value == VAR_UNDEF || value == VAR_ERROR);
   if (value == VAR_ERROR)
     return VAR_ERROR;
@@ -274,7 +274,7 @@ sat::Tval observer::lit_value(sat::Tlit lit)
   return lit_pol(lit) == value;
 }
 
-sat::Tlevel observer::var_level(sat::Tvar var)
+napsat::Tlevel observer::var_level(napsat::Tvar var)
 {
   if (var >= _variables.size())
     return LEVEL_ERROR;
@@ -283,7 +283,7 @@ sat::Tlevel observer::var_level(sat::Tvar var)
   return _variables[var].level;
 }
 
-sat::Tclause sat::gui::observer::var_reason(sat::Tvar var)
+napsat::Tclause napsat::gui::observer::var_reason(napsat::Tvar var)
 {
   if (var >= _variables.size())
     return CLAUSE_ERROR;
@@ -292,32 +292,32 @@ sat::Tclause sat::gui::observer::var_reason(sat::Tvar var)
   return _variables[var].reason;
 }
 
-bool sat::gui::observer::var_propagated(sat::Tvar var)
+bool napsat::gui::observer::var_propagated(napsat::Tvar var)
 {
   return _variables[var].propagated;
 }
 
-sat::Tlevel observer::lit_level(sat::Tlit lit)
+napsat::Tlevel observer::lit_level(napsat::Tlit lit)
 {
   return var_level(lit_to_var(lit));
 }
 
-sat::Tclause sat::gui::observer::lit_reason(sat::Tlit lit)
+napsat::Tclause napsat::gui::observer::lit_reason(napsat::Tlit lit)
 {
   return var_reason(lit_to_var(lit));
 }
 
-bool sat::gui::observer::lit_propagated(sat::Tlit lit)
+bool napsat::gui::observer::lit_propagated(napsat::Tlit lit)
 {
   return var_propagated(lit_to_var(lit));
 }
 
-const std::vector<sat::Tlit>& observer::get_assignment()
+const std::vector<napsat::Tlit>& observer::get_assignment()
 {
   return _assignment_stack;
 }
 
-std::vector<std::pair<sat::Tclause, const std::vector<sat::Tlit>*>> sat::gui::observer::get_clauses()
+std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> napsat::gui::observer::get_clauses()
 {
   vector<pair<Tclause, const vector<Tlit>*>> to_return;
   Tclause cl = 0;
@@ -350,7 +350,7 @@ static unsigned string_length_escaped(string str)
   return length;
 }
 
-std::string sat::gui::observer::lit_to_string(sat::Tlit lit)
+std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
 {
   string s = "";
   Tvar var = lit_to_var(lit);
@@ -392,7 +392,7 @@ static string pad(int n, int max_int)
   return s;
 }
 
-std::string sat::gui::observer::variable_to_string(sat::Tvar var)
+std::string napsat::gui::observer::variable_to_string(napsat::Tvar var)
 {
   string s = "";
   s += std::to_string(var) + ": ";
@@ -428,9 +428,9 @@ std::string sat::gui::observer::variable_to_string(sat::Tvar var)
   return s;
 }
 
-bool sat::gui::observer::enable_sorting = false;
+bool napsat::gui::observer::enable_sorting = false;
 
-void sat::gui::observer::sort_clauses(Tclause cl)
+void napsat::gui::observer::sort_clauses(Tclause cl)
 {
   if (!enable_sorting)
     return;
@@ -469,7 +469,7 @@ void sat::gui::observer::sort_clauses(Tclause cl)
   }
 }
 
-std::string sat::gui::observer::clause_to_string(Tclause cl)
+std::string napsat::gui::observer::clause_to_string(Tclause cl)
 {
   string s = "";
   if (cl == CLAUSE_UNDEF)
@@ -498,7 +498,7 @@ std::string sat::gui::observer::clause_to_string(Tclause cl)
   return s;
 }
 
-void sat::gui::observer::print_clause_set()
+void napsat::gui::observer::print_clause_set()
 {
 #ifdef __unix__
   struct winsize size;
@@ -553,10 +553,10 @@ void sat::gui::observer::print_clause_set()
   cout << endl;
 }
 
-void sat::gui::observer::print_deleted_clauses()
+void napsat::gui::observer::print_deleted_clauses()
 {}
 
-void sat::gui::observer::print_assignment()
+void napsat::gui::observer::print_assignment()
 {
 #ifdef __unix__
   struct winsize size;
@@ -596,7 +596,7 @@ void sat::gui::observer::print_assignment()
   cout << "\n";
 }
 
-void sat::gui::observer::print_variables()
+void napsat::gui::observer::print_variables()
 {
 #ifdef __unix__
   struct winsize size;
@@ -631,7 +631,7 @@ void sat::gui::observer::print_variables()
   cout << "\n";
 }
 
-std::string sat::gui::observer::literal_to_latex(Tlit lit, bool watched, bool blocked)
+std::string napsat::gui::observer::literal_to_latex(Tlit lit, bool watched, bool blocked)
 {
   string s = "";
   if (lit_value(lit) == VAR_FALSE)
@@ -650,7 +650,7 @@ std::string sat::gui::observer::literal_to_latex(Tlit lit, bool watched, bool bl
   return s;
 }
 
-std::string sat::gui::observer::literal_to_aligned_latex(Tlit lit, bool watched, bool blocked)
+std::string napsat::gui::observer::literal_to_aligned_latex(Tlit lit, bool watched, bool blocked)
 {
   string s = "";
   if (lit_value(lit) == VAR_FALSE)
@@ -692,7 +692,7 @@ std::string sat::gui::observer::literal_to_aligned_latex(Tlit lit, bool watched,
 
 static const unsigned MAX_LITS_PER_LINE = 3;
 
-std::string sat::gui::observer::clause_to_latex(Tclause cl)
+std::string napsat::gui::observer::clause_to_latex(Tclause cl)
 {
   if (cl == CLAUSE_UNDEF)
     return "decision";
@@ -714,7 +714,7 @@ std::string sat::gui::observer::clause_to_latex(Tclause cl)
   return s;
 }
 
-std::string sat::gui::observer::clause_to_aligned_latex(Tclause cl)
+std::string napsat::gui::observer::clause_to_aligned_latex(Tclause cl)
 {
   if (cl == CLAUSE_UNDEF)
     return "decision";
@@ -736,7 +736,7 @@ static inline std::string pair_to_latex(int a, double b)
   return "(" + std::to_string(a) + ", " + std::to_string(b) + ")";
 }
 
-std::string sat::gui::observer::trail_to_latex()
+std::string napsat::gui::observer::trail_to_latex()
 {
   double spacing = 0.75;
   string s = "";
@@ -811,7 +811,7 @@ std::string sat::gui::observer::trail_to_latex()
   return s;
 }
 
-std::string sat::gui::observer::clause_set_to_latex()
+std::string napsat::gui::observer::clause_set_to_latex()
 {
   string s = "\\begin{tabular}{l}\n";
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
@@ -835,7 +835,7 @@ std::string sat::gui::observer::clause_set_to_latex()
   return s;
 }
 
-std::string sat::gui::observer::used_clauses_to_latex()
+std::string napsat::gui::observer::used_clauses_to_latex()
 {
   cout << "used clauses to latex" << endl;
   string s = "\\begin{tabular}{l}\n";
@@ -874,7 +874,7 @@ std::string sat::gui::observer::used_clauses_to_latex()
   return s;
 }
 
-std::string sat::gui::observer::implication_graph_to_latex()
+std::string napsat::gui::observer::implication_graph_to_latex()
 {
   string s = "";
   s += "\\tikzstyle{vertex}=[draw,minimum size=24pt,inner sep=1pt]\n";
@@ -938,7 +938,7 @@ std::string sat::gui::observer::implication_graph_to_latex()
   return s;
 }
 
-void sat::gui::observer::save_state()
+void napsat::gui::observer::save_state()
 {
   if (!_recording)
     return;
@@ -969,7 +969,7 @@ void sat::gui::observer::save_state()
   file_number++;
 }
 
-sat::gui::observer::~observer()
+napsat::gui::observer::~observer()
 {
   for (auto notification : _notifications)
     delete notification;

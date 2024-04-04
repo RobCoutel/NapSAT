@@ -6,7 +6,7 @@
 #include "src/environment.hpp"
 
 using namespace std;
-using namespace sat;
+using namespace napsat;
 
 static const string warning_msg = "\033[0;33mWARNING\033[0m: ";
 
@@ -32,21 +32,21 @@ int main(int argc, char** argv)
   }
 
   string exec_dir = string(dirname(argv[0]));
-  sat::env::set_man_page_directory(exec_dir + "/../");
-  sat::env::set_invariant_configuration_folder(exec_dir + "/../invariant-configurations/");
+  napsat::env::set_man_page_directory(exec_dir + "/../");
+  napsat::env::set_invariant_configuration_folder(exec_dir + "/../invariant-configurations/");
 
   if (string(argv[1]) == "-h" || string(argv[1]) == "--help") {
-    string man_file = sat::env::get_man_page_directory() + "man.txt";
+    string man_file = napsat::env::get_man_page_directory() + "man.txt";
     print_man_page(man_file);
     return 0;
   }
   else if (string(argv[1]) == "-hs" || string(argv[1]) == "--help-sat-commands") {
-    string man_file = sat::env::get_man_page_directory() + "man-sat.txt";
+    string man_file = napsat::env::get_man_page_directory() + "man-sat.txt";
     print_man_page(man_file);
     return 0;
   }
   else if (string(argv[1]) == "-hn" || string(argv[1]) == "--help-navigation") {
-    string man_file = sat::env::get_man_page_directory() + "man-nav.txt";
+    string man_file = napsat::env::get_man_page_directory() + "man-nav.txt";
     print_man_page(man_file);
     return 0;
   }
@@ -55,18 +55,18 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  sat::env::set_input_file(argv[1]);
-  sat::env::set_problem_name(string(basename(argv[1])));
+  napsat::env::set_input_file(argv[1]);
+  napsat::env::set_problem_name(string(basename(argv[1])));
 
-  sat::options options(argv + 2, argc - 2);
-  sat::NapSAT* solver = create_solver(0, 0, options);
+  napsat::options options(argv + 2, argc - 2);
+  napsat::NapSAT* solver = create_solver(0, 0, options);
 
   parse_dimacs(solver, argv[1]);
   solve(solver);
 
-  if (get_status(solver) == sat::SAT)
+  if (get_status(solver) == napsat::SAT)
     cout << "s SATISFIABLE" << endl;
-  else if (get_status(solver) == sat::UNSAT)
+  else if (get_status(solver) == napsat::UNSAT)
     cout << "s UNSATISFIABLE" << endl;
   else
     cout << "UNKNOWN" << endl;

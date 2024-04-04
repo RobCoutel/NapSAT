@@ -16,7 +16,7 @@
 
 using namespace std;
 
-sat::options::options(char** tokens, unsigned n_tokens)
+napsat::options::options(char** tokens, unsigned n_tokens)
 {
   /**
    * @brief set of options that are already set. Used to prevent setting twice the same option.
@@ -124,7 +124,7 @@ sat::options::options(char** tokens, unsigned n_tokens)
     cerr << "Warning: suppress warning requires observing. The options is ignored" << endl;
   }
   else if (suppress_warning) {
-    sat::gui::notification::suppress_warning(true);
+    napsat::gui::notification::suppress_warning(true);
   }
   // if (print_stats && !observing && !interactive && !check_invariants) {
   //   cerr << "Warning: print stats requires observing or interactive. The option is ignored." << endl;

@@ -13,10 +13,10 @@
 #include <fstream>
 #include <iomanip>
 
-using namespace sat;
+using namespace napsat;
 using namespace std;
 
-void sat::NapSAT::parse_dimacs(const char* filename)
+void napsat::NapSAT::parse_dimacs(const char* filename)
 {
   ifstream file(filename);
   if (!file.is_open()) {
@@ -42,7 +42,7 @@ void sat::NapSAT::parse_dimacs(const char* filename)
         int lit = stoi(token);
         if (lit == 0)
           break;
-        add_literal(sat::literal(abs(lit), lit > 0));
+        add_literal(napsat::literal(abs(lit), lit > 0));
         token = "";
       }
       else
@@ -52,7 +52,7 @@ void sat::NapSAT::parse_dimacs(const char* filename)
   }
 }
 
-void sat::NapSAT::bump_var_activity(Tvar var)
+void napsat::NapSAT::bump_var_activity(Tvar var)
 {
   _vars.at(var).activity += _var_activity_increment;
   if (_vars.at(var).activity > 1e100) {
@@ -66,7 +66,7 @@ void sat::NapSAT::bump_var_activity(Tvar var)
     _variable_heap.increase_activity(var, _vars.at(var).activity);
 }
 
-void sat::NapSAT::bump_clause_activity(Tclause cl)
+void napsat::NapSAT::bump_clause_activity(Tclause cl)
 {
   _clauses.at(cl).activity += _clause_activity_increment;
   _clause_activity_increment *= _options.clause_activity_multiplier;
@@ -80,21 +80,21 @@ void sat::NapSAT::bump_clause_activity(Tclause cl)
   }
 }
 
-void sat::NapSAT::delete_clause(Tclause cl)
+void napsat::NapSAT::delete_clause(Tclause cl)
 {
   _n_learned_clauses -= _clauses[cl].learned;
   _clauses[cl].deleted = true;
   _clauses[cl].watched = false;
   _deleted_clauses.push_back(cl);
-  NOTIFY_OBSERVER(_observer, new sat::gui::delete_clause(cl));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
 }
 
 static const char esc_char = 27; // the decimal code for escape character is 27
 
-void sat::NapSAT::watch_lit(Tlit lit, Tclause cl)
+void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
 {
 #if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new sat::gui::watch(cl, lit));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
 #endif
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(cl < _clauses.size());
@@ -115,10 +115,10 @@ void sat::NapSAT::watch_lit(Tlit lit, Tclause cl)
     || _clauses[_clauses[cl].second_watched].lits[1] == _clauses[cl].lits[1]);
 }
 
-void sat::NapSAT::stop_watch(Tlit lit, Tclause cl)
+void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
 {
 #if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
 #endif
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
@@ -154,7 +154,7 @@ void sat::NapSAT::stop_watch(Tlit lit, Tclause cl)
   }
 }
 
-void sat::NapSAT::repair_watch_lists()
+void napsat::NapSAT::repair_watch_lists()
 {
   // print_watch_lists();
   /** REPAIR BINARY WATCH LIST **/
@@ -190,7 +190,7 @@ void sat::NapSAT::repair_watch_lists()
       }
       // the clause is no longer watched
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new sat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
 #endif
       Tclause next = CLAUSE_UNDEF;
       if (prev == CLAUSE_UNDEF) {
@@ -230,12 +230,12 @@ void sat::NapSAT::repair_watch_lists()
   }
 }
 
-unsigned sat::NapSAT::utility_heuristic(Tlit lit)
+unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
 {
   return (lit_true(lit) * (2 * _decision_index.size() - lit_level(lit) + 1)) + (lit_undef(lit) * (_decision_index.size() + 1)) + (lit_false(lit) * (lit_level(lit)));
 }
 
-void sat::NapSAT::print_lit(Tlit lit)
+void napsat::NapSAT::print_lit(Tlit lit)
 {
   if (lit_seen(lit))
     cout << "M";
@@ -374,7 +374,7 @@ static void pad(int n, int max_int)
     cout << " ";
 }
 
-void sat::NapSAT::print_trail_simple()
+void napsat::NapSAT::print_trail_simple()
 {
   cout << "trail :\n";
   for (Tlevel lvl = _decision_index.size(); lvl <= _decision_index.size(); lvl--) {
@@ -401,7 +401,7 @@ void sat::NapSAT::print_trail_simple()
 
 const static unsigned TERMINAL_WIDTH = 120;
 
-void sat::NapSAT::print_clause_set()
+void napsat::NapSAT::print_clause_set()
 {
   unsigned longest_clause = 0;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
@@ -441,7 +441,7 @@ void sat::NapSAT::print_clause_set()
   }
 }
 
-void sat::NapSAT::print_watch_lists(Tlit lit)
+void napsat::NapSAT::print_watch_lists(Tlit lit)
 {
   Tlit i = 1;
   Tlit end = _watch_lists.size();
@@ -485,7 +485,7 @@ void sat::NapSAT::print_watch_lists(Tlit lit)
   }
 }
 
-bool sat::NapSAT::parse_command(std::string input)
+bool napsat::NapSAT::parse_command(std::string input)
 {
   if (input == "") {
     decide();
@@ -600,7 +600,7 @@ bool sat::NapSAT::parse_command(std::string input)
   }
   else if (tokens[0] == "HELP") {
     // print the content of the help file
-    string man_file = sat::env::get_man_page_directory() + "man-sat.txt";
+    string man_file = napsat::env::get_man_page_directory() + "man-sat.txt";
     ifstream file(man_file);
     if (file.is_open()) {
       string line;

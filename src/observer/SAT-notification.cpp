@@ -13,14 +13,14 @@
 #include <iostream>
 #include <fstream>
 
-using namespace sat;
-using namespace sat::gui;
+using namespace napsat;
+using namespace napsat::gui;
 using namespace std;
 
-bool sat::gui::notification::_suppress_warning = false;
+bool napsat::gui::notification::_suppress_warning = false;
 
 
-std::string sat::gui::notification_type_to_string(ENotifType type)
+std::string napsat::gui::notification_type_to_string(ENotifType type)
 {
   switch (type) {
   case ENotifType::CHECKPOINT:
@@ -72,13 +72,13 @@ std::string sat::gui::notification_type_to_string(ENotifType type)
   }
 }
 
-unsigned sat::gui::new_variable::get_event_level(observer* obs)
+unsigned napsat::gui::new_variable::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(var) ? 0 : event_level;
 }
 
-void sat::gui::new_variable::apply(observer* obs)
+void napsat::gui::new_variable::apply(observer* obs)
 {
   assert(obs);
   if (var >= obs->_variables.size()) {
@@ -90,7 +90,7 @@ void sat::gui::new_variable::apply(observer* obs)
   obs->_variables[var].active = true;
 }
 
-void sat::gui::new_variable::rollback(observer* obs)
+void napsat::gui::new_variable::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_variables.size() > var);
@@ -98,13 +98,13 @@ void sat::gui::new_variable::rollback(observer* obs)
   obs->_variables[var] = observer::variable();
 }
 
-unsigned sat::gui::delete_variable::get_event_level(observer* obs)
+unsigned napsat::gui::delete_variable::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(var) ? 0 : event_level;
 }
 
-void sat::gui::delete_variable::apply(observer* obs)
+void napsat::gui::delete_variable::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_variables.size() > var);
@@ -112,7 +112,7 @@ void sat::gui::delete_variable::apply(observer* obs)
   obs->_variables[var].active = false;
 }
 
-void sat::gui::delete_variable::rollback(observer* obs)
+void napsat::gui::delete_variable::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_variables.size() > var);
@@ -120,13 +120,13 @@ void sat::gui::delete_variable::rollback(observer* obs)
   obs->_variables[var].active = true;
 }
 
-unsigned sat::gui::decision::get_event_level(observer* obs)
+unsigned napsat::gui::decision::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
 }
 
-void sat::gui::decision::apply(observer* obs)
+void napsat::gui::decision::apply(observer* obs)
 {
   assert(obs);
   Tvar var = lit_to_var(lit);
@@ -140,7 +140,7 @@ void sat::gui::decision::apply(observer* obs)
   obs->_assignment_stack.push_back(lit);
 }
 
-void sat::gui::decision::rollback(observer* obs)
+void napsat::gui::decision::rollback(observer* obs)
 {
   assert(obs);
   Tvar var = lit_to_var(lit);
@@ -154,13 +154,13 @@ void sat::gui::decision::rollback(observer* obs)
   obs->_assignment_stack.pop_back();
 }
 
-unsigned sat::gui::implication::get_event_level(observer* obs)
+unsigned napsat::gui::implication::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(reason) ? 0 : event_level;
 }
 
-void sat::gui::implication::apply(observer* obs)
+void napsat::gui::implication::apply(observer* obs)
 {
   assert(obs);
   Tvar var = lit_to_var(lit);
@@ -210,7 +210,7 @@ void sat::gui::implication::apply(observer* obs)
   obs->_assignment_stack.push_back(lit);
 }
 
-void sat::gui::implication::rollback(observer* obs)
+void napsat::gui::implication::rollback(observer* obs)
 {
   assert(obs);
   Tvar var = lit_to_var(lit);
@@ -223,13 +223,13 @@ void sat::gui::implication::rollback(observer* obs)
   obs->_assignment_stack.pop_back();
 }
 
-unsigned sat::gui::propagation::get_event_level(observer* obs)
+unsigned napsat::gui::propagation::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
 }
 
-void sat::gui::propagation::apply(observer* obs)
+void napsat::gui::propagation::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_variables.size() > lit_to_var(lit));
@@ -247,7 +247,7 @@ void sat::gui::propagation::apply(observer* obs)
 #endif
 }
 
-void sat::gui::propagation::rollback(observer* obs)
+void napsat::gui::propagation::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_n_propagated > 0);
@@ -259,13 +259,13 @@ void sat::gui::propagation::rollback(observer* obs)
   obs->_variables[lit_to_var(lit)].propagated = false;
 }
 
-unsigned sat::gui::remove_propagation::get_event_level(observer* obs)
+unsigned napsat::gui::remove_propagation::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
 }
 
-void sat::gui::remove_propagation::apply(observer* obs)
+void napsat::gui::remove_propagation::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_n_propagated > 0);
@@ -277,16 +277,16 @@ void sat::gui::remove_propagation::apply(observer* obs)
   obs->_variables[lit_to_var(lit)].propagated = false;
 }
 
-void sat::gui::remove_propagation::rollback(observer* obs)
+void napsat::gui::remove_propagation::rollback(observer* obs)
 {}
 
-unsigned sat::gui::unassignment::get_event_level(observer* obs)
+unsigned napsat::gui::unassignment::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
 }
 
-void sat::gui::unassignment::apply(observer* obs)
+void napsat::gui::unassignment::apply(observer* obs)
 {
   assert(obs);
   Tvar var = lit_to_var(lit);
@@ -334,7 +334,7 @@ void sat::gui::unassignment::apply(observer* obs)
 #endif
 }
 
-void sat::gui::unassignment::rollback(observer* obs)
+void napsat::gui::unassignment::rollback(observer* obs)
 {
   assert(obs);
   Tvar var = lit_to_var(lit);
@@ -357,13 +357,13 @@ void sat::gui::unassignment::rollback(observer* obs)
   assert(lit_to_var(obs->_assignment_stack[location]) == var);
 }
 
-unsigned sat::gui::new_clause::get_event_level(observer* obs)
+unsigned napsat::gui::new_clause::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_clause_marked(cl) ? 0 : event_level;
 }
 
-void sat::gui::new_clause::apply(observer* obs)
+void napsat::gui::new_clause::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() <= cl || obs->_active_clauses[cl] == nullptr || !obs->_active_clauses[cl]->active);
@@ -399,7 +399,7 @@ void sat::gui::new_clause::apply(observer* obs)
     cout << obs->lit_to_string(l) << endl;
 }
 
-void sat::gui::new_clause::rollback(observer* obs)
+void napsat::gui::new_clause::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() > cl);
@@ -407,13 +407,13 @@ void sat::gui::new_clause::rollback(observer* obs)
   obs->_active_clauses[cl]->active = false;
 }
 
-unsigned sat::gui::delete_clause::get_event_level(observer* obs)
+unsigned napsat::gui::delete_clause::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_clause_marked(cl) ? 0 : event_level;
 }
 
-void sat::gui::delete_clause::apply(observer* obs)
+void napsat::gui::delete_clause::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() > cl);
@@ -424,7 +424,7 @@ void sat::gui::delete_clause::apply(observer* obs)
   hash = obs->hash_clause(lits);
 }
 
-void sat::gui::delete_clause::rollback(observer* obs)
+void napsat::gui::delete_clause::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() > cl);
@@ -434,7 +434,7 @@ void sat::gui::delete_clause::rollback(observer* obs)
   obs->_active_clauses[cl] = obs->_clauses_dict[hash];
 }
 
-void sat::gui::checkpoint::apply(observer* obs)
+void napsat::gui::checkpoint::apply(observer* obs)
 {
   assert(obs);
   // you can do thins only once. During replay, no command can be parsed.
@@ -444,36 +444,36 @@ void sat::gui::checkpoint::apply(observer* obs)
   applied = true;
 }
 
-void sat::gui::checkpoint::rollback(observer* obs)
+void napsat::gui::checkpoint::rollback(observer* obs)
 {}
 
-void sat::gui::done::apply(observer* obs)
+void napsat::gui::done::apply(observer* obs)
 {
   assert(obs);
   cout << "Done" << endl;
   cout << obs->_notifications.size() << " notifications" << endl;
 }
 
-unsigned sat::gui::conflict::get_event_level(observer* obs)
+unsigned napsat::gui::conflict::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_clause_marked(cl) ? 0 : event_level;
 }
 
-void sat::gui::conflict::apply(observer* obs)
+void napsat::gui::conflict::apply(observer* obs)
 {}
 
-unsigned sat::gui::watch::get_event_level(observer* obs)
+unsigned napsat::gui::watch::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : event_level;
 }
 
-void sat::gui::watch::apply(observer* obs)
+void napsat::gui::watch::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() > cl);
-  sat::gui::observer::clause* c = obs->_active_clauses[cl];
+  napsat::gui::observer::clause* c = obs->_active_clauses[cl];
   assert(c != nullptr);
   assert(c->active);
   // do not watch the same literal twice
@@ -481,57 +481,57 @@ void sat::gui::watch::apply(observer* obs)
   c->watched.insert(lit);
 }
 
-void sat::gui::watch::rollback(observer* obs)
+void napsat::gui::watch::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() > cl);
   assert(obs->_active_clauses[cl] != nullptr);
-  sat::gui::observer::clause* c = obs->_active_clauses[cl];
+  napsat::gui::observer::clause* c = obs->_active_clauses[cl];
   // the literal must be watched
   assert(c->watched.find(lit) != c->watched.end());
   c->watched.erase(lit);
 }
 
-unsigned sat::gui::unwatch::get_event_level(observer* obs)
+unsigned napsat::gui::unwatch::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : event_level;
 }
 
-void sat::gui::unwatch::apply(observer* obs)
+void napsat::gui::unwatch::apply(observer* obs)
 {
   assert(obs);
   // cout << "unwatch " << cl << " " << obs->lit_to_string(lit) << endl;
   assert(obs->_active_clauses.size() > cl);
   assert(obs->_active_clauses[cl] != nullptr);
-  sat::gui::observer::clause* c = obs->_active_clauses[cl];
+  napsat::gui::observer::clause* c = obs->_active_clauses[cl];
   assert(c->watched.find(lit) != c->watched.end());
   c->watched.erase(lit);
 }
 
-void sat::gui::unwatch::rollback(observer* obs)
+void napsat::gui::unwatch::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() > cl);
   assert(obs->_active_clauses[cl] != nullptr);
-  sat::gui::observer::clause* c = obs->_active_clauses[cl];
+  napsat::gui::observer::clause* c = obs->_active_clauses[cl];
   assert(c->watched.find(lit) == c->watched.end());
   c->watched.insert(lit);
 }
 
-unsigned sat::gui::remove_literal::get_event_level(observer* obs)
+unsigned napsat::gui::remove_literal::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : event_level;
 }
 
-void sat::gui::remove_literal::apply(observer* obs)
+void napsat::gui::remove_literal::apply(observer* obs)
 {}
 
-void sat::gui::remove_literal::rollback(observer* obs)
+void napsat::gui::remove_literal::rollback(observer* obs)
 {}
 
-void sat::gui::check_invariants::apply(observer* obs)
+void napsat::gui::check_invariants::apply(observer* obs)
 {
   assert(obs);
   bool success = obs->check_invariants();
@@ -545,19 +545,19 @@ void sat::gui::check_invariants::apply(observer* obs)
   }
 }
 
-void sat::gui::check_invariants::rollback(observer* obs)
+void napsat::gui::check_invariants::rollback(observer* obs)
 {
   assert(obs);
   obs->check_invariants();
 }
 
-unsigned sat::gui::block::get_event_level(observer* obs)
+unsigned napsat::gui::block::get_event_level(observer* obs)
 {
   assert(obs);
   return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : event_level;
 }
 
-void sat::gui::block::apply(observer* obs)
+void napsat::gui::block::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() > cl);
@@ -569,7 +569,7 @@ void sat::gui::block::apply(observer* obs)
   c->blocker = lit;
 }
 
-void sat::gui::block::rollback(observer* obs)
+void napsat::gui::block::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() > cl);
@@ -580,7 +580,7 @@ void sat::gui::block::rollback(observer* obs)
   c->blocker = previous_blocker;
 }
 
-void sat::gui::missed_lower_implication::apply(observer* obs)
+void napsat::gui::missed_lower_implication::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_variables.size() > var);
@@ -590,7 +590,7 @@ void sat::gui::missed_lower_implication::apply(observer* obs)
   obs->_variables[var].lazy_reason = cl;
 }
 
-void sat::gui::missed_lower_implication::rollback(observer* obs)
+void napsat::gui::missed_lower_implication::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_variables.size() > var);
@@ -600,13 +600,13 @@ void sat::gui::missed_lower_implication::rollback(observer* obs)
   obs->_variables[var].lazy_reason = last_cl;
 }
 
-void sat::gui::remove_lower_implication::apply(observer* obs)
+void napsat::gui::remove_lower_implication::apply(observer* obs)
 {
   last_cl = obs->_variables[var].lazy_reason;
   obs->_variables[var].lazy_reason = CLAUSE_UNDEF;
 }
 
-void sat::gui::remove_lower_implication::rollback(observer* obs)
+void napsat::gui::remove_lower_implication::rollback(observer* obs)
 {
   assert(obs);
   assert(obs->_variables.size() > var);

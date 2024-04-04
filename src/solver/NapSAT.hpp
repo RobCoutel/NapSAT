@@ -108,7 +108,7 @@
   if (observer) \
     observer->notify(notification); \
 
-namespace sat
+namespace napsat
 {
   class NapSAT
   {
@@ -281,7 +281,7 @@ namespace sat
     /**
      * @brief Options of the solver.
     */
-    sat::options _options;
+    napsat::options _options;
     /**
      * @brief Status of the solver.
      */
@@ -364,7 +364,7 @@ namespace sat
      * @brief Priority queue of variables. The variables are ordered by their
      * activity.
      */
-    sat_utils::heap _variable_heap;
+    napsat::utils::heap _variable_heap;
 
     /**
      * @brief Increases the activity of a variable.
@@ -522,14 +522,14 @@ namespace sat
     /**
      * @brief Statistics of the solver.
      */
-    sat::statistics _stats;
+    napsat::statistics _stats;
 
     /**  INTERACTIVE SOLVER  **/
     /**
      * @brief Observer of the solver. If _observer is not nullptr, the solver
      * notifies the observer of its progress.
      */
-    sat::gui::observer* _observer = nullptr;
+    napsat::gui::observer* _observer = nullptr;
     /**
      * @brief True if the solver is interactive.
      * @details The solver is interactive if it stops between decisions to let
@@ -624,7 +624,7 @@ namespace sat
     {
       _vars[var].missed_lower_implication = cl;
       NOTIFY_OBSERVER(_observer,
-                      new sat::gui::missed_lower_implication(var, cl));
+                      new napsat::gui::missed_lower_implication(var, cl));
     }
 
     /**
@@ -635,7 +635,7 @@ namespace sat
     {
       _vars[lit_to_var(lit)].missed_lower_implication = cl;
       NOTIFY_OBSERVER(_observer,
-                      new sat::gui::missed_lower_implication(lit_to_var(lit),
+                      new napsat::gui::missed_lower_implication(lit_to_var(lit),
                                                              cl));
     }
 
@@ -731,13 +731,13 @@ namespace sat
     {
       TSvar& v = _vars[var];
       NOTIFY_OBSERVER(_observer,
-                      new sat::gui::unassignment(literal(var, v.state)));
+                      new napsat::gui::unassignment(literal(var, v.state)));
       v.state = VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
       if (v.missed_lower_implication != CLAUSE_UNDEF) {
         NOTIFY_OBSERVER(_observer,
-                        new sat::gui::remove_lower_implication(var));
+                        new napsat::gui::remove_lower_implication(var));
         v.missed_lower_implication = CLAUSE_UNDEF;
       }
       if (!_variable_heap.contains(var))
@@ -754,7 +754,7 @@ namespace sat
     {
       for (Tvar i = _vars.size(); i <= var; i++) {
         _variable_heap.insert(i, 0.0);
-        NOTIFY_OBSERVER(_observer, new sat::gui::new_variable(i));
+        NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(i));
       }
       if (var >= _vars.size() - 1) {
         _vars.resize(var + 1);
@@ -1025,12 +1025,12 @@ namespace sat
     /*************************************************************************/
   public:
     /**
-     * @brief Construct a new NapSAT::NapSAT object
+     * @brief Construct a new Napnapsat::NapSAT object
      * @param n_var initial number of variables. Can be increased later.
      * @param n_clauses initial number of clauses. Can be increased later by
      * adding clauses.
      */
-    NapSAT(unsigned n_var, unsigned n_clauses, sat::options& options);
+    NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options);
 
     /**
      * @brief Parse a DIMACS file and add the clauses to the clause set.
@@ -1065,7 +1065,7 @@ namespace sat
      * @warning This method is just a convenience for the main. It is not meant
      * to be used in a library.
      */
-    sat::gui::observer* get_observer() const;
+    napsat::gui::observer* get_observer() const;
 
     /**
      * @brief Propagate literals in the queue and resolve conflicts if needed.
@@ -1210,6 +1210,16 @@ namespace sat
     const std::vector<Tlit>& trail() const;
 
     /**
+     * @brief Returns true if the literal in the trail is a decision.
+     * @pre The literal must be assigned.
+    */
+    inline bool is_decided(Tlit lit) const
+    {
+      ASSERT(!lit_undef(lit));
+      return _vars[lit_to_var(lit)].reason == CLAUSE_UNDEF;
+    }
+
+    /**
      * @brief Returns the current decision level.
      */
     Tlevel decision_level() const;
@@ -1266,7 +1276,7 @@ namespace sat
     void print_watch_lists(Tlit lit = LIT_UNDEF);
 
     /**
-     * @brief Destroy the NapSAT::modulari T_SAT object
+     * @brief Destroy the Napnapsat::modulari T_SAT object
      */
     ~NapSAT();
 

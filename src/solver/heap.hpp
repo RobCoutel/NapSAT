@@ -10,7 +10,7 @@
 
 #define LOCATION_UNDEF 0xffffffff
 
-namespace sat_utils
+namespace napsat::utils
 {
   /**
    * @warning The heap should not be used for arbitrary keys. The memory allocated is proportional to the largest key. This structure is meant for densely packed keys.
@@ -157,4 +157,4 @@ namespace sat_utils
     */
     void print();
   };
-} // namespace sat_utils
+} // namespace napsat::utils
