@@ -129,7 +129,7 @@ namespace sat
    * @param solver an instance of the SAT solver
    * @pre the solver is a valid instance of NapSAT
    */
-  const std::vector<Tlit> get_partial_assignment(NapSAT* solver);
+  const std::vector<Tlit>& get_partial_assignment(NapSAT* solver);
 
   /**
    * @brief Prints on the standard output the statistics collected by the solver
