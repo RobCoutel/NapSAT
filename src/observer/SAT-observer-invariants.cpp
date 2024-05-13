@@ -83,7 +83,7 @@ void napsat::gui::observer::load_invariant_configuration()
       cerr << "Error: unknown invariant " << line << endl;
     }
   }
-  cout << "Invariant configuration loaded from " << filename << endl;
+  // cout << "Invariant configuration loaded from " << filename << endl;
   file.close();
 
 //   cout << "The following invariants are enabled:" << endl;
@@ -248,9 +248,10 @@ bool napsat::gui::observer::check_topological_order()
 {
   const string error_header = error + "Invariant violation (topological order): ";
   bool success = true;
-  vector<bool> visited(_active_clauses.size(), false);
+  vector<bool> visited(_variables.size(), false);
   for (Tlit lit : _assignment_stack)
   {
+    assert(lit_to_var(lit) < visited.size());
     visited[lit_to_var(lit)] = true;
     if (lit_reason(lit) == CLAUSE_UNDEF || lit_reason(lit) == CLAUSE_LAZY)
     {
