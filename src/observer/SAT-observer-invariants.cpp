@@ -27,7 +27,6 @@ void napsat::gui::observer::load_invariant_configuration()
   else
     filename += "non-chronological-backtracking";
   filename += ".conf";
-  // cout << "Loading invariant configuration from " << filename << endl;
   ifstream file(filename);
   if (!file.is_open())
   {
@@ -83,33 +82,7 @@ void napsat::gui::observer::load_invariant_configuration()
       cerr << "Error: unknown invariant " << line << endl;
     }
   }
-  // cout << "Invariant configuration loaded from " << filename << endl;
   file.close();
-
-//   cout << "The following invariants are enabled:" << endl;
-//   if (_check_trail_sanity)
-//     cout << "trail sanity, " << endl;
-//   if (_check_level_ordering)
-//     cout << "level ordering, " << endl;
-//   if (_check_trail_monoticity)
-//     cout << "trail monoticity, " << endl;
-//   if (_check_no_missed_implications)
-//     cout << "no missed implications, " << endl;
-//   if (_check_topological_order)
-//     cout << "topological order, " << endl;
-// #if NOTIFY_WATCH_CHANGE
-//   if (_check_strong_watch_literals)
-//     cout << "strong watch literals, " << endl;
-//   if (_check_blocked_watch_literals)
-//     cout << "blocked watch literals, " << endl;
-//   if (_check_weak_watch_literals)
-//     cout << "weak watch literals, " << endl;
-//   if (_check_weak_blocked_watch_literals)
-//     cout << "weak blocked watch literals, " << endl;
-// #endif
-//   if (_check_assignment_coherence)
-//     cout << "assignment coherence" << endl;
-//   cout << endl;
 }
 
 bool napsat::gui::observer::check_invariants()
