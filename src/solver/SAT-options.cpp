@@ -43,7 +43,18 @@ napsat::options::options(char** tokens, unsigned n_tokens)
     {"-stat", &print_stats},
     {"--statistics", &print_stats},
     {"-del", &delete_clauses},
-    {"--delete-clauses", &delete_clauses}
+    {"--delete-clauses", &delete_clauses},
+    {"--proof", &build_proof},
+    {"-bp", &build_proof},
+    {"--print-proof", &print_proof},
+    {"-pp", &print_proof},
+    {"--check-proof", &check_proof},
+    {"-cp", &check_proof},
+    {"--build-proof", &build_proof},
+    {"-pproof", &print_proof},
+    {"--print-proof", &print_proof},
+    {"-cproof", &check_proof},
+    {"--check-proof", &check_proof}
   };
 
   /**
@@ -133,4 +144,6 @@ napsat::options::options(char** tokens, unsigned n_tokens)
     cerr << "Error: clause activity threshold decay must be between 0 and 1." << endl;
     exit(1);
   }
+
+  build_proof = build_proof || print_proof || check_proof;
 }

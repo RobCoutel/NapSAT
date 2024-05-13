@@ -569,8 +569,20 @@ void napsat::gui::observer::print_assignment()
   TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
 #endif
   cout << "trail :\n";
+
+  unsigned max_n_digits_level = 1;
+  Tlevel max_level = _decision_level;
+  while (max_level > 0) {
+    max_level /= 10;
+    max_n_digits_level++;
+  }
+
   for (Tlevel lvl = _decision_level; lvl <= _decision_level; lvl--) {
-    cout << lvl << ": ";
+    // pad the level with spaces
+    string level_str = to_string(lvl);
+    while(level_str.size() < max_n_digits_level)
+      level_str = " " + level_str;
+    cout << level_str + ": ";
     for (unsigned i = 0; i < _assignment_stack.size(); i++) {
       if (i == _n_propagated)
         cout << "| ";

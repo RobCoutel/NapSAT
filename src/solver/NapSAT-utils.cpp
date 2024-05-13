@@ -44,9 +44,9 @@ void napsat::NapSAT::parse_dimacs(const char* filename)
           break;
         add_literal(napsat::literal(abs(lit), lit > 0));
         token = "";
+        continue;
       }
-      else
-        token += c;
+      token += c;
     }
     finalize_clause();
   }
@@ -87,6 +87,8 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   _clauses[cl].watched = false;
   _deleted_clauses.push_back(cl);
   NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
+  if(_proof)
+    _proof->deactivate_clause(cl);
 }
 
 static const char esc_char = 27; // the decimal code for escape character is 27
@@ -178,11 +180,12 @@ void napsat::NapSAT::repair_watch_lists()
       if (count++ > _clauses.size()) {
         cout << "Error: infinite loop in watch list\n";
         ASSERT(false);
-        break;
+        exit(-1);
       }
       ASSERT(cl < _clauses.size());
       TSclause& clause = _clauses[cl];
-      ASSERT(lit == clause.lits[0] || lit == clause.lits[1]);
+      ASSERT_MSG(lit == clause.lits[0] || lit == clause.lits[1],
+                 "Error: clause " << clause_to_string(cl) << " is not watched by " << lit_to_string(lit));
       if (!clause.deleted && clause.watched && clause.size > 2) {
         prev = cl;
         cl = clause.lits[0] == lit ? clause.first_watched : clause.second_watched;
@@ -308,7 +311,15 @@ string NapSAT::clause_to_string(Tclause cl)
     }
     s += " ";
   }
-  s += to_string(_clauses[cl].first_watched) + " " + to_string(_clauses[cl].second_watched);
+  if (_clauses[cl].first_watched == CLAUSE_UNDEF)
+    s += "∞";
+  else
+    s += to_string(_clauses[cl].first_watched);
+  s += " ";
+  if (_clauses[cl].second_watched == CLAUSE_UNDEF)
+    s += "∞";
+  else
+    s += to_string(_clauses[cl].second_watched);
   return s;
 }
 

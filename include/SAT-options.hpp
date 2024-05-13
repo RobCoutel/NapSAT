@@ -72,6 +72,26 @@ namespace napsat
     bool print_stats = false;
 
     /**
+     * @brief Enables the observer to build a proof during the execution.
+     * @alias -bp
+    */
+    bool build_proof = false;
+
+    /**
+     * @brief Enables the observer to check the proof during the execution.
+     * @requires build_proof is on
+     * @alias -cp
+    */
+    bool check_proof = false;
+
+    /**
+     * @brief Enables the observer to print the proof during the execution.
+     * @requires build_proof is on
+     * @alias -pp
+    */
+    bool print_proof = false;
+
+    /**
      * @brief File containing the commands to be executed by the solver.
      * @requires interactive is on
     */

@@ -96,3 +96,15 @@ void napsat::print_statistics(NapSAT* solver)
   }
   std::cout << obs->get_statistics();
 }
+
+void napsat::print_proof(NapSAT* solver)
+{
+  assert(solver != nullptr);
+  solver->print_proof();
+}
+
+bool napsat::check_proof(NapSAT* solver)
+{
+  assert(solver != nullptr);
+  return solver->check_proof();
+}

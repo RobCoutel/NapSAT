@@ -3,7 +3,7 @@
  * @author Robin Coutelier
  *
  * @brief This file is part of the NapSAT solver. It implements the core functions of the
- * solver such as the CDCL loop, BCP, conflict analysis, backtacking and clause set simplification.
+ * solver such as the CDCL loop, BCP, conflict analysis, backtracking and clause set simplification.
  */
 #include "NapSAT.hpp"
 #include "custom-assert.hpp"
@@ -15,7 +15,7 @@
 using namespace napsat;
 using namespace std;
 
-void NapSAT::stack_lit(Tlit lit, Tclause reason)
+void NapSAT::imply_literal(Tlit lit, Tclause reason)
 {
   /**
    * Preconditions:
@@ -75,10 +75,40 @@ void NapSAT::stack_lit(Tlit lit, Tclause reason)
     _agility += 1 - _options.agility_decay;
   svar.phase_cache = lit_pol(lit);
 
-  if (svar.level == LEVEL_ROOT)
+  if (svar.level == LEVEL_ROOT) {
     _purge_counter++;
+    if (_proof)
+      _proof->root_assign(lit, reason);
+  }
   ASSERT(svar.level != LEVEL_UNDEF);
   ASSERT(svar.level <= _decision_index.size());
+}
+
+void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
+{
+  ASSERT(lit_true(lit));
+  ASSERT(reason != CLAUSE_UNDEF);
+  ASSERT(reason != CLAUSE_LAZY);
+  ASSERT(lit == _clauses[reason].lits[0]);
+  ASSERT(_options.strong_chronological_backtracking);
+
+  TSclause& clause = _clauses[reason];
+  Tlevel reimplication_level = clause.size == 1 ? 0 : lit_level(clause.lits[1]);
+#ifndef NDEBUG
+  for (unsigned i = 1; i < clause.size; i++) {
+    ASSERT(lit_false(clause.lits[i]));
+    ASSERT(lit_level(clause.lits[i]) <= reimplication_level);
+  }
+#endif
+
+  Tlevel current_level = lit_level(lit);
+  if (current_level <= reimplication_level)
+    return;
+  if (lit_lazy_reason(lit) != CLAUSE_UNDEF
+   && lit_level(_clauses[lit_lazy_reason(lit)].lits[1]) <= reimplication_level)
+    return;
+
+  lit_set_lazy_reason(lit, reason);
 }
 
 Tlit* napsat::NapSAT::search_replacement(Tlit* lits, unsigned size)
@@ -127,18 +157,14 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
     if (lit_true(bin.first)) {
       if (_options.strong_chronological_backtracking && lit_level(bin.first) > lit_level(lit)) {
         // missed lower implication
-        Tclause lazy_reason = lit_lazy_reason(bin.first);
-        if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > lit_level(bin.first)) {
-          // reorder the literals such that the satisfied literal is at the first position
-          Tlit* lits = _clauses[bin.second].lits;
-          if (lits[0] != bin.first) {
-            lits[0] = lits[0] ^ lits[1];
-            lits[1] = lits[0] ^ lits[1];
-            lits[0] = lits[0] ^ lits[1];
-            // no need to update the watch lists because the clause is binary
-          }
-          lit_set_lazy_reason(bin.first, bin.second);
+        Tlit* lits = _clauses[bin.second].lits;
+        if (lits[0] != bin.first) {
+          lits[0] = lits[0] ^ lits[1];
+          lits[1] = lits[0] ^ lits[1];
+          lits[0] = lits[0] ^ lits[1];
+          // no need to update the watch lists because the clause is binary
         }
+        reimply_literal(bin.first, bin.second);
       }
       continue;
     }
@@ -149,7 +175,7 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
       ASSERT(lits[0] == bin.first || lits[1] == bin.first);
       lits[0] = bin.first;
       lits[1] = lit;
-      stack_lit(bin.first, bin.second);
+      imply_literal(bin.first, bin.second);
       continue;
     }
     // Conflict
@@ -458,14 +484,14 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       /**
        * We add the information that c₂ ∉ π
        * We know that C ∖ {c₂}, π ⊧ ⊥, therefore the only way to satisfy C is to set c₂ to true
-       * In SCB we additionnaly need δ(c₂) ≤ δ(c₁), and since c₂ will be implied at level δ(C ∖ {c₂}),
+       * In SCB we additionally need δ(c₂) ≤ δ(c₁), and since c₂ will be implied at level δ(C ∖ {c₂}),
        * we need to ensure that δ(c₁) = δ(C ∖ {c₂}). This is why we changed the watched literals earlier.
        * ALL: c₂ ∉ π ∧ ¬c₁ ∈ π ∧ C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})
        * NCB: b ∉ π
        * WCB: [b ∉ π ∨ δ(b) > δ(c₁)]
        * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
       */
-      stack_lit(lit2, cl);
+      imply_literal(lit2, cl);
       cl = next;
       continue;
     }
@@ -500,22 +526,22 @@ Tclause NapSAT::propagate_lit(Tlit lit)
      */
     ASSERT(_options.strong_chronological_backtracking);
     ASSERT(lit_true(lit2));
-    Tclause lazy_reason = lit_lazy_reason(lit2);
-    ASSERT(lazy_reason == CLAUSE_UNDEF || lazy_reason < _clauses.size());
-    if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > replacement_lvl) {
-      /**
-       * We have δ(λ(c₂) \ {c₂}) > δ(c₁)
-       * The only way to satisfy the invariant is to add C to the lazy reimplication list of c₂
-       * λ(c₂) ← λ[c₂ ← C] and therefore δ(λ(c₂) \ {c₂}) =  δ(c₁)
-      */
-      lit_set_lazy_reason(lit2, cl);
-    }
+    /**
+     * If δ(λ(c₂) \ {c₂}) > δ(c₁), then reimply c₂ at the level of c₁
+     * The only way to satisfy the invariant is to add C to the lazy reimplication list of c₂
+     * λ(c₂) ← λ[c₂ ← C] and therefore δ(λ(c₂) \ {c₂}) =  δ(c₁)
+     *
+     * Otherwise do nothing
+     *
+     * Note that reimply literal ensures δ(λ(c₂) \ {c₂}) > δ(c₁) ∧  δ(ℓ) > δ(c₁) before reimplication
+     */
+    reimply_literal(lit2, cl);
     /**
      * We now have in addition that δ(λ(c₂) \ {c₂}) ≤ δ(c₁)
-     * that safifies
+     * that satisfies
      * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
      *               ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
-    */
+     */
     cl = next;
   }
 
@@ -545,18 +571,16 @@ void NapSAT::NCB_backtrack(Tlevel level)
 
 void napsat::NapSAT::CB_backtrack(Tlevel level)
 {
-  // cout << "-----------------------------------" << endl;
+  if (level == _decision_index.size())
+    return;
   ASSERT(_options.chronological_backtracking);
   ASSERT(level <= _decision_index.size());
   ASSERT(_backtrack_buffer.empty());
-  if (level == _decision_index.size())
-    return;
   NOTIFY_OBSERVER(_observer, new napsat::gui::backtracking_started(level));
   unsigned waiting_count = 0;
 
   unsigned restore_point = _decision_index[level];
 
-  // print_trail();
   while (_decision_index.size() > level) {
     Tlit lit = _trail.back();
     _trail.pop_back();
@@ -581,21 +605,15 @@ void napsat::NapSAT::CB_backtrack(Tlevel level)
     _backtrack_buffer.push_back(lit);
     waiting_count += _vars[lit_to_var(lit)].waiting;
   }
-  // cout << _backtrack_buffer.size() << " literals to restore" << endl;
-  // cout << "Waiting count: " << waiting_count << endl;
   while (!_backtrack_buffer.empty()) {
     Tlit lit = _backtrack_buffer.back();
     _backtrack_buffer.pop_back();
     _trail.push_back(lit);
   }
   _propagated_literals = _trail.size() - waiting_count;
-  // print_trail();
   if (_options.restoring_chronological_backtracking
    && restore_point < _propagated_literals) {
-    // cout << "_propagated_literals: " << _propagated_literals << ", restore_point: " << restore_point << endl;
     while (_propagated_literals > restore_point) {
-      // print_trail();
-      // cout << "Restoring " << lit_to_string(_trail[_propagated_literals-1]) << endl;
       Tlit lit = _trail[_propagated_literals - 1];
       Tvar var = lit_to_var(lit);
       ASSERT_MSG(!_vars[var].waiting,
@@ -616,7 +634,7 @@ void napsat::NapSAT::CB_backtrack(Tlevel level)
     for (Tclause lazy_clause : _reimplication_backtrack_buffer) {
       Tlit reimpl_lit = _clauses[lazy_clause].lits[0];
       ASSERT(lit_undef(reimpl_lit));
-      stack_lit(reimpl_lit, lazy_clause);
+      imply_literal(reimpl_lit, lazy_clause);
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
     }
     _reimplication_backtrack_buffer.clear();
@@ -638,205 +656,46 @@ bool napsat::NapSAT::lit_is_required_in_learned_clause(Tlit lit)
   return false;
 }
 
-void NapSAT::analyze_conflict_reimply(Tclause conflict)
-{
-  // ASSERT(watch_lists_minimal());
-  ASSERT(conflict != CLAUSE_UNDEF);
-  ASSERT(!_writing_clause);
-  unsigned count = 0;
-  TSclause& clause = _clauses[conflict];
-  bump_clause_activity(conflict);
-  _next_literal_index = 0;
-  Tlevel conflict_level = lit_level(clause.lits[0]);
-  assert(conflict_level > LEVEL_ROOT);
-  Tlevel second_highest_level = LEVEL_ROOT;
-  // prepare the learn clause in the literal buffer
-  for (unsigned j = 0; j < clause.size; j++) {
-    Tlit lit = clause.lits[j];
-    ASSERT(lit_false(lit));
-    ASSERT(lit_level(lit) <= conflict_level);
-    ASSERT(!lit_seen(lit));
-    bump_var_activity(lit_to_var(lit));
-    lit_mark_seen(lit);
-    ASSERT(lit_false(lit));
-    ASSERT(lit_level(lit) <= conflict_level);
-    if (lit_level(lit) == conflict_level)
-      count++;
-    else {
-      _literal_buffer[_next_literal_index++] = lit;
-      second_highest_level = max(second_highest_level, lit_level(lit));
-    }
-  }
-
-  ASSERT(count > 1 || lit_lazy_reason(clause.lits[0]) != CLAUSE_UNDEF);
-  // replace the literals in the clause by their reason
-  unsigned i = _trail.size() - 1;
-
-  while (count > 0) {
-    // search the next literal involved in the conflict (in topological order)
-    while (!lit_seen(_trail[i]) || lit_level(_trail[i]) != conflict_level)
-      i--;
-    ASSERT(i < _trail.size());
-    Tlit lit = _trail[i];
-    /*************************************************************************/
-    /*                         LAZY RE-IMPLICATION                           */
-    /*************************************************************************/
-    if (count == 1) {
-      Tclause lazy_reason = lit_lazy_reason(lit);
-      if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > conflict_level) {
-        _literal_buffer[_next_literal_index++] = lit_neg(_trail[i]);
-        break;
-      }
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
-      // The missed lower implication will be propagated again after backtracking.
-      // So we anticipate and continue conflict analysis directly
-      count = 0;
-      for (unsigned j = 1; j < _clauses[lazy_reason].size; j++) {
-        Tlit lazy_lit = _clauses[lazy_reason].lits[j];
-        bump_var_activity(lit_to_var(lazy_lit));
-        ASSERT(lit_false(lazy_lit));
-        if (lit_seen(lazy_lit))
-          continue;
-        lit_mark_seen(lazy_lit);
-        Tlevel curr_lit_level = lit_level(lazy_lit);
-        ASSERT(curr_lit_level <= conflict_level);
-        if (curr_lit_level == conflict_level)
-          count++;
-        else {
-          second_highest_level = max(second_highest_level, curr_lit_level);
-          _literal_buffer[_next_literal_index++] = lazy_lit;
-        }
-      }
-      lit_unmark_seen(lit);
-      // clean up the literals at level conflict_level
-      conflict_level = second_highest_level;
-      second_highest_level = LEVEL_ROOT;
-      unsigned k = 0;
-      for (unsigned j = 0; j < _next_literal_index; j++) {
-        ASSERT(lit_false(_literal_buffer[j]));
-        ASSERT(lit_level(_literal_buffer[j]) <= conflict_level);
-        if (lit_level(_literal_buffer[j]) == conflict_level) {
-          count++;
-          continue;
-        }
-        _literal_buffer[k++] = _literal_buffer[j];
-        second_highest_level = max(second_highest_level, lit_level(_literal_buffer[j]));
-      }
-      _next_literal_index = k;
-      // reset the seach head since we changed the level
-      i = _trail.size() - 1;
-      continue;
-    } // end if (count == 1)
-    /*************************************************************************/
-    /*                             STANDARD FUIP                             */
-    /*************************************************************************/
-    // process the literals at highest level
-    Tclause reason = lit_lazy_reason(lit);
-    if (reason == CLAUSE_UNDEF)
-      reason = lit_reason(lit);
-    else {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
-    }
-    ASSERT_MSG(reason != CLAUSE_UNDEF,
-      "Conflict: " + clause_to_string(conflict) + "\nLiteral: " + lit_to_string(lit));
-    TSclause& clause = _clauses[reason];
-    ASSERT(lit_true(clause.lits[0]));
-    // start at 1 because the first literal is the one that was propagated
-    ASSERT_MSG(lit == clause.lits[0],
-      "Conflict: " + clause_to_string(reason) + "\nLiteral: " + lit_to_string(lit));
-    for (unsigned j = 1; j < clause.size; j++) {
-      Tlit curr_lit = clause.lits[j];
-      bump_var_activity(lit_to_var(curr_lit));
-      if (lit_seen(curr_lit))
-        continue;
-      lit_mark_seen(curr_lit);
-      Tlevel curr_lit_level = lit_level(curr_lit);
-      ASSERT(curr_lit_level <= conflict_level);
-      if (curr_lit_level == conflict_level)
-        count++;
-      else {
-        second_highest_level = max(second_highest_level, curr_lit_level);
-        _literal_buffer[_next_literal_index++] = curr_lit;
-      }
-    }
-    // unmark the replaced literal
-    lit_unmark_seen(lit);
-    count--;
-  } // end while (count > 0)
-
-  // remove the seen markers and the literals that can be removed with subsumption resolution
-  unsigned k = 0;
-  for (unsigned j = 0; j < _next_literal_index; j++) {
-    Tlit lit = _literal_buffer[j];
-    ASSERT(lit_false(lit));
-    ASSERT(lit_level(lit) <= conflict_level);
-    // TODO check if removing them in the other direct is not better
-    if (lit_is_required_in_learned_clause(lit))
-      _literal_buffer[k++] = _literal_buffer[j];
-    else
-      lit_unmark_seen(_literal_buffer[j]);
-  }
-  _next_literal_index = k;
-  for (unsigned j = 0; j < _next_literal_index; j++)
-    lit_unmark_seen(_literal_buffer[j]);
-  if (conflict_level != LEVEL_ROOT) {
-    CB_backtrack(conflict_level - 1);
-  }
-  internal_add_clause(_literal_buffer, _next_literal_index, true, false);
-}
-
 void NapSAT::analyze_conflict(Tclause conflict)
 {
   // ASSERT(watch_lists_minimal());
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(!_writing_clause);
+  // Number of literals at level conflict_level marked in the trail
   unsigned count = 0;
   unsigned i = _trail.size() - 1;
-  TSclause& clause = _clauses[conflict];
+  Tclause cl = conflict;
+
+  if (_proof)
+    _proof->start_resolution_chain();
+
   bump_clause_activity(conflict);
   _next_literal_index = 0;
+
+  TSclause clause = _clauses[conflict];
   Tlevel conflict_level = lit_level(clause.lits[0]);
   Tlevel second_highest_level = LEVEL_ROOT;
-  for (unsigned j = 0; j < clause.size; j++) {
-    Tlit lit = clause.lits[j];
-    ASSERT(lit_false(lit));
-    bump_var_activity(lit_to_var(lit));
-    if (lit_level(lit) == conflict_level) {
-      lit_mark_seen(lit);
-      count++;
-    }
-    else if (lit_is_required_in_learned_clause(lit)) {
-      ASSERT(lit_level(lit) < conflict_level);
-      ASSERT(lit_false(lit));
-      lit_mark_seen(lit);
-      _literal_buffer[_next_literal_index++] = lit;
-      second_highest_level = max(second_highest_level, lit_level(lit));
-    }
-  }
-  ASSERT(count > 1);
-  while (count > 1) {
-    while (!lit_seen(_trail[i]) || lit_level(_trail[i]) != conflict_level) {
-      ASSERT(i > 0);
-      i--;
-    }
-    ASSERT(count <= _trail.size());
-    ASSERT(i < _trail.size());
-    ASSERT(lit_seen(_trail[i]));
-    ASSERT(lit_level(_trail[i]) == conflict_level);
-    Tlit lit = _trail[i];
-    lit_unmark_seen(lit);
-    count--;
-    Tclause reason = lit_reason(lit);
-    bump_clause_activity(reason);
-    ASSERT(reason != CLAUSE_UNDEF);
-    TSclause& clause = _clauses[reason];
 
-    ASSERT(lit_true(clause.lits[0]));
-    // start at 1 because the first literal is the one that was propagated
-    for (unsigned j = 1; j < clause.size; j++) {
+  // This does nothing in non-chronological backtracking
+  ASSERT(_options.chronological_backtracking || conflict_level == _decision_index.size());
+  CB_backtrack(conflict_level);
+
+  // Variable used to determine the first literal from the clause that should be added to the learned clause
+  // This is used to avoid adding the satisfied literal of the reason to the learned clause
+  unsigned not_first_round = 0;
+
+  Tlit pivot = LIT_UNDEF;
+  do {
+    ASSERT(cl != CLAUSE_UNDEF);
+    if (_proof)
+      _proof->link_resolution(pivot, cl);
+
+    clause = _clauses[cl];
+    // Be careful that the first time, we start at index 0, then we start at index 1
+    for (unsigned j = not_first_round; j < clause.size; j++) {
       Tlit lit = clause.lits[j];
       ASSERT_MSG(lit_false(lit),
-        "Conflict: " + clause_to_string(conflict));
+        "Reason: " + clause_to_string(cl));
       bump_var_activity(lit_to_var(lit));
       if (lit_seen(lit))
         continue;
@@ -846,25 +705,131 @@ void NapSAT::analyze_conflict(Tclause conflict)
       }
       else if (lit_is_required_in_learned_clause(lit)) {
         ASSERT(lit_level(lit) < conflict_level);
-        ASSERT(lit_false(lit));
         lit_mark_seen(lit);
         _literal_buffer[_next_literal_index++] = lit;
         second_highest_level = max(second_highest_level, lit_level(lit));
       }
+      else if (_proof)
+        _proof->link_resolution(lit, lit_reason(lit));
     }
-  }
-  while (!lit_seen(_trail[i]) || lit_level(_trail[i]) != conflict_level) {
-    ASSERT(i > 0);
-    i--;
-  }
-  _literal_buffer[_next_literal_index++] = lit_neg(_trail[i]);
+
+    while (!lit_seen(_trail[i]) || lit_level(_trail[i]) != conflict_level) {
+      ASSERT(i > 0);
+      i--;
+    }
+    ASSERT(count > 0);
+    pivot = lit_neg(_trail[i]);
+    count--;
+    lit_unmark_seen(pivot);
+    cl = lit_reason(pivot);
+    if (lit_lazy_reason(pivot) != CLAUSE_UNDEF)
+      cl = lit_lazy_reason(pivot);
+
+    // This is no longer the first round, and we should ignore the first literal of the clause
+    not_first_round = 1;
+
+    /*************************************************************************/
+    /*                         LAZY RE-IMPLICATION                           */
+    /*************************************************************************/
+    if (count == 0 && lit_lazy_reason(pivot) != CLAUSE_UNDEF) {
+      ASSERT(_options.strong_chronological_backtracking);
+      ASSERT(lit_lazy_reason(pivot) == cl);
+      ASSERT(lit_neg(pivot) == _clauses[cl].lits[0]);
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
+
+      // make sure the conflict level cannot be increased by the content of the new clause
+      for (unsigned j = 1; j < _clauses[cl].size; j++)
+        second_highest_level = max(second_highest_level, lit_level(_clauses[cl].lits[j]));
+
+      conflict_level = second_highest_level;
+      // This is used to reimply the literals at the right level.
+      // Otherwise we need to make sure that the levels used are the lazy ones, and this is more complicated.
+      CB_backtrack(conflict_level);
+      second_highest_level = LEVEL_ROOT;
+
+      // reset the conflict at a lower level
+      // update the count since we have updated the level of the conflict
+      // we need to do this now to check if we need to continue the analysis. It
+      // is possible that after this, there still is one literal at the highest level,
+      // therefore we can stop conflict analysis.
+      // Note that it is not possible to have twice a lazy reimplication on the same literal
+      ASSERT(count == 0);
+      for (unsigned j = 1; j < _clauses[cl].size; j++) {
+        Tlit lit = _clauses[cl].lits[j];
+        ASSERT_MSG(lit_false(lit),
+          "Reason: " + clause_to_string(cl));
+        ASSERT(lit != pivot);
+        if (lit_seen(lit))
+          continue;
+        if (lit_level(lit) == conflict_level) {
+          lit_mark_seen(lit);
+          count++;
+        }
+      }
+
+      // clean up the literals at conflict_level since only one should appear in the final clause
+      unsigned k = 0;
+      for (unsigned j = 0; j < _next_literal_index; j++) {
+        Tlit lit = _literal_buffer[j];
+        ASSERT(lit_false(lit));
+        ASSERT(lit_level(lit) <= conflict_level);
+        // we should not re-insert the pivot
+        if (lit == pivot)
+          continue;
+        if (lit_level(lit) == conflict_level) {
+          count++;
+          lit_mark_seen(lit);
+          continue;
+        }
+        _literal_buffer[k++] = lit;
+        second_highest_level = max(second_highest_level, lit_level(lit));
+      }
+      _next_literal_index = k;
+
+      // reset the search head since we changed the level
+      i = _trail.size() - 1;
+
+    }
+    /*************************************************************************/
+    /*                     END LAZY RE-IMPLICATION                           */
+    /*************************************************************************/
+  } while(count > 0);
+
+  _literal_buffer[_next_literal_index++] = pivot;
+
   // remove the seen markers on literals in the clause
+  // we need to unmark them first because of the proof
+  // prove_root_literal_removal assumes that the literals are not marked
   for (unsigned j = 0; j < _next_literal_index; j++)
     lit_unmark_seen(_literal_buffer[j]);
-  // backtrack depending on the chronological backtracking strategy
-  if (_options.chronological_backtracking) {
-    CB_backtrack(conflict_level - 1);
+
+  // purge literals falsified at level 0
+  if (_proof)
+    prove_root_literal_removal(_literal_buffer, _next_literal_index);
+
+  unsigned k = 0;
+  for (unsigned j = 0; j < _next_literal_index; j++) {
+    Tlit lit = _literal_buffer[j];
+    ASSERT(lit_false(lit));
+    ASSERT_MSG(lit_level(lit) <= conflict_level,
+               "Literal: " + lit_to_string(lit) + " at level: " + to_string(lit_level(lit)) + " conflict level: " + to_string(conflict_level) + " Clause: " + clause_to_string(conflict));
+    if (lit_level(lit) == LEVEL_ROOT)
+      continue;
+    _literal_buffer[k++] = lit;
   }
+  _next_literal_index = k;
+
+  if (_next_literal_index == 0) {
+    // empty clause
+    _status = UNSAT;
+    if (_proof)
+      _proof->finalize_resolution(_clauses.size(), _literal_buffer, _next_literal_index);
+    return;
+  }
+
+  // backtrack depending on the chronological backtracking strategy
+  if (_options.chronological_backtracking)
+    CB_backtrack(conflict_level - 1);
   else {
     Tlevel second_highest_level = LEVEL_ROOT;
     for (unsigned j = 0; j < _next_literal_index - 1; j++) {
@@ -875,7 +840,56 @@ void NapSAT::analyze_conflict(Tclause conflict)
     }
     NCB_backtrack(second_highest_level);
   }
-  internal_add_clause(_literal_buffer, _next_literal_index, true, false);
+
+  cl = internal_add_clause(_literal_buffer, _next_literal_index, true, false);
+  ASSERT(cl != CLAUSE_UNDEF);
+  if (_proof)
+    _proof->finalize_resolution(cl, _literal_buffer, _next_literal_index);
+}
+
+void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
+{
+  ASSERT(_proof);
+  // cout << "Proving root literal removal" << endl;
+  // for (unsigned i = 0; i < size; i++) {
+  //   cout << lit_to_string(lits[i]) << " ";
+  //   ASSERT(lit_false(lits[i]));
+  // }
+  // cout << endl;
+  // we assume that a resolution chain is already started
+  unsigned count = 0;
+
+  for (unsigned i = 0; i < size; i++) {
+    ASSERT(lit_false(lits[i]));
+    if (lit_level(lits[i]) != LEVEL_ROOT)
+      continue;
+    ASSERT(!lit_seen(lits[i]));
+    lit_mark_seen(lits[i]);
+    count++;
+  }
+
+  unsigned i = _trail.size() - 1;
+  while (count != 0) {
+    while (!lit_seen(_trail[i]))
+      i--;
+    Tlit lit = _trail[i];
+    ASSERT(lit_level(lit) == LEVEL_ROOT);
+    ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
+    Tclause reason = lit_reason(lit);
+
+    _proof->link_resolution(lit_neg(lit), reason);
+
+    for (unsigned j = 1; j < _clauses[reason].size; j++) {
+      Tlit lit = _clauses[reason].lits[j];
+      ASSERT(lit_false(lit));
+      if (lit_seen(lit))
+        continue;
+      lit_mark_seen(lit);
+      count++;
+    }
+    count--;
+    lit_unmark_seen(lit);
+  }
 }
 
 void NapSAT::repair_conflict(Tclause conflict)
@@ -884,98 +898,93 @@ void NapSAT::repair_conflict(Tclause conflict)
    * Precondition:
    * - The conflict clause C is conflicting with the current partial assignment π
    *    C, π ⊧ ⊥
-   * - The conflict clause is not a unit clause
+   * - The conflict clause is not the empty clause
    *    |C| > 0
    * - The first literal in the conflict clause is the highest level literal
    *    δ(c₁) = δ(C)
   */
-  ASSERT(_clauses[conflict].size > 0);
+  Tlit* lits = _clauses[conflict].lits;
 
+  /********** CHECKING PRECONDITIONS **********/
+  ASSERT(_clauses[conflict].size > 0);
+  ASSERT_MSG(_options.chronological_backtracking || _clauses[conflict].external
+  || (lit_level(lits[0]) == _decision_index.size()
+   && lit_level(lits[1]) == _decision_index.size()),
+    "Conflict: " + clause_to_string(conflict) + "\nDecision level: " + to_string(_decision_index.size()));
+#ifndef NDEBUG
+  for (unsigned i = 0; i < _clauses[conflict].size; i++) {
+    ASSERT(lit_false(lits[i]));
+    ASSERT(lit_level(lits[i]) <= lit_level(lits[0]));
+  }
+#endif
 
   NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(conflict));
   if (_status == SAT)
     _status = UNDEF;
-  ASSERT(lit_false(_clauses[conflict].lits[0]));
-  if (lit_level(_clauses[conflict].lits[0]) == LEVEL_ROOT) {
+
+  if (lit_level(lits[0]) == LEVEL_ROOT) {
     _status = UNSAT;
+    // NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Empty clause"));
+    if (_proof) {
+      _proof->start_resolution_chain();
+      _proof->link_resolution(LIT_UNDEF, conflict);
+      prove_root_literal_removal(lits, _clauses[conflict].size);
+      _proof->finalize_resolution(_clauses.size(), nullptr, 0);
+    }
     return;
   }
+  /********** UNIT CLAUSE **********/
   if (_clauses[conflict].size == 1) {
     if (_options.chronological_backtracking)
-      CB_backtrack(lit_level(_clauses[conflict].lits[0]) - 1);
+      CB_backtrack(lit_level(lits[0]) - 1);
     else
       NCB_backtrack(LEVEL_ROOT);
-    // In strong chronological backtracking, the literal might have been propagated again during reimplication
+    // In strong chronological backtracking, the literal might have been implied again during reimplication
     // Therefore, we might need to trigger another conflict analysis
-    ASSERT(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]));
-    if (!lit_undef(_clauses[conflict].lits[0])) {
+    ASSERT(_options.strong_chronological_backtracking || lit_undef(lits[0]));
+    if (!lit_undef(lits[0])) {
       // the problem is unsat
       // The literal could have been propagated by the reimplication
       _status = UNSAT;
       return;
     }
-    stack_lit(_clauses[conflict].lits[0], conflict);
+    imply_literal(lits[0], conflict);
 
     return;
   }
-  ASSERT(_options.chronological_backtracking || lit_level(_clauses[conflict].lits[0]) == _decision_index.size());
-  if (_options.chronological_backtracking) {
-    unsigned n_literal_at_highest_level = 1;
-    Tlevel high_lvl = lit_level(_clauses[conflict].lits[0]);
-    for (unsigned i = 1; i < _clauses[conflict].size; i++) {
-      Tlevel level = lit_level(_clauses[conflict].lits[i]);
-      /**
-       * The first literal in the conflict clause is the highest level literal
-       *    δ(c₁) = δ(C) */
-      ASSERT(level <= high_lvl);
-      if (level == high_lvl) {
-        n_literal_at_highest_level++;
-        break;
-      }
+
+  // Check wether there is a unique literal at the highest level. If that is the case, there is no need to trigger conflict analysis
+  bool unique = true;
+  for (unsigned i = 1; unique && i < _clauses[conflict].size; i++)
+    unique = lit_level(lits[i]) != lit_level(lits[0]);
+
+  /********** CLAUSES WITH ONE LITERAL AT MAX LEVEL **********/
+  if (unique && lit_lazy_reason(lits[0]) == CLAUSE_UNDEF) {
+    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("One literal at highest level"));
+    ASSERT(_options.chronological_backtracking);
+    if (_options.chronological_backtracking)
+      CB_backtrack(lit_level(lits[0]) - 1);
+    else {
+      // In NCB, we need that the second highest level is at the level of C \ {c₁}
+      //    δ(c₂) = δ(C \ {c₁})
+      // Such that we can backtrack to the second highest level
+#ifndef NDEBUG
+      for (unsigned i = 2; i < _clauses[conflict].size; i++)
+        ASSERT(lit_level(lits[i]) <= lit_level(lits[1]));
+#endif
+      NCB_backtrack(lit_level(lits[1]));
     }
-    if (n_literal_at_highest_level == 1
-     && lit_lazy_reason(_clauses[conflict].lits[0]) == CLAUSE_UNDEF) {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("One literal at highest level"));
-      ASSERT(_options.chronological_backtracking);
-      CB_backtrack(lit_level(_clauses[conflict].lits[0]) - 1);
-      // In strong chronological backtracking, the literal might have been propagated again during reimplication
-      // Therefore, we might need to trigger another conflict analysis
-      ASSERT_MSG(_options.strong_chronological_backtracking || lit_undef(_clauses[conflict].lits[0]),
-        "Conflict: " + clause_to_string(conflict) + "\nLiteral: " + lit_to_string(_clauses[conflict].lits[0]));
-      Tlit* lits = _clauses[conflict].lits;
+    ASSERT(lit_undef(lits[0]));
+#ifndef NDEBUG
+    for (unsigned i = 1; i < _clauses[conflict].size; i++)
+      ASSERT_MSG(lit_false(lits[i]),
+        "Conflict: " + clause_to_string(conflict) + "\nLiteral: " + lit_to_string(lits[i]));
+#endif
+
+    if (_options.chronological_backtracking) {
+      // In chronological backtracking, it might be the case that the second highest literal is not at the second position.
+      // We need to ensure that it becomes the second watched literal
       Tlit* end = lits + _clauses[conflict].size;
-      if (!lit_undef(_clauses[conflict].lits[0])) {
-        Tlit* high_lit = lits;
-        Tlevel high_lvl = lit_level(*high_lit);
-        for (Tlit* i = lits + 1; i < end; i++) {
-          if (lit_level(*i) > high_lvl) {
-            ASSERT(lit_false(*i));
-            high_lvl = lit_level(*i);
-            high_lit = i;
-          }
-        }
-        if (high_lit == lits + 1) {
-          lits[0] ^= lits[1];
-          lits[1] ^= lits[0];
-          lits[0] ^= lits[1];
-          // swap the first and second watch. We just swapped lits[0] and lits[1]
-          _clauses[conflict].first_watched ^= _clauses[conflict].second_watched;
-          _clauses[conflict].second_watched ^= _clauses[conflict].first_watched;
-          _clauses[conflict].first_watched ^= _clauses[conflict].second_watched;
-        }
-        else if (high_lit > lits + 1) {
-          stop_watch(*lits, conflict);
-          Tlit tmp = *lits;
-          *lits = *high_lit;
-          *high_lit = tmp;
-          watch_lit(*lits, conflict);
-        }
-        // the first literal might not be at the highest level anymore
-        // therefore we want to bring the highest level literal to the front
-        // and then we can restart conflict analysis
-        // repair_conflict(conflict);
-        return;
-      }
       Tlit* high_lit = lits + 1;
       Tlevel high_lvl = lit_level(*high_lit);
       for (Tlit* i = lits + 2; i < end; i++) {
@@ -991,15 +1000,13 @@ void NapSAT::repair_conflict(Tclause conflict)
         *high_lit = tmp;
         watch_lit(lits[1], conflict);
       }
-      stack_lit(_clauses[conflict].lits[0], conflict);
-      return;
     }
+    imply_literal(lits[0], conflict);
+    return;
   }
-  if (_options.strong_chronological_backtracking)
-    analyze_conflict_reimply(conflict);
-  else {
-    analyze_conflict(conflict);
-  }
+
+  analyze_conflict(conflict);
+
   _var_activity_increment /= _options.var_activity_decay;
 }
 
@@ -1014,8 +1021,79 @@ void NapSAT::restart()
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
 }
 
+void napsat::NapSAT::purge_root_watch_lists()
+{
+  // in weak chronological backtracking, a missed lower implication can create a clause that has a watched literal falsified at level 0 while not being satisfied at level 0
+  // Therefore we need to clean the watch lists
+  for (unsigned i = 0; i < _propagated_literals; i++) {
+    Tlit lit = _trail[i];
+    if (lit_level(lit) != LEVEL_ROOT) {
+      continue;
+    }
+    lit = lit_neg(lit);
+
+    Tclause cl = _watch_lists[lit];
+    // since we are purging the watch lists, we can set the watch head to CLAUSE_UNDEF
+    _watch_lists[lit] = CLAUSE_UNDEF;
+    while (cl != CLAUSE_UNDEF) {
+      TSclause& clause = _clauses[cl];
+      if (!clause.watched || clause.deleted) {
+        cl = clause.second_watched;
+        continue;
+      }
+      if (cl == lit_reason(clause.lits[0])) {
+        clause.watched = false;
+        cl = clause.second_watched;
+        continue;
+      }
+
+      ASSERT_MSG(clause.size > 2,
+        "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
+      Tlit* lits = clause.lits;
+      if (lit_true(clause.blocker) && lit_level(clause.blocker) == LEVEL_ROOT) {
+        // delete the clause. repair_watch_lists will take care of the rest
+        delete_clause(cl);
+        cl = clause.second_watched;
+        if (lit == lits[0])
+          cl = clause.first_watched;
+        continue;
+      }
+
+      if (lit == lits[0]) {
+        // swap the two watched literals such that the second one is the one that is falsified at level 0
+        lits[0] ^= lits[1];
+        lits[1] ^= lits[0];
+        lits[0] ^= lits[1];
+        // also swap the next watched clause
+        clause.first_watched ^= clause.second_watched;
+        clause.second_watched ^= clause.first_watched;
+        clause.first_watched ^= clause.second_watched;
+      }
+      ASSERT(lit == lits[1]);
+      if (lit_true(lits[0]) && lit_level(lits[0]) == LEVEL_ROOT) {
+        // delete the clause. repair_watch_lists will take care of the rest
+        delete_clause(cl);
+        cl = clause.second_watched;
+        continue;
+      }
+      Tclause next = clause.second_watched;
+      for (unsigned i = 2; i < clause.size; i++) {
+        if (lit_level(lits[i]) != LEVEL_ROOT || lit_true(lits[i])) {
+          lits[1] ^= lits[i];
+          lits[i] ^= lits[1];
+          lits[1] ^= lits[i];
+          watch_lit(lits[1], cl);
+          break;
+        }
+      }
+      cl = next;
+    }
+  }
+}
+
 void napsat::NapSAT::purge_clauses()
 {
+  // NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Purging clauses"));
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
   // print_watch_lists();
@@ -1023,104 +1101,8 @@ void napsat::NapSAT::purge_clauses()
   // We assume that all the literals are propagated
   ASSERT(_propagated_literals == _trail.size());
 
-  if (_options.chronological_backtracking && !_options.strong_chronological_backtracking) {
-    /** PURGE THE WATCH LISTS **/
-    // in weak chronological backtracking, a missed lower implication can create a clause that has a watched literal falsified at level 0 while not being satisfied at level 0
-    // Therefore we need to clean the watch lists
-    for (unsigned i = 0; i < _propagated_literals; i++) {
-      Tlit lit = _trail[i];
-      if (lit_level(lit) != LEVEL_ROOT) {
-        continue;
-      }
-      lit = lit_neg(lit);
-
-      Tclause cl = _watch_lists[lit];
-      // since we are purging the watch lists, we can set the watch head to CLAUSE_UNDEF
-      _watch_lists[lit] = CLAUSE_UNDEF;
-      while (cl != CLAUSE_UNDEF) {
-        TSclause& clause = _clauses[cl];
-        if (!clause.watched || clause.deleted) {
-          cl = clause.second_watched;
-          continue;
-        }
-        if (cl == lit_reason(clause.lits[0])) {
-          clause.watched = false;
-          cl = clause.second_watched;
-          continue;
-        }
-
-        ASSERT_MSG(clause.size > 2,
-          "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
-        Tlit* lits = clause.lits;
-        if (lit_true(clause.blocker) && lit_level(clause.blocker) == LEVEL_ROOT) {
-          // delete the clause. repair_watch_lists will take care of the rest
-          delete_clause(cl);
-          cl = clause.second_watched;
-          if (lit == lits[0])
-            cl = clause.first_watched;
-          continue;
-        }
-
-        if (lit == lits[0]) {
-          // swap the two watched literals such that the second one is the one that is falsified at level 0
-          lits[0] ^= lits[1];
-          lits[1] ^= lits[0];
-          lits[0] ^= lits[1];
-          // also swap the next watched clause
-          clause.first_watched ^= clause.second_watched;
-          clause.second_watched ^= clause.first_watched;
-          clause.first_watched ^= clause.second_watched;
-        }
-        ASSERT(lit == lits[1]);
-        if (lit_true(lits[0]) && lit_level(lits[0]) == LEVEL_ROOT) {
-          // delete the clause. repair_watch_lists will take care of the rest
-          delete_clause(cl);
-          cl = clause.second_watched;
-          continue;
-        }
-        Tclause next = clause.second_watched;
-        while (clause.size > 2) {
-          if (lit_level(lits[1]) != LEVEL_ROOT || lit_true(lits[1]))
-            break;
-          // bring the last literal to the front and reduce the size of the clause
-          lits[1] ^= lits[clause.size - 1];
-          lits[clause.size - 1] ^= lits[1];
-          lits[1] ^= lits[clause.size - 1];
-          clause.size--;
-        }
-
-        if (clause.size > 2) {
-          watch_lit(lits[1], cl);
-          cl = next;
-          continue;
-        }
-        if (clause.size == 2 && !lit_false(lits[1])) {
-          clause.watched = false;
-          _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
-          _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
-          cl = next;
-          continue;
-        }
-        // The clause is propagating a literal at level 0
-        // However, adding it to the stack may create a conflict, which we do not want to handle here.
-        // The conflict will remain until it gets propagated later.
-        // We add it to the stack and let the propagation handle it.
-        if (lit_undef(lits[0])) {
-          stack_lit(lits[0], cl);
-          clause.watched = false;
-          // we do not need to udpate the watch lists because the clause is satified at level 0
-          // we just need to remove cl from the watch list of lits[1] because it is now binary
-          // the repair_watch_lists will take care of the rest
-        }
-        else {
-          // we need to push the clause in the binary watch list
-          _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
-          _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
-        }
-        cl = next;
-      }
-    }
-  }
+  if (_options.chronological_backtracking && !_options.strong_chronological_backtracking)
+    purge_root_watch_lists();
 
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
     // Do not remove clauses that are used as reasons
@@ -1132,9 +1114,6 @@ void napsat::NapSAT::purge_clauses()
     // Since all literals are propagated, if a clause has a watched literal falsified at level 0, then the other must be satisfied.
     // In strong chronological backtracking, the other watched literal must be satisfied at level 0 too.
     Tlit* lits = clause.lits;
-    ASSERT_MSG(!(lit_false(lits[1]) && lit_level(lits[1]) == LEVEL_ROOT && !lit_waiting(lits[1]))
-      || lit_true(lits[0]) || lit_true(clause.blocker),
-      "Clause : " + clause_to_string(cl) + " Watched? " + to_string(clause.watched) + " Deleted? " + to_string(clause.deleted));
     if ((lit_true(lits[0]) && lit_level(lits[0]) == LEVEL_ROOT)
       || (lit_true(lits[1]) && lit_level(lits[1]) == LEVEL_ROOT)) {
       delete_clause(cl);
@@ -1143,6 +1122,7 @@ void napsat::NapSAT::purge_clauses()
 
     Tlit* i = lits + 2;
     Tlit* end = lits + clause.size - 1;
+    unsigned previous_size = clause.size;
     while (i <= end) {
       if (lit_level(*i) != LEVEL_ROOT) {
         i++;
@@ -1163,11 +1143,65 @@ void napsat::NapSAT::purge_clauses()
       }
     }
     clause.size = end - lits + 1;
+
+    if (clause.deleted)
+      continue;
+
+    if (lit_level(lits[1]) == LEVEL_ROOT) {
+      if (lit_true(lits[1])) {
+        delete_clause(cl);
+        continue;
+      }
+      else if (!lit_waiting(lits[1])) {
+#ifndef NDEBUG
+        for (unsigned i = 2; i < clause.size; i++) {
+          ASSERT(lit_false(lits[i]));
+          ASSERT(lit_level(lits[i]) == LEVEL_ROOT);
+        }
+#endif
+        clause.size--;
+      }
+    }
+
+    ASSERT_MSG(!clause.deleted,
+               "Clause: " + clause_to_string(cl) + " was deleted.");
+    if (_proof && previous_size != clause.size) {
+      // NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Clause simplification"));
+      // unsigned i = 0;
+      // cout << "Clause: ";
+      // for (; i < clause.size; i++)
+      //   cout << lit_to_string(clause.lits[i]) << " ";
+      // cout << "| ";
+      // for (; i < previous_size; i++)
+      //   cout << lit_to_string(clause.lits[i]) << " ";
+      // cout << endl;
+      _proof->start_resolution_chain();
+      _proof->link_resolution(LIT_UNDEF, cl);
+      prove_root_literal_removal(clause.lits + clause.size, previous_size - clause.size);
+      // we need to deactivate the clause to be able to replace it
+      _proof->deactivate_clause(cl);
+      _proof->finalize_resolution(cl, lits, clause.size);
+    }
+
     if (clause.size == 2) {
-      // clause.watched = false;
+      clause.watched = false;
       _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
       _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause simplified"));
+    }
+    if (clause.size == 1) {
+      clause.watched = false;
+      // The literal might be a missed lower implication
+      if (lit_true(lits[0])) {
+        ASSERT(_options.chronological_backtracking);
+        if (_options.strong_chronological_backtracking)
+          reimply_literal(lits[0], cl);
+      }
+      else {
+        ASSERT(lit_undef(lits[0]));
+        imply_literal(lits[0], cl);
+      }
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Unit clause simplified"));
     }
   }
   // remove the deleted clauses
@@ -1202,7 +1236,9 @@ void napsat::NapSAT::simplify_clause_set()
 }
 
 void napsat::NapSAT::order_trail()
-{}
+{
+  ASSERT_MSG(false, "Not implemented");
+}
 
 void napsat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
 {
@@ -1247,9 +1283,10 @@ void napsat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
   lits[second_index] = tmp;
 }
 
-Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned size, bool learned, bool external)
+Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned input_size, bool learned, bool external)
 {
-  for (unsigned i = 0; i < size; i++)
+  ASSERT(lits_input != nullptr);
+  for (unsigned i = 0; i < input_size; i++)
     bump_var_activity(lit_to_var(lits_input[i]));
   Tlit* lits;
   Tclause cl;
@@ -1259,11 +1296,28 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned siz
   if (external)
     _next_clause_elimination++;
 
-  if (_deleted_clauses.empty()) {
-    lits = new Tlit[size];
-    memcpy(lits, lits_input, size * sizeof(Tlit));
+  // remove the literals falsified at level 0
+  unsigned n_removed = 0;
+  bool satisfied_at_root = false;
+  for (unsigned i = 0; !satisfied_at_root && i < input_size; i++) {
+    if (lit_level(lits_input[i]) == LEVEL_ROOT) {
+      // The solver should not generate redundant literals and clauses
+      ASSERT(external);
+      satisfied_at_root = lit_true(lits_input[i]);
+      n_removed++;
+    }
+  }
+  // If the clause is satisfied at level 0, we do not need to add it
+  // No need to justify it in the proof since clauses satisfied at level 0 and not propagating are not necessary for the proof
+  // If it is satisfied already here, it means another clauses propagates the literal at level 0
+  if (satisfied_at_root)
+    return CLAUSE_UNDEF;
 
-    TSclause added(lits, size, learned, external);
+  unsigned clause_size = input_size - n_removed;
+
+  if (_deleted_clauses.empty()) {
+    lits = new Tlit[clause_size];
+    TSclause added(lits, clause_size, learned, external);
     _clauses.push_back(added);
     clause = &_clauses.back();
     cl = _clauses.size() - 1;
@@ -1275,57 +1329,80 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned siz
     clause = &_clauses[cl];
     ASSERT(clause->deleted);
     ASSERT(!clause->watched);
-    if (clause->original_size < size) {
+    if (clause->original_size < clause_size) {
       delete[] clause->lits;
-      clause->lits = new Tlit[size];
+      clause->lits = new Tlit[clause_size];
     }
     lits = clause->lits;
-    memcpy(lits, lits_input, size * sizeof(Tlit));
-    clause->size = size;
-    clause->original_size = size;
-    clause->deleted = false;
-    clause->watched = true;
-    clause->blocker = LIT_UNDEF;
-    clause->first_watched = CLAUSE_UNDEF;
-    clause->second_watched = CLAUSE_UNDEF;
+    *clause = TSclause(lits, clause_size, learned, external);
   }
-  // Remove duplicate literals
-  if (size >= 2) {
-    sort(lits, lits + size);
-    unsigned j = 1;
-    for (unsigned i = 1; i < size; i++) {
-      if (lits[i] == lits[i - 1])
+
+
+  // copy the literals to the clause
+  if (n_removed == 0)
+    memcpy(lits, lits_input, input_size * sizeof(Tlit));
+  else {
+    // cannot use memcpy because we skip the literals falsified at level 0
+    for (unsigned i = 0, j = 0; i < input_size; i++) {
+      if (lit_level(lits_input[i]) == LEVEL_ROOT)
         continue;
+      lits[j++] = lits_input[i];
+    }
+  }
+
+  // Remove duplicate literals
+  if (input_size > 1) {
+    sort(lits, lits + clause_size);
+    unsigned j = 1;
+    for (unsigned i = 1; i < clause_size; i++) {
+      if (lits[i] == lits[i - 1]) {
+        ASSERT(external);
+        continue;
+      }
       lits[j++] = lits[i];
     }
-    size = j;
-    clause->size = size;
+    clause_size = min(j, clause_size);
+    clause->size = clause_size;
+  }
+
+  if (_proof && external) {
+    _proof->input_clause(cl, lits_input, input_size);
+    // Remove the literals falsified at level 0 in the proof
+    if (n_removed > 0)
+      _proof->remove_root_literals(cl);
   }
 
   clause->activity = _max_clause_activity;
   if (_observer) {
     vector<Tlit> lits_vector;
-    for (unsigned i = 0; i < size; i++)
+    for (unsigned i = 0; i < clause_size; i++)
       lits_vector.push_back(lits[i]);
     _observer->notify(new napsat::gui::new_clause(cl, lits_vector, learned, external));
   }
 
-  if (size == 0) {
+  if (clause_size == 0) {
     clause->watched = false;
     _status = UNSAT;
     return cl;
   }
-  if (size == 1) {
+
+  if (clause_size == 1) {
     clause->watched = false;
-    if (lit_true(lits[0]))
+    if (lit_undef(lits[0]))
+      imply_literal(lits[0], cl);
+    if (lit_true(lits[0])) {
+      if (_options.strong_chronological_backtracking)
+        reimply_literal(lits[0], cl);
       return cl;
-    if (lit_false(lits[0]))
+    }
+    if (lit_false(lits[0])) {
+      if (_status == SAT)
+        _status = UNDEF;
       repair_conflict(cl);
-    else
-      stack_lit(lits[0], cl);
+    }
     return cl;
   }
-  else if (size == 2) {
+  else if (clause_size == 2) {
     NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause added"));
     // clause->watched = false;
     _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
@@ -1339,7 +1416,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned siz
     }
     if (lit_false(lits[1])) {
       if (lit_undef(lits[0]))
-        stack_lit(lits[0], cl);
+        imply_literal(lits[0], cl);
       else if (lit_false(lits[0]))
         repair_conflict(cl);
       else if (_options.strong_chronological_backtracking) {
@@ -1350,19 +1427,15 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned siz
     }
   }
   else {
-    select_watched_literals(lits, size);
+    select_watched_literals(lits, clause_size);
     watch_lit(lits[0], cl);
     watch_lit(lits[1], cl);
     if (lit_false(lits[0]))
       repair_conflict(cl);
     else if (lit_false(lits[1]) && lit_undef(lits[0]))
-      stack_lit(lits[0], cl);
-    else if (lit_false(lits[1]) && lit_true(lits[0]) && (lit_level(lits[1]) < lit_level(lits[0]))) {
-      Tclause lazy_reason = lit_lazy_reason(lits[1]);
-      if (lazy_reason == CLAUSE_UNDEF || lit_level(_clauses[lazy_reason].lits[1]) > lit_level(lits[1])) {
-        lit_set_lazy_reason(lits[1], cl);
-      }
-    }
+      imply_literal(lits[0], cl);
+    else if (lit_false(lits[1]) && lit_true(lits[0]) && _options.strong_chronological_backtracking)
+      reimply_literal(lits[0], cl);
   }
   if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination)
     simplify_clause_set();
@@ -1404,6 +1477,11 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   }
   else
     _observer = nullptr;
+
+  if (options.build_proof)
+    _proof = new napsat::proof::resolution_proof();
+  else
+    _proof = nullptr;
 }
 
 NapSAT::~NapSAT()
@@ -1412,13 +1490,11 @@ NapSAT::~NapSAT()
     delete[] _clauses[i].lits;
   if (_observer)
     delete _observer;
+  if (_proof)
+    delete _proof;
   delete[] _literal_buffer;
 }
 
-void NapSAT::set_proof_callback(void (*proof_callback)(void))
-{
-  _proof_callback = proof_callback;
-}
 
 bool napsat::NapSAT::is_interactive() const
 {
@@ -1510,14 +1586,14 @@ bool NapSAT::decide()
   }
   Tvar var = _variable_heap.top();
   Tlit lit = literal(var, _vars[var].phase_cache);
-  stack_lit(lit, CLAUSE_UNDEF);
+  imply_literal(lit, CLAUSE_UNDEF);
   return true;
 }
 
 bool napsat::NapSAT::decide(Tlit lit)
 {
   ASSERT(lit_undef(lit));
-  stack_lit(lit, CLAUSE_UNDEF);
+  imply_literal(lit, CLAUSE_UNDEF);
   return true;
 }
 
@@ -1542,12 +1618,13 @@ napsat::Tclause NapSAT::finalize_clause()
   ASSERT(_writing_clause);
   _writing_clause = false;
   Tclause cl = internal_add_clause(_literal_buffer, _next_literal_index, false, true);
-  propagate();
+  // propagate(); // TODO check why this is causing a problem
   return cl;
 }
 
 napsat::Tclause napsat::NapSAT::add_clause(const Tlit* lits, unsigned size)
 {
+  // TODO deal with clauses falsified by one literal at max level in ncb
   Tvar max_var = 0;
   for (unsigned i = 0; i < size; i++)
     if (lit_to_var(lits[i]) > max_var)
@@ -1575,7 +1652,7 @@ void NapSAT::hint(Tlit lit)
   ASSERT(lit_to_var(lit) < _vars.size());
   ASSERT(!_writing_clause);
   ASSERT(lit_undef(lit));
-  stack_lit(lit, CLAUSE_LAZY);
+  imply_literal(lit, CLAUSE_LAZY);
 }
 
 void NapSAT::hint(Tlit lit, unsigned int level)
@@ -1627,4 +1704,18 @@ const std::vector<Tlit>& NapSAT::trail() const
 Tlevel NapSAT::decision_level() const
 {
   return _decision_index.size();
+}
+
+void napsat::NapSAT::print_proof()
+{
+  ASSERT(_proof);
+  ASSERT(_status == UNSAT)
+  _proof->print_proof();
+}
+
+bool napsat::NapSAT::check_proof()
+{
+  ASSERT(_proof);
+  ASSERT(_status == UNSAT)
+  return _proof->check_proof();
 }

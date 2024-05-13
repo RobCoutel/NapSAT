@@ -2,8 +2,8 @@
  * @file src/solver/NapSAT.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the NapSAT solver. It defines the inter-
- * face of the SAT solver and its data structures.
+ * @brief This file is part of the NapSAT solver. It defines the interface and
+ * data structures of the SAT solver and its data structures.
  * @details
  * we call: F the set of clauses
  *          π the complete partial assignment
@@ -96,6 +96,7 @@
 #include "../observer/SAT-stats.hpp"
 #include "../observer/SAT-notification.hpp"
 #include "../observer/SAT-observer.hpp"
+#include "../proof/proof.hpp"
 
 #include <vector>
 #include <set>
@@ -215,7 +216,7 @@ namespace napsat
         external(external),
         original_size(size),
         size(size),
-        blocker(*lits)
+        blocker(LIT_UNDEF)
       {
         assert(size < (1 << 28));
       }
@@ -292,7 +293,7 @@ namespace napsat
     std::vector<TSvar> _vars;
     /**
      * @brief Trail of assigned literals.
-     * @details The trail is devided into two parts π = τ ⋅ ω
+     * @details The trail is divided into two parts π = τ ⋅ ω
      * where τ is the set of propagated literals and ω is the propagation queue.
      */
     std::vector<Tlit> _trail;
@@ -494,17 +495,10 @@ namespace napsat
 
     /**  PROOFS  **/
     /**
-     * @brief True if the solver is keeping track of the proof of
-     * unsatisfiability.
-     * @todo Not supported yet.
-     */
-    bool _proofs = false;
-
-    /**
-     * @brief Callback function to print the proof of unsatisfiability.
-     * @todo Not supported yet.
-     */
-    void (*_proof_callback)(void) = nullptr;
+     * @brief Proof builder of the solver. If _proof is not nullptr, the solver
+     * builds a resolution proof for unsatisfiability.
+    */
+    napsat::proof::resolution_proof* _proof = nullptr;
 
     /**  SMT SYNCHRONIZATION  **/
     /**
@@ -614,6 +608,19 @@ namespace napsat
     inline Tclause lit_lazy_reason(Tlit lit) const
     {
       return _vars[lit_to_var(lit)].missed_lower_implication;
+    }
+
+    /**
+     * @brief Returns the level of the lazy reimplication of a literal.
+     * @param lit literal to evaluate.
+     * @return level of the lazy reimplication of the literal
+     * That is, δ(λ(ℓ) \ {ℓ}) if ℓ is lit
+     */
+    inline Tlevel lit_lazy_level(Tlit lit) const
+    {
+      if (lit_lazy_reason(lit) == CLAUSE_UNDEF)
+        return LEVEL_UNDEF;
+      return lit_level(_clauses[lit_lazy_reason(lit)].lits[1]);
     }
 
     /**
@@ -811,7 +818,7 @@ namespace napsat
      * @pre The first literal of the clause is ℓ
      *    C ≠ ■ ⇒ C[0] = ℓ
      * @pre The second literal of the clause is at the highest level in C
-     *    C ≠ ■ ⇒ δ(ℓ) = δ(C ∖ {ℓ})
+     *    C ≠ ■ ⇒ δ(C[1]) = δ(C ∖ {ℓ})
      * @pre The reason C must be a propagating clause or CLAUSE_UNDEF.
      *    C = ■ ∨ [ℓ ∈ C ∧ C \ {ℓ}, π ⊧ ⊥]
      * @post The literal ℓ is added to the propagation queue.
@@ -824,7 +831,26 @@ namespace napsat
      *    C ≠ ■ ⇔ δ(ℓ) = max(δ(C) \ {ℓ})
      *    C = ■ ⇔ δ(ℓ) = |πᵈ| + 1
      */
-    void stack_lit(Tlit lit, Tclause reason);
+    void imply_literal(Tlit lit, Tclause reason);
+
+    /**
+     * @brief Attempts to reimply a literal to a lower level. If the current
+     * level of the literal, or the level of the lazy reimplication is lower
+     * than the level of the reason, nothing is done. Otherwise, the lazy
+     * reimplication is set to the reason.
+     * @pre The literal ℓ must be satisfied.
+     *    ℓ ∈ π
+     * @pre The first literal of the clause is ℓ
+     *    C[0] = ℓ
+     * @pre The second literal of the clause is at the highest level in C
+     *    |C| > 1 ⇒ δ(C[1]) = δ(C ∖ {ℓ})
+     * @pre The reason C must be a propagating clause.
+     *    C ≠ ■ ∧ C \ {ℓ}, π ⊧ ⊥
+     * @pre The level of the literal or the lazy reimplication is lower than
+     * the level of the reason.
+     *   δ(ℓ) ≤ δ(C \ {ℓ}) ∨ δ(λ(ℓ) ∖ {ℓ}) ≤ δ(C \ {ℓ})
+     */
+    void reimply_literal(Tlit lit, Tclause reason);
 
     /**
      * @brief Searches for a replacement literal for the second watched literal
@@ -931,27 +957,6 @@ namespace napsat
     /**
      * Analyze a conflict and learn a new clause.
      * @param conflict clause that caused the conflict.
-     * @pre The conflict clause C is conflicting with the current partial assig-
-     * nment
-     *    C, π ⊧ ⊥
-     * @pre The conflicting clause should have more than one literal at the
-     * highest decision level
-     *    |{ℓ ∈ C : δ(ℓ) = δ(C)}| > 1
-     * @post A new clause C' is added to the clause set such that
-     * The clause C' is implied by the formula
-     *    F ⊧ C'
-     * The clause C' is conflicting with the current partial assignment
-     *    C', π ⊧ ⊥
-     * The clause has one unique literal at the highest decision level
-     *    |{ℓ ∈ C' : δ(ℓ) = δ(C')}| = 1
-     * The highest literal in the clause cannot be lazily re-implied
-     *    ∀ℓ ∈ C'. δ(ℓ) = δ(C') ⇒ λ(ℓ) = ■
-     */
-    void analyze_conflict_reimply(Tclause conflict);
-
-    /**
-     * Analyze a conflict and learn a new clause.
-     * @param conflict clause that caused the conflict.
      * @pre The solver is not in Strong Chronological Backtracking mode
      * @pre The conflict clause C is conflicting with the current partial assig-
      * nment
@@ -976,11 +981,27 @@ namespace napsat
     void analyze_conflict(Tclause conflict);
 
     /**
+     * @brief Link resolutions in the proof system to get rid of the literals at
+     * level 0 in the clause.
+     * @param lits a list of literals whose level 0 literals should be removed
+     * @param size size of the list
+     * @pre the proof system is enabled
+     * @pre all the literals in the trail must be unmarked
+     * @pre a resolution chain is already started
+     * @post the proof system has linked resolutions to remove the literal from
+     * the clause
+     * @post all the literals in the trail are unmarked
+     */
+    void prove_root_literal_removal(Tlit* lits, unsigned size);
+
+    /**
      * @brief Restarts the solver by resetting the trail
      * @post The trail is empty
      *    π = ∅
      */
     void restart();
+
+    void purge_root_watch_lists();
 
     /**
      * @brief Remove clauses satisfied at level 0 and remove literals falsified
@@ -1007,15 +1028,19 @@ namespace napsat
     /**
      * @brief allocates a new chunk of memory for a clause, and adds to the
      * clause set. The clause is added to the watch lists if needed (size >= 2).
+     * If the clause is satisfied at level 0, the clause is not added.
      * @param lits array of literals to add to the clause set.
      * @param size size of the clause.
      * @param learned true if the clause is a learned clause, false otherwise.
      * @param external true if the clause is an external clause, false
      * otherwise.
      * @details This function does not alter the memory space of lits. Either
-     * new
-     * memory is allocated for the clause, or the clause is added in place of a
-     * deleted clause.
+     * new memory is allocated for the clause, or the clause is added in place
+     * of a deleted clause.
+     * @details This function removes literals falsified at level 0 from the
+     * clause.
+     * @return a handle to the added clause. If the clause is not added, returns
+     * CLAUSE_UNDEF.
      */
     Tclause internal_add_clause(const Tlit* lits, unsigned size,
                                 bool learned, bool external);
@@ -1036,12 +1061,6 @@ namespace napsat
      * @brief Parse a DIMACS file and add the clauses to the clause set.
      */
     void parse_dimacs(const char* filename);
-
-    /**
-     * @brief Set the callback function to print the proof of unsatisfiability.
-     * @todo Not supported yet.
-     */
-    void set_proof_callback(void (*proof_callback)(void));
 
     /**
      * @brief Returns true if the solver is in interactive mode.
@@ -1223,6 +1242,21 @@ namespace napsat
      * @brief Returns the current decision level.
      */
     Tlevel decision_level() const;
+
+    /**
+     * @brief Prints a proof of unsatisfiability on the standard output.
+     * @pre The clause set must be unsatisfiable.
+     * @pre The proof must be enabled.
+    */
+    void print_proof();
+
+    /**
+     * @brief Checks the proof of unsatisfiability.
+     * @return true if the proof is correct, false otherwise.
+     * @pre The clause set must be unsatisfiable.
+     * @pre The proof must be enabled.
+    */
+    bool check_proof();
 
     /*************************************************************************/
     /*                        Printing the state                             */

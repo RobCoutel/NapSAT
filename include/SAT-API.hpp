@@ -143,4 +143,23 @@ namespace napsat
    * @pre the solver is a valid instance of NapSAT
   */
   void print_statistics(NapSAT* solver);
+
+  /**
+   * @brief Prints the proof of the last execution of the solver.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @pre the solver was built with the option build_proof set to true.
+   * @pre the status of the solver is UNSAT
+  */
+  void print_proof(NapSAT* solver);
+
+  /**
+   * @brief Checks the proof of the last execution of the solver.
+   * @param solver an instance of the SAT solver
+   * @return true if the proof is correct, false otherwise.
+   * @pre the solver is a valid instance of NapSAT
+   * @pre the solver was built with the option build_proof set to true.
+   * @pre the status of the solver is UNSAT
+  */
+  bool check_proof(NapSAT* solver);
 }

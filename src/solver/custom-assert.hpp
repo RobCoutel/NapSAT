@@ -23,7 +23,7 @@
 #define ASSERT_MSG(cond, msg)                                       \
   if (_observer) {                                                  \
     if (!(cond))  {                                                 \
-      std::cout << msg << std::endl;                                          \
+      std::cout << "/!\\ MESSAGE: " << msg << std::endl;                                          \
       NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
       assert(cond);                                                 \
     }                                                               \

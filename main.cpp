@@ -74,6 +74,14 @@ int main(int argc, char** argv)
   if (options.print_stats) {
     print_statistics(solver);
   }
+  if (options.check_proof && get_status(solver) == napsat::UNSAT && !check_proof(solver)) {
+    cout << warning_msg << "The proof is invalid." << endl;
+  }
+  if (options.print_proof && get_status(solver) == napsat::UNSAT) {
+    print_proof(solver);
+  }
+
+  delete_solver(solver);
 
   return 0;
 }
