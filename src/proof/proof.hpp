@@ -53,7 +53,7 @@ namespace napsat::proof
     /**
      * @brief Simple marker to avoid rechecking the clause.
     */
-    unsigned marked : 1 = false;
+    unsigned marked : 1;
     /**
      * @brief Resolution chain that led to the clause.
      * @details Input clauses have an empty resolution chain. */

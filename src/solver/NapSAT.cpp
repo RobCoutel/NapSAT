@@ -961,7 +961,7 @@ void NapSAT::repair_conflict(Tclause conflict)
   /********** CLAUSES WITH ONE LITERAL AT MAX LEVEL **********/
   if (unique && lit_lazy_reason(lits[0]) == CLAUSE_UNDEF) {
     NOTIFY_OBSERVER(_observer, new napsat::gui::stat("One literal at highest level"));
-    ASSERT(_options.chronological_backtracking);
+    ASSERT(_options.chronological_backtracking || _clauses[conflict].external);
     if (_options.chronological_backtracking)
       CB_backtrack(lit_level(lits[0]) - 1);
     else {
