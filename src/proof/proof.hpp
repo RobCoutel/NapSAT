@@ -15,7 +15,7 @@
  *     C, <■, C₁> <ℓ₂, C₂> ... <ℓₙ, Cₙ>
  *   where ℓᵢ is the pivot literal, and Cᵢ is the clause ID that was resolved
  *   As such, if R(C, C', ℓ) denotes the clause obtained by resolving C and C',
- *   that is, R(C, C', ℓ) = (C ∖ {ℓ}) ∪ (C' ∖ {¬ℓ}), then the clause C obtained
+ *   that is, R(C, C', ℓ) = (C \ {ℓ}) ∪ (C' \ {¬ℓ}), then the clause C obtained
  *   from the chain C, <■, C₁> <ℓ₂, C₂> ... <ℓₙ, Cₙ> is
  *   C = R(... R(R(C₁, C₂, ℓ₂), C₃, ℓ₃) ..., Cₙ, ℓₙ)
  * @note Note that the first pivot is LIT_UNDEF since it is irrelevant for the

@@ -26,7 +26,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
    * - the first literal of the clause is ℓ
    *    C ≠ ■ ⇒ C[0] = ℓ
    * - the second literal of the clause is at the highest level in C
-   *    δ(ℓ) = δ(C ∖ {ℓ})
+   *    δ(ℓ) = δ(C \ {ℓ})
    */
   ASSERT_MSG(lit_undef(lit),
     "Literal: " + lit_to_string(lit) + "\nReason: " + clause_to_string(reason));
@@ -218,7 +218,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ (τ ⋅ ℓ) ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
    *        We actually want to enforce ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] but cannot
    *        guarantee that this will hold after backtracking.
-   * - LSCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+   * - LSCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
    *                     ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
    *
    * We initialise F* with all the clauses that are not watched by ¬ℓ. If they satisfied the invarian
@@ -234,7 +234,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ (τ ⋅ ℓ) ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
    *        We actually want to enforce ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] but cannot
    *        guarantee that this will hold after backtracking.
-   * - LSCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+   * - LSCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
    *                       ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
    *
    * If Q is true, then we can add C to F* and we know that the invariants are preserved.
@@ -317,13 +317,13 @@ Tclause NapSAT::propagate_lit(Tlit lit)
      * Search replacement returns a literal r ∈ C \ {c₂} such that it either is a good replacement such that
      *   ¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
      * or C \ {c₂} is conflicting with π and r is the highest literal in C \ {c₂}
-     *   C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})
+     *   C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})
      * NCB: If c₂ ∈ π, then we would have stopped at the skip conditions
-     *      We know that [C ∖ {c₂}, π ⊧ ⊥] ⇒ δ(c₁) = δ(c₂) = δ(C) and c₁ will be returned
+     *      We know that [C \ {c₂}, π ⊧ ⊥] ⇒ δ(c₁) = δ(c₂) = δ(C) and c₁ will be returned
      *      if C \ {c₂} is conflicting
      *
      * We know that
-     * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})]
+     * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]
      * NCB: c₂ ∉ π                   ∧ b ∉ π
      * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
      * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
@@ -352,7 +352,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     }
     /**
      * We know that
-     * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})]
+     * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]
      * NCB: r ∉ π                  ∧ c₂ ∉ π                   ∧ b ∉ π
      * WCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
      * SCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
@@ -392,9 +392,9 @@ Tclause NapSAT::propagate_lit(Tlit lit)
 
     /** NO GOOD REPLACEMENT **/
     /**
-     * We know that [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})]
-     * We also know that ¬r ∈ π and therefore δ(r) = δ(C ∖ {c₂}) or c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
-     * ALL: ¬r ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})]]
+     * We know that [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]
+     * We also know that ¬r ∈ π and therefore δ(r) = δ(C \ {c₂}) or c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
+     * ALL: ¬r ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]]
      * NCB: c₂ ∉ π                   ∧ b ∉ π
      * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
      * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
@@ -403,7 +403,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     if (replacement != lits + 1) {
       /**
        * If r ≠ c₁, we know that we are in WCB since in NCB we have
-       *    [C ∖ {c₂}, π ⊧ ⊥] ⇒ δ(c₁) = δ(c₂) = δ(C) and r = c₁
+       *    [C \ {c₂}, π ⊧ ⊥] ⇒ δ(c₁) = δ(c₂) = δ(C) and r = c₁
        * We know that δ(r) > δ(c₁)
        * We swap the literals such that c₁ ← r
       */
@@ -440,7 +440,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     }
     /**
      * We no longer need r since it is now in place of c₁
-     * ALL: ¬c₁ ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})]]
+     * ALL: ¬c₁ ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})]]
      * NCB: c₂ ∉ π                   ∧ b ∉ π
      * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
      * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
@@ -451,9 +451,9 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     if (lit_false(lit2)) {
       // Conflict
       /**
-       * We know that C ∖ {c₂}, π ⊧ ⊥, therefore, if ¬c₂ ∈ π then C, π ⊧ ⊥ and we have a conflict
+       * We know that C \ {c₂}, π ⊧ ⊥, therefore, if ¬c₂ ∈ π then C, π ⊧ ⊥ and we have a conflict
        * We cannot safely add ¬c₁ to the trail.
-       * ALL: ¬c₁ ∈ (τ ⋅ ¬c₁) ∧ C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})
+       * ALL: ¬c₁ ∈ (τ ⋅ ¬c₁) ∧ C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})
        * NCB: b ∉ π
        * WCB: [b ∉ π ∨ δ(b) > δ(c₁)]
        * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
@@ -483,10 +483,10 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       // unit clause
       /**
        * We add the information that c₂ ∉ π
-       * We know that C ∖ {c₂}, π ⊧ ⊥, therefore the only way to satisfy C is to set c₂ to true
-       * In SCB we additionally need δ(c₂) ≤ δ(c₁), and since c₂ will be implied at level δ(C ∖ {c₂}),
-       * we need to ensure that δ(c₁) = δ(C ∖ {c₂}). This is why we changed the watched literals earlier.
-       * ALL: c₂ ∉ π ∧ ¬c₁ ∈ π ∧ C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})
+       * We know that C \ {c₂}, π ⊧ ⊥, therefore the only way to satisfy C is to set c₂ to true
+       * In SCB we additionally need δ(c₂) ≤ δ(c₁), and since c₂ will be implied at level δ(C \ {c₂}),
+       * we need to ensure that δ(c₁) = δ(C \ {c₂}). This is why we changed the watched literals earlier.
+       * ALL: c₂ ∉ π ∧ ¬c₁ ∈ π ∧ C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})
        * NCB: b ∉ π
        * WCB: [b ∉ π ∨ δ(b) > δ(c₁)]
        * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
@@ -500,7 +500,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     /**
      * We know that we can only be in SCB since the skip condition
      * We know that c₂ ∈ π is now satisfied
-     * ALL: c₂ ∈ π ∧ ¬c₁ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ [C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})]]
+     * ALL: c₂ ∈ π ∧ ¬c₁ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})]]
      * NCB: c₂ ∉ π                   ∧ b ∉ π                   => not possible
      * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]  => not possible
      * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
@@ -511,7 +511,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       /**
        * We have δ(c₂) ≤ δ(c₁) as well as c₂ ∈ π ∧ ¬c₁ ∈ π
        * Which satisfies the invariant:
-       * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+       * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
        *               ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
        * and we do not need to do anything more
        */
@@ -522,7 +522,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     // lit2 is the only satisfied literal in the clause and all other literals are propagated at a level lower than the highest falsified literal
     /**
      * We now also know that δ(c₂) > δ(c₁), so we can simplify our knowledge as
-     * c₂ ∈ π ∧ ¬c₁ ∈ π ∧ C ∖ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C ∖ {c₂})
+     * c₂ ∈ π ∧ ¬c₁ ∈ π ∧ C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})
      */
     ASSERT(_options.strong_chronological_backtracking);
     ASSERT(lit_true(lit2));
@@ -539,7 +539,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     /**
      * We now have in addition that δ(λ(c₂) \ {c₂}) ≤ δ(c₁)
      * that satisfies
-     * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+     * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
      *               ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
      */
     cl = next;

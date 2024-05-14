@@ -25,7 +25,7 @@
  *    ∀ℓ ∈ π. ¬ℓ ∉ π
  * (Implications): Each assigned literal is either a decision or is implied by
  * its reason
- *    ∀ℓ ∈ π. ℓ ∈ πᵈ ∨ [ℓ ∈ ρ(ℓ) ∧ C ∖ {ℓ}, π ⊧ ⊥]
+ *    ∀ℓ ∈ π. ℓ ∈ πᵈ ∨ [ℓ ∈ ρ(ℓ) ∧ C \ {ℓ}, π ⊧ ⊥]
  *    ∀ℓ ∈ π. ℓ ∉ πᵈ ⇔ ρ(ℓ) ∈ F
  *    ∀ℓ ∉ π. ρ(ℓ) = ■
  * (Decision level): The decision level of a literal is the highest decision
@@ -83,7 +83,7 @@
  * the clause is satisfied by the blocking literal. For each clause
  * C = {c₁, c₂, ...} in F watched by c₁ and c₂ and with a blocker b:
  *    c₁ ∈ C ∧ c₂ ∈ C ∧ b ∈ C ∧ c₁ ≠ c₂
- *    ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+ *    ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
  *             ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
  */
 #pragma once
@@ -833,7 +833,7 @@ namespace napsat
      * @pre The first literal of the clause is ℓ
      *    C ≠ ■ ⇒ C[0] = ℓ
      * @pre The second literal of the clause is at the highest level in C
-     *    C ≠ ■ ⇒ δ(C[1]) = δ(C ∖ {ℓ})
+     *    C ≠ ■ ⇒ δ(C[1]) = δ(C \ {ℓ})
      * @pre The reason C must be a propagating clause or CLAUSE_UNDEF.
      *    C = ■ ∨ [ℓ ∈ C ∧ C \ {ℓ}, π ⊧ ⊥]
      * @post The literal ℓ is added to the propagation queue.
@@ -858,12 +858,12 @@ namespace napsat
      * @pre The first literal of the clause is ℓ
      *    C[0] = ℓ
      * @pre The second literal of the clause is at the highest level in C
-     *    |C| > 1 ⇒ δ(C[1]) = δ(C ∖ {ℓ})
+     *    |C| > 1 ⇒ δ(C[1]) = δ(C \ {ℓ})
      * @pre The reason C must be a propagating clause.
      *    C ≠ ■ ∧ C \ {ℓ}, π ⊧ ⊥
      * @pre The level of the literal or the lazy reimplication is lower than
      * the level of the reason.
-     *   δ(ℓ) ≤ δ(C \ {ℓ}) ∨ δ(λ(ℓ) ∖ {ℓ}) ≤ δ(C \ {ℓ})
+     *   δ(ℓ) ≤ δ(C \ {ℓ}) ∨ δ(λ(ℓ) \ {ℓ}) ≤ δ(C \ {ℓ})
      */
     void reimply_literal(Tlit lit, Tclause reason);
 
@@ -876,7 +876,7 @@ namespace napsat
      *   ¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
      * or C \ {c₂} is conflicting with π and r is the highest literal in
      * C \ {c₂}
-     *   C ∖ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C ∖ {c₂})
+     *   C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})
      * @pre ¬c₁ ∈ ω
     */
     Tlit* search_replacement(Tlit* lits, unsigned size);
@@ -891,7 +891,7 @@ namespace napsat
      * NCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π
      * WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∉ (τ ⋅ ℓ)
      * SCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π
-     *                    ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+     *                    ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
      */
     Tclause propagate_binary_clauses(Tlit lit);
 
@@ -904,14 +904,14 @@ namespace napsat
      *    - NCB: ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ b ∈ π
      *    - WCB: ¬c₁ ∈ τ ⇒ ¬c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
      *    - SCB: ¬c₁ ∈ τ ⇒ [c₂ ∈ π
-     *                      ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+     *                      ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
      *                    ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
      * @post After the execution, the following properties hold:
      *    ∀C ∈ F : |C| > 2 watched by c₁ and c₂ and with a blocker b:
      *    - NCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
      *    - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
      *    - SCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π
-     *                           ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) ∖ {c₂}) ≤ δ(c₁)]
+     *                           ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
      *                         ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
      */
     Tclause propagate_lit(Tlit lit);
@@ -926,7 +926,7 @@ namespace napsat
      *           backtracking at level d,
      *  the following properties must hold:
      * WCB: ∀ℓ ∈ π. [ℓ ∈ π ∧ δ(ℓ) ≤ d] ⇔ ℓ ∈ π'
-     * WCB: ∀ℓ ∈ π. [[ℓ ∈ π ∧ δ(ℓ) ≤ d] ∨ δ(λ(ℓ) ∖ {ℓ}) ≤ d] ⇔ ℓ ∈ π'
+     * WCB: ∀ℓ ∈ π. [[ℓ ∈ π ∧ δ(ℓ) ≤ d] ∨ δ(λ(ℓ) \ {ℓ}) ≤ d] ⇔ ℓ ∈ π'
      *      ∀ℓ. λ'(ℓ) ≠ ■ ⇒ ℓ ∈ π ∧ ℓ ∈ λ'(ℓ)
      *                    ∧ λ'(ℓ) \ {ℓ}, π' ⊧ ⊥
      *                    ∧ δ(λ'(ℓ) \ {ℓ}) < δ(ℓ)
