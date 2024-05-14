@@ -1207,7 +1207,7 @@ void napsat::NapSAT::simplify_clause_set()
   _clause_activity_threshold *= _options.clause_activity_threshold_decay;
   double threshold = _max_clause_activity * _clause_activity_threshold;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
-    ASSERT(_clauses[cl].activity <= _max_clause_activity);
+    ASSERT(_activities[cl] <= _max_clause_activity);
     ASSERT(_clauses[cl].size > 0);
     if (_clauses[cl].deleted || !_clauses[cl].watched || !_clauses[cl].learned)
       continue;
@@ -1215,7 +1215,7 @@ void napsat::NapSAT::simplify_clause_set()
       continue;
     if (lit_reason(_clauses[cl].lits[0]) == cl)
       continue;
-    if (_clauses[cl].activity < threshold) {
+    if (_activities[cl] < threshold) {
       delete_clause(cl);
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Clause deleted"));
     }
@@ -1310,6 +1310,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
     lits = new Tlit[clause_size];
     TSclause added(lits, clause_size, learned, external);
     _clauses.push_back(added);
+    _activities.push_back(_max_clause_activity);
     clause = &_clauses.back();
     cl = _clauses.size() - 1;
   }
@@ -1363,7 +1364,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
       _proof->remove_root_literals(cl);
   }
 
-  clause->activity = _max_clause_activity;
+  _activities[cl] = _max_clause_activity;
   if (_observer) {
     vector<Tlit> lits_vector;
     for (unsigned i = 0; i < clause_size; i++)
@@ -1452,6 +1453,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 
   _clauses = vector<TSclause>();
   _clauses.reserve(n_clauses);
+  _activities.reserve(n_clauses);
 
   _literal_buffer = new Tlit[n_var];
   _next_literal_index = 0;

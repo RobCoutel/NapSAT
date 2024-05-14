@@ -21,3 +21,4 @@ scripts/cnfuzz.c
 scripts/fuzz-napsat.sh
 scripts/run-napsat.sh
 scripts/runcnfuzz
+executables/*

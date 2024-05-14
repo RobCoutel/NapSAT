@@ -199,7 +199,7 @@ namespace napsat
      * @brief Structure to store a clause and its metadata.
      * TODO add details
      */
-    typedef struct TSclause
+    typedef struct alignas(32) TSclause
     {
       /**
        * @brief Constructor of the clause.
@@ -270,10 +270,6 @@ namespace napsat
        * at a lower level than the watched literals.
        */
       Tlit blocker = LIT_UNDEF;
-      /**
-       * @brief Activity of the clause. Used in clause deletion heuristics.
-       */
-      double activity = 0;
     } TSclause;
 
     /*************************************************************************/
@@ -360,6 +356,11 @@ namespace napsat
      * TODO update the definition
      */
     double _var_activity_increment = 1.0;
+
+    /**
+     * @brief For a clause C, _activities[C] is the activity of the clause.
+    */
+    std::vector<double> _activities;
 
     /**
      * @brief Priority queue of variables. The variables are ordered by their

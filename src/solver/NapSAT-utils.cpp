@@ -68,13 +68,12 @@ void napsat::NapSAT::bump_var_activity(Tvar var)
 
 void napsat::NapSAT::bump_clause_activity(Tclause cl)
 {
-  _clauses.at(cl).activity += _clause_activity_increment;
+  _activities[cl] += _clause_activity_increment;
   _clause_activity_increment *= _options.clause_activity_multiplier;
   _max_clause_activity += _clause_activity_increment;
   if (_max_clause_activity > 1e100) {
-    for (Tclause i = 0; i < _clauses.size(); i++) {
-      _clauses.at(i).activity *= 1e-100;
-    }
+    for (Tclause i = 0; i < _clauses.size(); i++)
+      _activities[i] *= 1e-100;
     _clause_activity_increment *= 1e-100;
     _max_clause_activity *= 1e-100;
   }
