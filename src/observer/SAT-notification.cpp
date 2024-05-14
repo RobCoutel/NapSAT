@@ -235,6 +235,10 @@ void napsat::gui::propagation::apply(observer* obs)
   assert(obs->_variables.size() > lit_to_var(lit));
   assert(obs->_variables[lit_to_var(lit)].active);
   assert(obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
+    if (obs->_assignment_stack[obs->_n_propagated] != lit) {
+      cout << "Number of notifications: " << obs->_notifications.size() << endl;
+      obs->notify(new marker("propagation failed: " + obs->lit_to_string(lit) + " is not at the top of the stack"));
+  }
   assert(obs->_assignment_stack[obs->_n_propagated] == lit);
   obs->_n_propagated++;
   obs->_variables[lit_to_var(lit)].propagated = true;
@@ -255,7 +259,7 @@ void napsat::gui::propagation::rollback(observer* obs)
   assert(obs->_variables.size() > lit_to_var(lit));
   assert(obs->_variables[lit_to_var(lit)].active);
   assert(obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
-  assert(obs->_assignment_stack[obs->_n_propagated] == lit);
+  // assert(obs->_assignment_stack[obs->_n_propagated] == lit);
   obs->_variables[lit_to_var(lit)].propagated = false;
 }
 

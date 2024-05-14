@@ -1549,6 +1549,9 @@ status NapSAT::solve()
       _purge_counter = 0;
       if (_status == UNSAT)
         return _status;
+      // in chronological backtracking, the purge might have implied some literals
+      // therefore we cannot take a decision before we propagate
+      continue;
     }
     if (_observer && _options.interactive)
       _observer->notify(new napsat::gui::checkpoint());
