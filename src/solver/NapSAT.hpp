@@ -469,11 +469,16 @@ namespace napsat
 
     /**  CHRONOLOGICAL BACKTRACKING  **/
     /**
-     * @brief Buffer used in chronological backtracking to store literals that
-     * were removed from the trail and must be put back in the trail.
-     * @details In mathematical symbols, _backtrack_buffer is written as β
+     * @brief Buffer used to reorder the backtracked variables.
+     * @details In the implementation of backtrack(level), the literals are
+     * removed from left to right to avoid using a buffer to push back the
+     * literals in chronological backtracking. But this yield an awkward inter-
+     * mediate state in which the trail is not sound (e.g., decision removed
+     * but implied literals still there). This buffer is used to store the
+     * literals that were removed from the trail such that we can notify the
+     * observer in the proper order (right to left)
      */
-    std::vector<Tlit> _backtrack_buffer;
+    std::vector<Tvar> _backtracked_variables;
 
     /**
      * @brief Reorder the trail by decision level.
@@ -620,6 +625,15 @@ namespace napsat
     {
       if (lit_lazy_reason(lit) == CLAUSE_UNDEF)
         return LEVEL_UNDEF;
+      ASSERT(lit_level(lit) > LEVEL_ROOT);
+#ifndef NDEBUG
+      Tlit* lits = _clauses[lit_lazy_reason(lit)].lits;
+      ASSERT(lit_level(lit) > lit_level(lits[1]));
+      for (unsigned i = 1; i < _clauses[lit_lazy_reason(lit)].size; i++) {
+        ASSERT(lit_false(lits[i]));
+        ASSERT(lit_level(lits[i]) <= lit_level(lits[1]));
+      }
+#endif
       return lit_level(_clauses[lit_lazy_reason(lit)].lits[1]);
     }
 
@@ -742,6 +756,7 @@ namespace napsat
       v.state = VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
+      v.waiting = false;
       if (v.missed_lower_implication != CLAUSE_UNDEF) {
         NOTIFY_OBSERVER(_observer,
                         new napsat::gui::remove_lower_implication(var));
@@ -902,17 +917,6 @@ namespace napsat
     Tclause propagate_lit(Tlit lit);
 
     /**
-     * @brief Undo literals above the given level.
-     * @param level level to backtrack to.
-     * @pre The solver runs in non-chronological backtracking mode. Let π be
-     * the state of the trail before backtracking
-     * @post Let π' be the state of the trail after backtracking at level d,
-     * the following properties must hold:
-     *    ∀ℓ ∈ π. [ℓ ∈ π ∧ δ(ℓ) ≤ d] ⇔ ℓ ∈ π'
-     */
-    void NCB_backtrack(Tlevel level);
-
-    /**
      * @brief Backtrack literals in the chronological setting.
      * @param level level to backtrack to.
      * @pre The solver runs in chronological backtracking mode. Let π be the
@@ -929,7 +933,7 @@ namespace napsat
      *      ∃C ∈ F ∃ℓ ∈ C. [¬c₁ ∈ τ ∧ C \ {ℓ}, π ⊧ ⊥ ∧ δ(C \ {ℓ})] < δ(ℓ)
      *                   ⇒ δ(λ(ℓ) \ {ℓ}) ≤ δ(C \ {ℓ})
      */
-    void CB_backtrack(Tlevel level);
+    void backtrack(Tlevel level);
 
     /**
      * @brief Repairs the conflict by analyzing it if needed and backtracking

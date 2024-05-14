@@ -550,69 +550,61 @@ Tclause NapSAT::propagate_lit(Tlit lit)
   return CLAUSE_UNDEF;
 }
 
-void NapSAT::NCB_backtrack(Tlevel level)
+void napsat::NapSAT::backtrack(Tlevel level)
 {
-  ASSERT(!_options.chronological_backtracking);
   ASSERT(level <= _decision_index.size());
   if (level == _decision_index.size())
     return;
-  while (_decision_index.size() > level) {
-    Tlit lit = _trail.back();
-    _trail.pop_back();
-    if (lit_reason(lit) == CLAUSE_UNDEF) {
-      ASSERT(lit_level(lit) == _decision_index.size());
-      _decision_index.pop_back();
-    }
-    Tvar var = lit_to_var(lit);
-    var_unassign(var);
-  }
-  _propagated_literals = _trail.size();
-}
-
-void napsat::NapSAT::CB_backtrack(Tlevel level)
-{
-  if (level == _decision_index.size())
-    return;
-  ASSERT(_options.chronological_backtracking);
-  ASSERT(level <= _decision_index.size());
-  ASSERT(_backtrack_buffer.empty());
   NOTIFY_OBSERVER(_observer, new napsat::gui::backtracking_started(level));
   unsigned waiting_count = 0;
 
   unsigned restore_point = _decision_index[level];
+  unsigned j = restore_point;
 
-  while (_decision_index.size() > level) {
-    Tlit lit = _trail.back();
-    _trail.pop_back();
-    if (lit_reason(lit) == CLAUSE_UNDEF) {
-      ASSERT(lit_level(lit) == _decision_index.size());
-      _decision_index.pop_back();
-    }
+  ASSERT(_backtracked_variables.empty());
+
+  for (unsigned i = restore_point; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    Tvar var = lit_to_var(lit);
     if (lit_level(lit) > level) {
       ASSERT(_options.strong_chronological_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
-      if (_options.strong_chronological_backtracking) {
+      if (lit_lazy_level(lit) <= level) {
         // look if the literal can be reimplied at a lower level
+        ASSERT(_options.strong_chronological_backtracking);
         Tclause lazy_reason = lit_lazy_reason(lit);
-        if (lazy_reason != CLAUSE_UNDEF && lit_level(_clauses[lazy_reason].lits[1]) <= level) {
-          ASSERT(_clauses[lazy_reason].lits[0] == lit);
-          ASSERT(lit_true(_clauses[lazy_reason].lits[0]));
-          _reimplication_backtrack_buffer.push_back(lazy_reason);
-        }
+        ASSERT(lazy_reason != CLAUSE_UNDEF);
+        ASSERT(_clauses[lazy_reason].lits[0] == lit);
+        ASSERT(lit_true(_clauses[lazy_reason].lits[0]));
+        _reimplication_backtrack_buffer.push_back(lazy_reason);
       }
-      var_unassign(lit_to_var(lit));
-      continue;
+      // When using the observer, we cannot unassign the variables from left to right because the observer
+      // assumes that if we remove a propagated literal, it is at the end of the trail.
+      if (_observer)
+        _backtracked_variables.push_back(var);
+      else
+        var_unassign(var);
     }
-    _backtrack_buffer.push_back(lit);
-    waiting_count += _vars[lit_to_var(lit)].waiting;
+    else {
+      _trail[j] = lit;
+      j++;
+      waiting_count += _vars[var].waiting;
+    }
   }
-  while (!_backtrack_buffer.empty()) {
-    Tlit lit = _backtrack_buffer.back();
-    _backtrack_buffer.pop_back();
-    _trail.push_back(lit);
-  }
+  if (_observer)
+    while(!_backtracked_variables.empty()) {
+      Tvar var = _backtracked_variables.back();
+      _backtracked_variables.pop_back();
+      var_unassign(var);
+    }
+  _trail.resize(j);
+  _decision_index.resize(level);
+
+  ASSERT_MSG(_options.chronological_backtracking || waiting_count == 0,
+             "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(level) + "\nRestore point: " + to_string(restore_point));
   _propagated_literals = _trail.size() - waiting_count;
-  if (_options.restoring_chronological_backtracking
-   && restore_point < _propagated_literals) {
+  ASSERT_MSG(_options.chronological_backtracking || _propagated_literals == restore_point,
+    "Propagated literals: " + to_string(_propagated_literals) + "\nRestore point: " + to_string(restore_point));
+  if (_options.restoring_chronological_backtracking) {
     while (_propagated_literals > restore_point) {
       Tlit lit = _trail[_propagated_literals - 1];
       Tvar var = lit_to_var(lit);
@@ -622,13 +614,13 @@ void napsat::NapSAT::CB_backtrack(Tlevel level)
       _propagated_literals--;
       NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
     }
-    _propagated_literals = restore_point;
   }
-  if (_options.strong_chronological_backtracking && _reimplication_backtrack_buffer.size() > 0) {
+  if (_reimplication_backtrack_buffer.size() > 0) {
+    ASSERT(_options.strong_chronological_backtracking);
     // adds the literals on the lazy reimplication buffer to the trail by order of increasing level
-    // Sort the literals by increasing level
+    // Sort the literals by increasing level. It is not necessary, but it probably is more effective
+    // TODO evaluate the performance of this
     // The topological order will automatically be respected because the reimplied literals cannot depend on each other.
-    // todo maybe we want a stable sort for level collapsing. In this case, the literals will actually depend on each other, and their relative order should be preserved.
     sort(_reimplication_backtrack_buffer.begin(), _reimplication_backtrack_buffer.end(), [this](Tclause a, Tclause b)
       { return lit_level(_clauses[a].lits[1]) < lit_level(_clauses[b].lits[1]); });
     for (Tclause lazy_clause : _reimplication_backtrack_buffer) {
@@ -678,7 +670,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
 
   // This does nothing in non-chronological backtracking
   ASSERT(_options.chronological_backtracking || conflict_level == _decision_index.size());
-  CB_backtrack(conflict_level);
+  backtrack(conflict_level);
 
   // Variable used to determine the first literal from the clause that should be added to the learned clause
   // This is used to avoid adding the satisfied literal of the reason to the learned clause
@@ -744,7 +736,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
       conflict_level = second_highest_level;
       // This is used to reimply the literals at the right level.
       // Otherwise we need to make sure that the levels used are the lazy ones, and this is more complicated.
-      CB_backtrack(conflict_level);
+      backtrack(conflict_level);
       second_highest_level = LEVEL_ROOT;
 
       // reset the conflict at a lower level
@@ -829,7 +821,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
 
   // backtrack depending on the chronological backtracking strategy
   if (_options.chronological_backtracking)
-    CB_backtrack(conflict_level - 1);
+    backtrack(conflict_level - 1);
   else {
     Tlevel second_highest_level = LEVEL_ROOT;
     for (unsigned j = 0; j < _next_literal_index - 1; j++) {
@@ -838,7 +830,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
       ASSERT(lit_level(lit) <= conflict_level);
       second_highest_level = max(second_highest_level, lit_level(lit));
     }
-    NCB_backtrack(second_highest_level);
+    backtrack(second_highest_level);
   }
 
   cl = internal_add_clause(_literal_buffer, _next_literal_index, true, false);
@@ -935,10 +927,10 @@ void NapSAT::repair_conflict(Tclause conflict)
   }
   /********** UNIT CLAUSE **********/
   if (_clauses[conflict].size == 1) {
+    Tlevel backtrack_level = LEVEL_ROOT;
     if (_options.chronological_backtracking)
-      CB_backtrack(lit_level(lits[0]) - 1);
-    else
-      NCB_backtrack(LEVEL_ROOT);
+      backtrack_level = lit_level(lits[0]) - 1;
+    backtrack(backtrack_level);
     // In strong chronological backtracking, the literal might have been implied again during reimplication
     // Therefore, we might need to trigger another conflict analysis
     ASSERT(_options.strong_chronological_backtracking || lit_undef(lits[0]));
@@ -962,18 +954,20 @@ void NapSAT::repair_conflict(Tclause conflict)
   if (unique && lit_lazy_reason(lits[0]) == CLAUSE_UNDEF) {
     NOTIFY_OBSERVER(_observer, new napsat::gui::stat("One literal at highest level"));
     ASSERT(_options.chronological_backtracking || _clauses[conflict].external);
+
+    Tlevel backtrack_level = lit_level(lits[1]);
     if (_options.chronological_backtracking)
-      CB_backtrack(lit_level(lits[0]) - 1);
+      backtrack_level = lit_level(lits[0]) - 1;
+#ifndef NDEBUG
     else {
       // In NCB, we need that the second highest level is at the level of C \ {c₁}
       //    δ(c₂) = δ(C \ {c₁})
       // Such that we can backtrack to the second highest level
-#ifndef NDEBUG
       for (unsigned i = 2; i < _clauses[conflict].size; i++)
         ASSERT(lit_level(lits[i]) <= lit_level(lits[1]));
-#endif
-      NCB_backtrack(lit_level(lits[1]));
     }
+#endif
+    backtrack(backtrack_level);
     ASSERT(lit_undef(lits[0]));
 #ifndef NDEBUG
     for (unsigned i = 1; i < _clauses[conflict].size; i++)
@@ -1014,10 +1008,7 @@ void NapSAT::restart()
 {
   _agility = 1;
   _options.agility_threshold *= _options.agility_threshold_decay;
-  if (_options.chronological_backtracking)
-    CB_backtrack(LEVEL_ROOT);
-  else
-    NCB_backtrack(LEVEL_ROOT);
+  backtrack(LEVEL_ROOT);
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
 }
 
@@ -1618,20 +1609,17 @@ napsat::Tclause NapSAT::finalize_clause()
   ASSERT(_writing_clause);
   _writing_clause = false;
   Tclause cl = internal_add_clause(_literal_buffer, _next_literal_index, false, true);
-  // propagate(); // TODO check why this is causing a problem
   return cl;
 }
 
 napsat::Tclause napsat::NapSAT::add_clause(const Tlit* lits, unsigned size)
 {
-  // TODO deal with clauses falsified by one literal at max level in ncb
   Tvar max_var = 0;
   for (unsigned i = 0; i < size; i++)
     if (lit_to_var(lits[i]) > max_var)
       max_var = lit_to_var(lits[i]);
   var_allocate(max_var);
   Tclause cl = internal_add_clause(lits, size, false, true);
-  propagate();
   return cl;
 }
 

@@ -274,11 +274,20 @@ void napsat::gui::remove_propagation::apply(observer* obs)
   assert(obs->_variables[lit_to_var(lit)].active);
   assert(obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
   assert(obs->_assignment_stack[obs->_n_propagated] == lit);
+  assert(obs->_variables[lit_to_var(lit)].propagated);
   obs->_variables[lit_to_var(lit)].propagated = false;
 }
 
 void napsat::gui::remove_propagation::rollback(observer* obs)
-{}
+{
+  assert(obs);
+  assert(obs->_variables.size() > lit_to_var(lit));
+  assert(obs->_variables[lit_to_var(lit)].active);
+  assert(obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
+  assert(!obs->_variables[lit_to_var(lit)].propagated);
+  obs->_n_propagated++;
+  obs->_variables[lit_to_var(lit)].propagated = true;
+}
 
 unsigned napsat::gui::unassignment::get_event_level(observer* obs)
 {
