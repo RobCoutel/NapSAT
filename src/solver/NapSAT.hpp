@@ -199,7 +199,7 @@ namespace napsat
      * @brief Structure to store a clause and its metadata.
      * TODO add details
      */
-    typedef struct alignas(32) TSclause
+    typedef struct  alignas(16) TSclause
     {
       /**
        * @brief Constructor of the clause.
@@ -208,13 +208,10 @@ namespace napsat
       */
       TSclause(Tlit* lits, unsigned size, bool learned, bool external) :
         lits(lits),
-        first_watched(CLAUSE_UNDEF),
-        second_watched(CLAUSE_UNDEF),
         deleted(false),
         learned(learned),
         watched(true),
         external(external),
-        original_size(size),
         size(size),
         blocker(LIT_UNDEF)
       {
@@ -226,14 +223,6 @@ namespace napsat
        * literals.
        */
       Tlit* lits;
-      /**
-       * @brief Next clause in the watch list of the first watched literal.
-      */
-      Tclause first_watched = CLAUSE_UNDEF;
-      /**
-       * @brief Next clause in the watch list of the second watched literal.
-       */
-      Tclause second_watched = CLAUSE_UNDEF;
       /**
        * @brief Boolean indicating whether the clause is deleted. That is, the
        * clause is not in the clause set anymore and the memory is available
@@ -258,11 +247,7 @@ namespace napsat
        * @brief Size of the clause when it was added to the clause set
        * @details Used to know the size of the allocated memory.
        */
-      unsigned original_size : 28;
-      /**
-       * @brief Size of the clause.
-       */
-      unsigned size;
+      unsigned size : 28;
       /**
        * @brief Blocking literal. If the clause is satisfied by the blocking
        * literal, the watched literals are allowed to be falsified.
@@ -309,11 +294,22 @@ namespace napsat
      * for reuse.
      */
     std::vector<Tclause> _deleted_clauses;
+
+    /**
+     * @brief Sizes of allocated memory for the clauses.
+     * @details Since we might remove literals from the clauses, we need to know
+     * the original size of the allocated memory to not reallocate the memory
+     * when it is not necessary.
+     * @remark This information was previously stored in the TSclause structure
+     * but it was moved here to reduce the size of the TSclause structure.
+    */
+    std::vector<unsigned> _clauses_sizes;
+
     /**
      * @brief _watch_lists[i] is the first clause of the watch list of the
      * literal i.
      */
-    std::vector<Tclause> _watch_lists;
+    std::vector<std::vector<Tclause>> _watch_lists;
     /**
      * @brief _binary_clauses[l] is the contains the pairs <lit, cl> where lit
      * is a literal to be propagated if l is falsified, and <cl> is the clause
@@ -781,7 +777,7 @@ namespace napsat
       }
       if (var >= _vars.size() - 1) {
         _vars.resize(var + 1);
-        _watch_lists.resize(2 * var + 2, CLAUSE_UNDEF);
+        _watch_lists.resize(2 * var + 2);
         _binary_clauses.resize(2 * var + 2);
         // reallocate the literal buffer to make sure it is big enough
         Tlit* new_literal_buffer = new Tlit[_vars.size()];
@@ -1055,7 +1051,7 @@ namespace napsat
     /*************************************************************************/
   public:
     /**
-     * @brief Construct a new Napnapsat::NapSAT object
+     * @brief Construct a new NapSAT::NapSAT object
      * @param n_var initial number of variables. Can be increased later.
      * @param n_clauses initial number of clauses. Can be increased later by
      * adding clauses.
@@ -1315,7 +1311,7 @@ namespace napsat
     void print_watch_lists(Tlit lit = LIT_UNDEF);
 
     /**
-     * @brief Destroy the Napnapsat::modulari T_SAT object
+     * @brief Destroy the NapSAT::NapSAT object
      */
     ~NapSAT();
 

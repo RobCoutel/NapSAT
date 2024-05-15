@@ -12,6 +12,7 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <algorithm>
 
 using namespace napsat;
 using namespace std;
@@ -81,6 +82,8 @@ void napsat::NapSAT::bump_clause_activity(Tclause cl)
 
 void napsat::NapSAT::delete_clause(Tclause cl)
 {
+  // If the clause is the reason for a literal, it cannot be deleted
+  ASSERT(lit_reason(_clauses[cl].lits[0]) != cl);
   _n_learned_clauses -= _clauses[cl].learned;
   _clauses[cl].deleted = true;
   _clauses[cl].watched = false;
@@ -101,19 +104,7 @@ void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
   ASSERT(cl < _clauses.size());
   ASSERT(_clauses[cl].size > 2);
   ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
-  // std::cout << "watching " << lit_to_string(lit) << " in clause " << clause_to_string(cl) << std::endl;
-  Tclause tmp = _watch_lists[lit];
-  _watch_lists[lit] = cl;
-  if (lit == _clauses[cl].lits[0])
-    _clauses[cl].first_watched = tmp;
-  else
-    _clauses[cl].second_watched = tmp;
-  ASSERT(_clauses[cl].first_watched == CLAUSE_UNDEF
-    || _clauses[_clauses[cl].first_watched].lits[0] == _clauses[cl].lits[0]
-    || _clauses[_clauses[cl].first_watched].lits[1] == _clauses[cl].lits[0]);
-  ASSERT(_clauses[cl].second_watched == CLAUSE_UNDEF
-    || _clauses[_clauses[cl].second_watched].lits[0] == _clauses[cl].lits[1]
-    || _clauses[_clauses[cl].second_watched].lits[1] == _clauses[cl].lits[1]);
+  _watch_lists[lit].push_back(cl);
 }
 
 void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
@@ -123,41 +114,14 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
 #endif
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
-  Tclause current = _watch_lists[lit];
-  Tclause previous = CLAUSE_UNDEF;
-  while (current != cl) {
-    previous = current;
-    if (_clauses[current].lits[0] == lit)
-      current = _clauses[current].first_watched;
-    else
-      current = _clauses[current].second_watched;
-    ASSERT(current != CLAUSE_UNDEF);
-  }
-  ASSERT(current == cl);
-  if (previous == CLAUSE_UNDEF) {
-    ASSERT(_watch_lists[lit] == cl);
-    if (_clauses[current].lits[0] == lit)
-      _watch_lists[lit] = _clauses[current].first_watched;
-    else
-      _watch_lists[lit] = _clauses[current].second_watched;
-  }
-  else {
-    Tclause replacement = _clauses[current].lits[0] == lit ? _clauses[current].first_watched : _clauses[current].second_watched;
-    if (_clauses[previous].lits[0] == lit) {
-      ASSERT(_clauses[previous].first_watched == cl);
-      _clauses[previous].first_watched = replacement;
-    }
-    else {
-      ASSERT_MSG(_clauses[previous].second_watched == cl,
-        "lit = " + lit_to_string(lit) + ", previous = " + clause_to_string(previous) + ", current = " + clause_to_string(current));
-      _clauses[previous].second_watched = replacement;
-    }
-  }
+  ASSERT(_clauses[cl].size > 2);
+  auto location = find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl);
+  ASSERT(location != _watch_lists[lit].end());
+  _watch_lists[lit].erase(location);
 }
 
 void napsat::NapSAT::repair_watch_lists()
 {
-  // print_watch_lists();
   /** REPAIR BINARY WATCH LIST **/
   for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
     for (unsigned j = 0; j < _binary_clauses[lit].size(); j++) {
@@ -172,63 +136,26 @@ void napsat::NapSAT::repair_watch_lists()
   }
   /** REPAIR WATCH LISTS **/
   for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
-    Tclause cl = _watch_lists[lit];
-    Tclause prev = CLAUSE_UNDEF;
-    unsigned count = 0;
-    while (cl != CLAUSE_UNDEF) {
-      if (count++ > _clauses.size()) {
-        cout << "Error: infinite loop in watch list\n";
-        ASSERT(false);
-        exit(-1);
-      }
-      ASSERT(cl < _clauses.size());
-      TSclause& clause = _clauses[cl];
-      ASSERT_MSG(lit == clause.lits[0] || lit == clause.lits[1],
-                 "Error: clause " << clause_to_string(cl) << " is not watched by " << lit_to_string(lit));
-      if (!clause.deleted && clause.watched && clause.size > 2) {
-        prev = cl;
-        cl = clause.lits[0] == lit ? clause.first_watched : clause.second_watched;
+    vector<Tclause>& watch_list = _watch_lists[lit];
+    Tclause* i = watch_list.data();
+    Tclause* end = i + watch_list.size();
+
+    while (i < end) {
+      TSclause *clause = _clauses.data() + *i;
+      if (_clauses[*i].deleted || !_clauses[*i].watched
+       || (clause->lits[0] != lit && clause->lits[1] != lit)) {
+        NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(*i, lit));
+        *i = *(--end);
         continue;
       }
-      // the clause is no longer watched
-#if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
-#endif
-      Tclause next = CLAUSE_UNDEF;
-      if (prev == CLAUSE_UNDEF) {
-        if (lit == clause.lits[0]) {
-          _watch_lists[lit] = clause.first_watched;
-        }
-        else {
-          ASSERT(lit == clause.lits[1]);
-          _watch_lists[lit] = clause.second_watched;
-        }
-        ASSERT(prev == CLAUSE_UNDEF);
-        cl = _watch_lists[lit];
+      if (_clauses[*i].size == 2) {
+        // we want to keep the watched literals in the
+        *i = *(--end);
         continue;
       }
-      if (lit == clause.lits[0]) {
-        next = clause.first_watched;
-        if (lit == _clauses[prev].lits[0])
-          _clauses[prev].first_watched = next;
-        else {
-          ASSERT(lit == _clauses[prev].lits[1]);
-          _clauses[prev].second_watched = next;
-        }
-      }
-      else {
-        ASSERT(lit == clause.lits[1]);
-        next = clause.second_watched;
-        if (lit == _clauses[prev].lits[0])
-          _clauses[prev].first_watched = next;
-        else {
-          ASSERT(lit == _clauses[prev].lits[1]);
-          _clauses[prev].second_watched = next;
-        }
-      }
-      // do not touch prev since we removed the clause
-      cl = next;
+      i++;
     }
+    watch_list.resize(end - watch_list.data());
   }
 }
 
@@ -296,7 +223,7 @@ string NapSAT::clause_to_string(Tclause cl)
     s += "d";
   }
   s += to_string(cl) + ": ";
-  for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses[cl].original_size; i++) {
+  for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses_sizes[cl]; i++) {
     if (i == _clauses[cl].lits + _clauses[cl].size)
       s += "| ";
     if (*i == _clauses[cl].blocker) {
@@ -310,15 +237,6 @@ string NapSAT::clause_to_string(Tclause cl)
     }
     s += " ";
   }
-  if (_clauses[cl].first_watched == CLAUSE_UNDEF)
-    s += "∞";
-  else
-    s += to_string(_clauses[cl].first_watched);
-  s += " ";
-  if (_clauses[cl].second_watched == CLAUSE_UNDEF)
-    s += "∞";
-  else
-    s += to_string(_clauses[cl].second_watched);
   return s;
 }
 
@@ -472,25 +390,9 @@ void napsat::NapSAT::print_watch_lists(Tlit lit)
       cout << " <- " << p.second << " ";
     }
     cout << "\n                non-binary: ";
-    Tclause cl = _watch_lists[i];
-    unsigned count = 0;
-    while (cl != CLAUSE_UNDEF) {
+
+    for (Tclause cl : _watch_lists[i])
       cout << cl << " ";
-      if (_clauses[cl].lits[0] == i) {
-        ASSERT(cl != _clauses[cl].first_watched);
-        cl = _clauses[cl].first_watched;
-      }
-      else {
-        ASSERT(_clauses[cl].lits[1] == i);
-        ASSERT(cl != _clauses[cl].second_watched);
-        cl = _clauses[cl].second_watched;
-      }
-      if (count++ > _clauses.size()) {
-        cout << "Error: infinite loop in watch list\n";
-        ASSERT(false);
-        break;
-      }
-    }
     cout << "\n";
   }
 }

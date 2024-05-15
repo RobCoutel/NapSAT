@@ -199,6 +199,8 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
 
 Tclause NapSAT::propagate_lit(Tlit lit)
 {
+  ASSERT(watch_lists_complete());
+  ASSERT(watch_lists_minimal());
   /**
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
   */
@@ -207,21 +209,25 @@ Tclause NapSAT::propagate_lit(Tlit lit)
 
   // level of the propagation
   Tlevel lvl = lit_level(lit);
-  Tclause cl = _watch_lists[lit];
-  Tclause prev = CLAUSE_UNDEF;
-  Tclause next = CLAUSE_UNDEF;
+  vector<Tclause>& watch_list = _watch_lists[lit];
+
+  // Be careful that with this method, we do not want to push anything to the watch list.
+  // Otherwise the memory might be reallocated and the pointers invalidated.
+  // TODO check if this watch list shuffling is good for performance
+  Tclause* i = watch_list.data();
+  Tclause* end = i + watch_list.size();
 
   /**
    * Let F* be a set of clauses such that each clause in the set satisfies
    * - NCB:  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
-   *        δ(b) ≤ δ(c₂) is trivially true in NCB since the levels are monotonicaly increasing
+   *        δ(b) ≤ δ(c₂) is trivially true in NCB since the levels are monotonically increasing
    * - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ (τ ⋅ ℓ) ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
    *        We actually want to enforce ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] but cannot
    *        guarantee that this will hold after backtracking.
    * - LSCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
    *                     ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
    *
-   * We initialise F* with all the clauses that are not watched by ¬ℓ. If they satisfied the invarian
+   * We initialise F* with all the clauses that are not watched by ¬ℓ. If they satisfied the invariant
    * ts
    * before the propagation, they will satisfy them after ℓ is added to τ without any action.
    *
@@ -230,7 +236,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * where P is the precondition that the invariant holds before the loop
    * and Q is the postcondition that the invariant holds after the loop if ℓ = ¬c₁ is added to τ
    * - NCB:  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
-   *        δ(b) ≤ δ(c₂) is trivially true in NCB since the levels are monotonicaly increasing
+   *        δ(b) ≤ δ(c₂) is trivially true in NCB since the levels are monotonically increasing
    * - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ (τ ⋅ ℓ) ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
    *        We actually want to enforce ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] but cannot
    *        guarantee that this will hold after backtracking.
@@ -243,50 +249,12 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * If we have not returned a conflict, at then end of the loop, we will have explored
    * all the clauses watched by ¬ℓ and F* = F. Therefore, we satisfy our contract.
    */
-  while (cl != CLAUSE_UNDEF) {
-    ASSERT(cl != prev);
+  while (i < end) {
+    Tclause cl = *i;
     TSclause& clause = _clauses[cl];
     ASSERT(clause.watched);
     ASSERT(clause.size >= 2);
-    Tlit* lits = clause.lits;
-    /**
-     * we call c₁ and c₂ the watched literals of the clause
-     * we assume that c₁ = ¬ℓ
-     */
-    //check that c₁ = C[0] or c₁ = C[1]
-    ASSERT_MSG(lit == lits[0] || lit == lits[1],
-      "Clause: " + clause_to_string(cl) + ",Literal: " + lit_to_string(lit));
-    // check that the next clause in the watch list contains the right literal.
-    ASSERT_MSG(clause.first_watched == CLAUSE_UNDEF
-      || _clauses[clause.first_watched].lits[0] == lits[0]
-      || _clauses[clause.first_watched].lits[1] == lits[0],
-      "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
-      + " clause " + clause_to_string(clause.first_watched) + " does not watch " + lit_to_string(lits[0]));
-    ASSERT_MSG(clause.second_watched == CLAUSE_UNDEF
-      || _clauses[clause.second_watched].lits[0] == lits[1]
-      || _clauses[clause.second_watched].lits[1] == lits[1],
-      "Propagating lit: " + lit_to_string(lit) + " on clause " + clause_to_string(cl)
-      + " clause " + clause_to_string(clause.second_watched) + " does not watch " + lit_to_string(lits[1]));
-
-    // ensure that c₁ = ¬ℓ and c₂ = the other watched literal
-    if (lit == lits[0]) {
-      lits[0] ^= lits[1];
-      lits[1] ^= lits[0];
-      lits[0] ^= lits[1];
-      // also swap the next watched clause
-      clause.first_watched ^= clause.second_watched;
-      clause.second_watched ^= clause.first_watched;
-      clause.first_watched ^= clause.second_watched;
-    }
-    ASSERT(prev == CLAUSE_UNDEF || _clauses[prev].lits[1] == lit);
-    ASSERT(prev == CLAUSE_UNDEF || _clauses[prev].lits[1] == lit);
-
-    Tlit lit2 = lits[0];
-    ASSERT(lit == lits[1]);
-    ASSERT(lit != lit2);
-
-    /** SKIP CONDITIONS **/
-    // TODO could put this before the clause dereferencing?
+    // Skip condition before dereferencing the pointers
     if (lit_true(clause.blocker)
       && (!_options.chronological_backtracking || lit_level(clause.blocker) <= lvl)) {
       /**
@@ -294,11 +262,27 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        * WCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
        * SCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
        * the invariants are preserved without any action
-       * */
-      prev = cl;
-      cl = clause.second_watched;
+       */
+      i++;
       continue;
     }
+
+    Tlit* lits = clause.lits;
+    /**
+     * we call c₁ and c₂ the watched literals of the clause
+     * we ensure that c₁ = ¬ℓ to make the rest of the function more efficient
+     */
+    ASSERT_MSG(lit == lits[0] || lit == lits[1],
+      "Clause: " + clause_to_string(cl) + ",Literal: " + lit_to_string(lit));
+
+    // ensure that c₁ = ¬ℓ and c₂ = the other watched literal
+    Tlit lit2 = lits[0] ^ lits[1] ^ lit;
+    ASSERT(lit2 == lits[0] || lit2 == lits[1]);
+    ASSERT(lit != lit2);
+    lits[0] = lit2;
+    lits[1] = lit;
+
+    /** SKIP CONDITIONS **/
     if (lit_true(lit2)
       && (!_options.strong_chronological_backtracking || lit_level(lit2) <= lvl)) {
       /**
@@ -307,8 +291,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        * SCB: c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)
        * the invariants are preserved without any action
        */
-      prev = cl;
-      cl = clause.second_watched;
+      i++;
       continue;
     }
     /** SEARCH REPLACEMENT **/
@@ -338,7 +321,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     if (lit_true(*replacement) && replacement_lvl <= lvl) {
       /**
        * r ∈ π ∧ δ(r) ≤ δ(c₁)
-       * NCB: We know that r ∈ π ⇒ δ(r) ≤ δ(c₁). Therefore after this codition is satisfied in NCB,
+       * NCB: We know that r ∈ π ⇒ δ(r) ≤ δ(c₁). Therefore after this condition is satisfied in NCB,
        *      we know that r ∉ π
        * ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] is satisfied if we set b = r
       */
@@ -346,14 +329,13 @@ Tclause NapSAT::propagate_lit(Tlit lit)
 #if NOTIFY_WATCH_CHANGES
       NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, *replacement));
 #endif
-      prev = cl;
-      cl = clause.second_watched;
+      i++;
       continue;
     }
     /**
      * We know that
      * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]
-     * NCB: r ∉ π                  ∧ c₂ ∉ π                   ∧ b ∉ π
+     * NCB: r ∉ π                  ∧ c₂ ∉ π                   ∧  b ∉ π
      * WCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
      * SCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
     */
@@ -371,22 +353,11 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
 #endif
       // remove the clause from the watch list
-      // first store the next clause in the list
-      next = clause.second_watched;
-      if (prev == CLAUSE_UNDEF) {
-        ASSERT(_watch_lists[lit] == cl);
-        _watch_lists[lit] = next;
-      }
-      else {
-        ASSERT(_clauses[prev].second_watched == cl);
-        _clauses[prev].second_watched = next;
-      }
+      // bring the last watched clause to the current position
+      *i = *(end - 1);
+      end--;
       // watch new literal
       watch_lit(lits[1], cl);
-      // we do not update prev because cl is removed from the watch list
-      //   prev  ->  cl  ->  next
-      //   prev  ->  next
-      cl = next;
       continue;
     }
 
@@ -410,34 +381,24 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       ASSERT(_options.chronological_backtracking);
       // In strong chronological backtracking, we need to swap the literals such that the highest falsified literal is at the second position. In weak chronological backtracking, it is not necessary, but it is still useful to determine the level of the conflict or the implication.
       // swap the literals
-      next = clause.second_watched;
       lits[1] = *replacement;
       *replacement = lit;
 #if NOTIFY_WATCH_CHANGES
       NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
 #endif
       // remove the clause from the watch list
-      if (prev == CLAUSE_UNDEF) {
-        ASSERT(_watch_lists[lit] == cl);
-        _watch_lists[lit] = next;
-      }
-      else {
-        ASSERT(_clauses[prev].second_watched == cl);
-        _clauses[prev].second_watched = next;
-      }
+      // bring the last watched clause to the current position
+      *i = *(end - 1);
+      end--;
       // watch new literal
       watch_lit(lits[1], cl);
-      // Since we remove the clause from the watch list, we do not update prev
-      // prev -> cl -> next
-      // prev -> next
     }
-    else { // if (replacement != lits + 1)
-      // Since the clause stayed in the watch list, we will need to update prev
-      // prev -> cl -> next
-      // cl -> next
-      prev = cl;
-      next = clause.second_watched;
+    else {
+      // Increment for the next iteration
+      // We cannot use *i to refer to the clause from this point onwards since it it ready for the next iteration
+      i++;
     }
+
     /**
      * We no longer need r since it is now in place of c₁
      * ALL: ¬c₁ ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})]]
@@ -466,15 +427,12 @@ Tclause NapSAT::propagate_lit(Tlit lit)
         lits[0] ^= lits[1];
         lits[1] ^= lits[0];
         // also swap the next watched clause
-        clause.first_watched ^= clause.second_watched;
-        clause.second_watched ^= clause.first_watched;
-        clause.first_watched ^= clause.second_watched;
       }
       ASSERT_MSG(lit_level(lits[0]) >= lit_level(lits[1]),
         "Conflict: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
-      // NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Conflict detected " + clause_to_string(cl)));
-      // ASSERT(watch_lists_complete());
-      // ASSERT(watch_lists_minimal());
+      watch_list.resize(end - watch_list.data());
+      ASSERT(watch_lists_complete());
+      ASSERT(watch_lists_minimal());
       return cl;
     }
 
@@ -492,7 +450,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
       */
       imply_literal(lit2, cl);
-      cl = next;
+      // don't increment. We would have done so earlier if we did not change the watched literals
       continue;
     }
 
@@ -515,7 +473,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        *               ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
        * and we do not need to do anything more
        */
-      cl = next;
+      // don't increment. We would have done so earlier if we did not change the watched literals
       continue;
     }
     // We know that lit2 is true, and it is a missed lower implication
@@ -542,11 +500,12 @@ Tclause NapSAT::propagate_lit(Tlit lit)
      * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
      *               ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
      */
-    cl = next;
+    // don't increment. We would have done so earlier if we did not change the watched literals
   }
 
-  // ASSERT(watch_lists_complete());
-  // ASSERT(watch_lists_minimal());
+  watch_list.resize(end - watch_list.data());
+  ASSERT(watch_lists_complete());
+  ASSERT(watch_lists_minimal());
   return CLAUSE_UNDEF;
 }
 
@@ -842,12 +801,6 @@ void NapSAT::analyze_conflict(Tclause conflict)
 void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
 {
   ASSERT(_proof);
-  // cout << "Proving root literal removal" << endl;
-  // for (unsigned i = 0; i < size; i++) {
-  //   cout << lit_to_string(lits[i]) << " ";
-  //   ASSERT(lit_false(lits[i]));
-  // }
-  // cout << endl;
   // we assume that a resolution chain is already started
   unsigned count = 0;
 
@@ -1014,6 +967,7 @@ void NapSAT::restart()
 
 void napsat::NapSAT::purge_root_watch_lists()
 {
+  ASSERT(_options.chronological_backtracking && !_options.strong_chronological_backtracking);
   // in weak chronological backtracking, a missed lower implication can create a clause that has a watched literal falsified at level 0 while not being satisfied at level 0
   // Therefore we need to clean the watch lists
   for (unsigned i = 0; i < _propagated_literals; i++) {
@@ -1023,51 +977,38 @@ void napsat::NapSAT::purge_root_watch_lists()
     }
     lit = lit_neg(lit);
 
-    Tclause cl = _watch_lists[lit];
-    // since we are purging the watch lists, we can set the watch head to CLAUSE_UNDEF
-    _watch_lists[lit] = CLAUSE_UNDEF;
-    while (cl != CLAUSE_UNDEF) {
+    vector<Tclause>& watch_list = _watch_lists[lit];
+    while (!watch_list.empty()) {
+      Tclause cl = watch_list.back();
+      watch_list.pop_back();
       TSclause& clause = _clauses[cl];
-      if (!clause.watched || clause.deleted) {
-        cl = clause.second_watched;
-        continue;
-      }
-      if (cl == lit_reason(clause.lits[0])) {
+      if (lit_reason(clause.lits[0]) == cl) {
         clause.watched = false;
-        cl = clause.second_watched;
         continue;
       }
+
+      // if the clause is already deleted, do not bother
+      if (clause.deleted)
+        continue;
 
       ASSERT_MSG(clause.size > 2,
         "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
-      Tlit* lits = clause.lits;
       if (lit_true(clause.blocker) && lit_level(clause.blocker) == LEVEL_ROOT) {
         // delete the clause. repair_watch_lists will take care of the rest
         delete_clause(cl);
-        cl = clause.second_watched;
-        if (lit == lits[0])
-          cl = clause.first_watched;
         continue;
       }
+      Tlit* lits = clause.lits;
+      Tlit lit2 = lits[0] ^ lits[1] ^ lit;
+      ASSERT(lit2 == lits[0] || lit2 == lits[1]);
+      lits[0] = lit2;
+      lits[1] = lit;
 
-      if (lit == lits[0]) {
-        // swap the two watched literals such that the second one is the one that is falsified at level 0
-        lits[0] ^= lits[1];
-        lits[1] ^= lits[0];
-        lits[0] ^= lits[1];
-        // also swap the next watched clause
-        clause.first_watched ^= clause.second_watched;
-        clause.second_watched ^= clause.first_watched;
-        clause.first_watched ^= clause.second_watched;
-      }
-      ASSERT(lit == lits[1]);
       if (lit_true(lits[0]) && lit_level(lits[0]) == LEVEL_ROOT) {
         // delete the clause. repair_watch_lists will take care of the rest
         delete_clause(cl);
-        cl = clause.second_watched;
         continue;
       }
-      Tclause next = clause.second_watched;
       for (unsigned i = 2; i < clause.size; i++) {
         if (lit_level(lits[i]) != LEVEL_ROOT || lit_true(lits[i])) {
           lits[1] ^= lits[i];
@@ -1077,7 +1018,6 @@ void napsat::NapSAT::purge_root_watch_lists()
           break;
         }
       }
-      cl = next;
     }
   }
 }
@@ -1121,17 +1061,16 @@ void napsat::NapSAT::purge_clauses()
       }
       if (lit_false(*i)) {
         // remove the literal and push it to the back
+        // we push it to the back so that we can print the clause even after the literal is removed
         Tlit tmp = *i;
         *i = *end;
         *end = tmp;
         end--;
         continue;
       }
-      else {
-        ASSERT(lit_true(*i));
-        delete_clause(cl);
-        break;
-      }
+      ASSERT(lit_true(*i));
+      delete_clause(cl);
+      break;
     }
     clause.size = end - lits + 1;
 
@@ -1146,7 +1085,8 @@ void napsat::NapSAT::purge_clauses()
       else if (!lit_waiting(lits[1])) {
 #ifndef NDEBUG
         for (unsigned i = 2; i < clause.size; i++) {
-          ASSERT(lit_false(lits[i]));
+          ASSERT_MSG(lit_false(lits[i]),
+            "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]));
           ASSERT(lit_level(lits[i]) == LEVEL_ROOT);
         }
 #endif
@@ -1157,15 +1097,6 @@ void napsat::NapSAT::purge_clauses()
     ASSERT_MSG(!clause.deleted,
                "Clause: " + clause_to_string(cl) + " was deleted.");
     if (_proof && previous_size != clause.size) {
-      // NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Clause simplification"));
-      // unsigned i = 0;
-      // cout << "Clause: ";
-      // for (; i < clause.size; i++)
-      //   cout << lit_to_string(clause.lits[i]) << " ";
-      // cout << "| ";
-      // for (; i < previous_size; i++)
-      //   cout << lit_to_string(clause.lits[i]) << " ";
-      // cout << endl;
       _proof->start_resolution_chain();
       _proof->link_resolution(LIT_UNDEF, cl);
       prove_root_literal_removal(clause.lits + clause.size, previous_size - clause.size);
@@ -1175,9 +1106,10 @@ void napsat::NapSAT::purge_clauses()
     }
 
     if (clause.size == 2) {
-      clause.watched = false;
       _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
       _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause simplified"));
     }
     if (clause.size == 1) {
@@ -1197,6 +1129,7 @@ void napsat::NapSAT::purge_clauses()
   }
   // remove the deleted clauses
   repair_watch_lists();
+  NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
 }
@@ -1310,6 +1243,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
     lits = new Tlit[clause_size];
     TSclause added(lits, clause_size, learned, external);
     _clauses.push_back(added);
+    _clauses_sizes.push_back(clause_size);
     _activities.push_back(_max_clause_activity);
     clause = &_clauses.back();
     cl = _clauses.size() - 1;
@@ -1321,10 +1255,16 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
     clause = &_clauses[cl];
     ASSERT(clause->deleted);
     ASSERT(!clause->watched);
-    if (clause->original_size < clause_size) {
+    if (_clauses_sizes[cl] < clause_size) {
       delete[] clause->lits;
       clause->lits = new Tlit[clause_size];
+      _clauses_sizes[cl] = clause_size;
     }
+    // fill the end of the clause with LIT_UNDEF for printing purposes
+    // Note that this is not necessary for the solver
+    for (unsigned i = clause_size; i < _clauses_sizes[cl]; i++)
+      clause->lits[i] = LIT_UNDEF;
+
     lits = clause->lits;
     *clause = TSclause(lits, clause_size, learned, external);
   }
@@ -1444,7 +1384,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _vars = vector<TSvar>(n_var + 1);
   _trail = vector<Tlit>();
   _trail.reserve(n_var);
-  _watch_lists = vector<Tclause>(2 * n_var + 2, CLAUSE_UNDEF);
+  _watch_lists.resize(2 * n_var + 2);
 
   for (Tvar var = 1; var <= n_var; var++) {
     NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(var));
@@ -1518,6 +1458,7 @@ bool NapSAT::propagate()
     if (conflict == CLAUSE_UNDEF) {
       _vars[lit_to_var(lit)].waiting = false;
       _propagated_literals++;
+      NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
       NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
       continue;
     }

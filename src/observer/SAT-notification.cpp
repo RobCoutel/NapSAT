@@ -235,20 +235,9 @@ void napsat::gui::propagation::apply(observer* obs)
   assert(obs->_variables.size() > lit_to_var(lit));
   assert(obs->_variables[lit_to_var(lit)].active);
   assert(obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
-    if (obs->_assignment_stack[obs->_n_propagated] != lit) {
-      cout << "Number of notifications: " << obs->_notifications.size() << endl;
-      obs->notify(new marker("propagation failed: " + obs->lit_to_string(lit) + " is not at the top of the stack"));
-  }
   assert(obs->_assignment_stack[obs->_n_propagated] == lit);
   obs->_n_propagated++;
   obs->_variables[lit_to_var(lit)].propagated = true;
-
-#if NOTIFY_WATCH_CHANGE
-  assert(obs->check_watch_literals_levels());
-  assert(obs->check_strong_watch_literals());
-  assert(obs->check_blocked_watch_literals());
-  assert(obs->check_weak_watch_literals());
-#endif
 }
 
 void napsat::gui::propagation::rollback(observer* obs)
@@ -338,13 +327,6 @@ void napsat::gui::unassignment::apply(observer* obs)
 
   obs->_variables[var].level = LEVEL_UNDEF;
   obs->_variables[var].reason = CLAUSE_UNDEF;
-
-#if NOTIFY_WATCH_CHANGE
-  assert(obs->check_watch_literals_levels());
-  assert(obs->check_strong_watch_literals());
-  assert(obs->check_blocked_watch_literals());
-  assert(obs->check_weak_watch_literals());
-#endif
 }
 
 void napsat::gui::unassignment::rollback(observer* obs)
@@ -489,8 +471,8 @@ void napsat::gui::watch::apply(observer* obs)
   napsat::gui::observer::clause* c = obs->_active_clauses[cl];
   assert(c != nullptr);
   assert(c->active);
-  // do not watch the same literal twice
-  assert(c->watched.find(lit) == c->watched.end());
+  // the watched literal must be in the clause
+  assert(find(c->literals.begin(), c->literals.end(), lit) != c->literals.end());
   c->watched.insert(lit);
 }
 
@@ -552,7 +534,7 @@ void napsat::gui::check_invariants::apply(observer* obs)
     obs->print_clause_set();
     obs->print_variables();
     obs->print_assignment();
-    cout << "\033[0;31mERROR\033[0m: Invariants are not satisfied" << endl;
+    cout << "\033[0;31mError\033[0m: Invariants are not satisfied" << endl;
     cout << obs->get_error_message() << endl;
     event_level = 0;
   }

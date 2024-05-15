@@ -5,7 +5,7 @@
  * @brief This file is part of the SAT solver NapSAT. It defines an
  * observer for the SAT solver. That is, a duplicate of the state of the solver.
  * It does not do any reasoning, but is used to check invariants and display the
- * state of the solver, while being able to navigate through the historyof the execution.
+ * state of the solver, while being able to navigate through the history of the execution.
  */
 #pragma once
 
@@ -360,6 +360,16 @@ namespace napsat::gui
     napsat::Tclause var_reason(napsat::Tvar var);
 
     /**
+     * @brief Returns the lazy reason of a variable in the assignment.
+     */
+    napsat::Tclause var_lazy_reason(napsat::Tvar var);
+
+    /**
+     * @brief Returns true if the variable was propagated.
+     */
+    napsat::Tclause lit_lazy_reason(napsat::Tvar var);
+
+    /**
      * @brief Returns true if the variable was propagated.
      */
     bool var_propagated(napsat::Tvar var);
@@ -368,6 +378,8 @@ namespace napsat::gui
      * @brief Returns the decision level of a literal in the assignment.
      */
     napsat::Tlevel lit_level(napsat::Tlit lit);
+
+    napsat::Tlevel clause_level(napsat::Tclause cl);
 
     /**
      * @brief Returns the reason of a literal in the assignment.
@@ -485,23 +497,26 @@ namespace napsat::gui
 
     bool _check_trail_sanity = false;
     bool _check_level_ordering = false;
-    bool _check_trail_monoticity = false;
+    bool _check_trail_monotonicity = false;
     bool _check_no_missed_implications = false;
     bool _check_topological_order = false;
-#if NOTIFY_WATCH_CHANGE
-    bool _check_strong_watch_literals = false;
-    bool _check_blocked_watch_literals = false;
-    bool _check_weak_watch_literals = false;
-    bool _check_weak_blocked_watch_literals = false;
-    bool _check_watch_literals_levels = false;
+#if NOTIFY_WATCH_CHANGES
+    bool _check_weak_watched_literals = false;
+    bool _check_strong_watched_literals = false;
+    bool _check_lazy_backtrack_compatible_watch_literals = false;
+    bool _check_backtrack_compatible_watched_literals = false;
 #endif
     bool _check_assignment_coherence = false;
 
   public:
     /**
-     * @brief Returns the concatenetaion of all error messages since the last call to this function.
+     * @brief Returns the concatenation of all error messages since the last call to this function.
      */
-    std::string get_error_message() { return _error_message; }
+    std::string get_error_message() {
+      std::string message = _error_message;
+      _error_message = "";
+      return message;
+    }
 
     /**
      * @brief Enables the invariant checker for trail sanity.
@@ -548,42 +563,53 @@ namespace napsat::gui
 
     /**
      * @brief Checks that the level of literals in the trail trail is monotonically increasing.
-     * @details Let T be the set of propagated literals. check_trail_monoticity returns true if and only if for all i in [0, |T| - 2], level(T[i]) <= level(T[i+1]).
+     * @details Let T be the set of propagated literals. check_trail_monotonicity returns true if and only if for all i in [0, |T| - 2], level(T[i]) <= level(T[i+1]).
      */
-    bool check_trail_monoticity();
+    bool check_trail_monotonicity();
 
     /**
-     * @brief Checks that no literal can be implied by a clause and propagated literals. In other words, checks that no clause is unit under the partial assignement of propgated literals unless it is satisfied by the entire assignment.
+     * @brief Checks that no literal can be implied by a clause and propagated literals. In other words, checks that no clause is unit under the partial assignment of propagated literals unless it is satisfied by the entire assignment.
      * @details Let T be the set of propagated literals, and W be the set of literals in the propagation queue. check_propagated_literals returns true if and only if for all clause C in the clause set, if there exists a literal l in C such that C \ {l} is falsified by T, then l is satisfied by T union W.
      */
     bool check_no_missed_implications();
 
     /**
      * @brief Checks that the trail is a topological order of the implication graph.
-     * @details Let P be the partial assignement. check_topological_order returns true if and only if for all literal i in {0, ..., |P| - 1}, for all literal l in the reason of P[i], there exists j such that P[j] = l and j < i.
+     * @details Let P be the partial assignment. check_topological_order returns true if and only if for all literal i in {0, ..., |P| - 1}, for all literal l in the reason of P[i], there exists j such that P[j] = l and j < i.
      */
     bool check_topological_order();
 #if NOTIFY_WATCH_CHANGES
     /**
-     * @brief Checks that if a literal is falsified by a propagated literal, then it the other watched literal is satisfied by the partial assignment.
-     * @details Let T be the set of propagated literals, and W be the set of literals in the propagation queue. check_watch_literals returns true if and only if for all clause C in the clause set watched by l1 and l2, if ~l1 in T or ~l2 in T, then l1 or l2 is satisfied by T union W.
+     * @brief Checks the invariants on the watched literals depending on the configuration.
+     * @return True if all clauses satisfy the invariants, and false otherwise.
      */
-    bool check_strong_watch_literals();
+    bool check_watched_literals();
 
     /**
-     * @brief Checks that if a watched literal is falsified by a propagated literals, then the clause is satisfied by the partial assignment.
+     * @brief Checks that the watched literals c₁ and c₂ satisfy the weak watched literals invariant with blocker b
+     * @details ¬c₁ ∈ τ ⇒ ¬c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
      */
-    bool check_blocked_watch_literals();
+    bool weak_watched_literals(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
 
     /**
-     * @brief Checks that, if a watched literals literal is falsified by a propagated literal, then the other watched literal is satisfied at a lower level than the falsified literal.
+     * @brief Checks that the watched literals c₁ and c₂ satisfy the strong watched literals invariant with blocker b
+     * @details ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
      */
-    bool check_weak_watch_literals();
+    bool strong_watched_literals(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
 
     /**
-     * @brief Checks that, if a watched literals literal is falsified by a propagated literal, then the clause is satisfied at a lower level than the falsified literal.
+     * @brief Checks that the watched literals c₁ and c₂ satisfy the lazy backtrack compatible watched literals invariant with blocker b
+     * @details ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
+     *                   ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
      */
-    bool check_weak_blocked_watch_literals();
+    bool lazy_backtrack_compatible_watched_literals(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
+
+    /**
+     * @brief Checks that the watched literals c₁ and c₂ satisfy the backward compatible watched literals invariant with blocker b
+     * @details ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
+    */
+    bool backward_compatible_watched_literals(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
+
 #endif
 
     /**

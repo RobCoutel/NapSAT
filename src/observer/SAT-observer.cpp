@@ -292,6 +292,20 @@ napsat::Tclause napsat::gui::observer::var_reason(napsat::Tvar var)
   return _variables[var].reason;
 }
 
+napsat::Tclause napsat::gui::observer::var_lazy_reason(napsat::Tvar var)
+{
+  if (var >= _variables.size())
+    return CLAUSE_ERROR;
+  if (!_variables[var].active)
+    return CLAUSE_ERROR;
+  return _variables[var].lazy_reason;
+}
+
+napsat::Tclause napsat::gui::observer::lit_lazy_reason(napsat::Tvar var)
+{
+  return var_lazy_reason(lit_to_var(var));
+}
+
 bool napsat::gui::observer::var_propagated(napsat::Tvar var)
 {
   return _variables[var].propagated;
@@ -300,6 +314,16 @@ bool napsat::gui::observer::var_propagated(napsat::Tvar var)
 napsat::Tlevel observer::lit_level(napsat::Tlit lit)
 {
   return var_level(lit_to_var(lit));
+}
+
+napsat::Tlevel napsat::gui::observer::clause_level(napsat::Tclause cl)
+{
+  if (cl == CLAUSE_UNDEF)
+    return LEVEL_UNDEF;
+  Tlevel level = 0;
+  for (Tlit lit : _active_clauses[cl]->literals)
+    level = max(level, lit_level(lit));
+  return level;
 }
 
 napsat::Tclause napsat::gui::observer::lit_reason(napsat::Tlit lit)
