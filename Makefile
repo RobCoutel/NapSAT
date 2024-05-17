@@ -1,7 +1,7 @@
 EXEC = NapSAT#-$(shell git rev-list --count --all)
 LIB_NAME = NapSAT
 MAIN = main.cpp
-TARGET_EXEC ?= $(LIB_NAME).a
+TARGET_LIB ?= $(LIB_NAME).a
 
 CC := clang++
 
@@ -39,21 +39,23 @@ $(BUILD_DIR)/tests/%.o: %.cpp $(TEST_HEAD)
 	$(MKDIR_P) $(dir $@)
 	$(CC) -c $< -o $@ $(CFLAGS) $(DBG_FLAGS)
 
-# library
-$(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
-	ar rcs $@ $^
-
 # release
 $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
 	$(CC) $^ -o $@ $(CFLAGS) $(REL_FLAGS)
 
+# library
+$(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
+	ar rcs $@ $^
+
 .PHONY: debug
 
-release: $(BUILD_DIR)/$(TARGET_EXEC)
-release: $(BUILD_DIR)/$(EXEC)
+lib: $(BUILD_DIR)/$(TARGET_LIB)
+
+all: $(BUILD_DIR)/$(TARGET_LIB)
+all: $(BUILD_DIR)/$(EXEC)
 
 debug: REL_FLAGS = $(DBG_FLAGS)
-debug: $(BUILD_DIR)/$(TARGET_EXEC)
+debug: $(BUILD_DIR)/$(TARGET_LIB)
 debug: $(BUILD_DIR)/$(EXEC)
 
 .PHONY: clean

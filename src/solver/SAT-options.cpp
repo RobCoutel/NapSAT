@@ -73,7 +73,8 @@ napsat::options::options(char** tokens, unsigned n_tokens)
   std::unordered_map<string, string*> string_options = {
     {"-s", &save_folder},
     {"--save", &save_folder},
-    {"--commands", &commands_file}
+    {"-commands", &commands_file},
+    {"--command_file", &commands_file}
   };
 
 

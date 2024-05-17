@@ -543,8 +543,7 @@ void napsat::gui::remove_literal::rollback(observer* obs)
   assert(obs->_active_clauses[cl] != nullptr);
   observer::clause* c = obs->_active_clauses[cl];
   assert(c->active);
-  unsigned last_literal_location = c->literals.size() - 1 - c->n_deleted_literals;
-  assert(c->literals[last_literal_location] == lit);
+  assert(c->literals[c->literals.size() - 1 - c->n_deleted_literals] == lit);
   c->n_deleted_literals--;
 }
 
