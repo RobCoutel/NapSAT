@@ -120,45 +120,6 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
   _watch_lists[lit].erase(location);
 }
 
-void napsat::NapSAT::repair_watch_lists()
-{
-  /** REPAIR BINARY WATCH LIST **/
-  for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
-    for (unsigned j = 0; j < _binary_clauses[lit].size(); j++) {
-      Tclause cl = _binary_clauses[lit][j].second;
-      ASSERT_MSG(cl != CLAUSE_UNDEF,
-        "Error: binary clause " << lit_to_string(lit) << " <- " << lit_to_string(_binary_clauses[lit][j].first) << " is undefined");
-      if (_clauses[cl].deleted) {
-        _binary_clauses[lit].erase(_binary_clauses[lit].begin() + j);
-        j--;
-      }
-    }
-  }
-  /** REPAIR WATCH LISTS **/
-  for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
-    vector<Tclause>& watch_list = _watch_lists[lit];
-    Tclause* i = watch_list.data();
-    Tclause* end = i + watch_list.size();
-
-    while (i < end) {
-      TSclause *clause = _clauses.data() + *i;
-      if (_clauses[*i].deleted || !_clauses[*i].watched
-       || (clause->lits[0] != lit && clause->lits[1] != lit)) {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(*i, lit));
-        *i = *(--end);
-        continue;
-      }
-      if (_clauses[*i].size == 2) {
-        // we want to keep the watched literals in the
-        *i = *(--end);
-        continue;
-      }
-      i++;
-    }
-    watch_list.resize(end - watch_list.data());
-  }
-}
-
 unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
 {
   return (lit_true(lit) * (2 * _decision_index.size() - lit_level(lit) + 1)) + (lit_undef(lit) * (_decision_index.size() + 1)) + (lit_false(lit) * (lit_level(lit)));

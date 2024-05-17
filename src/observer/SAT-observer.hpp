@@ -48,6 +48,7 @@ namespace napsat::gui
     friend class block;
     friend class missed_lower_implication;
     friend class remove_lower_implication;
+    friend class remove_literal;
 
   public:
     /**
@@ -87,6 +88,7 @@ namespace napsat::gui
       clause(const std::vector<napsat::Tlit>& literals, napsat::Tclause cl, bool learnt, bool external) : literals(literals), cl(cl), learnt(learnt), external(external) {}
       clause(const clause& other) : literals(std::move(other.literals)), cl(other.cl), active(other.active), learnt(other.learnt), external(other.external) {}
       std::vector<napsat::Tlit> literals;
+      unsigned n_deleted_literals = 0;
       napsat::Tclause cl;
       std::set<napsat::Tlit> watched;
       Tlit blocker = LIT_UNDEF;

@@ -15,30 +15,39 @@ namespace napsat
   public:
     /** SOLVER BEHAVIOR **/
     /**
-     * @brief Enables the solver to use chronological backtracking.
+     * @brief Enables chronological backtracking. If enabled directly, the solver will use weak chronological backtracking. This option is not meant to be used standalone, but can be, in which case, wcb is used. This option is enabled by any chronological backtracking variant.
+     * wcb => cb, rscb => cb, lscb => cb
+     * There exists a hierarchy between the options. If several are enabled, the highest in the hierarchy will be used.
+     * cb <= wcb < rscb < lscb
      * @alias -cb
-     * @subsumedby strong-chronological-backtracking
+     * @subsumedby weak-chronological-backtracking, lazy-strong-chronological-backtracking and restoring-strong-chronological-backtracking
      */
     bool chronological_backtracking = false;
+
     /**
-     * @brief Enables the solver to use strong chronological backtracking.
-     * That is, the solver will use the lazy reimplication scheme.
-     * @alias -scb
+     * @brief Enables the solver to use chronological backtracking.
+     * @alias -cb
+     * @subsumedby lazy-strong-chronological-backtracking and restoring-strong-chronological-backtracking
      */
-    bool strong_chronological_backtracking = false;
+    bool weak_chronological_backtracking = false;
     /**
      * @brief Enables the solver to use restoring chronological backtracking.
-     * That is, the solver will repropagated literals that moved during
-     * backtacking.
+     * That is, the solver will re-propagate literals that moved during backtracking.
      * @alias -rscb
+     * @subsumedby lazy-strong-chronological-backtracking
      */
-    bool restoring_chronological_backtracking = false;
+    bool restoring_strong_chronological_backtracking = false;
+    /**
+     * @brief Enables the solver to use strong chronological backtracking. That is, the solver will use the lazy reimplication scheme.
+     * @alias -scb
+     */
+    bool lazy_strong_chronological_backtracking = false;
 
     /**
      * @brief Enables the solver to delete learned clauses.
      * @alias -del
     */
-    bool delete_clauses = false;
+    bool delete_clauses = true;
 
     /** OBSERVER **/
     /**
@@ -48,7 +57,7 @@ namespace napsat
     */
     bool suppress_warning = false;
     /**
-     * @brief Sets the solver to interractive mode. Before each decision, the solver will wait for the user to enter a command before continuing.
+     * @brief Sets the solver to interactive mode. Before each decision, the solver will wait for the user to enter a command before continuing.
      * @alias -i
     */
     bool interactive = false;
@@ -70,13 +79,11 @@ namespace napsat
      * @alias -stat
     */
     bool print_stats = false;
-
     /**
      * @brief Enables the observer to build a proof during the execution.
      * @alias -bp
     */
     bool build_proof = false;
-
     /**
      * @brief Enables the observer to check the proof during the execution.
      * @requires build_proof is on
@@ -94,6 +101,7 @@ namespace napsat
     /**
      * @brief File containing the commands to be executed by the solver.
      * @requires interactive is on
+     * @alias -commands
     */
     std::string commands_file = "";
 

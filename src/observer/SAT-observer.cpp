@@ -39,6 +39,7 @@ long unsigned napsat::gui::observer::hash_clause(const std::vector<napsat::Tlit>
     x = (x >> 16) ^ x;
     seed ^= x + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
+  assert(seed != 0);
   return seed;
 }
 
@@ -512,7 +513,11 @@ std::string napsat::gui::observer::clause_to_string(Tclause cl)
   }
   vector<Tlit> lits = _active_clauses[cl]->literals;
 
-  for (Tlit lit : lits) {
+  for (unsigned i = 0; i < lits.size(); i++) {
+    if (i + _active_clauses[cl]->n_deleted_literals == lits.size())
+      s += "| ";
+    Tlit lit = lits[i];
+    assert(i + _active_clauses[cl]->n_deleted_literals < lits.size() || lit_value(lit) == VAR_FALSE);
     if (_active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end())
       s += "w";
     if (_active_clauses[cl]->blocker == lit)
@@ -611,17 +616,14 @@ void napsat::gui::observer::print_assignment()
       if (i == _n_propagated)
         cout << "| ";
       Tlit lit = _assignment_stack[i];
-      Tvar var = lit_to_var(lit);
-      if (_variables[var].level == lvl) {
+      if (lit_level(lit) == lvl)
         cout << lit_to_string(lit) << " ";
-        cout << pad(lit_to_var(lit), _variables.size());
-        if (lit_pol(lit))
+      else {
+        cout << " ";
+        for (unsigned j = 0; j < to_string(lit_to_int(lit)).size(); j++)
           cout << " ";
       }
-      else {
-        cout << "  " + pad(0, _variables.size());
-        ;
-      }
+
     }
     if (_n_propagated == _assignment_stack.size())
       cout << "| ";

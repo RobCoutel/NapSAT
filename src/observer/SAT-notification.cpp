@@ -521,10 +521,32 @@ unsigned napsat::gui::remove_literal::get_event_level(observer* obs)
 }
 
 void napsat::gui::remove_literal::apply(observer* obs)
-{}
+{
+  assert(obs);
+  assert(obs->_active_clauses.size() > cl);
+  assert(obs->_active_clauses[cl] != nullptr);
+  observer::clause* c = obs->_active_clauses[cl];
+  assert(c->active);
+  assert(find(c->literals.begin(), c->literals.end(), lit) != c->literals.end());
+  // bring the literal to the end of the clause
+  unsigned last_literal_location = c->literals.size() - 1 - c->n_deleted_literals;
+  unsigned deleted_literal_location = find(c->literals.begin(), c->literals.end(), lit) - c->literals.begin();
+  c->literals[deleted_literal_location] = c->literals[last_literal_location];
+  c->literals[last_literal_location] = lit;
+  c->n_deleted_literals++;
+}
 
 void napsat::gui::remove_literal::rollback(observer* obs)
-{}
+{
+  assert(obs);
+  assert(obs->_active_clauses.size() > cl);
+  assert(obs->_active_clauses[cl] != nullptr);
+  observer::clause* c = obs->_active_clauses[cl];
+  assert(c->active);
+  unsigned last_literal_location = c->literals.size() - 1 - c->n_deleted_literals;
+  assert(c->literals[last_literal_location] == lit);
+  c->n_deleted_literals--;
+}
 
 void napsat::gui::check_invariants::apply(observer* obs)
 {

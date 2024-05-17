@@ -2,6 +2,8 @@ NapSAT is a CDCL SAT solver supporting both chronological and non-chrono-
 logical backtracking. The solver will print "s SATISFIABLE" if the problem has a
 solution, and "s UNSATISFIABLE" otherwise.
 
+By default, Boolean options [on/off] are set [on] if the specification is omitted
+
 To use the solver, use the following command:
     NapSAT-<version>[-dbg] <input_file/-h/-hs/-hn> [options]
 
@@ -17,46 +19,65 @@ The options are the following:
     Print the documentation of the navigation commands the observer supports
 
 ******************************* SOLVER BEHAVIOR *******************************
-  -cb or --chronological-backtracking
+  -cb or --chronological-backtracking <bool = off>
+    Enables  chronological  backtracking.  If enabled directly,  the solver will
+    use weak chronological  backtracking.  This option  is not meant  to be used
+    standalone,  but can be, in which case, wcb is used. This option  is enabled
+    by any chronological  backtracking  variant.  wcb => cb, rscb => cb, lscb =>
+    cb There exists a hierarchy  between  the options.  If several  are enabled,
+    the highest in the hierarchy will be used. cb <= wcb < rscb < lscb
+
+  -cb or --weak-chronological-backtracking <bool = off>
     Enables the solver to use chronological backtracking.
 
-  -scb or --strong-chronological-backtracking
+  -rscb or --restoring-strong-chronological-backtracking <bool = off>
+    Enables  the solver to use restoring  chronological  backtracking.  That is,
+    the solver will re-propagate literals that moved during backtracking.
+
+  -scb or --lazy-strong-chronological-backtracking <bool = off>
     Enables  the solver to use strong chronological  backtracking.  That is, the
     solver will use the lazy reimplication scheme.
 
-  -rscb or --restoring-chronological-backtracking
-    Enables  the solver to use restoring  chronological  backtracking.  That is,
-    the solver will repropagated literals that moved during backtacking.
-
-  -del or --delete-clauses
+  -del or --delete-clauses <bool = on>
     Enables the solver to delete learned clauses.
 
 *********************************** OBSERVER ***********************************
-  -sw or --suppress-warning
+  -sw or --suppress-warning <bool = off>
     If true, the observer will not print warnings.
     Requires: observing, interactive, check_invariants or print_stats is on
 
-  -i or --interactive
-    Sets the solver to interractive  mode. Before each decision, the solver will
+  -i or --interactive <bool = off>
+    Sets the solver to interactive  mode. Before each decision,  the solver will
     wait for the user to enter a command before continuing.
 
-  -o or --observing
+  -o or --observing <bool = off>
     Sets an observer  to the solver. The observer will print information  about
     the solver.
 
-  -c or --check-invariants
+  -c or --check-invariants <bool = off>
     Enables the solver to check some invariants through the observers.
 
-  -stat or --print-stats
+  -stat or --print-stats <bool = off>
     Enables the observer to print statistics at the end of the execution.
     Requires: observing or interactive is on
+
+  -bp or --build-proof <bool = off>
+    Enables the observer to build a proof during the execution.
+
+  -cp or --check-proof <bool = off>
+    Enables the observer to check the proof during the execution.
+    Requires: build_proof is on
+
+  -pp or --print-proof <bool = off>
+    Enables the observer to print the proof during the execution.
+    Requires: build_proof is on
 
   -commands or --commands-file <string = "">
     File containing the commands to be executed by the solver.
     Requires: interactive is on
 
   -s or --save-folder <string = "">
-    Folder  where  the solver  will save the LaTeX  files.  (see $ NapSAT
+    Folder  where  the  solver  will  save  the LaTeX  files.  (see  $  NapSAT
     --help-navigation for more information)
 
 ****************************** VARIABLE ACTIVITY ******************************

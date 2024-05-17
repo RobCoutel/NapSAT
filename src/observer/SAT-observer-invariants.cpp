@@ -18,11 +18,11 @@ static const string error = "\033[1;31m" + string("Error: ") + "\033[0m";
 void napsat::gui::observer::load_invariant_configuration()
 {
   string filename = napsat::env::get_invariant_configuration_folder();
-  if (_options.strong_chronological_backtracking)
+  if (_options.lazy_strong_chronological_backtracking)
     filename += "strong-chronological-backtracking";
-  else if (_options.restoring_chronological_backtracking)
+  else if (_options.restoring_strong_chronological_backtracking)
     filename += "restoring-strong-chronological-backtracking";
-  else if (_options.chronological_backtracking)
+  else if (_options.weak_chronological_backtracking)
     filename += "weak-chronological-backtracking";
   else
     filename += "non-chronological-backtracking";
@@ -250,9 +250,9 @@ bool napsat::gui::observer::check_watched_literals()
   {
     clause *c = _active_clauses[cl];
     // cout << "checking clause " << clause_to_string(cl) << endl;
-    if (!c->active || c->literals.size() < 2)
+    if (!c->active || c->literals.size() - c->n_deleted_literals < 2)
       continue;
-    if (c->literals.size() == 2) {
+    if (c->literals.size() - c->n_deleted_literals == 2) {
       c->watched.insert(c->literals[0]);
       c->watched.insert(c->literals[1]);
     }

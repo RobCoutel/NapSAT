@@ -6,7 +6,7 @@ description of the options
 """
 import pandas as pd
 
-option_file = "../src/solver/SAT-options.hpp"
+option_file = "../include/SAT-options.hpp"
 
 columns = ["Category", "Option", "Alias", "Type", "Default", "Description", "Requires", "Subsumed by", "Warning"]
 
@@ -28,7 +28,7 @@ with open(option_file, "r") as f:
   current_tag_value = ""
   for line in lines:
     line = line.strip()
-    print(line)
+    # print(line)
     if line.find("/**") != -1 and line.find("**/") != -1 :
       current_category = line.split("/**")[1].split("**/")[0].strip()
       if current_category == "Stop Documentation":
@@ -125,7 +125,7 @@ def justify_to_length(line, length):
     longest_words = set()
     words = sorted(words, key=lambda x: len(x), reverse=True)
     for i in range(length - len(line)):
-      longest_words.add(words[i])
+      longest_words.add(words[i % len(words)])
     printed_line = ""
     for word in line.split(" "):
       if word in longest_words:
@@ -171,7 +171,7 @@ for i in range(len(dataframe)):
   if option_line["Alias"] != "":
     option_string += option_line["Alias"] + " or "
   option_string += option_line["Option"]
-  if option_line["Type"] != "" and option_line["Type"] != "bool":
+  if option_line["Type"] != "":
     option_string += " <" + option_line["Type"] + " = " + option_line["Default"] + ">"
   option_string += "\n"
 

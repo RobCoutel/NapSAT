@@ -28,10 +28,12 @@ napsat::options::options(char** tokens, unsigned n_tokens)
   std::unordered_map<string, bool*> bool_options = {
     {"-cb", &chronological_backtracking},
     {"--chronological-backtracking", &chronological_backtracking},
-    {"-scb", &strong_chronological_backtracking},
-    {"--strong-chronological-backtracking", &strong_chronological_backtracking},
-    {"-rscb", &restoring_chronological_backtracking},
-    {"--restoring-chronological-backtracking", &restoring_chronological_backtracking},
+    {"-wcb", &weak_chronological_backtracking},
+    {"--weak-chronological-backtracking", &weak_chronological_backtracking},
+    {"-lscb", &lazy_strong_chronological_backtracking},
+    {"--lazy-strong-chronological-backtracking", &lazy_strong_chronological_backtracking},
+    {"-rscb", &restoring_strong_chronological_backtracking},
+    {"--restoring-chronological-backtracking", &restoring_strong_chronological_backtracking},
     {"-o", &observing},
     {"--observing", &observing},
     {"-i", &interactive},
@@ -44,17 +46,12 @@ napsat::options::options(char** tokens, unsigned n_tokens)
     {"--statistics", &print_stats},
     {"-del", &delete_clauses},
     {"--delete-clauses", &delete_clauses},
-    {"--proof", &build_proof},
     {"-bp", &build_proof},
-    {"--print-proof", &print_proof},
+    {"--proof", &build_proof},
     {"-pp", &print_proof},
-    {"--check-proof", &check_proof},
-    {"-cp", &check_proof},
-    {"--build-proof", &build_proof},
-    {"-pproof", &print_proof},
     {"--print-proof", &print_proof},
-    {"-cproof", &check_proof},
-    {"--check-proof", &check_proof}
+    {"-cp", &check_proof},
+    {"--check-proof", &check_proof},
   };
 
   /**
@@ -90,13 +87,28 @@ napsat::options::options(char** tokens, unsigned n_tokens)
       continue;
     }
     if (bool_options.find(token) != bool_options.end()) {
-      *bool_options[token] = true;
+      if (next_token != "" && next_token[0] != '-') {
+        if (next_token == "on") {
+          *bool_options[token] = true;
+        }
+        else if (next_token == "off") {
+          *bool_options[token] = false;
+        }
+        else {
+          cerr << "Error: option " << token << " requires a boolean value (on/off)." << endl;
+          cerr << "Default value " << (*bool_options[token] ? "on" : "off") << " is used." << endl;
+          continue;
+        }
+      }
+      else
+        *bool_options[token] = true;
       set_options.insert(token);
     }
     else if (double_options.find(token) != double_options.end()) {
       if (next_token == "" || next_token[0] == '-') {
-        cerr << "Error: option " << token << " requires a value." << endl;
-        exit(1);
+        cerr << "Error: option " << token << " requires a value (floating point number)." << endl;
+        cerr << "Default value " << *double_options[token] << " is used." << endl;
+        continue;
       }
       try {
         *double_options[token] = stod(next_token);
@@ -104,14 +116,16 @@ napsat::options::options(char** tokens, unsigned n_tokens)
         i++;
       }
       catch (const std::invalid_argument& ia) {
-        cerr << "Error: option " << token << " requires a double value." << endl;
-        exit(1);
+        cerr << "Error: option " << token << " requires a floating point number value." << endl;
+        cerr << "Default value " << *double_options[token] << " is used." << endl;
+        continue;
       }
     }
     else if (string_options.find(token) != string_options.end()) {
       if (next_token == "" || next_token[0] == '-') {
-        cerr << "Error: option " << token << " requires a value." << endl;
-        exit(1);
+        cerr << "Error: option " << token << " requires a value (string of characters)." << endl;
+        cerr << "Options is ignored." << endl;
+        continue;
       }
       *string_options[token] = next_token;
       set_options.insert(token);
@@ -125,12 +139,25 @@ napsat::options::options(char** tokens, unsigned n_tokens)
   /****************************************************************************/
   /**                          OPTION COMPATIBILITY                          **/
   /****************************************************************************/
-  if (chronological_backtracking && strong_chronological_backtracking) {
-    cerr << "Warning: strong chronological backtracking subsumes chronological backtracking. The option is ignored." << endl;
+  if (lazy_strong_chronological_backtracking && restoring_strong_chronological_backtracking) {
+    cerr << "Warning: lazy strong chronological backtracking subsumes restoring strong chronological backtracking." << endl;
+    cerr << "The solver will run with lazy strong chronological backtracking." << endl;
+    restoring_strong_chronological_backtracking = false;
   }
-  if (strong_chronological_backtracking || restoring_chronological_backtracking) {
-    chronological_backtracking = true;
+  if (lazy_strong_chronological_backtracking && weak_chronological_backtracking) {
+    cerr << "Warning: lazy strong chronological backtracking subsumes weak chronological backtracking." << endl;
+    cerr << "The solver will run with lazy strong chronological backtracking." << endl;
+    weak_chronological_backtracking = false;
   }
+  if (restoring_strong_chronological_backtracking && weak_chronological_backtracking) {
+    cerr << "Warning: restoring strong chronological backtracking subsumes weak chronological backtracking." << endl;
+    cerr << "The solver will run with restoring strong chronological backtracking." << endl;
+    weak_chronological_backtracking = false;
+  }
+  chronological_backtracking = weak_chronological_backtracking || restoring_strong_chronological_backtracking || lazy_strong_chronological_backtracking;
+
+  interactive |= commands_file != "";
+
   if (suppress_warning && !observing && !interactive && !check_invariants) {
     cerr << "Warning: suppress warning requires observing. The options is ignored" << endl;
   }
