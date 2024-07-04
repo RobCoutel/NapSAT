@@ -23,6 +23,8 @@
 #include <windows.h>
 #endif
 
+#define COLORBLIND_MODE 1
+
 static unsigned TERMINAL_WIDTH = 169;
 
 using namespace napsat;
@@ -675,7 +677,11 @@ std::string napsat::gui::observer::literal_to_latex(Tlit lit, bool watched, bool
   if (lit_value(lit) == VAR_FALSE)
     s += "\\red{";
   else if (lit_value(lit) == VAR_TRUE)
+#if COLORBLIND_MODE
+    s += "\\blue{";
+#else
     s += "\\green{";
+#endif
   if (!lit_pol(lit))
     s += "\\neg ";
   // if (lit_reason(lit) == CLAUSE_UNDEF && lit_value(lit) != VAR_UNDEF)
@@ -694,7 +700,11 @@ std::string napsat::gui::observer::literal_to_aligned_latex(Tlit lit, bool watch
   if (lit_value(lit) == VAR_FALSE)
     s += "\\red{";
   else if (lit_value(lit) == VAR_TRUE)
+#if COLORBLIND_MODE
+    s += "\\blue{";
+#else
     s += "\\green{";
+#endif
   if (!lit_pol(lit))
     s += "\\neg ";
   else
@@ -735,15 +745,36 @@ std::string napsat::gui::observer::clause_to_latex(Tclause cl)
   if (cl == CLAUSE_UNDEF)
     return "decision";
   string s = "$";
+  // If there are some watched literals, print those first
+  assert(_active_clauses[cl]->watched.size() == 0 || _active_clauses[cl]->watched.size() == 2);
+  bool printed = false;
+  set<Tlit>& watched_lit = _active_clauses[cl]->watched;
+  if (watched_lit.size() > 0) {
+    Tlit first_watched = *watched_lit.begin();
+    Tlit second_watched = *watched_lit.rbegin();
+    if (lit_value(first_watched) == VAR_FALSE) {
+      // swap the literals
+      Tlit tmp = first_watched;
+      first_watched = second_watched;
+      second_watched = tmp;
+    }
+    s += literal_to_latex(first_watched, true, false);
+    s += " \\lor ";
+    s += literal_to_latex(second_watched, true, false);
+    printed = true;
+  }
+
   for (unsigned i = 0; i < _active_clauses[cl]->literals.size(); i++) {
-    if (i > 0)
+    clause* cl_ptr = _active_clauses[cl];
+    Tlit lit = cl_ptr->literals[i];
+    if (_active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end())
+      continue;
+    if (i > 0 || printed)
       s += "\\lor ";
     if (i == MAX_LITS_PER_LINE - 1 && i < _active_clauses[cl]->literals.size() - 1) {
       s += "\\red{\\dots}";
       break;
     }
-    clause* cl_ptr = _active_clauses[cl];
-    Tlit lit = cl_ptr->literals[i];
     bool watched = cl_ptr->watched.find(lit) != cl_ptr->watched.end();
     bool blocked = cl_ptr->blocker == lit;
     s += literal_to_latex(lit, watched, blocked);
@@ -757,9 +788,31 @@ std::string napsat::gui::observer::clause_to_aligned_latex(Tclause cl)
   if (cl == CLAUSE_UNDEF)
     return "decision";
   string s = "";
+  // If there are some watched literals, print those first
+  assert(_active_clauses[cl]->watched.size() == 0 || _active_clauses[cl]->watched.size() == 2);
+  bool printed = false;
+  set<Tlit>& watched_lit = _active_clauses[cl]->watched;
+
+  if (watched_lit.size() > 0) {
+    Tlit first_watched = *watched_lit.begin();
+    Tlit second_watched = *watched_lit.rbegin();
+    if (lit_value(first_watched) == VAR_FALSE) {
+      // swap the literals
+      Tlit tmp = first_watched;
+      first_watched = second_watched;
+      second_watched = tmp;
+    }
+    s += literal_to_aligned_latex(first_watched, true, false);
+    s += " \\lor ";
+    s += literal_to_aligned_latex(second_watched, true, false);
+    printed = true;
+  }
+
   for (unsigned i = 0; i < _active_clauses[cl]->literals.size(); i++) {
-    if (i > 0)
-      s += "\\lor ";
+    if (find(watched_lit.begin(), watched_lit.end(), _active_clauses[cl]->literals[i]) != watched_lit.end())
+      continue;
+    if (i > 0 || printed)
+      s += " \\lor ";
     clause* cl_ptr = _active_clauses[cl];
     Tlit lit = cl_ptr->literals[i];
     bool watched = cl_ptr->watched.find(lit) != cl_ptr->watched.end();

@@ -1145,6 +1145,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
     // clause->watched = false;
     _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
     _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
     if (lit_false(lits[0]) && !lit_false(lits[1])) {
       // swap the literals so that the false literal is at the second position
       lits[1] = lits[0] ^ lits[1];
@@ -1261,6 +1263,7 @@ bool NapSAT::propagate()
     Tclause conflict = propagate_binary_clauses(lit);
     if (conflict == CLAUSE_UNDEF)
       conflict = propagate_lit(lit);
+    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
     if (conflict == CLAUSE_UNDEF) {
       _vars[lit_to_var(lit)].waiting = false;
       _propagated_literals++;
