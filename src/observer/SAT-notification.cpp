@@ -369,34 +369,16 @@ void napsat::gui::new_clause::apply(observer* obs)
       { return lit_to_var(l1) < lit_to_var(l2); });
     hash = obs->hash_clause(lits);
     while (obs->_clauses_dict.find(hash) != obs->_clauses_dict.end()) {
-      cout << "Hash collision " << hash << endl;
       // if the clause are identical, send a warning message
       if (!notification::_suppress_warning && obs->_clauses_dict[hash]->literals == lits) {
-        if (!obs->_active_clauses[obs->_clauses_dict[hash]->cl]->active) {
+        if (!obs->_clauses_dict[hash]->active) {
           // The clause was deleted. This is not a big problem.
-          cout << "\033[0;33mWARNING\033[0m (at notification number " << obs->_notifications.size() << "): ";
+          cout << "\033[34mINFO\033[0m (at notification number " << obs->_notifications.size() << "): ";
           cout << "The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << " that was deleted earlier" << endl;
-          cout << "The clause is " << obs->clause_to_string(obs->_clauses_dict[hash]->cl) << endl;
-          cout << "The clause added is ";
-          for (Tlit l : lits)
-            cout << obs->lit_to_string(l) << " ";
-          cout << endl;
         }
         else {
-          // TODO: There is a problem here. It happens that this error is triggered even if the clauses are different.
-          // TODO: This is produced with the uuf250-001.cnf file.
-          // if the clause are identical, send a warning message. This could be a problem if the clause was not deleted and the solver learned it twice.
           cerr << "\033[0;33mWARNING\033[0m (at notification number " << obs->_notifications.size() << "): ";
           cerr << "The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << endl;
-          cout << "The clause is " << obs->clause_to_string(obs->_clauses_dict[hash]->cl) << endl;
-          cout << "obs->_clauses_dict[hash]->literals is ";
-          for (Tlit l : obs->_clauses_dict[hash]->literals)
-            cout << obs->lit_to_string(l) << " ";
-          cout << endl;
-          cout << "The clause added is ";
-          for (Tlit l : lits)
-            cout << obs->lit_to_string(l) << " ";
-          cout << endl;
           event_level = 0;
         }
       }
