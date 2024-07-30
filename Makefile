@@ -25,6 +25,7 @@ MODULES :=
 
 INC_DIRS += ./include/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
+LINK_FLAGS := -llzma
 
 CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
 REL_FLAGS ?= -O3 -DNDEBUG
@@ -41,7 +42,7 @@ $(BUILD_DIR)/tests/%.o: %.cpp $(TEST_HEAD)
 
 # release
 $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
-	$(CC) $^ -o $@ $(CFLAGS) $(REL_FLAGS)
+	$(CC) $^ -o $@ $(CFLAGS) $(REL_FLAGS) $(LINK_FLAGS)
 
 # library
 $(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
@@ -58,6 +59,8 @@ debug: REL_FLAGS = $(DBG_FLAGS)
 debug: $(BUILD_DIR)/$(TARGET_LIB)
 debug: $(BUILD_DIR)/$(EXEC)
 
+.PHONY: install
+	sudo apt-get install liblzma-dev
 
 .PHONY: bench
 
