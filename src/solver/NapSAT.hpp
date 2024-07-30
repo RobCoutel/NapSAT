@@ -105,10 +105,13 @@
 #include <cassert>
 #include <algorithm>
 
+#if USE_OBSERVER
 #define NOTIFY_OBSERVER(observer, notification) \
   if (observer) \
-    observer->notify(notification); \
-
+    observer->notify(notification);
+#else
+#define NOTIFY_OBSERVER(observer, notification)
+#endif
 namespace napsat
 {
   class NapSAT
@@ -521,11 +524,13 @@ namespace napsat
     napsat::statistics _stats;
 
     /**  INTERACTIVE SOLVER  **/
+#if USE_OBSERVER
     /**
      * @brief Observer of the solver. If _observer is not nullptr, the solver
      * notifies the observer of its progress.
      */
     napsat::gui::observer* _observer = nullptr;
+#endif
     /**
      * @brief True if the solver is interactive.
      * @details The solver is interactive if it stops between decisions to let
@@ -1060,8 +1065,10 @@ namespace napsat
 
     /**
      * @brief Parse a DIMACS file and add the clauses to the clause set.
+     * @param filename name of the DIMACS file.
+     * @return true if the file was parsed successfully, false otherwise.
      */
-    void parse_dimacs(const char* filename);
+    bool parse_dimacs(const char* filename);
 
     /**
      * @brief Returns true if the solver is in interactive mode.

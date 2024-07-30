@@ -32,8 +32,9 @@ namespace napsat
    * @param solver an instance of the SAT solver
    * @param filename the name of the file containing the clauses in dimacs format
    * @pre the solver is a valid instance of NapSAT
+   * @return true if the file was successfully parsed, false otherwise.
    */
-  void parse_dimacs(NapSAT* solver, const char* filename);
+  bool parse_dimacs(NapSAT* solver, const char* filename);
 
   /**
    * @brief Propagate literals in the queue and resolve conflicts if needed.

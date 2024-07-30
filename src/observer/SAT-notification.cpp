@@ -362,25 +362,47 @@ void napsat::gui::new_clause::apply(observer* obs)
 {
   assert(obs);
   assert(obs->_active_clauses.size() <= cl || obs->_active_clauses[cl] == nullptr || !obs->_active_clauses[cl]->active);
-  // sort the literals
+
   if (hash == 0) {
+    // sort the literals
     std::sort(lits.begin(), lits.end(), [&](Tlit l1, Tlit l2)
       { return lit_to_var(l1) < lit_to_var(l2); });
     hash = obs->hash_clause(lits);
-    if (obs->_clauses_dict.find(hash) != obs->_clauses_dict.end()) {
+    while (obs->_clauses_dict.find(hash) != obs->_clauses_dict.end()) {
+      cout << "Hash collision " << hash << endl;
       // if the clause are identical, send a warning message
       if (!notification::_suppress_warning && obs->_clauses_dict[hash]->literals == lits) {
-        cerr << "\033[0;33mWARNING\033[0m (at notification number " << obs->_notifications.size() << "): ";
-        cerr << "The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << endl;
-        event_level = 0;
+        if (!obs->_active_clauses[obs->_clauses_dict[hash]->cl]->active) {
+          // The clause was deleted. This is not a big problem.
+          cout << "\033[0;33mWARNING\033[0m (at notification number " << obs->_notifications.size() << "): ";
+          cout << "The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << " that was deleted earlier" << endl;
+          cout << "The clause is " << obs->clause_to_string(obs->_clauses_dict[hash]->cl) << endl;
+          cout << "The clause added is ";
+          for (Tlit l : lits)
+            cout << obs->lit_to_string(l) << " ";
+          cout << endl;
+        }
+        else {
+          // TODO: There is a problem here. It happens that this error is triggered even if the clauses are different.
+          // TODO: This is produced with the uuf250-001.cnf file.
+          // if the clause are identical, send a warning message. This could be a problem if the clause was not deleted and the solver learned it twice.
+          cerr << "\033[0;33mWARNING\033[0m (at notification number " << obs->_notifications.size() << "): ";
+          cerr << "The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << endl;
+          cout << "The clause is " << obs->clause_to_string(obs->_clauses_dict[hash]->cl) << endl;
+          cout << "obs->_clauses_dict[hash]->literals is ";
+          for (Tlit l : obs->_clauses_dict[hash]->literals)
+            cout << obs->lit_to_string(l) << " ";
+          cout << endl;
+          cout << "The clause added is ";
+          for (Tlit l : lits)
+            cout << obs->lit_to_string(l) << " ";
+          cout << endl;
+          event_level = 0;
+        }
       }
+      hash = (hash * lits.size() + 1);
     }
-    while (obs->_clauses_dict.find(hash) != obs->_clauses_dict.end()) {
-      // todo find a way to have fewer collisions
-      hash++;
-      if (hash == 0)
-        hash = 1;
-    }
+
     observer::clause* c = new observer::clause(lits, cl, learnt, external);
     c->active = true;
     obs->_clauses_dict.insert({ hash, c });
@@ -390,8 +412,8 @@ void napsat::gui::new_clause::apply(observer* obs)
   assert(obs->_active_clauses.size() > cl);
   obs->_active_clauses[cl] = obs->_clauses_dict[hash];
   obs->_active_clauses[cl]->active = true;
-  for (Tlit l : obs->_active_clauses[cl]->watched)
-    cout << obs->lit_to_string(l) << endl;
+  assert(obs->_active_clauses[cl]->literals == lits);
+  assert(obs->_clauses_dict[hash]->literals == lits);
 }
 
 void napsat::gui::new_clause::rollback(observer* obs)
@@ -445,8 +467,6 @@ void napsat::gui::checkpoint::rollback(observer* obs)
 void napsat::gui::done::apply(observer* obs)
 {
   assert(obs);
-  cout << "Done" << endl;
-  cout << obs->_notifications.size() << " notifications" << endl;
 }
 
 unsigned napsat::gui::conflict::get_event_level(observer* obs)

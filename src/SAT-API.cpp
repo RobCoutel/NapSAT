@@ -15,10 +15,10 @@ void napsat::delete_solver(NapSAT* solver)
   delete solver;
 }
 
-void napsat::parse_dimacs(NapSAT* solver, const char* filename)
+bool napsat::parse_dimacs(NapSAT* solver, const char* filename)
 {
   assert(solver != nullptr);
-  solver->parse_dimacs(filename);
+  return solver->parse_dimacs(filename);
 }
 
 bool napsat::propagate(NapSAT* solver)
@@ -89,12 +89,15 @@ bool napsat::is_decided(NapSAT* solver, Tlit lit)
 void napsat::print_statistics(NapSAT* solver)
 {
   assert(solver != nullptr);
+  assert(USE_OBSERVER);
+#if USE_OBSERVER
   napsat::gui::observer* obs = solver->get_observer();
   if (obs == nullptr) {
     std::cout << "No statistic collected. Use -stat in the options to collect them." << std::endl;
     return;
   }
   std::cout << obs->get_statistics();
+#endif
 }
 
 void napsat::print_proof(NapSAT* solver)

@@ -1,0 +1,17 @@
+#pragma once
+
+
+#include <lzma.h>
+#include <fstream>
+#include <string>
+
+
+/**
+ * @brief Decompresses a XZ file and writes the output to a stream.
+ * @param filename The name of the file to decompress.
+ * @param output The stream to write the output to.
+ * @return true if the decompression was successful, false otherwise.
+ * @details This function uses the liblzma library to decompress the file.
+ * @details If the decompression fails, an error message is printed to stderr.
+ */
+bool decompress_xz(const char* filename, std::ostringstream& output);

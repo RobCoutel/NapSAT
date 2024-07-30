@@ -536,11 +536,13 @@ void napsat::NapSAT::backtrack(Tlevel level)
         ASSERT(lit_true(_clauses[lazy_reason].lits[0]));
         _reimplication_backtrack_buffer.push_back(lazy_reason);
       }
+#if USE_OBSERVER
       // When using the observer, we cannot unassign the variables from left to right because the observer
       // assumes that if we remove a propagated literal, it is at the end of the trail.
       if (_observer)
         _backtracked_variables.push_back(var);
       else
+#endif
         var_unassign(var);
     }
     else {
@@ -549,12 +551,14 @@ void napsat::NapSAT::backtrack(Tlevel level)
       waiting_count += _vars[var].waiting;
     }
   }
+#if USE_OBSERVER
   if (_observer)
     while(!_backtracked_variables.empty()) {
       Tvar var = _backtracked_variables.back();
       _backtracked_variables.pop_back();
       var_unassign(var);
     }
+#endif
   _trail.resize(j);
   _decision_index.resize(level);
 
@@ -1111,12 +1115,14 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
   }
 
   _activities[cl] = _max_clause_activity;
+  #if USE_OBSERVER
   if (_observer) {
     vector<Tlit> lits_vector;
     for (unsigned i = 0; i < clause_size; i++)
       lits_vector.push_back(lits[i]);
     _observer->notify(new napsat::gui::new_clause(cl, lits_vector, learned, external));
   }
+  #endif
 
   if (clause_size == 0) {
     clause->watched = false;
@@ -1206,6 +1212,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _literal_buffer = new Tlit[n_var];
   _next_literal_index = 0;
 
+#if USE_OBSERVER
   if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
     _observer = new napsat::gui::observer(options);
     // make a functional object that will parse the command
@@ -1218,6 +1225,19 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   }
   else
     _observer = nullptr;
+#else
+  if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
+    std::cerr << "Warning: Observer not available in this build\n";
+    if (options.interactive)
+      std::cerr << "Warning: The option --interactive is not available in this build\n";
+    if (options.observing)
+      std::cerr << "Warning: The option --observing is not available in this build\n";
+    if (options.check_invariants)
+      std::cerr << "Warning: The option --check-invariants is not available in this build\n";
+    if (options.print_stats)
+      std::cerr << "Warning: The option --print-stats is not available in this build\n";
+  }
+#endif
 
   if (options.build_proof)
     _proof = new napsat::proof::resolution_proof();
@@ -1229,8 +1249,10 @@ NapSAT::~NapSAT()
 {
   for (unsigned i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
+#if USE_OBSERVER
   if (_observer)
     delete _observer;
+#endif
   if (_proof)
     delete _proof;
   delete[] _literal_buffer;
@@ -1244,12 +1266,20 @@ bool napsat::NapSAT::is_interactive() const
 
 bool napsat::NapSAT::is_observing() const
 {
+#if USE_OBSERVER
   return _observer != nullptr;
+#else
+  return false;
+#endif
 }
 
 napsat::gui::observer* napsat::NapSAT::get_observer() const
 {
+#if USE_OBSERVER
   return _observer;
+#else
+  return nullptr;
+#endif
 }
 
 bool NapSAT::propagate()
@@ -1304,9 +1334,11 @@ status NapSAT::solve()
       // therefore we cannot take a decision before we propagate
       continue;
     }
+#if USE_OBSERVER
     if (_observer && _options.interactive)
       _observer->notify(new napsat::gui::checkpoint());
     else
+#endif
       decide();
     if (_status == SAT || _status == UNSAT)
       break;

@@ -41,7 +41,6 @@ long unsigned napsat::gui::observer::hash_clause(const std::vector<napsat::Tlit>
     x = (x >> 16) ^ x;
     seed ^= x + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
-  assert(seed != 0);
   return seed;
 }
 

@@ -1,4 +1,4 @@
-EXEC = NapSAT#-$(shell git rev-list --count --all)
+EXEC = NapSAT
 LIB_NAME = NapSAT
 MAIN = main.cpp
 TARGET_LIB ?= $(LIB_NAME).a
@@ -26,7 +26,7 @@ MODULES :=
 INC_DIRS += ./include/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
-CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic -g
+CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
 REL_FLAGS ?= -O3 -DNDEBUG
 DBG_FLAGS ?= -O0 -g -g3 -gdwarf-2 -ftrapv
 
@@ -57,6 +57,20 @@ all: $(BUILD_DIR)/$(EXEC)
 debug: REL_FLAGS = $(DBG_FLAGS)
 debug: $(BUILD_DIR)/$(TARGET_LIB)
 debug: $(BUILD_DIR)/$(EXEC)
+
+
+.PHONY: bench
+
+COMMIT_COUNT := $(shell git rev-list --count --all)
+UNCOMMITTED_CHANGES := $(shell git status --porcelain)
+
+ifneq ($(UNCOMMITTED_CHANGES),)
+  COMMIT_COUNT := $(shell echo $$(($(COMMIT_COUNT) + 1)))
+endif
+
+bench: $(BUILD_DIR)/$(EXEC)
+bench:
+	mv $(BUILD_DIR)/$(EXEC) $(BUILD_DIR)/$(EXEC)-$(COMMIT_COUNT)
 
 .PHONY: clean
 

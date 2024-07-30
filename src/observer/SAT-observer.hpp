@@ -502,12 +502,12 @@ namespace napsat::gui
     bool _check_trail_monotonicity = false;
     bool _check_no_missed_implications = false;
     bool _check_topological_order = false;
-#if NOTIFY_WATCH_CHANGES
+    /* These will be ignored if NOTIFY_WATCH_CHANGES = 0*/
     bool _check_weak_watched_literals = false;
     bool _check_strong_watched_literals = false;
     bool _check_lazy_backtrack_compatible_watch_literals = false;
     bool _check_backtrack_compatible_watched_literals = false;
-#endif
+    /* End of ignored options */
     bool _check_assignment_coherence = false;
 
   public:

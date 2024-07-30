@@ -9,7 +9,7 @@
 #include <cassert>
 
 #ifndef NDEBUG
-#if OBSERVED_ASSERTS
+#if OBSERVED_ASSERTS && USE_OBSERVER
 #define ASSERT(cond)                                                \
   if (_observer) {                                                  \
     if (!(cond))  {                                                 \
