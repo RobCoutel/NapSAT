@@ -16,7 +16,9 @@ namespace napsat
     // The clause set is unsatisfiable.
     UNSAT,
     // The solver does not know if the clause set is satisfiable or not.
-    UNDEF
+    UNDEF,
+    // An error occurred.
+    ERROR
   };
   /**
    * @brief Type to denote a variable.

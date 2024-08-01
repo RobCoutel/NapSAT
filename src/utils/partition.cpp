@@ -1,3 +1,10 @@
+/**
+ * @file src/utils/partition.hpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the NapSAT solver. It contains the implementation
+ * of the AVL tree and the memory partition system for memory allocation.
+ */
 #include "partition.hpp"
 
 #include <vector>
@@ -347,7 +354,9 @@ void* utils::AVLTree::find_best_fit(unsigned key)
     else
       node = node->_right;
   }
-  return best_candidate;
+  if (!best_candidate)
+    return nullptr;
+  return best_candidate->_data;
 }
 
 void utils::AVLTree::print()
@@ -372,3 +381,125 @@ bool utils::AVLTree::is_bst()
     return true;
   return _root->is_bst();
 }
+
+/******************************************************************************/
+/*                              MEMORY PARTITION                              */
+/******************************************************************************/
+
+/******************************************************************************/
+/*                                MEMORY NODE                                 */
+/******************************************************************************/
+
+// /**
+//  * @brief Check if a number is a power of two.
+//  * @param x the number to check.
+//  * @return true if x is a power of two, false otherwise.
+//  */
+// static bool is_power_of_two(size_t x)
+// {
+//   return (x & (x - 1)) == 0;
+// }
+
+// /**
+//  * @brief Find the largest power of two that is less than or equal to x.
+//  * @param x the number to find the largest power of two for.
+//  * @return the largest power of two that is less than or equal to x.
+//  */
+// static size_t previous_power_of_two(size_t x)
+// {
+//   size_t p = 1;
+//   while (p < x)
+//     p <<= 1;
+//   return p >> 1;
+// }
+
+// /**
+//  * @brief Find the smallest power of two that is greater than or equal to x.
+//  */
+// static size_t next_power_of_two(size_t x)
+// {
+//   size_t p = 1;
+//   while (p < x)
+//     p <<= 1;
+//   return p;
+// }
+
+// static inline bool is_aligned_with_cache(byte* ptr)
+// {
+//   return (unsigned long) ptr & !utils::CACHE_MASK == 0;
+// }
+
+// static inline bool is_on_same_cache_line(byte* ptr1, byte* ptr2)
+// {
+//   return (unsigned long) ptr1 & utils::CACHE_MASK == (unsigned long) ptr2 & utils::CACHE_MASK;
+// }
+
+// static inline unsigned long number_of_cache_lines(size_t size)
+// {
+//   return (size + utils::CACHE_LINE_SIZE - 1) / utils::CACHE_LINE_SIZE;
+// }
+
+// static inline unsigned long number_of_cache_lines(byte* start, byte* end)
+// {
+//   return ((unsigned long) start & utils::CACHE_MASK
+//         - (unsigned long) end & utils::CACHE_MASK)
+//         >> 6;
+// }
+
+// inline bool utils::MemoryPartition::MemoryNode::is_leaf() const
+// {
+//   return !_left && !_right;
+// }
+
+// bool utils::MemoryPartition::MemoryNode::is_free() const
+// {
+//   return _free;
+// }
+
+// unsigned utils::MemoryPartition::MemoryNode::balance_factor() const
+// {
+//   unsigned left_height = _left ? _left->_height : 0;
+//   unsigned right_height = _right ? _right->_height : 0;
+//   return left_height - right_height;
+// }
+
+// void utils::MemoryPartition::MemoryNode::update_height()
+// {
+//   unsigned left_height = _left ? _left->_height : 0;
+//   unsigned right_height = _right ? _right->_height : 0;
+//   _height = std::max(left_height, right_height) + 1;
+// }
+
+// void utils::MemoryPartition::MemoryNode::split(size_t size)
+// {
+//   if (size == 0 || size == _size)
+//     return;
+//   assert(size < _size);
+//   assert(_free);
+//   assert(!_left && !_right);
+//   // A free node either fits entirely in one cache line or is right aligned with a cache line.
+//   assert(number_of_cache_lines(_size) > 1 || is_on_same_cache_line(_start, _start + _size - 1));
+//   // If the size of the node is a multiple of the cache line size, then the node must be left aligned with the cache lines.
+//   assert(_size % utils::CACHE_LINE_SIZE || is_aligned_with_cache(_start));
+
+//   _left = new MemoryNode(_start, size);
+//   _right = new MemoryNode(_start + size, _size - size);
+//   // if the remaining memory is not aligned with cache lines, split it further
+//   // the memory node must either be smaller than a cache line, and fit in one,
+//   // or be aligned with the cache lines
+//   byte* right_start = _right->_start;
+
+//   /**
+//    * We want to restore the invariant
+//    * @invariant A free node either fits entirely in one cache line or is right aligned with a
+//    */
+//   if (_right->_size % utils::CACHE_LINE_SIZE && _right->_size >= utils::CACHE_LINE_SIZE) {
+//     // the memory node is not aligned with the cache lines
+//     // split the memory node further
+//     size_t remaining_size = _right->_size % utils::CACHE_LINE_SIZE;
+//     // the end of the memory node must be aligned with the cache lines
+//     assert(is_aligned_with_cache(right_start + _right->_size));
+//     _right->split(remaining_size);
+//   }
+//   update_height();
+// }

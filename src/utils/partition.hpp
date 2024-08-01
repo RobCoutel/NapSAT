@@ -1,3 +1,10 @@
+/**
+ * @file src/utils/partition.hpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the NapSAT solver. It contains the definition of the AVL tree
+ * and the memory partition system for memory allocation.
+ */
 #pragma once
 
 #include <cassert>
@@ -8,11 +15,11 @@
 namespace utils
 {
   // The length of a cache line in bytes.
-  size_t const CACHE_LINE_SIZE = 64;
+  // size_t const CACHE_LINE_SIZE = 64;
 
   // Mask used to check if an address is aligned with the cache line.
   // or to check if two addresses are on the same cache line.
-  size_t CACHE_MASK = 0xFFFFFFFFFFFFFFC0;
+  // size_t CACHE_MASK = 0xFFFFFFFFFFFFFFC0;
 
   /**
    * @brief An AVL tree is a self-balancing binary search tree.
@@ -67,9 +74,9 @@ namespace utils
          * @param data The data associated with the key.
          */
         AVLNode(unsigned key, void* data) :
-          _height(1),
           _key(key),
           _data(data),
+          _height(1),
           _left(nullptr),
           _right(nullptr)
         { /* Do nothing */ }
@@ -248,6 +255,11 @@ namespace utils
 
   /**
    * @brief A tree memory partition represents a partition of memory.
+   * @details The tree is similar to the Buddy memory allocation algorithm. However, we use a
+   * best-fit strategy to allocate memory. The best-fit is ensured by the AVL tree.
+   * Another difference is that we do not allocate memory in powers of 2. Instead, we allocate
+   * memory best aligned with the cache lines.
+   *
    * @invariant Each node has either 0 or 2 children.
    * @invariant The start address of the partition is less than the end address.
    * @invariant The start address of a parent is identical to the start address of its left child.
@@ -255,64 +267,64 @@ namespace utils
    * @invariant The end address of the left child is identical to the start address of the right child.
    * @details The memory partition will ensure that the memory is aligned with the caches.
    */
-  class MemoryPartition
-  {
-    /**
-     * @invariant Nodes are always spread on the minimum number of cache lines.
-     * @invariant A free node either fits entirely in one cache line or is right aligned with a
-     * cache line.
-     */
-    typedef struct MemoryNode
-    {
-      private:
-        std::byte* _start;
-        size_t _size;
+  // class MemoryPartition
+  // {
+  //   /**
+  //    * @invariant Nodes are always spread on the minimum number of cache lines.
+  //    * @invariant A free node either fits entirely in one cache line or is right aligned with a
+  //    * cache line.
+  //    */
+  //   typedef struct MemoryNode
+  //   {
+  //     private:
+  //       std::byte* _start;
+  //       size_t _size;
 
-        /**
-         * @brief The level of the node in the tree.
-         * @details 0 for leaves, max(level(left), level(right)) + 1 for the other nodes.
-         */
-        unsigned _height;
+  //       /**
+  //        * @brief The level of the node in the tree.
+  //        * @details 0 for leaves, max(level(left), level(right)) + 1 for the other nodes.
+  //        */
+  //       unsigned _height;
 
-        bool _free;
+  //       bool _free;
 
-        MemoryNode* _left;
-        MemoryNode* _right;
-        MemoryNode* _parent;
+  //       MemoryNode* _left;
+  //       MemoryNode* _right;
+  //       MemoryNode* _parent;
 
-      public:
-        bool is_leaf() const;
-        bool is_free() const;
-        unsigned balance_factor() const;
-        void split(size_t size);
-        void update_height();
+  //     public:
+  //       bool is_leaf() const;
+  //       bool is_free() const;
+  //       unsigned balance_factor() const;
+  //       void split(size_t size);
+  //       void update_height();
 
-        MemoryNode(std::byte* start, size_t size) :
-          _start(start),
-          _size(size),
-          _height(1),
-          _free(true),
-          _left(nullptr),
-          _right(nullptr),
-          _parent(nullptr)
-        { /* Do nothing */ }
+  //       MemoryNode(std::byte* start, size_t size) :
+  //         _start(start),
+  //         _size(size),
+  //         _height(1),
+  //         _free(true),
+  //         _left(nullptr),
+  //         _right(nullptr),
+  //         _parent(nullptr)
+  //       { /* Do nothing */ }
 
-        ~MemoryNode() {
-          if (_left != nullptr)
-            delete _left;
-          if (_right != nullptr)
-            delete _right;
-        }
-    } MemoryNode;
+  //       ~MemoryNode() {
+  //         if (_left != nullptr)
+  //           delete _left;
+  //         if (_right != nullptr)
+  //           delete _right;
+  //       }
+  //   } MemoryNode;
 
-    MemoryNode* root;
+  //   MemoryNode* root;
 
-    utils::AVLTree free_nodes;
+  //   utils::AVLTree free_nodes;
 
-    public:
-      MemoryPartition(void* start, void* end);
-      ~MemoryPartition();
-      void free(void* start);
-      void* allocate(size_t size);
-  };
+  //   public:
+  //     MemoryPartition(void* start, void* end);
+  //     ~MemoryPartition();
+  //     void free(void* start);
+  //     void* allocate(size_t size);
+  // };
 }

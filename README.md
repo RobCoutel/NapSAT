@@ -18,6 +18,12 @@ This solver brings the contribution of Lazy Strong Chronological Backtracking. A
 
 ## Installation
 
+This project uses the lzma library for decompression of xz files. You can install the necessary dependencies by running the following command:
+
+```bash {"id":"01J41D1Y2JA0R6YWHEB56NW19J"}
+make install
+```
+
 ### Building
 
 The project uses Make to generate the build files. To build the project as a library, simply run the following commands:
@@ -44,20 +50,25 @@ Building the project will generate two executables in the build folder: `NapSAT-
 ### Running the SAT solver
 
 The SAT solver can be run with the following command:
-```bash
+
+```bash {"id":"01J4183RKTCZFPYP2VE18H54RZ"}
 ./NapSAT <input-file> [options]
 ```
 
 The input file must be a valid DIMACS CNF file. The solver will then try to solve the given formula and print the result on the standard output.
 
 ### Function calls
+
 NapSAT can be used as a library. The API is defined in `include/SAT-API.hpp`. This allows a more abstract use of the solver. However, advanturous users can also use the internal API defined in `src/solver/NapSAT.hpp`. However, since this project is not yet stable, the internal API is subject to change.
 
 ### Functionalities
+
 #### Chronological Backtracking
+
 The main contribution of NapSAT is the implementation of different chronological backtracking strategies that can be selected at runtime. The different versions are described in a paper that is currently under submission.
 
 #### Observing
+
 An observer can be attached to the solver to check and debug the solver. The observer can be used to generate tikz figures of the trail, the clause set and the implication graph. This is useful for creating slides for presentations.
 
 It also allows the user to check the behavior of the solver with a configurable level of detail. This can be useful for debugging large formulas.
@@ -68,26 +79,16 @@ For example, the follwing command shows the behavior of the solver in lazy stron
 One can set the navigation level to show more details. use the command `set level 10` to show all details.
 
 ```bash {"id":"01HY3JFHKX9XFSMFV3FCKMT46S"}
-build/NapSAT test-cnf/test-trigger-mli.cnf -i -commands test-cnf/test-trigger-commands.txt -lscb
+build/NapSAT test/cnf/test-trigger-mli.cnf -i -commands test/cnf/test-trigger-commands.txt -lscb
 ```
 
-
 #### Proof generation
+
 The solver generates proofs for UNSAT formulas. The proof can be printed in a human-readable format or simply checked using the options `-pp` and `-cp` respectively.
 
 ```bash {"id":"01HY3JP30T3GT3XST25X9BDT9R"}
-build/NapSAT test-cnf/unsat-01.cnf -pp
+build/NapSAT test/cnf/unsat-01.cnf -pp
 ```
-
-## List of objectives for the future
-
-- The display is currently only in the form of terminal output. The goal is to create a nice user interface for the solver, and to allow naming of variables and clauses, and to display the implication graph in a more user-friendly way. This is left for future work.
-- The solver currently only supports the DIMACS CNF format. We would like to add support for any arbitrary propositional formula in the future.
-- The solver does not support theory propagations yet.
-- The solver does not support user propagation yet.
-- The solver does not support additional theories. We would like to add AMO constraints, and be flexible enough to be easily hackable and add other simple theories.
-- The solver does not support assumptions yet.
-- The solver does not provide unsat cores yet.
 
 ## License
 

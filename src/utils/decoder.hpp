@@ -1,10 +1,15 @@
+/**
+ * @file src/utils/decoder.hpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the NapSAT solver. It contains the definition of the XZ
+ * decompression function.
+ */
 #pragma once
-
 
 #include <lzma.h>
 #include <fstream>
 #include <string>
-
 
 /**
  * @brief Decompresses a XZ file and writes the output to a stream.

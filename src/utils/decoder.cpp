@@ -1,3 +1,11 @@
+/**
+ * @file src/utils/decoder.cpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the NapSAT solver. It contains the implementation of the XZ
+ * decompression function.
+ */
+
 #include <iostream>
 #include <fstream>
 #include <lzma.h>

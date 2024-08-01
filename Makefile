@@ -26,6 +26,7 @@ MODULES :=
 INC_DIRS += ./include/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 LINK_FLAGS := -llzma
+TEST_LINK_FLAGS := -I /usr/include/catch2/catch.hpp
 
 CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
 REL_FLAGS ?= -O3 -DNDEBUG
@@ -36,10 +37,6 @@ $(BUILD_DIR)/%.o: %.cpp $(HEAD)
 	$(MKDIR_P) $(dir $@)
 	$(CC) -c $< -o $@ $(REL_FLAGS) $(CFLAGS)
 
-$(BUILD_DIR)/tests/%.o: %.cpp $(TEST_HEAD)
-	$(MKDIR_P) $(dir $@)
-	$(CC) -c $< -o $@ $(CFLAGS) $(DBG_FLAGS)
-
 # release
 $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
 	$(CC) $^ -o $@ $(CFLAGS) $(REL_FLAGS) $(LINK_FLAGS)
@@ -47,6 +44,11 @@ $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
 # library
 $(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
 	ar rcs $@ $^
+
+# tests
+tests: REL_FLAGS = $(DBG_FLAGS)
+tests: $(OBJS) $(TEST_OBJS)
+	$(CC) -o $(BUILD_DIR)/NapSAT-tests $(OBJS) $(TEST_OBJS) $(CFLAGS) $(DBG_FLAGS) $(LINK_FLAGS) $(TEST_LINK_FLAGS)
 
 .PHONY: debug
 
@@ -61,6 +63,9 @@ debug: $(BUILD_DIR)/$(EXEC)
 
 .PHONY: install
 	sudo apt-get install liblzma-dev
+
+install-test:
+	sudo apt-get install catch2
 
 .PHONY: bench
 
