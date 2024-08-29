@@ -8,6 +8,7 @@
 #include "NapSAT.hpp"
 #include "custom-assert.hpp"
 #include "../environment.hpp"
+#include "../utils/decoder.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -17,16 +18,33 @@
 using namespace napsat;
 using namespace std;
 
-void napsat::NapSAT::parse_dimacs(const char* filename)
+bool napsat::NapSAT::parse_dimacs(const char* filename)
 {
-  ifstream file(filename);
-  if (!file.is_open()) {
-    cout << "Error: could not open file " << filename << endl;
-    return;
+  // the file is a compressed xz file
+  // first decompress it and store it in a temporary file
+  istringstream stream;
+  if (string(filename).substr(string(filename).size() - 3) == ".xz") {
+    // create a virtual file and read the content of the compressed file
+    ostringstream decompressed_data;
+    if (!decompress_xz(filename, decompressed_data)) {
+      cout << "Error: could not decompress the file " << filename << endl;
+      _status = ERROR;
+      return false;
+    }
+    stream = istringstream(decompressed_data.str());
+  }
+  else {
+    ifstream file = ifstream(filename);
+    if (!file.is_open()) {
+      cout << "Error: could not open file " << filename << endl;
+      _status = ERROR;
+      return false;
+    }
+    stream = istringstream(string((istreambuf_iterator<char>(file)), istreambuf_iterator<char>()));
   }
 
   string line;
-  while (getline(file, line)) {
+  while (getline(stream, line)) {
     while (line.size() > 0 && line[0] == ' ')
       line.erase(0, 1);
     if (line.size() == 0 || line[0] == 'c' || line[0] == 'p' || line[0] == '\n')
@@ -51,6 +69,7 @@ void napsat::NapSAT::parse_dimacs(const char* filename)
     }
     finalize_clause();
   }
+  return true;
 }
 
 void napsat::NapSAT::bump_var_activity(Tvar var)
