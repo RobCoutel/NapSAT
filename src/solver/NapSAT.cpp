@@ -1227,15 +1227,15 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     _observer = nullptr;
 #else
   if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
-    std::cerr << "Warning: Observer not available in this build\n";
+    LOG_WARNING("Observer not available in this build");
     if (options.interactive)
-      std::cerr << "Warning: The option --interactive is not available in this build\n";
+      LOG_WARNING("The option --interactive is not available in this build");
     if (options.observing)
-      std::cerr << "Warning: The option --observing is not available in this build\n";
+      LOG_WARNING("The option --observing is not available in this build");
     if (options.check_invariants)
-      std::cerr << "Warning: The option --check-invariants is not available in this build\n";
+      LOG_WARNING("The option --check-invariants is not available in this build");
     if (options.print_stats)
-      std::cerr << "Warning: The option --print-stats is not available in this build\n";
+      LOG_WARNING("The option --print-stats is not available in this build");
   }
 #endif
 
@@ -1293,7 +1293,6 @@ bool NapSAT::propagate()
     Tclause conflict = propagate_binary_clauses(lit);
     if (conflict == CLAUSE_UNDEF)
       conflict = propagate_lit(lit);
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
     if (conflict == CLAUSE_UNDEF) {
       _vars[lit_to_var(lit)].waiting = false;
       _propagated_literals++;
@@ -1325,6 +1324,7 @@ status NapSAT::solve()
         break;
       NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
     }
+    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
     if (_purge_counter >= _purge_threshold) {
       purge_clauses();
       _purge_counter = 0;
@@ -1334,6 +1334,7 @@ status NapSAT::solve()
       // therefore we cannot take a decision before we propagate
       continue;
     }
+    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
 #if USE_OBSERVER
     if (_observer && _options.interactive)
       _observer->notify(new napsat::gui::checkpoint());

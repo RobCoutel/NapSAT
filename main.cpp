@@ -8,8 +8,6 @@
 using namespace std;
 using namespace napsat;
 
-static const string warning_msg = "\033[0;33mWARNING\033[0m: ";
-
 static void print_man_page(string man_file)
 {
   ifstream file(man_file);
@@ -20,7 +18,7 @@ static void print_man_page(string man_file)
     file.close();
   }
   else {
-    cerr << "Error: could not load the manual page." << endl;
+    LOG_ERROR(": The manual page could not be loaded.");
   }
 }
 
@@ -79,7 +77,7 @@ int main(int argc, char** argv)
     print_statistics(solver);
   }
   if (options.check_proof && get_status(solver) == napsat::UNSAT && !check_proof(solver)) {
-    cout << warning_msg << "The proof is invalid." << endl;
+    cout << WARNING_HEAD << "The proof is invalid." << endl;
   }
   if (options.print_proof && get_status(solver) == napsat::UNSAT) {
     print_proof(solver);

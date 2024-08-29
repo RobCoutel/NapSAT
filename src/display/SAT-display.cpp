@@ -312,7 +312,7 @@ void napsat::gui::display::notify_change(unsigned level)
         file.close();
       }
       else {
-        std::cerr << "Error: could not load the manual page." << std::endl;
+        LOG_ERROR("The manual page could not be loaded.");
       }
     }
     else {

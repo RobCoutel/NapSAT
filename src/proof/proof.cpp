@@ -155,45 +155,46 @@ bool napsat::proof::resolution_proof::check_resolution_chain(unsigned index)
   }
 
   if(tmp_lits.size() != c.size) {
-    cerr << "Error: resolution chain does not match the clause\n";
-    cerr << "Resolution chain:\n";
+    string error_msg = "The resolution chain does not match the clause\n";
+    error_msg += "Resolution chain:\n";
     for (pair<Tlit, unsigned> link : c.resolution_chain) {
-      cerr << lit_to_int(link.first) << " -> ";
+      error_msg += to_string(lit_to_int(link.first)) + " -> ";
       for (unsigned i = 0; i < clauses[link.second].size; i++)
-        cerr << lit_to_int(clauses[link.second].lits[i]) << " ";
-      cerr << endl;
+        error_msg += to_string(lit_to_int(clauses[link.second].lits[i])) + " ";
+      error_msg += "\n";
     }
-    cerr << "Actual clause (in DB): ";
+    error_msg += "Actual clause (in DB): ";
     for (unsigned i = 0; i < c.size; i++) {
-      cerr << lit_to_int(c.lits[i]) << " ";
+      error_msg += to_string(lit_to_int(c.lits[i])) + " ";
     }
-    cerr << "\n";
-    cerr << "Expected clause (calculated): ";
+    error_msg += "\n";
+    error_msg += "Expected clause (calculated): ";
     for (Tlit lit : tmp_lits)
-      cerr << lit_to_int(lit) << " ";
-    cerr << "\n";
+      error_msg += to_string(lit_to_int(lit)) + " ";
+    error_msg += "\n";
+    LOG_ERROR(error_msg);
     return false;
   }
 
   for (unsigned i = 0; i < c.size; i++) {
     if (c.lits[i] != tmp_lits[i]) {
-      cerr << "Error: resolution chain does not match the clause\n";
-      cerr << "Resolution chain:\n";
+      string error_msg = "Error: resolution chain does not match the clause\n";
+      error_msg += "Resolution chain:\n";
       for (pair<Tlit, unsigned> link : c.resolution_chain) {
-        cerr << lit_to_int(link.first) << " -> ";
+        error_msg += to_string(lit_to_int(link.first)) + " -> ";
         for (unsigned i = 0; i < clauses[link.second].size; i++)
-          cerr << lit_to_int(clauses[link.second].lits[i]) << " ";
-        cerr << endl;
+          error_msg += to_string(lit_to_int(clauses[link.second].lits[i])) + " ";
+        error_msg += "\n";
       }
-      cerr << "Expected clause: ";
-      for (unsigned i = 0; i < c.size; i++) {
-        cerr << lit_to_int(c.lits[i]) << " ";
-      }
-      cerr << "\n";
-      cerr << "Actual clause: ";
+      error_msg += "Expected clause: ";
+      for (unsigned i = 0; i < c.size; i++)
+        error_msg += to_string(lit_to_int(c.lits[i])) + " ";
+      error_msg += "\n";
+      error_msg += "Actual clause: ";
       for (Tlit lit : tmp_lits)
-        cerr << lit_to_int(lit) << " ";
-      cerr << "\n";
+        error_msg += to_string(lit_to_int(lit)) + " ";
+      error_msg += "\n";
+      LOG_ERROR(error_msg);
       return false;
     }
   }

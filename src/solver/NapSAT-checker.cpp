@@ -15,16 +15,13 @@
 using namespace std;
 using namespace napsat;
 
-static const string error = "\033[1;31m" + string("Error: ") + "\033[0m";
-
 bool napsat::NapSAT::trail_variable_consistency()
 {
   bool success = true;
   for (Tlit lit : _trail) {
     if (!lit_true(lit)) {
       success = false;
-      cerr << error << "Invariant violation: Trail variable consistency: literal " << lit << " is in the trail but not true\n";
-      cout << error << "Invariant violation: literal " << lit << " is in the trail but not true" << endl;
+      LOG_ERROR("Invariant violation: Trail variable consistency: literal " << lit_to_string(lit) << " is in the trail but not true");
     }
   }
 
@@ -39,8 +36,7 @@ bool napsat::NapSAT::trail_variable_consistency()
       }
       if (!found) {
         success = false;
-        cerr << error << "Invariant violation: Trail variable consistency: variable " << var << " is assigned " << var_true(var) << " but its literal " << literal(var, var_true(var)) << " is in the trail\n";
-        cout << error << "Invariant violation: variable " << var << " is assigned " << var_true(var) << " but its literal " << literal(var, var_true(var)) << " is in the trail" << endl;
+        LOG_ERROR("Invariant violation: variable " << var << " is assigned " << var_true(var) << " but its literal " << literal(var, var_true(var)) << " is in the trail");
       }
     }
   }
@@ -71,12 +67,7 @@ bool napsat::NapSAT::watch_lists_complete()
       Tlit lit = clause.lits[i];
       if (!is_watched(lit, cl)) {
         success = false;
-        cerr << error << "Invariant violation: Watch lists complete: clause " << cl << " is not in the watch list of its watched literal " << lit_to_string(lit) << "\n";
-        cout << error << "Invariant violation: ";
-        print_clause(cl);
-        cout << " is not in the watch list of its watched literal ";
-        print_lit(lit);
-        cout << endl;
+        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is not in the watch list of its watched literal " << lit_to_string(lit));
       }
     }
   }
@@ -91,40 +82,21 @@ bool napsat::NapSAT::watch_lists_minimal()
       TSclause clause = _clauses[cl];
       if (clause.size < 2) {
         success = false;
-        cerr << error << "Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit << " but it is too small\n";
-        cout << error << "Invariant violation: ";
-        print_clause(cl);
-        cout << " is in the watch list of literal ";
-        print_lit(lit);
-        cout << " but it is too small" << endl;
+        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit_to_string(lit) << " but it is too small");
       }
       if (clause.deleted) {
         success = false;
-        cerr << error << "Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit << " but it is a deleted clause\n";
-        cout << error << "Invariant violation: ";
-        print_clause(cl);
-        cout << " is in the watch list of literal ";
-        print_lit(lit);
-        cout << " but it is a deleted clause" << endl;
+        LOG_ERROR("Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit_to_string(lit) << " but it is a deleted clause");
+        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit_to_string(lit) << " but it is a deleted clause");
       }
       if (!clause.watched) {
         success = false;
-        cerr << error << "Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit << " but it is not a watched clause\n";
-        cout << error << "Invariant violation: ";
-        print_clause(cl);
-        cout << " is in the watch list of literal ";
-        print_lit(lit);
-        cout << " but it is not a watched clause" << endl;
+        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit_to_string(lit) << " but it is not a watched clause");
       }
 
       if (lit != clause.lits[0] && lit != clause.lits[1]) {
         success = false;
-        cerr << error << "Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit << " but it is not a watched literal\n";
-        cout << error << "Invariant violation: ";
-        print_clause(cl);
-        cout << " is in the watch list of literal ";
-        print_lit(lit);
-        cout << " but it is not a watched literal" << endl;
+        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit_to_string(lit) << " but it is not a watched literal");
       }
     }
   }
@@ -136,12 +108,8 @@ bool napsat::NapSAT::watch_lists_minimal()
     for (Tclause cl : _watch_lists[lit]) {
       if (seen_clauses.find(cl) != seen_clauses.end()) {
         success = false;
-        cerr << error << "Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit << " multiple times\n";
-        cout << error << "Invariant violation: ";
-        print_clause(cl);
-        cout << " is in the watch list of literal ";
-        print_lit(lit);
-        cout << " multiple times" << endl;
+        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit << " multiple times");
+
         break;
       }
       seen_clauses.insert(cl);

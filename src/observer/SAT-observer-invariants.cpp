@@ -13,13 +13,11 @@
 
 using namespace std;
 
-static const string error = "\033[1;31m" + string("Error: ") + "\033[0m";
-
 void napsat::gui::observer::load_invariant_configuration()
 {
   string filename = napsat::env::get_invariant_configuration_folder();
   if (_options.lazy_strong_chronological_backtracking)
-    filename += "strong-chronological-backtracking";
+    filename += "lazy-strong-chronological-backtracking";
   else if (_options.restoring_strong_chronological_backtracking)
     filename += "restoring-strong-chronological-backtracking";
   else if (_options.weak_chronological_backtracking)
@@ -29,7 +27,7 @@ void napsat::gui::observer::load_invariant_configuration()
   filename += ".conf";
   ifstream file(filename);
   if (!file.is_open()) {
-    cerr << "Error: could not load the invariant configuration file " << filename << endl;
+    LOG_ERROR("The invariant configuration could not be loaded from file: " + filename);
     return;
   }
   // TODO this is a bit brutal. Do like in the options.
@@ -70,8 +68,22 @@ void napsat::gui::observer::load_invariant_configuration()
     else if (line == "assignment_coherence")
       _check_assignment_coherence = true;
     else
-      cerr << "Error: unknown invariant " << line << endl;
+      LOG_WARNING("unknown invariant " << line);
   }
+  cout << "Invariants : " << endl;
+  cout << "  - trail_sanity: " << _check_trail_sanity << endl;
+  cout << "  - level_ordering: " << _check_level_ordering << endl;
+  cout << "  - trail_monotonicity: " << _check_trail_monotonicity << endl;
+  cout << "  - no_missed_implications: " << _check_no_missed_implications << endl;
+  cout << "  - topological_order: " << _check_topological_order << endl;
+#if NOTIFY_WATCH_CHANGES
+  cout << "  - weak_watched_literals: " << _check_weak_watched_literals << endl;
+  cout << "  - strong_watched_literals: " << _check_strong_watched_literals << endl;
+  cout << "  - backtrack_compatible_watched_literals: " << _check_backtrack_compatible_watched_literals << endl;
+  cout << "  - lazy_backtrack_compatible_watched_literals: " << _check_lazy_backtrack_compatible_watch_literals << endl;
+#endif
+  cout << "  - assignment_coherence: " << _check_assignment_coherence << endl;
+
   file.close();
 }
 
@@ -97,7 +109,7 @@ bool napsat::gui::observer::check_relevant_invariant(napsat::gui::notification *
 
 bool napsat::gui::observer::check_trail_sanity()
 {
-  const string error_header = error + "Invariant violation (trail sanity): ";
+  const string error_header = ERROR_HEAD + "Invariant violation (trail sanity): ";
   bool success = true;
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
@@ -117,7 +129,7 @@ bool napsat::gui::observer::check_trail_sanity()
 
 bool napsat::gui::observer::check_level_ordering()
 {
-  const string error_header = error + "Invariant violation (level ordering): ";
+  const string error_header = ERROR_HEAD + "Invariant violation (level ordering): ";
   bool success = true;
   for (Tlit lit : _assignment_stack) {
     if (lit_reason(lit) == CLAUSE_UNDEF || lit_reason(lit) == CLAUSE_LAZY)
@@ -140,7 +152,7 @@ bool napsat::gui::observer::check_level_ordering()
 
 bool napsat::gui::observer::check_trail_monotonicity()
 {
-  const string error_header = error + "Invariant violation (trail monotonicity): ";
+  const string error_header = ERROR_HEAD + "Invariant violation (trail monotonicity): ";
   bool success = true;
   Tlevel last_level = 0;
   for (Tlit lit : _assignment_stack) {
@@ -155,7 +167,7 @@ bool napsat::gui::observer::check_trail_monotonicity()
 
 bool napsat::gui::observer::check_no_missed_implications()
 {
-  const string error_header = error + "Invariant violation (no missed implications): ";
+  const string error_header = ERROR_HEAD + "Invariant violation (no missed implications): ";
   bool success = true;
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
@@ -185,7 +197,7 @@ bool napsat::gui::observer::check_no_missed_implications()
 
 bool napsat::gui::observer::check_topological_order()
 {
-  const string error_header = error + "Invariant violation (topological order): ";
+  const string error_header = ERROR_HEAD + "Invariant violation (topological order): ";
   bool success = true;
   vector<bool> visited(_variables.size(), false);
   for (Tlit lit : _assignment_stack) {
@@ -214,7 +226,7 @@ bool napsat::gui::observer::check_watched_literals()
 {
   if (!_check_weak_watched_literals && !_check_strong_watched_literals && !_check_lazy_backtrack_compatible_watch_literals && !_check_backtrack_compatible_watched_literals)
     return true;
-  const string error_header = error + "Invariant violation (watch literals): ";
+  const string error_header = ERROR_HEAD + "Invariant violation (watch literals): ";
   bool success = true;
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
@@ -245,21 +257,20 @@ bool napsat::gui::observer::check_watched_literals()
         }
       }
 
-      // cout << "c₁: " << lit_to_string(lit) << " c₂: " << lit_to_string(other) << " b: " << lit_to_string(c->blocker) << endl;
       // weak watched literals
       // ¬c₁ ∈ τ ⇒ c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
       if (_check_weak_watched_literals && !weak_watched_literals(lit, other, c->blocker))  {
         success = false;
-        _error_message += error + "¬c₁ ∈ τ ⇒ c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]  --  Weak watched literals invariant violation: \n";
-        _error_message += error + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
+        _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∉ τ ∨ b ∈ π]  --  Weak watched literals invariant violation: \n";
+        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
       }
 
       // strong watched literals
       // ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
       if (_check_strong_watched_literals && !strong_watched_literals(lit, other, c->blocker)) {
         success = false;
-        _error_message += error + "¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]  --  Strong watched literals invariant violation: \n";
-        _error_message += error + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
+        _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∨ b ∈ π]  --  Strong watched literals invariant violation: \n";
+        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
       }
 
       // lazy backtrack compatible watched literals
@@ -267,16 +278,16 @@ bool napsat::gui::observer::check_watched_literals()
       //          ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
       if (_check_lazy_backtrack_compatible_watch_literals && !lazy_backtrack_compatible_watched_literals(lit, other, c->blocker)) {
         success = false;
-        _error_message += error + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \\ {c₂}) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]  --  Lazy backtrack compatible watched literals invariant violation: \n";
-        _error_message += error + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
+        _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \\ {c₂}) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]  --  Lazy backtrack compatible watched literals invariant violation: \n";
+        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
       }
 
       // backward compatible watched literals
       // ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
       if (_check_backtrack_compatible_watched_literals && !backward_compatible_watched_literals(lit, other, c->blocker)) {
         success = false;
-        _error_message += error + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]  --  Backward compatible watched literals invariant violation: \n";
-        _error_message += error + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
+        _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]  --  Backward compatible watched literals invariant violation: \n";
+        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
       }
     }
   }
@@ -285,19 +296,19 @@ bool napsat::gui::observer::check_watched_literals()
 
 bool napsat::gui::observer::weak_watched_literals(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocker)
 {
-  // ¬c₁ ∈ τ ⇒ ¬c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
+  // ¬c₁ ∈ τ ⇒ [¬c₂ ∉ τ ∨ b ∈ π]
   bool success = !lit_propagated(c1) || lit_value(c1) != VAR_FALSE;
   success |= !lit_propagated(c2) || lit_value(c2) != VAR_FALSE;
-  success |= lit_value(blocker) == VAR_TRUE && lit_level(blocker) <= lit_level(c2);
+  success |= lit_value(blocker) == VAR_TRUE;
   return success;
 }
 
 bool napsat::gui::observer::strong_watched_literals(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit)
 {
-  // ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
+  // ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∨ b ∈ π]
   bool success = !lit_propagated(c1) || lit_value(c1) != VAR_FALSE;
   success |= lit_value(c2) == VAR_TRUE;
-  success |= lit_value(blocked_lit) == VAR_TRUE && lit_level(blocked_lit) <= lit_level(c2);
+  success |= lit_value(blocked_lit) == VAR_TRUE;
   return success;
 }
 
@@ -333,7 +344,7 @@ bool napsat::gui::observer::backward_compatible_watched_literals(napsat::Tlit c1
 
 bool napsat::gui::observer::check_assignment_coherence()
 {
-  const string error_header = error + "Invariant violation (assignment coherence): ";
+  const string error_header = ERROR_HEAD + "Invariant violation (assignment coherence): ";
   bool success = true;
   vector<bool> visited(_active_clauses.size(), false);
   for (Tlit lit : _assignment_stack) {

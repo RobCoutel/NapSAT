@@ -188,15 +188,15 @@ void napsat::gui::implication::apply(observer* obs)
     }
     bool success = true;
     if (!found) {
-      cerr << "\033[0;33mWARNING\033[0m: The clause " << reason << " does not contain the literal " << lit_to_int(lit) << endl;
+      LOG_WARNING("The clause " << reason << " does not contain the literal " << lit_to_int(lit));
       success = false;
     }
     if (level_check == LEVEL_ERROR || level_check == LEVEL_UNDEF) {
-      cerr << "\033[0;33mWARNING\033[0m: The clause " << reason << " seems to contain a literal that is not assigned different from " << lit_to_int(lit) << endl;
+      LOG_WARNING("The clause " << reason << " seems to contain a literal that is not assigned different from " << lit_to_int(lit));
       success = false;
     }
     else if (level_check != level) {
-      cerr << "\033[0;33mWARNING\033[0m: level of variable " << var << " is " << level_check << " but was given as " << level << " by the solver " << endl;
+      LOG_WARNING("level of variable " << var << " is " << level_check << " but was given as " << level << " by the solver");
       success = false;
     }
     if (!success) {
@@ -373,12 +373,10 @@ void napsat::gui::new_clause::apply(observer* obs)
       if (!notification::_suppress_warning && obs->_clauses_dict[hash]->literals == lits) {
         if (!obs->_clauses_dict[hash]->active) {
           // The clause was deleted. This is not a big problem.
-          cout << "\033[34mINFO\033[0m (at notification number " << obs->_notifications.size() << "): ";
-          cout << "The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << " that was deleted earlier" << endl;
+          LOG_INFO("(at notification number " << obs->_notifications.size() << "): The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << " that was deleted earlier");
         }
         else {
-          cerr << "\033[0;33mWARNING\033[0m (at notification number " << obs->_notifications.size() << "): ";
-          cerr << "The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << endl;
+          LOG_WARNING("(at notification number " << obs->_notifications.size() << "): The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl);
           event_level = 0;
         }
       }
@@ -557,8 +555,8 @@ void napsat::gui::check_invariants::apply(observer* obs)
     obs->print_clause_set();
     obs->print_variables();
     obs->print_assignment();
-    cout << "\033[0;31mError\033[0m: Invariants are not satisfied" << endl;
-    cout << obs->get_error_message() << endl;
+    LOG_ERROR("Invariants are not satisfied");
+    cerr << obs->get_error_message() << endl;
     event_level = 0;
   }
 }

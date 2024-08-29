@@ -501,11 +501,11 @@ bool napsat::NapSAT::parse_command(std::string input)
       file.close();
     }
     else {
-      cerr << "Error: could not load the manual page." << endl;
+      LOG_ERROR("The manual page could not be loaded.");
     }
   }
   else {
-    cout << "Error: unknown command \"" << tokens[0] << "\"; try \"HELP\" to get the list of commands\n";
+    LOG_WARNING("unknown command \"" << tokens[0] << "\"; try \"HELP\" to get the list of commands");
     return false;
   }
   return true;

@@ -84,7 +84,7 @@ napsat::options::options(char** tokens, unsigned n_tokens)
     string next_token = (i + 1 < n_tokens) ? string(tokens[i + 1]) : "";
 
     if (set_options.find(token) != set_options.end()) {
-      cerr << "\033[0;33mWARNING\033[0m: option " << token << " already set. The second occurrence is ignored." << endl;
+      LOG_WARNING("option " << token << " already set. The second occurrence is ignored.");
       continue;
     }
     if (bool_options.find(token) != bool_options.end()) {
@@ -96,8 +96,8 @@ napsat::options::options(char** tokens, unsigned n_tokens)
           *bool_options[token] = false;
         }
         else {
-          cerr << "Error: option " << token << " requires a boolean value (on/off)." << endl;
-          cerr << "Default value " << (*bool_options[token] ? "on" : "off") << " is used." << endl;
+          LOG_WARNING("option " << token << " requires a boolean value (on/off).");
+          LOG_WARNING("Default value " << (*bool_options[token] ? "on" : "off") << " is used.");
           continue;
         }
       }
@@ -107,8 +107,8 @@ napsat::options::options(char** tokens, unsigned n_tokens)
     }
     else if (double_options.find(token) != double_options.end()) {
       if (next_token == "" || next_token[0] == '-') {
-        cerr << "Error: option " << token << " requires a value (floating point number)." << endl;
-        cerr << "Default value " << *double_options[token] << " is used." << endl;
+        LOG_WARNING("option " << token << " requires a value (floating point number).");
+        LOG_WARNING("Default value " << *double_options[token] << " is used.");
         continue;
       }
       try {
@@ -117,15 +117,15 @@ napsat::options::options(char** tokens, unsigned n_tokens)
         i++;
       }
       catch (const std::invalid_argument& ia) {
-        cerr << "Error: option " << token << " requires a floating point number value." << endl;
-        cerr << "Default value " << *double_options[token] << " is used." << endl;
+        LOG_WARNING("option " << token << " requires a floating point number value.");
+        LOG_WARNING("Default value " << *double_options[token] << " is used.");
         continue;
       }
     }
     else if (string_options.find(token) != string_options.end()) {
       if (next_token == "" || next_token[0] == '-') {
-        cerr << "Error: option " << token << " requires a value (string of characters)." << endl;
-        cerr << "Options is ignored." << endl;
+        LOG_WARNING("option " << token << " requires a value (string of characters).");
+        LOG_WARNING("Options is ignored.");
         continue;
       }
       *string_options[token] = next_token;
@@ -133,7 +133,7 @@ napsat::options::options(char** tokens, unsigned n_tokens)
       i++;
     }
     else {
-      cerr << "\033[0;33mWARNING\033[0m: unknown option " << token << endl;
+      LOG_WARNING("Unknown option " << token);
     }
   }
 
@@ -141,18 +141,18 @@ napsat::options::options(char** tokens, unsigned n_tokens)
   /**                          OPTION COMPATIBILITY                          **/
   /****************************************************************************/
   if (lazy_strong_chronological_backtracking && restoring_strong_chronological_backtracking) {
-    cerr << "\033[0;33mWARNING\033[0m: lazy strong chronological backtracking subsumes restoring strong chronological backtracking." << endl;
-    cerr << "The solver will run with lazy strong chronological backtracking." << endl;
+    LOG_WARNING("lazy strong chronological backtracking subsumes restoring strong chronological backtracking.");
+    LOG_WARNING("The solver will run with lazy strong chronological backtracking.");
     restoring_strong_chronological_backtracking = false;
   }
   if (lazy_strong_chronological_backtracking && weak_chronological_backtracking) {
-    cerr << "\033[0;33mWARNING\033[0m: lazy strong chronological backtracking subsumes weak chronological backtracking." << endl;
-    cerr << "The solver will run with lazy strong chronological backtracking." << endl;
+    LOG_WARNING("lazy strong chronological backtracking subsumes weak chronological backtracking.");
+    LOG_WARNING("The solver will run with lazy strong chronological backtracking.");
     weak_chronological_backtracking = false;
   }
   if (restoring_strong_chronological_backtracking && weak_chronological_backtracking) {
-    cerr << "\033[0;33mWARNING\033[0m: restoring strong chronological backtracking subsumes weak chronological backtracking." << endl;
-    cerr << "The solver will run with restoring strong chronological backtracking." << endl;
+    LOG_WARNING("restoring strong chronological backtracking subsumes weak chronological backtracking.");
+    LOG_WARNING("The solver will run with restoring strong chronological backtracking.");
     weak_chronological_backtracking = false;
   }
   chronological_backtracking = weak_chronological_backtracking || restoring_strong_chronological_backtracking || lazy_strong_chronological_backtracking;
@@ -160,7 +160,7 @@ napsat::options::options(char** tokens, unsigned n_tokens)
   interactive |= commands_file != "";
 
   if (suppress_warning && !observing && !interactive && !check_invariants) {
-    cerr << "\033[0;33mWARNING\033[0m: suppress warning requires observing. The options is ignored" << endl;
+    LOG_WARNING("suppress warning requires observing. The options is ignored");
   }
   else if (suppress_warning) {
     napsat::gui::notification::suppress_warning(true);
@@ -169,7 +169,7 @@ napsat::options::options(char** tokens, unsigned n_tokens)
   //   cerr << "\033[0;33mWARNING\033[0m: print stats requires observing or interactive. The option is ignored." << endl;
   // }
   if (clause_activity_threshold_decay <= 0 || clause_activity_threshold_decay >= 1) {
-    cerr << "Error: clause activity threshold decay must be between 0 and 1." << endl;
+    LOG_ERROR("clause activity threshold decay must be between 0 and 1.");
     exit(1);
   }
 

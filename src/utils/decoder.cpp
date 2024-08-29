@@ -12,6 +12,7 @@
 #include <string>
 #include <sstream>
 
+#include "../include/SAT-types.hpp"
 #include "decoder.hpp"
 
 using namespace std;
@@ -22,41 +23,41 @@ using namespace std;
  */
 static void print_error_message(lzma_ret ret)
 {
-  cerr << "Error: decompression failed\n";
+  LOG_ERROR("decompression failed");
   // print details
   switch (ret) {
     case LZMA_NO_CHECK:
-      cerr << "Input file does not have a valid integrity check\n";
+      LOG_ERROR("Input file does not have a valid integrity check");
       break;
     case LZMA_UNSUPPORTED_CHECK:
-      cerr << "Cannot calculate the integrity check\n";
+      LOG_ERROR("Cannot calculate the integrity check");
       break;
     case LZMA_GET_CHECK:
-      cerr << "Integrity check type is now available\n";
+      LOG_ERROR("Integrity check type is now available");
       break;
     case LZMA_MEM_ERROR:
-      cerr << "Memory allocation failed\n";
+      LOG_ERROR("Memory allocation failed");
       break;
     case LZMA_MEMLIMIT_ERROR:
-      cerr << "Memory usage limit was reached\n";
+      LOG_ERROR("Memory usage limit was reached");
       break;
     case LZMA_FORMAT_ERROR:
-      cerr << "File format not recognized\n";
+      LOG_ERROR("File format not recognized");
       break;
     case LZMA_OPTIONS_ERROR:
-      cerr << "Invalid options\n";
+      LOG_ERROR("Invalid options");
       break;
     case LZMA_DATA_ERROR:
-      cerr << "Data is corrupt\n";
+      LOG_ERROR("Data is corrupt");
       break;
     case LZMA_BUF_ERROR:
-      cerr << "No progress is possible\n";
+      LOG_ERROR("No progress is possible");
       break;
     case LZMA_PROG_ERROR:
-      cerr << "Programming error\n";
+      LOG_ERROR("Programming error");
       break;
     default:
-      cerr << "Unknown error\n";
+      LOG_ERROR("Unknown error");
       break;
   }
 }
@@ -93,12 +94,12 @@ bool decompress_xz(const char* filename, ostringstream& output)
   lzma_stream strm = LZMA_STREAM_INIT;
   lzma_ret ret = lzma_stream_decoder(&strm, UINT64_MAX, 0);
   if (ret != LZMA_OK) {
-    cerr << "Error: failed to initialize the decompression stream\n";
+    LOG_ERROR("failed to initialize the decompression stream");
     return false;
   }
   ifstream file(filename, ios::binary);
   if (!file.is_open()) {
-    cerr << "Error: could not open file " << filename << endl;
+    LOG_ERROR("could not open file " << filename);
     return false;
   }
   unsigned const buff_size = 256;

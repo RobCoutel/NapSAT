@@ -77,7 +77,7 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
     }
     // create the folder if it does not exist
     if (system(("mkdir -p " + save_folder).c_str()) != 0) {
-      cerr << "Error: could not create folder \"" << options.save_folder << "\"\n";
+      LOG_ERROR("The folder \"" + options.save_folder + "\" could not be created.");
     }
   }
 }
@@ -147,9 +147,8 @@ std::string observer::get_statistics()
 
 unsigned observer::next()
 {
-  if (_stats_only) {
-    cerr << "\033[0;33mWARNING\033[0m: trying to navigate in statistics only mode" << endl;
-  }
+  if (_stats_only)
+    LOG_WARNING("trying to navigate in statistics only mode");
   assert(_location < _notifications.size());
   _notifications[_location++]->apply(this);
   if (_breakpoints.find(_location) != _breakpoints.end()) {
@@ -235,7 +234,7 @@ void napsat::gui::observer::load_commands(std::string filename)
 {
   ifstream file(filename);
   if (!file.is_open()) {
-    cout << "Error: could not open file \"" << filename << "\"\n";
+    LOG_ERROR("Could not open the commands file " + filename);
     return;
   }
   string line;
