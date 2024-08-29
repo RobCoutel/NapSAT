@@ -18,4 +18,4 @@
 
 // It is not recommended to enable this option for difficult problems, as it will slow down the solver significantly.
 // If the observer is not enabled, this option has no effect.
-#define NOTIFY_WATCH_CHANGES 0
+#define NOTIFY_WATCH_CHANGES 1

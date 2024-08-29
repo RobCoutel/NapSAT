@@ -28,9 +28,8 @@ void napsat::gui::observer::load_invariant_configuration()
     filename += "non-chronological-backtracking";
   filename += ".conf";
   ifstream file(filename);
-  if (!file.is_open())
-  {
-    cerr << "Error: could not load the invariant configuration file." << endl;
+  if (!file.is_open()) {
+    cerr << "Error: could not load the invariant configuration file " << filename << endl;
     return;
   }
   // TODO this is a bit brutal. Do like in the options.
@@ -49,8 +48,7 @@ void napsat::gui::observer::load_invariant_configuration()
   _check_assignment_coherence = false;
   // read the file
   string line;
-  while (getline(file, line))
-  {
+  while (getline(file, line)) {
     if (line == "trail_sanity")
       _check_trail_sanity = true;
     else if (line == "level_ordering")
@@ -72,9 +70,7 @@ void napsat::gui::observer::load_invariant_configuration()
     else if (line == "assignment_coherence")
       _check_assignment_coherence = true;
     else
-    {
       cerr << "Error: unknown invariant " << line << endl;
-    }
   }
   file.close();
 }
@@ -103,19 +99,15 @@ bool napsat::gui::observer::check_trail_sanity()
 {
   const string error_header = error + "Invariant violation (trail sanity): ";
   bool success = true;
-  for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
-  {
+  for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
     if (!c->active)
-    {
       continue;
-    }
     unsigned i;
     for (i = 0; i < c->literals.size(); i++)
       if (lit_value(c->literals[i]) != VAR_FALSE || !lit_propagated(c->literals[i]))
         break;
-    if (i == c->literals.size())
-    {
+    if (i == c->literals.size()) {
       success = false;
       _error_message += error_header + "clause " + clause_to_string(cl) + " is falsified by the trail.\n";
     }
@@ -127,23 +119,17 @@ bool napsat::gui::observer::check_level_ordering()
 {
   const string error_header = error + "Invariant violation (level ordering): ";
   bool success = true;
-  for (Tlit lit : _assignment_stack)
-  {
+  for (Tlit lit : _assignment_stack) {
     if (lit_reason(lit) == CLAUSE_UNDEF || lit_reason(lit) == CLAUSE_LAZY)
-    {
       continue;
-    }
     clause *c = _active_clauses[lit_reason(lit)];
-    if (!c->active)
-    {
+    if (!c->active) {
       success = false;
       _error_message += error_header + "clause " + clause_to_string(lit_reason(lit)) + " is not active.\n";
       continue;
     }
-    for (Tlit lit2 : c->literals)
-    {
-      if (lit_level(lit2) > lit_level(lit))
-      {
+    for (Tlit lit2 : c->literals) {
+      if (lit_level(lit2) > lit_level(lit)) {
         success = false;
         _error_message += error_header + "clause " + clause_to_string(lit_reason(lit)) + " has a literal " + lit_to_string(lit2) + " with a higher level than " + lit_to_string(lit) + ".\n";
       }
@@ -157,10 +143,8 @@ bool napsat::gui::observer::check_trail_monotonicity()
   const string error_header = error + "Invariant violation (trail monotonicity): ";
   bool success = true;
   Tlevel last_level = 0;
-  for (Tlit lit : _assignment_stack)
-  {
-    if (lit_level(lit) < last_level)
-    {
+  for (Tlit lit : _assignment_stack) {
+    if (lit_level(lit) < last_level) {
       success = false;
       _error_message += error_header + "literal " + lit_to_string(lit) + " has a lower level than the previous literal " + lit_to_string(_assignment_stack[_assignment_stack.size() - 1]) + ".\n";
     }
@@ -173,32 +157,24 @@ bool napsat::gui::observer::check_no_missed_implications()
 {
   const string error_header = error + "Invariant violation (no missed implications): ";
   bool success = true;
-  for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
-  {
+  for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
     if (!c->active)
-    {
       continue;
-    }
     unsigned n_undef = 0;
     Tlit last_undef = LIT_UNDEF;
     for (Tlit watched : c->watched)
       if (lit_value(watched) == VAR_TRUE || !lit_propagated(watched))
         goto next_clause;
-    for (Tlit lit : c->literals)
-    {
+    for (Tlit lit : c->literals) {
       if (lit_value(lit) == VAR_TRUE || !lit_propagated(lit))
-      {
         goto next_clause;
-      }
-      if (lit_value(lit) == VAR_UNDEF)
-      {
+      if (lit_value(lit) == VAR_UNDEF) {
         n_undef++;
         last_undef = lit;
       }
     }
-    if (n_undef == 1)
-    {
+    if (n_undef == 1) {
       success = false;
       _error_message += error_header + "clause " + clause_to_string(cl) + " has only one undefined literal " + lit_to_string(last_undef) + ".\n";
     }
@@ -212,25 +188,19 @@ bool napsat::gui::observer::check_topological_order()
   const string error_header = error + "Invariant violation (topological order): ";
   bool success = true;
   vector<bool> visited(_variables.size(), false);
-  for (Tlit lit : _assignment_stack)
-  {
+  for (Tlit lit : _assignment_stack) {
     assert(lit_to_var(lit) < visited.size());
     visited[lit_to_var(lit)] = true;
     if (lit_reason(lit) == CLAUSE_UNDEF || lit_reason(lit) == CLAUSE_LAZY)
-    {
       continue;
-    }
     clause *c = _active_clauses[lit_reason(lit)];
-    if (!c->active)
-    {
+    if (!c->active) {
       success = false;
       _error_message += error_header + "clause " + clause_to_string(lit_reason(lit)) + " is not active.\n";
       continue;
     }
-    for (Tlit lit2 : c->literals)
-    {
-      if (!visited[lit_to_var(lit2)])
-      {
+    for (Tlit lit2 : c->literals) {
+      if (!visited[lit_to_var(lit2)]) {
         success = false;
         _error_message += error_header + "the reason clause " + clause_to_string(lit_reason(lit)) + " for the implication of literal " + lit_to_string(lit) + " has a literal " + lit_to_string(lit2) + " that is not visited yet.\n";
       }
@@ -246,8 +216,7 @@ bool napsat::gui::observer::check_watched_literals()
     return true;
   const string error_header = error + "Invariant violation (watch literals): ";
   bool success = true;
-  for (Tclause cl = 0; cl < _active_clauses.size(); cl++)
-  {
+  for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
     // cout << "checking clause " << clause_to_string(cl) << endl;
     if (!c->active || c->literals.size() - c->n_deleted_literals < 2)
@@ -256,8 +225,7 @@ bool napsat::gui::observer::check_watched_literals()
       c->watched.insert(c->literals[0]);
       c->watched.insert(c->literals[1]);
     }
-    if (c->watched.size() != 2)
-    {
+    if (c->watched.size() != 2) {
       _error_message += error_header + "clause " + clause_to_string(cl) + " has " + to_string(c->watched.size()) + " watched literals.\n";
       _error_message += error_header + "watched literals: ";
       for (Tlit lit : c->watched)
@@ -368,20 +336,16 @@ bool napsat::gui::observer::check_assignment_coherence()
   const string error_header = error + "Invariant violation (assignment coherence): ";
   bool success = true;
   vector<bool> visited(_active_clauses.size(), false);
-  for (Tlit lit : _assignment_stack)
-  {
-    if (visited[lit_to_var(lit)])
-    {
+  for (Tlit lit : _assignment_stack) {
+    if (visited[lit_to_var(lit)]) {
       success = false;
       _error_message += error_header + "variable " + to_string(lit_to_var(lit)) + " is visited more than once.\n";
     }
-    if (lit_value(lit) == VAR_UNDEF)
-    {
+    if (lit_value(lit) == VAR_UNDEF) {
       success = false;
       _error_message += error_header + "variable " + to_string(lit_to_var(lit)) + " is undefined.\n";
     }
-    if (lit_value(lit) == VAR_FALSE)
-    {
+    if (lit_value(lit) == VAR_FALSE) {
       success = false;
       _error_message += error_header + "variable " + to_string(lit_to_var(lit)) + " is false in the assignment.\n";
     }
@@ -389,23 +353,18 @@ bool napsat::gui::observer::check_assignment_coherence()
 
     Tclause reason = lit_reason(lit);
     if (reason == CLAUSE_UNDEF || reason == CLAUSE_LAZY)
-    {
       continue;
-    }
     clause *c = _active_clauses[reason];
-    if (!c->active)
-    {
+    if (!c->active) {
       success = false;
       _error_message += error_header + "clause " + clause_to_string(reason) + " is not active.\n";
       continue;
     }
     // check that the reason is only satisfied by one literal, that is "lit"
-    for (Tlit l : c->literals)
-    {
+    for (Tlit l : c->literals) {
       if (l == lit)
         continue;
-      if (lit_value(l) != VAR_FALSE)
-      {
+      if (lit_value(l) != VAR_FALSE) {
         success = false;
         _error_message += error_header + "clause " + clause_to_string(reason) + " is satisfied by literal " + lit_to_string(l) + " but not by " + lit_to_string(lit) + ".\n";
       }

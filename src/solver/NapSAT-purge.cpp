@@ -31,7 +31,9 @@ void napsat::NapSAT::repair_watch_lists()
       TSclause &clause = _clauses[*i];
       if (clause.deleted || !clause.watched
        || (clause.lits[0] != lit && clause.lits[1] != lit)) {
+#if NOTIFY_WATCH_CHANGES
         NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(*i, lit));
+#endif
         *i = *(--end);
         continue;
       }
@@ -73,8 +75,9 @@ void napsat::NapSAT::purge_root_watch_lists()
         *(k++) = cl;
         continue;
       }
+#if NOTIFY_WATCH_CHANGES
       NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
-
+#endif
       // if the clause is already deleted, do not bother
       if (clause.deleted)
         continue;
@@ -199,8 +202,10 @@ void napsat::NapSAT::purge_clauses()
     if (clause.size == 2) {
       _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
       _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
+#if NOTIFY_WATCH_CHANGES
       NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
       NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
+#endif
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause simplified"));
     }
     if (clause.size == 1) {
