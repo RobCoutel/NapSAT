@@ -30,15 +30,12 @@ void napsat::NapSAT::repair_watch_lists()
     while (i < end) {
       TSclause &clause = _clauses[*i];
       if (clause.deleted || !clause.watched
-       || (clause.lits[0] != lit && clause.lits[1] != lit)) {
+       || (clause.lits[0] != lit && clause.lits[1] != lit)
+       || clause.size <= 2) {
 #if NOTIFY_WATCH_CHANGES
-        NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(*i, lit));
+        if(!clause.deleted && clause.size != 2)
+          NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(*i, lit));
 #endif
-        *i = *(--end);
-        continue;
-      }
-      if (clause.size == 2) {
-        // we want to keep the watched literals in the observer
         *i = *(--end);
         continue;
       }
@@ -56,20 +53,23 @@ void napsat::NapSAT::purge_root_watch_lists()
   // Therefore we need to clean the watch lists
   for (unsigned i = 0; i < _propagated_literals; i++) {
     Tlit lit = _trail[i];
-    if (lit_level(lit) != LEVEL_ROOT) {
+    if (lit_level(lit) != LEVEL_ROOT)
       continue;
-    }
 
     lit = lit_neg(lit);
     vector<Tclause>& watch_list = _watch_lists[lit];
     Tclause* j = watch_list.data();
     Tclause* k = j;
-    // start one before so that we just need to increment at the start of the look
+    // start one before so that we just need to increment at the start of the loop
     j--;
     Tclause* end = j + watch_list.size();
     while (j++ < end) {
       Tclause cl = *j;
       TSclause& clause = _clauses[cl];
+      if (clause.deleted) {
+        // remove the clause from the watch list
+        continue;
+      }
       if (lit_reason(clause.lits[0]) == cl) {
         // keep the clause
         *(k++) = cl;
@@ -202,10 +202,10 @@ void napsat::NapSAT::purge_clauses()
     if (clause.size == 2) {
       _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
       _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
-#if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
-      NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
-#endif
+// #if NOTIFY_WATCH_CHANGES
+//       NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
+//       NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
+// #endif
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause simplified"));
     }
     if (clause.size == 1) {

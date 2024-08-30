@@ -27,7 +27,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
     // create a virtual file and read the content of the compressed file
     ostringstream decompressed_data;
     if (!decompress_xz(filename, decompressed_data)) {
-      cout << "Error: could not decompress the file " << filename << endl;
+      LOG_ERROR("The file " << filename << " could not be decompressed.");
       _status = ERROR;
       return false;
     }
@@ -36,7 +36,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
   else {
     ifstream file = ifstream(filename);
     if (!file.is_open()) {
-      cout << "Error: could not open file " << filename << endl;
+      LOG_ERROR("The file " << filename << " could not be opened.");
       _status = ERROR;
       return false;
     }
@@ -141,7 +141,7 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
 
 unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
 {
-  return (lit_true(lit) * (2 * _decision_index.size() - lit_level(lit) + 1)) + (lit_undef(lit) * (_decision_index.size() + 1)) + (lit_false(lit) * (lit_level(lit)));
+  return (lit_true(lit) * (2 * solver_level() - lit_level(lit) + 1)) + (lit_undef(lit) * (solver_level() + 1)) + (lit_false(lit) * (lit_level(lit)));
 }
 
 void napsat::NapSAT::print_lit(Tlit lit)
@@ -285,7 +285,7 @@ static void pad(int n, int max_int)
 void napsat::NapSAT::print_trail_simple()
 {
   cout << "trail :\n";
-  for (Tlevel lvl = _decision_index.size(); lvl <= _decision_index.size(); lvl--) {
+  for (Tlevel lvl = solver_level(); lvl <= solver_level(); lvl--) {
     cout << lvl << ": ";
     for (unsigned i = 0; i < _trail.size(); i++) {
       if (i == _propagated_literals)
@@ -404,7 +404,7 @@ bool napsat::NapSAT::parse_command(std::string input)
     tokens.push_back(tmp);
   }
   if (tokens.size() == 0) {
-    cout << "Error: empty command\n";
+    LOG_WARNING("Empty command. Try \"HELP\" to get the list of commands.");
     return false;
   }
   if (tokens[0] == "DECIDE") {
@@ -414,13 +414,13 @@ bool napsat::NapSAT::parse_command(std::string input)
       int lit_int = stoi(tokens[1]);
       Tlit lit = literal(abs(lit_int), lit_int > 0);
       if (!lit_undef(lit)) {
-        cout << "Error: literal " << lit << " is not undefined\n";
+        LOG_WARNING("The literal " << lit_to_string(lit) << " is not undefined. This command is ignored.");
         return false;
       }
       decide((lit));
     }
     else {
-      cout << "Error: too many arguments (expected 0 or 1)\n";
+      LOG_WARNING("Wrong number of arguments (expected 0 or 1). This command is ignored.");
       return false;
     }
   }
@@ -428,7 +428,7 @@ bool napsat::NapSAT::parse_command(std::string input)
     if (tokens.size() == 2) {
       int lit = stoi(tokens[1]);
       if (!lit_undef(lit)) {
-        cout << "Error: literal " << lit << " is not undefined\n";
+        LOG_WARNING("The literal " << lit_to_string(lit) << " is not undefined. This command is ignored.");
         return false;
       }
       hint(literal(abs(lit), lit > 0));
@@ -436,14 +436,14 @@ bool napsat::NapSAT::parse_command(std::string input)
     else if (tokens.size() == 3) {
       int lit = stoi(tokens[1]);
       if (!lit_undef(lit)) {
-        cout << "Error: literal " << lit << " is not undefined\n";
+        LOG_WARNING("The literal " << lit_to_string(lit) << " is not undefined. This command is ignored.");
         return false;
       }
       Tlevel level = stoi(tokens[2]);
       hint(literal(abs(lit), lit > 0), level);
     }
     else {
-      cout << "Error: wrong number of arguments (expected 1 or 2)\n";
+      LOG_WARNING("Wrong number of arguments (expected 0 or 1). This command is ignored.");
       return false;
     }
   }
@@ -469,23 +469,23 @@ bool napsat::NapSAT::parse_command(std::string input)
       else if (tokens[1] == "watch-lists")
         print_watch_lists();
       else
-        cout << "Error: unknown argument \"" << tokens[1] << "\"\n";
+        LOG_WARNING("unknown argument \"" << tokens[1] << "\"");
     }
     else
-      cout << "Error: wrong number of arguments (expected 1)\n";
+      LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
   }
   else if (tokens[0] == "DELETE_CLAUSE") {
     if (tokens.size() != 2) {
-      cout << "Error: wrong number of arguments (expected 1)\n";
+      LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
       return false;
     }
     int cl = stoi(tokens[1]);
     if (cl < 0 || (unsigned) cl >= _clauses.size()) {
-      cout << "Error: clause " << cl << " does not exist\n";
+      LOG_WARNING("The clause " << cl << " does not exist. This command is ignored.");
       return false;
     }
     if (_clauses[cl].deleted) {
-      cout << "Error: clause " << cl << " is already deleted\n";
+      LOG_WARNING("The clause " << cl << " is already deleted\n");
       return false;
     }
     delete_clause(cl);

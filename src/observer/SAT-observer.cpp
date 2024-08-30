@@ -33,9 +33,12 @@ using namespace std;
 
 long unsigned napsat::gui::observer::hash_clause(const std::vector<napsat::Tlit>& lits)
 {
+  // make a sorted copy of the literals. Otherwise, the hash will be different for the same clause.
+  vector<Tlit> lits_sorted = lits;
+  sort(lits_sorted.begin(), lits_sorted.end());
   // https://stackoverflow.com/questions/20511347/a-good-hash-function-for-a-vector
   std::size_t seed = lits.size();
-  for (auto x : lits) {
+  for (auto x : lits_sorted) {
     x = ((x >> 16) ^ x) * 0x45d9f3b;
     x = ((x >> 16) ^ x) * 0x45d9f3b;
     x = (x >> 16) ^ x;
@@ -88,12 +91,12 @@ napsat::gui::observer::observer(const observer& other) : _options(other._options
     _notifications.push_back(notification->clone());
 }
 
-void observer::notify(notification* notification)
+bool observer::notify(notification* notification)
 {
   if (notification->get_type() == STAT) {
     stat_count[notification->get_message()]++;
     delete notification;
-    return;
+    return true;
   }
   else {
     notification_count[notification->get_type()]++;
@@ -103,13 +106,14 @@ void observer::notify(notification* notification)
       _notifications.push_back(notification);
   }
   if (_stats_only)
-    return;
+    return true;
 
   _location++;
   assert(_location == _notifications.size());
   // cout << "notification " << _location << "/" << _notifications.size() << endl;
   // cout << "notification: " << notification->get_message() << endl;
-  notification->apply(this);
+  bool apply_success = notification->apply(this);
+
   if (!_check_invariants_only) {
     if (_breakpoints.find(_location) != _breakpoints.end()) {
       cout << "Breakpoint reached" << endl;
@@ -118,6 +122,7 @@ void observer::notify(notification* notification)
     else
       _display->notify_change(notification->get_event_level(this));
   }
+  return apply_success;
 }
 
 std::string observer::get_statistics()
@@ -163,10 +168,14 @@ unsigned observer::back()
   assert(_location > 0);
   _location--;
   notification* notification = _notifications[_location];
-  notification->rollback(this);
+  bool rollback_success = notification->rollback(this);
   if (_breakpoints.find(_location) != _breakpoints.end()) {
     cout << "Breakpoint reached" << endl;
     return 1;
+  }
+  if (!rollback_success) {
+    LOG_ERROR("Rollback failed of notification " + to_string(_location + 1) << " with message " << notification->get_message());
+    exit(1);
   }
   return notification->get_event_level(this);
 }
@@ -335,6 +344,13 @@ napsat::Tclause napsat::gui::observer::lit_reason(napsat::Tlit lit)
 bool napsat::gui::observer::lit_propagated(napsat::Tlit lit)
 {
   return var_propagated(lit_to_var(lit));
+}
+
+bool napsat::gui::observer::is_watching(napsat::Tclause cl, napsat::Tlit lit)
+{
+  assert(_active_clauses.size() > cl);
+  assert(_active_clauses[cl] != nullptr);
+  return _active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end();
 }
 
 const std::vector<napsat::Tlit>& observer::get_assignment()
@@ -518,7 +534,7 @@ std::string napsat::gui::observer::clause_to_string(Tclause cl)
       s += "| ";
     Tlit lit = lits[i];
     assert(i + _active_clauses[cl]->n_deleted_literals < lits.size() || lit_value(lit) == VAR_FALSE);
-    if (_active_clauses[cl]->watched.find(lit) != _active_clauses[cl]->watched.end())
+    if (is_watching(cl, lit))
       s += "w";
     if (_active_clauses[cl]->blocker == lit)
       s += "b";

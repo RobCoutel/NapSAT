@@ -126,13 +126,13 @@ namespace napsat::gui
      * @details Also updates internal variables of the notification to allow rollback.
      * @param observer The observer that will be modified.
      */
-    virtual void apply(observer* observer) = 0;
+    virtual bool apply(observer* observer) = 0;
 
     /**
      * @brief Rollbacks the notification from the observer.
      * @param observer The observer that will be modified.
      */
-    virtual void rollback(observer* observer) = 0;
+    virtual bool rollback(observer* observer) = 0;
 
     /**
      * @brief Destroy the notification object
@@ -156,8 +156,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return CHECKPOINT; }
     const std::string get_message() override { return "Checkpoint"; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override { return true; }
     ~checkpoint() override = default;
   };
 
@@ -177,8 +177,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return DONE; }
     const std::string get_message() override { return "Done: " + std::to_string(sat); }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override {}
+    virtual bool apply(observer* observer) override { return true; }
+    virtual bool rollback(observer* observer) override { return true; }
     ~done() override = default;
   };
 
@@ -203,8 +203,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return MARKER; }
     const std::string get_message() override { return "Marker : " + description; }
-    virtual void apply(observer* observer) override {}
-    virtual void rollback(observer* observer) override {}
+    virtual bool apply(observer* observer) override { return true; }
+    virtual bool rollback(observer* observer) override { return true; }
     ~marker() override = default;
   };
 
@@ -227,8 +227,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return NEW_VARIABLE; }
     const std::string get_message() override { return "New variable " + std::to_string(var) + " added"; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~new_variable() override = default;
   };
 
@@ -252,8 +252,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return DELETE_VARIABLE; }
     const std::string get_message() override { return "Variable " + std::to_string(var) + " deleted"; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~delete_variable() override = default;
   };
 
@@ -277,8 +277,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return DECISION; }
     const std::string get_message() override { return "Decision literal : " + std::to_string(napsat::lit_to_int(lit)); }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~decision() override = default;
   };
 
@@ -315,8 +315,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return IMPLICATION; }
     const std::string get_message() override { return "Implication : " + std::to_string(napsat::lit_to_int(lit)) + " implied by clause " + std::to_string(reason); }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~implication() override = default;
   };
 
@@ -339,8 +339,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return PROPAGATION; }
     const std::string get_message() override { return "Propagation : " + std::to_string(napsat::lit_to_int(lit)) + " propagated"; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~propagation() override = default;
   };
 
@@ -363,8 +363,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return PROPAGATION; }
     const std::string get_message() override { return "Propagation removed : " + std::to_string(napsat::lit_to_int(lit)); }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~remove_propagation() override = default;
   };
 
@@ -388,8 +388,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return CONFLICT; }
     const std::string get_message() override { return "Conflict : clause " + std::to_string(cl) + " detected"; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override {}
+    virtual bool apply(observer* observer) override { return true; }
+    virtual bool rollback(observer* observer) override { return true; }
     ~conflict() override = default;
   };
 
@@ -410,8 +410,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return BACKTRACKING_STARTED; }
     const std::string get_message() override { return "Backtracking started at level " + std::to_string(level); }
-    virtual void apply(observer* observer) override {}
-    virtual void rollback(observer* observer) override {}
+    virtual bool apply(observer* observer) override { return true; }
+    virtual bool rollback(observer* observer) override { return true; }
     ~backtracking_started() override = default;
   };
 
@@ -429,8 +429,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return BACKTRACKING_DONE; }
     const std::string get_message() override { return "Backtracking done"; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override { return true; };
+    virtual bool rollback(observer* observer) override { return true; };
     ~backtracking_done() override = default;
   };
 
@@ -476,8 +476,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return UNASSIGNMENT; }
     const std::string get_message() override { return "Unassignment : " + std::to_string(napsat::lit_to_int(lit)) + " unassigned"; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~unassignment() override = default;
   };
 
@@ -528,8 +528,8 @@ namespace napsat::gui
       }
       return s;
     }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~new_clause() override = default;
   };
 
@@ -557,8 +557,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return DELETE_CLAUSE; }
     const std::string get_message() override { return "Delete clause : " + std::to_string(cl); }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
     ~delete_clause() override = default;
   };
 
@@ -583,8 +583,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return WATCH; }
     const std::string get_message() override { return "Watch literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
   };
 
   class unwatch : public notification
@@ -608,8 +608,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return UNWATCH; }
     const std::string get_message() override { return "Unwatch literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
   };
 
   /**
@@ -640,8 +640,8 @@ namespace napsat::gui
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return BLOCKER; }
     const std::string get_message() override { return "Block literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
   };
 
   /**
@@ -669,8 +669,8 @@ namespace napsat::gui
     const std::string get_message() override { return "Remove literal : " + std::to_string(napsat::lit_to_int(lit)) + " from clause " + std::to_string(cl); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return REMOVE_LITERAL; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
   };
 
   class check_invariants : public notification
@@ -684,8 +684,8 @@ namespace napsat::gui
     const std::string get_message() override { return "Check invariants"; }
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return CHECK_INVARIANTS; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
   };
 
   class missed_lower_implication : public notification
@@ -703,8 +703,8 @@ namespace napsat::gui
     const std::string get_message() override { return "Missed lower implication: " + std::to_string(var) + " in clause " + std::to_string(cl); }
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return MISSED_LOWER_IMPLICATION; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
   };
 
   class remove_lower_implication : public notification
@@ -721,8 +721,8 @@ namespace napsat::gui
     const std::string get_message() override { return "Remove lower implication: " + std::to_string(var) + " in clause " + std::to_string(last_cl); }
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return REMOVE_LOWER_IMPLICATION; }
-    virtual void apply(observer* observer) override;
-    virtual void rollback(observer* observer) override;
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
   };
 
 
@@ -745,8 +745,8 @@ namespace napsat::gui
     const std::string get_message() override { return "Stat : " + measured_variable; }
     unsigned get_event_level(observer* observer) override { return event_level; }
     const ENotifType get_type() override { return STAT; }
-    virtual void apply(observer* observer) override {}
-    virtual void rollback(observer* observer) override {}
+    virtual bool apply(observer* observer) override { return true; }
+    virtual bool rollback(observer* observer) override { return true; }
   };
 
 }

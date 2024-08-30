@@ -27,7 +27,8 @@ void napsat::gui::observer::load_invariant_configuration()
   filename += ".conf";
   ifstream file(filename);
   if (!file.is_open()) {
-    LOG_ERROR("The invariant configuration could not be loaded from file: " + filename);
+    if (!_options.suppress_warning)
+      LOG_ERROR("The invariant configuration could not be loaded from file: " + filename);
     return;
   }
   // TODO this is a bit brutal. Do like in the options.
@@ -43,6 +44,8 @@ void napsat::gui::observer::load_invariant_configuration()
   _check_backtrack_compatible_watched_literals = false;
   _check_lazy_backtrack_compatible_watch_literals = false;
 #endif
+  _check_weak_blocker_level = false;
+  _check_strong_blocker_level = false;
   _check_assignment_coherence = false;
   // read the file
   string line;
@@ -67,23 +70,13 @@ void napsat::gui::observer::load_invariant_configuration()
       _check_lazy_backtrack_compatible_watch_literals = true;
     else if (line == "assignment_coherence")
       _check_assignment_coherence = true;
+    else if (line == "weak_blocker_level")
+      _check_weak_blocker_level = true;
+    else if (line == "strong_blocker_level")
+      _check_strong_blocker_level = true;
     else
       LOG_WARNING("unknown invariant " << line);
   }
-  cout << "Invariants : " << endl;
-  cout << "  - trail_sanity: " << _check_trail_sanity << endl;
-  cout << "  - level_ordering: " << _check_level_ordering << endl;
-  cout << "  - trail_monotonicity: " << _check_trail_monotonicity << endl;
-  cout << "  - no_missed_implications: " << _check_no_missed_implications << endl;
-  cout << "  - topological_order: " << _check_topological_order << endl;
-#if NOTIFY_WATCH_CHANGES
-  cout << "  - weak_watched_literals: " << _check_weak_watched_literals << endl;
-  cout << "  - strong_watched_literals: " << _check_strong_watched_literals << endl;
-  cout << "  - backtrack_compatible_watched_literals: " << _check_backtrack_compatible_watched_literals << endl;
-  cout << "  - lazy_backtrack_compatible_watched_literals: " << _check_lazy_backtrack_compatible_watch_literals << endl;
-#endif
-  cout << "  - assignment_coherence: " << _check_assignment_coherence << endl;
-
   file.close();
 }
 
@@ -113,6 +106,7 @@ bool napsat::gui::observer::check_trail_sanity()
   bool success = true;
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
+    assert (c != nullptr);
     if (!c->active)
       continue;
     unsigned i;
@@ -257,6 +251,22 @@ bool napsat::gui::observer::check_watched_literals()
         }
       }
 
+      // weak blocker level
+      // c₁ ∈ π ∨ c₂ ∈ π ∨ [b ∈ π ∧ [δ(b) ≤ δ(c₁) ∨ δ(b) ≤ δ(c₂)]]
+      if (_check_weak_blocker_level && !check_weak_blocker_level(lit, other, c->blocker)) {
+        success = false;
+        _error_message += ERROR_HEAD + "c₁ ∈ π ∨ c₂ ∈ π ∨ [b ∈ π ∧ [δ(b) ≤ δ(c₁) ∨ δ(b) ≤ δ(c₂)]]  --  Weak blocker level invariant violation: \n";
+        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
+      }
+
+      // strong blocker level
+      // δ(b) ≤ δ(c₁) ∧ δ(b) ≤ δ(c₂)
+      if (_check_strong_blocker_level && !check_strong_blocker_level(lit, other, c->blocker)) {
+        success = false;
+        _error_message += ERROR_HEAD + "δ(b) ≤ δ(c₁) ∧ δ(b) ≤ δ(c₂)  --  Strong blocker level invariant violation: \n";
+        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
+      }
+
       // weak watched literals
       // ¬c₁ ∈ τ ⇒ c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
       if (_check_weak_watched_literals && !weak_watched_literals(lit, other, c->blocker))  {
@@ -338,6 +348,24 @@ bool napsat::gui::observer::backward_compatible_watched_literals(napsat::Tlit c1
   bool success = !lit_propagated(c1) || lit_value(c1) != VAR_FALSE;
   success |= lit_value(c2) == VAR_TRUE && lit_level(c2) <= lit_level(c1);
   success |= lit_value(blocker) == VAR_TRUE && lit_level(blocker) <= lit_level(c2);
+  return success;
+}
+
+bool napsat::gui::observer::check_weak_blocker_level(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit)
+{
+  // c₁ ∉ τ ∨ c₂ ∉ τ ∨ [b ∈ π ∧ [δ(b) ≤ δ(c₁) ∨ δ(b) ≤ δ(c₂)]]
+  bool success = lit_value(c1) != VAR_FALSE || !lit_propagated(c1);
+  success |= lit_value(c2) != VAR_FALSE || !lit_propagated(c2);
+  success |= lit_value(blocked_lit) == VAR_TRUE && (lit_level(blocked_lit) <= lit_level(c1) || lit_level(blocked_lit) <= lit_level(c2));
+  return success;
+}
+
+bool napsat::gui::observer::check_strong_blocker_level(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit)
+{
+  // c₁ ∉ τ ∨ c₂ ∉ τ ∨ [b ∈ π ∧ [δ(b) ≤ δ(c₁) ∧ δ(b) ≤ δ(c₂)]]
+  bool success = lit_value(c1) != VAR_FALSE || !lit_propagated(c1);
+  success |= lit_value(c2) != VAR_FALSE || !lit_propagated(c2);
+  success |= lit_value(blocked_lit) == VAR_TRUE && lit_level(blocked_lit) <= lit_level(c1) && lit_level(blocked_lit) <= lit_level(c2);
   return success;
 }
 #endif

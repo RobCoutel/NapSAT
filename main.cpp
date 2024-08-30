@@ -60,7 +60,7 @@ int main(int argc, char** argv)
   napsat::NapSAT* solver = create_solver(0, 0, options);
 
   if (!parse_dimacs(solver, argv[1])) {
-    cout << "c Error: could not parse the input file." << endl;
+    LOG_ERROR("The input file could not be parsed.");
     delete_solver(solver);
     return 1;
   }

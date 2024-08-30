@@ -53,7 +53,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   if (reason == CLAUSE_UNDEF) {
     // Decision
     _decision_index.push_back(_trail.size() - 1);
-    svar.level = _decision_index.size();
+    svar.level = solver_level();
     NOTIFY_OBSERVER(_observer, new napsat::gui::decision(lit));
   }
   else if (reason == CLAUSE_LAZY) {
@@ -81,7 +81,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
       _proof->root_assign(lit, reason);
   }
   ASSERT(svar.level != LEVEL_UNDEF);
-  ASSERT(svar.level <= _decision_index.size());
+  ASSERT(svar.level <= solver_level());
 }
 
 void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
@@ -511,8 +511,8 @@ Tclause NapSAT::propagate_lit(Tlit lit)
 
 void napsat::NapSAT::backtrack(Tlevel level)
 {
-  ASSERT(level <= _decision_index.size());
-  if (level == _decision_index.size())
+  ASSERT(level <= solver_level());
+  if (level == solver_level())
     return;
   NOTIFY_OBSERVER(_observer, new napsat::gui::backtracking_started(level));
   unsigned waiting_count = 0;
@@ -632,7 +632,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
   Tlevel second_highest_level = LEVEL_ROOT;
 
   // This does nothing in non-chronological backtracking
-  ASSERT(_options.chronological_backtracking || conflict_level == _decision_index.size());
+  ASSERT(_options.chronological_backtracking || conflict_level == solver_level());
   backtrack(conflict_level);
 
   // Variable used to determine the first literal from the clause that should be added to the learned clause
@@ -857,9 +857,9 @@ void NapSAT::repair_conflict(Tclause conflict)
   /********** CHECKING PRECONDITIONS **********/
   ASSERT(_clauses[conflict].size > 0);
   ASSERT_MSG(_options.chronological_backtracking || _clauses[conflict].external
-  || (lit_level(lits[0]) == _decision_index.size()
-   && lit_level(lits[1]) == _decision_index.size()),
-    "Conflict: " + clause_to_string(conflict) + "\nDecision level: " + to_string(_decision_index.size()));
+  || (lit_level(lits[0]) == solver_level()
+   && lit_level(lits[1]) == solver_level()),
+    "Conflict: " + clause_to_string(conflict) + "\nDecision level: " + to_string(solver_level()));
 #ifndef NDEBUG
   for (unsigned i = 0; i < _clauses[conflict].size; i++) {
     ASSERT(lit_false(lits[i]));
@@ -1325,7 +1325,11 @@ status NapSAT::solve()
       NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
     }
     NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
-    if (_purge_counter >= _purge_threshold) {
+    if (_purge_counter >= _purge_threshold
+    && ((!_options.weak_chronological_backtracking && !_options.restoring_strong_chronological_backtracking)
+       || solver_level() == LEVEL_ROOT)) {
+      // in weak and restoring chronological backtracking, not all literals are fully propagated
+      // the can be a challenge if the solver is not at level 0
       purge_clauses();
       _purge_counter = 0;
       if (_status == UNSAT)
@@ -1435,7 +1439,7 @@ void NapSAT::hint(Tlit lit, unsigned int level)
   ASSERT(lit_to_var(lit) < _vars.size());
   ASSERT(!_writing_clause);
   ASSERT(lit_undef(lit));
-  ASSERT(level <= _decision_index.size() + 1);
+  ASSERT(level <= solver_level() + 1);
   hint(lit);
   _vars[lit_to_var(lit)].level = level;
 }

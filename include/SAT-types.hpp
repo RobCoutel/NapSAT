@@ -109,8 +109,8 @@ namespace napsat
 
 const std::string ERROR_HEAD = "\033[1;31mERROR: \033[0m";
 const std::string WARNING_HEAD = "\033[0;33mWARNING: \033[0m";
-const std::string INFO_HEAD = "\033[0;32mINFO: \033[0m";
+const std::string INFO_HEAD = "\033[34mINFO: \033[0m";
 
 #define LOG_ERROR(msg) std::cerr << ERROR_HEAD << msg << std::endl
-#define LOG_WARNING(msg) std::cerr << WARNING_HEAD << msg << std::endl
+#define LOG_WARNING(msg) std::cout << WARNING_HEAD << msg << std::endl
 #define LOG_INFO(msg) std::cout << INFO_HEAD << msg << std::endl

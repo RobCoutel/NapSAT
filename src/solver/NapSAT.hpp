@@ -108,7 +108,12 @@
 #if USE_OBSERVER
 #define NOTIFY_OBSERVER(observer, notification) \
   if (observer) \
-    observer->notify(notification);
+    if(!observer->notify(notification)) { \
+      LOG_ERROR("The notification returned an error when executed by the observer"); \
+      if(observer) \
+        observer->notify(new napsat::gui::marker("Notification failed")); \
+      assert(false); \
+    }
 #else
 #define NOTIFY_OBSERVER(observer, notification)
 #endif
@@ -660,6 +665,11 @@ namespace napsat
       NOTIFY_OBSERVER(_observer,
                       new napsat::gui::missed_lower_implication(lit_to_var(lit),
                                                              cl));
+    }
+
+    inline Tlevel solver_level() const
+    {
+      return _decision_index.size();
     }
 
     /**

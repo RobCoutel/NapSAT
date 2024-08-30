@@ -301,6 +301,15 @@ void napsat::gui::display::notify_change(unsigned level)
         free(stackSymbols);
       }
     }
+    else if (command == "check invariants" || command == "c") {
+      if (_observer->check_invariants())
+        LOG_INFO("Invariants are satisfied");
+      else {
+        LOG_WARNING("Invariants are not satisfied");
+        LOG_INFO("(Note that checking the invariants at an intermediate state may lead to false positives.)");
+        std::cout << _observer->get_error_message() << std::endl;
+      }
+    }
     else if (command == "help" || command == "h") {
       // read the man page on the navigation
       std::string man_nav = napsat::env::get_man_page_directory() + "man-nav.txt";

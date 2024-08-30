@@ -212,8 +212,9 @@ namespace napsat::gui
 
     /**
      * @brief Send a notification to the observer and update its state.
+     * @return True if the notification was successfully applied, and false if an error occurred.
      */
-    void notify(notification* notification);
+    bool notify(notification* notification);
 
     /**
      * @brief Formats a string that contains the statistics of the run. That is, the number of notifications of each type.
@@ -381,6 +382,9 @@ namespace napsat::gui
      */
     napsat::Tlevel lit_level(napsat::Tlit lit);
 
+    /**
+     * @brief Returns the maximum decision level of the literals in a clause.
+     */
     napsat::Tlevel clause_level(napsat::Tclause cl);
 
     /**
@@ -392,6 +396,11 @@ namespace napsat::gui
      * @brief Returns true if the literal was propagated.
      */
     bool lit_propagated(napsat::Tlit lit);
+
+    /**
+     * @returns true if the literal is watched in the clause.
+     */
+    bool is_watching(napsat::Tclause cl, napsat::Tlit lit);
 
     /**
      * @brief Returns a reference to the assignment stack.
@@ -508,6 +517,10 @@ namespace napsat::gui
     bool _check_lazy_backtrack_compatible_watch_literals = false;
     bool _check_backtrack_compatible_watched_literals = false;
     /* End of ignored options */
+    // True if the blocker must be lower than at least one of the watched literals
+    bool _check_weak_blocker_level = false;
+    // True if the blocker must be lower than the watched literals
+    bool _check_strong_blocker_level = false;
     bool _check_assignment_coherence = false;
 
   public:
@@ -613,6 +626,10 @@ namespace napsat::gui
     bool backward_compatible_watched_literals(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
 
 #endif
+
+    bool check_weak_blocker_level(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
+
+    bool check_strong_blocker_level(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
 
     /**
      * @brief Checks that no variable is assigned twice in the propagation queue.
