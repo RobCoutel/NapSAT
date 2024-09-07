@@ -120,7 +120,8 @@ void napsat::NapSAT::purge_clauses()
 {
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
-  _purge_threshold = _purge_counter + _purge_inc;
+  NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Purging clauses"));
+  _purge_threshold = _n_root_lvl_lits + _purge_inc;
   // We assume that all the literals are propagated
   ASSERT(_propagated_literals == _trail.size());
 
@@ -130,7 +131,7 @@ void napsat::NapSAT::purge_clauses()
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
     // Do not remove clauses that are used as reasons
     TSclause& clause = _clauses[cl];
-    if (cl == lit_reason(clause.lits[0]))
+    if (is_protected(cl))
       continue;
     if (clause.deleted || !clause.watched || clause.size <= 2)
       continue;
@@ -175,7 +176,7 @@ void napsat::NapSAT::purge_clauses()
         delete_clause(cl);
         continue;
       }
-      else if (!lit_waiting(lits[1])) {
+      else if (lit_propagated(lits[1])) {
 #ifndef NDEBUG
         for (unsigned i = 2; i < clause.size; i++) {
           ASSERT_MSG(lit_false(lits[i]),
@@ -202,10 +203,6 @@ void napsat::NapSAT::purge_clauses()
     if (clause.size == 2) {
       _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
       _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
-// #if NOTIFY_WATCH_CHANGES
-//       NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
-//       NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
-// #endif
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause simplified"));
     }
     if (clause.size == 1) {
@@ -242,7 +239,7 @@ void napsat::NapSAT::simplify_clause_set()
       continue;
     if (_clauses[cl].size <= 2)
       continue;
-    if (lit_reason(_clauses[cl].lits[0]) == cl)
+    if (is_protected(cl))
       continue;
     if (_activities[cl] < threshold) {
       delete_clause(cl);

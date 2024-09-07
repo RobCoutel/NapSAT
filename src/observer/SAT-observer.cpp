@@ -8,9 +8,11 @@
 
 #include "SAT-observer.hpp"
 #include "SAT-config.hpp"
+#include "../utils/printer.hpp"
 
 #include <typeinfo>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <cassert>
 #include <cmath>
@@ -93,18 +95,59 @@ napsat::gui::observer::observer(const observer& other) : _options(other._options
 
 bool observer::notify(notification* notification)
 {
-  if (notification->get_type() == STAT) {
+  auto type = notification->get_type();
+  auto level = notification->get_event_level(this);
+  if (type == STAT) {
     stat_count[notification->get_message()]++;
     delete notification;
     return true;
   }
   else {
     notification_count[notification->get_type()]++;
+    _n_notifications++;
     if (_stats_only)
       delete notification;
     else
       _notifications.push_back(notification);
   }
+
+  // print the statistics
+  if (_options.print_stats && level < 3) {
+#ifdef __unix__
+      struct winsize size;
+      ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+      TERMINAL_WIDTH = size.ws_col;
+#endif
+#ifdef _WIN32
+      CONSOLE_SCREEN_BUFFER_INFO csbi;
+      GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+      TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#endif
+    string s = get_statistics();
+    vector<string> lines;
+    unsigned last_line_end = 0;
+    for (unsigned i = 0; i < s.size(); i++) {
+      if (s[i] == '\n') {
+        string line = s.substr(last_line_end, i - last_line_end);
+        lines.push_back(line);
+        last_line_end = i + 1;
+      }
+    }
+    // print the lines and pad them with spaces
+    for (unsigned i = 0; i < lines.size(); i++) {
+      cout << std::setw (TERMINAL_WIDTH) << left << lines[i] << endl;
+    }
+    // bring the cursor up to the beginning of the statistics
+    if (type != DONE)
+      for (unsigned i = 0; i < lines.size(); i++)
+        cout << "\033[A";
+    else {
+      for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
+        cout << "*";
+      cout << endl;
+    }
+  }
+
   if (_stats_only)
     return true;
 
@@ -129,22 +172,24 @@ std::string observer::get_statistics()
 {
   string s = "";
   s += "Core Statistics:\n";
-  s += "  - Variables: " + to_string(_variables.size()) + "\n";
-  unsigned n_clauses = 0;
-  for (clause* cl : _active_clauses) {
-    if (cl && cl->active)
-      n_clauses++;
+  s += "  - Notifications: " + pretty_integer(_n_notifications) + "\n";
+  if(!_stats_only) {
+    s += "  - Variables: " + to_string(_variables.size()) + "\n";
+    unsigned n_clauses = 0;
+    for (clause* cl : _active_clauses)
+      if (cl && cl->active)
+        n_clauses++;
+
+    s += "  - Clauses: " + to_string(n_clauses) + "\n";
   }
-  s += "  - Clauses: " + to_string(n_clauses) + "\n";
-  s += "  - Notifications:\n";
   for (auto pair : notification_count) {
-    s += "  - " + notification_type_to_string(pair.first) + ": " + to_string(pair.second) + "\n";
+    s += "  - " + notification_type_to_string(pair.first) + ": " + pretty_integer(pair.second) + "\n";
   }
 
   if (stat_count.size() > 0) {
     s += "Additional Statistics:\n";
     for (auto pair : stat_count) {
-      s += "  - " + pair.first + ": " + to_string(pair.second) + "\n";
+      s += "  - " + pair.first + ": " + pretty_integer(pair.second) + "\n";
     }
   }
   return s;
@@ -372,25 +417,6 @@ std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> napsat
   return to_return;
 }
 
-static const char ESC_CHAR = 27; // the decimal code for escape character is 27
-
-/**
- * @brief Returns the length of the string when escaped.
- */
-static unsigned string_length_escaped(string str)
-{
-  unsigned length = 0;
-  for (unsigned i = 0; i < str.length(); i++) {
-    if (str[i] == ESC_CHAR) {
-      while (str[i] != 'm')
-        i++;
-      continue;
-    }
-    length++;
-  }
-  return length;
-}
-
 std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
 {
   string s = "";
@@ -401,35 +427,10 @@ std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
     s += "\033[0;32m";
   else
     s += "\033[0;31m";
-  if (lit_value(lit) != VAR_UNDEF && _variables[var].reason == CLAUSE_UNDEF) {
-    s += ESC_CHAR;
-    s += "[4m";
-  }
+  if (lit_value(lit) != VAR_UNDEF && _variables[var].reason == CLAUSE_UNDEF)
+    s += "\033[4m";
   s += std::to_string(lit_to_int(lit));
-  s += ESC_CHAR;
-  s += "[0m";
   s += "\033[0m";
-  return s;
-}
-
-/**
- * @brief Adds spaces to the left of the number to make it have as many digits as the maximum number of digits in the given range.
- */
-static string pad(int n, int max_int)
-{
-  int max_digits = 0;
-  while (max_int > 0) {
-    max_int /= 10;
-    max_digits++;
-  }
-  int digits = 0;
-  while (n > 0) {
-    n /= 10;
-    digits++;
-  }
-  string s = "";
-  for (int i = 0; i < max_digits - digits; i++)
-    s += " ";
   return s;
 }
 
@@ -471,7 +472,7 @@ std::string napsat::gui::observer::variable_to_string(napsat::Tvar var)
 
 bool napsat::gui::observer::enable_sorting = false;
 
-void napsat::gui::observer::sort_clauses(Tclause cl)
+void napsat::gui::observer::sort_clause(Tclause cl)
 {
   if (!enable_sorting)
     return;
@@ -556,42 +557,51 @@ void napsat::gui::observer::print_clause_set()
   TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
 #endif
 
-  unsigned longest_clause = 0;
-  cout << "Clauses: " << _clauses_dict.size() << "\n";
+  // generate and store the clauses' strings
+  vector<string> clauses_str;
+  unsigned max_clause_str_length = 0;
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     if (_active_clauses[cl] == nullptr || !_active_clauses[cl]->active)
       continue;
-    if (_active_clauses[cl]->literals.size() > longest_clause)
-      longest_clause = _active_clauses[cl]->literals.size();
-  }
-  unsigned longest_var = 1; // 1 for the sign
-  Tvar max_var = _variables.size();
-  while (max_var > 0) {
-    max_var /= 10;
-    longest_var++;
+    sort_clause(cl);
+    string clause_str = clause_to_string(cl);
+    max_clause_str_length = max(max_clause_str_length, string_length_escaped(clause_str));
+    clauses_str.push_back(clause_str);
   }
 
-  unsigned max_clause_width = (longest_clause + 2) * (longest_var + 1) + 3;
-  unsigned current_position = 0;
-  for (unsigned i = 0; i < _active_clauses.size(); i++) {
-    if (!_active_clauses[i]->active)
-      continue;
-    if (current_position + max_clause_width > TERMINAL_WIDTH) {
-      cout << "\n";
-      current_position = 0;
+  if (clauses_str.size() == 0) {
+    cout << "No clauses to print" << endl;
+    return;
+  }
+
+  // add 3 spaces for the clauses to be separated
+  max_clause_str_length += 3;
+
+  // pad the clauses with spaces
+  for (unsigned i = 0; i < clauses_str.size(); i++) {
+    string clause_str = clauses_str[i];
+    while (string_length_escaped(clause_str) < max_clause_str_length)
+      clause_str += " ";
+    clauses_str[i] = clause_str;
+  }
+
+  // compute the number of columns to print
+  unsigned n_columns = TERMINAL_WIDTH / max_clause_str_length;
+  n_columns = max(1u, n_columns);
+  unsigned n_lines = clauses_str.size() / n_columns + 1;
+  n_lines -= clauses_str.size() % n_columns == 0;
+
+  // print the clauses
+  for (unsigned i = 0; i < n_lines; i++) {
+    for (unsigned j = 0; j < n_columns; j++) {
+      unsigned k = i + j * n_lines;
+      if (k >= clauses_str.size())
+        break;
+      cout << clauses_str[k];
     }
-    sort_clauses(i);
-    string clause_str = clause_to_string(i);
-    cout << clause_str;
-    string spaces = "";
-
-    assert(string_length_escaped(clause_str) <= max_clause_width);
-    unsigned k = string_length_escaped(clause_str);
-    for (; k < max_clause_width && k < TERMINAL_WIDTH; k++)
-      spaces += " ";
-    cout << spaces;
-    current_position += max_clause_width;
+    cout << "\n";
   }
+
   cout << "\n";
   for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
     cout << "*";
@@ -599,7 +609,10 @@ void napsat::gui::observer::print_clause_set()
 }
 
 void napsat::gui::observer::print_deleted_clauses()
-{}
+{
+  cerr << "print deleted clauses not implemented" << endl;
+  assert(false);
+}
 
 void napsat::gui::observer::print_assignment()
 {
@@ -662,23 +675,41 @@ void napsat::gui::observer::print_variables()
   GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
   TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
 #endif
-  const unsigned MAX_VARS_PER_LINE = 30;
-  unsigned current_position = 0;
-  cout << "variables :\n";
+
+  vector<string> variables_str;
+  unsigned max_var_str_length = 0;
   for (Tvar var = 0; var < _variables.size(); var++) {
-    if (current_position + MAX_VARS_PER_LINE > TERMINAL_WIDTH) {
-      cout << "\n";
-      current_position = 0;
-    }
-    current_position += MAX_VARS_PER_LINE;
     string variable_str = variable_to_string(var);
-    cout << variable_str;
-    string spaces = "";
-    assert(string_length_escaped(variable_str) <= MAX_VARS_PER_LINE);
-    for (unsigned k = 0; k < MAX_VARS_PER_LINE - string_length_escaped(variable_str); k++)
-      spaces += " ";
-    cout << spaces;
+    max_var_str_length = max(max_var_str_length, string_length_escaped(variable_str));
+    variables_str.push_back(variable_str);
   }
+
+  // add 3 spaces for the variables to be separated
+  max_var_str_length += 3;
+
+  // pad the variables with spaces
+  for (Tvar var = 0; var < _variables.size(); var++) {
+    string variable_str = variables_str[var];
+    while (string_length_escaped(variable_str) < max_var_str_length)
+      variable_str += " ";
+    variables_str[var] = variable_str;
+  }
+
+  // compute the number of columns to print
+  unsigned n_columns = TERMINAL_WIDTH / max_var_str_length;
+  unsigned n_lines = variables_str.size() / n_columns + 1;
+  n_lines -= variables_str.size() % n_columns == 0;
+  // print the variables
+  for (unsigned i = 0; i < n_lines; i++) {
+    for (unsigned j = 0; j < n_columns; j++) {
+      Tvar var = i + j * n_lines;
+      if (var >= _variables.size())
+        break;
+      cout << variables_str[var];
+    }
+    cout << "\n";
+  }
+
   cout << "\n";
   for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
     cout << "*";

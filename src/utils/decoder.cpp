@@ -67,7 +67,7 @@ static void print_error_message(lzma_ret ret)
  * @param n_bytes The number of bytes.
  * @return A string representing the number of bytes in a human-readable format.
  */
-static string print_size(uint64_t n_bytes) {
+static string byte_size_to_string(uint64_t n_bytes) {
   string s;
   s = to_string(n_bytes % 1024) + "B";
   n_bytes /= 1024;
@@ -122,7 +122,7 @@ bool decompress_xz(const char* filename, ostringstream& output)
       output.write(buffer_out, sizeof(buffer_out) - strm.avail_out);
     } while (strm.avail_out == 0);
   } while (ret != LZMA_STREAM_END);
-  cout << "Total Decompressed " << print_size(strm.total_in) << " to " << print_size(strm.total_out) << endl;
+  LOG_INFO("Total Decompressed " << byte_size_to_string(strm.total_in) << " to " << byte_size_to_string(strm.total_out));
 
   return true;
 }

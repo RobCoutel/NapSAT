@@ -101,6 +101,8 @@ namespace napsat::gui
 
     std::vector<notification*> _notifications;
 
+    long long _n_notifications = 0;
+
     unsigned _location = 0;
 
     bool _stopped = true;
@@ -420,7 +422,7 @@ namespace napsat::gui
 
     static bool enable_sorting;
 
-    void sort_clauses(napsat::Tclause cl);
+    void sort_clause(napsat::Tclause cl);
 
     std::string clause_to_string(napsat::Tclause cl);
 

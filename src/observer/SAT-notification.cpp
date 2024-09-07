@@ -187,6 +187,7 @@ bool napsat::gui::implication::apply(observer* obs)
   ASSERT_OBS(this, reason != CLAUSE_UNDEF);
   ASSERT_OBS(this, reason != CLAUSE_LAZY);
   ASSERT_OBS(this, reason <= obs->_active_clauses.size());
+  ASSERT_OBS(this, obs->_active_clauses[reason]->active);
   obs->_variables[var].value = lit_pol(lit);
   obs->_variables[var].reason = reason;
   obs->_variables[var].level = level;
@@ -204,6 +205,7 @@ bool napsat::gui::implication::apply(observer* obs)
         level_check = obs->_variables[v].level;
     }
     bool success = true;
+    // TODO: Make those errors instead of warnings
     if (!found) {
       LOG_WARNING("The clause " << reason << " does not contain the literal " << lit_to_int(lit));
       success = false;

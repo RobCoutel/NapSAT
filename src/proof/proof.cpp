@@ -129,10 +129,10 @@ bool napsat::proof::resolution_proof::check_resolution_chain(unsigned index)
     // input clause
     return true;
   }
-  static vector<Tlit> tmp_lits;
   tmp_lits.clear();
   for (pair<Tlit, unsigned> link : c.resolution_chain) {
     Tlit pivot = link.first;
+    assert(link.second < clauses.size());
     clause &cl = clauses[link.second];
     for (unsigned i = 0; i < cl.size; i++)
       binary_insert(tmp_lits, cl.lits[i]);

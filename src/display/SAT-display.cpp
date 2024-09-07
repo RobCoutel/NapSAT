@@ -222,6 +222,9 @@ void napsat::gui::display::notify_change(unsigned level)
         goto loop_start;
       }
     }
+    else if (command.rfind("print stats", 0) == 0) {
+      std::cout << _observer->get_statistics() << std::endl;
+    }
     else if (command.rfind("print trail latex", 0) == 0) {
       std::string pattern = "print trail latex";
       unsigned command_len = pattern.size() + 1;

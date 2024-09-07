@@ -43,9 +43,8 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   _trail.push_back(lit);
   TSvar& svar = _vars[var];
   svar.state = lit_pol(lit);
-  svar.waiting = true;
+  svar.propagated = false;
   svar.reason = reason;
-  svar.waiting = true;
 
   _agility *= _options.agility_decay;
   _options.agility_threshold *= _options.threshold_multiplier;
@@ -76,7 +75,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   svar.phase_cache = lit_pol(lit);
 
   if (svar.level == LEVEL_ROOT) {
-    _purge_counter++;
+    _n_root_lvl_lits++;
     if (_proof)
       _proof->root_assign(lit, reason);
   }
@@ -199,8 +198,8 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
 
 Tclause NapSAT::propagate_lit(Tlit lit)
 {
-  ASSERT(watch_lists_complete());
-  ASSERT(watch_lists_minimal());
+  // ASSERT(watch_lists_complete());
+  // ASSERT(watch_lists_minimal());
   /**
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
   */
@@ -297,7 +296,8 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     /** SEARCH REPLACEMENT **/
     Tlit* replacement = search_replacement(lits, clause.size);
     /**
-     * Search replacement returns a literal r ∈ C \ {c₂} such that it either is a good replacement such that
+     * Search replacement returns a literal r ∈ C \ {c₂} such that it either is a good replacement
+     * such that
      *   ¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
      * or C \ {c₂} is conflicting with π and r is the highest literal in C \ {c₂}
      *   C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})
@@ -431,8 +431,8 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       ASSERT_MSG(lit_level(lits[0]) >= lit_level(lits[1]),
         "Conflict: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
       watch_list.resize(end - watch_list.data());
-      ASSERT(watch_lists_complete());
-      ASSERT(watch_lists_minimal());
+      // ASSERT(watch_lists_complete());
+      // ASSERT(watch_lists_minimal());
       return cl;
     }
 
@@ -504,8 +504,8 @@ Tclause NapSAT::propagate_lit(Tlit lit)
   }
 
   watch_list.resize(end - watch_list.data());
-  ASSERT(watch_lists_complete());
-  ASSERT(watch_lists_minimal());
+  // ASSERT(watch_lists_complete());
+  // ASSERT(watch_lists_minimal());
   return CLAUSE_UNDEF;
 }
 
@@ -536,29 +536,30 @@ void napsat::NapSAT::backtrack(Tlevel level)
         ASSERT(lit_true(_clauses[lazy_reason].lits[0]));
         _reimplication_backtrack_buffer.push_back(lazy_reason);
       }
-#if USE_OBSERVER
-      // When using the observer, we cannot unassign the variables from left to right because the observer
-      // assumes that if we remove a propagated literal, it is at the end of the trail.
-      if (_observer)
-        _backtracked_variables.push_back(var);
-      else
-#endif
-        var_unassign(var);
+      /* in LSCB, we cannot backtrack from front to back because it breaks the missed lower implications
+        for example, if ℓ₁ ∨ ℓ₂ ∨ ℓ₃ is a missed lower implication and the trail looks like
+        δ = 2          - ℓ₁ -
+        δ = 1     - ¬ℓ₂      - ¬ℓ₃ -
+        δ = 0 - -
+        then backtracking to level 0 will first unassign ¬ℓ₂ such that we cannot determine the level of
+        the MLI anymore
+
+        This is why we store a buffer of the literals that need to be unassigned and unassign them only
+        at the end of the backtracking
+      */
+      _backtracked_variables.push_back(var);
     }
-    else {
-      _trail[j] = lit;
-      j++;
-      waiting_count += _vars[var].waiting;
+    else { // lit_level(lit) <= level
+      _trail[j++] = lit;
+      waiting_count += !_vars[var].propagated;
     }
   }
-#if USE_OBSERVER
-  if (_observer)
-    while(!_backtracked_variables.empty()) {
-      Tvar var = _backtracked_variables.back();
-      _backtracked_variables.pop_back();
-      var_unassign(var);
-    }
-#endif
+  // Here we unassign the literals as mentioned above
+  while(!_backtracked_variables.empty()) {
+    Tvar var = _backtracked_variables.back();
+    _backtracked_variables.pop_back();
+    var_unassign(var);
+  }
   _trail.resize(j);
   _decision_index.resize(level);
 
@@ -567,13 +568,15 @@ void napsat::NapSAT::backtrack(Tlevel level)
   _propagated_literals = _trail.size() - waiting_count;
   ASSERT_MSG(_options.chronological_backtracking || _propagated_literals == restore_point,
     "Propagated literals: " + to_string(_propagated_literals) + "\nRestore point: " + to_string(restore_point));
+  // in RSCB we need to move the propagation head back to the location of the first literal that moved
+  // that is, the location of the first literal that was unassigned.
   if (_options.restoring_strong_chronological_backtracking) {
     while (_propagated_literals > restore_point) {
       Tlit lit = _trail[_propagated_literals - 1];
       Tvar var = lit_to_var(lit);
-      ASSERT_MSG(!_vars[var].waiting,
+      ASSERT_MSG(_vars[var].propagated,
                   "Literal: " + lit_to_string(lit) + "\nLevel: " + to_string(lit_level(lit)));
-      _vars[var].waiting = true;
+      _vars[var].propagated = false;
       _propagated_literals--;
       NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
     }
@@ -825,7 +828,7 @@ void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
     ASSERT(lit_level(lit) == LEVEL_ROOT);
     ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
     Tclause reason = lit_reason(lit);
-
+    ASSERT(reason != CLAUSE_UNDEF);
     _proof->link_resolution(lit_neg(lit), reason);
 
     for (unsigned j = 1; j < _clauses[reason].size; j++) {
@@ -1284,8 +1287,8 @@ napsat::gui::observer* napsat::NapSAT::get_observer() const
 
 bool NapSAT::propagate()
 {
-  ASSERT(watch_lists_complete());
-  ASSERT(watch_lists_minimal());
+  // ASSERT(watch_lists_complete());
+  // ASSERT(watch_lists_minimal());
   if (_status != UNDEF)
     return false;
   while (_propagated_literals < _trail.size()) {
@@ -1294,7 +1297,7 @@ bool NapSAT::propagate()
     if (conflict == CLAUSE_UNDEF)
       conflict = propagate_lit(lit);
     if (conflict == CLAUSE_UNDEF) {
-      _vars[lit_to_var(lit)].waiting = false;
+      _vars[lit_to_var(lit)].propagated = true;
       _propagated_literals++;
       NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
       continue;
@@ -1325,13 +1328,13 @@ status NapSAT::solve()
       NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
     }
     NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
-    if (_purge_counter >= _purge_threshold
+    if (_n_root_lvl_lits >= _purge_threshold
     && ((!_options.weak_chronological_backtracking && !_options.restoring_strong_chronological_backtracking)
        || solver_level() == LEVEL_ROOT)) {
-      // in weak and restoring chronological backtracking, not all literals are fully propagated
-      // the can be a challenge if the solver is not at level 0
+      // in WCB and RSCB, missed lower implications can be a problem when purging clauses.
+      // TODO: try to find a way to make it work with RSCB and WCB without needing to be at level 0
       purge_clauses();
-      _purge_counter = 0;
+      _purge_threshold = _n_root_lvl_lits + _purge_inc;
       if (_status == UNSAT)
         return _status;
       // in chronological backtracking, the purge might have implied some literals

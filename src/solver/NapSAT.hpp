@@ -139,7 +139,7 @@ namespace napsat
         reason(CLAUSE_UNDEF),
         activity(0.0),
         seen(false),
-        waiting(false),
+        propagated(false),
         state(VAR_UNDEF),
         phase_cache(0),
         state_last_sync(VAR_UNDEF)
@@ -172,7 +172,7 @@ namespace napsat
        * @brief Boolean indicating whether the variable is in the propagation
        * queue.
        */
-      unsigned waiting : 1;
+      unsigned propagated : 1;
       /**
        * @brief State of the variable. Can be VAR_TRUE, VAR_FALSE or VAR_UNDEF.
        */
@@ -462,7 +462,7 @@ namespace napsat
      * @details Count the number of not yet purged level 0 literals on the
      * trail.
      */
-    unsigned _purge_counter = 0;
+    unsigned _n_root_lvl_lits = 0;
     /**
      * @brief Limit of the purge counter before the next purge.
      */
@@ -470,7 +470,7 @@ namespace napsat
     /**
      * @brief Increment of the purge threshold upon each purge.
      */
-    unsigned _purge_inc = 1;
+    unsigned _purge_inc = 2;
 
     /**  CHRONOLOGICAL BACKTRACKING  **/
     /**
@@ -628,16 +628,18 @@ namespace napsat
      * @return level of the lazy reimplication of the literal
      * That is, δ(λ(ℓ) \ {ℓ}) if ℓ is lit
      */
-    inline Tlevel lit_lazy_level(Tlit lit) const
+    inline Tlevel lit_lazy_level(Tlit lit)
     {
       if (lit_lazy_reason(lit) == CLAUSE_UNDEF)
         return LEVEL_UNDEF;
       ASSERT(lit_level(lit) > LEVEL_ROOT);
 #ifndef NDEBUG
       Tlit* lits = _clauses[lit_lazy_reason(lit)].lits;
-      ASSERT(lit_level(lit) > lit_level(lits[1]));
+      ASSERT_MSG(lit_level(lit) > lit_level(lits[1]),
+                 "Lazy reason " << clause_to_string(lit_lazy_reason(lit)) << " of literal " << lit_to_string(lit) << " is not a missed lower implication");
       for (unsigned i = 1; i < _clauses[lit_lazy_reason(lit)].size; i++) {
-        ASSERT(lit_false(lits[i]));
+        ASSERT_MSG(lit_false(lits[i]),
+                   "Literal " << lit_to_string(lits[i]) << " of clause " << clause_to_string(lit_lazy_reason(lit)) << " is not falsified");
         ASSERT(lit_level(lits[i]) <= lit_level(lits[1]));
       }
 #endif
@@ -667,6 +669,41 @@ namespace napsat
                                                              cl));
     }
 
+    /**
+     * @brief Returns true if the clause cl is the missed lower implication of
+     * the literal lit.
+     * @param cl clause to evaluate as a missed lower implication.
+     * @param lit literal.
+     * @return true if the cl is the missed lower implication of the literal lit,
+     */
+    inline bool is_lazy_reason_of(Tclause cl, Tlit lit) const
+    {
+      return _vars[lit_to_var(lit)].missed_lower_implication == cl;
+    }
+
+    /**
+     * @brief Returns true if the clause cl is the reason for the literal lit.
+     * @param cl clause to evaluate as a reason.
+     * @param lit literal.
+     * @return true if the cl is the reason of the implication of lit, false
+     */
+    inline bool is_reason_of(Tclause cl, Tlit lit) const
+    {
+      return _vars[lit_to_var(lit)].reason == cl;
+    }
+
+    /**
+     * @brief Returns true if the clause is protected and cannot be deleted.
+     * @param cl clause to evaluate.
+     * @return true if the clause is protected, false otherwise.
+     */
+    inline bool is_protected(Tclause cl) const
+    {
+      ASSERT(cl < _clauses.size());
+      return is_reason_of     (cl, _clauses[cl].lits[0])
+          || is_lazy_reason_of(cl, _clauses[cl].lits[1]);
+    }
+
     inline Tlevel solver_level() const
     {
       return _decision_index.size();
@@ -694,11 +731,19 @@ namespace napsat
     void repair_watch_lists();
 
     /**
-     * @brief Returns true if the literal is currently in the propagation queue.
+     * @brief Returns true if a variable was propagated and false otherwise.
      */
-    inline bool lit_waiting(Tlit lit) const
+    inline bool var_propagated(Tvar var) const
     {
-      return _vars[lit_to_var(lit)].waiting;
+      return _vars[var].propagated;
+    }
+
+    /**
+     * @brief Returns true if the literal was propagated and false otherwise.
+     */
+    inline bool lit_propagated(Tlit lit) const
+    {
+      return var_propagated(lit_to_var(lit));
     }
 
     /**
@@ -768,7 +813,7 @@ namespace napsat
       v.state = VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
-      v.waiting = false;
+      v.propagated = false;
       if (v.missed_lower_implication != CLAUSE_UNDEF) {
         NOTIFY_OBSERVER(_observer,
                         new napsat::gui::remove_lower_implication(var));

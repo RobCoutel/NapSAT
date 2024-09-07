@@ -68,6 +68,8 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       token += c;
     }
     finalize_clause();
+    if (_status != UNDEF)
+      return true;
   }
   return true;
 }
@@ -102,10 +104,12 @@ void napsat::NapSAT::bump_clause_activity(Tclause cl)
 void napsat::NapSAT::delete_clause(Tclause cl)
 {
   // If the clause is the reason for a literal, it cannot be deleted
-  ASSERT(lit_reason(_clauses[cl].lits[0]) != cl);
+  ASSERT(cl < _clauses.size());
+  TSclause &clause = _clauses[cl];
+  ASSERT(!is_protected(cl));
   _n_learned_clauses -= _clauses[cl].learned;
-  _clauses[cl].deleted = true;
-  _clauses[cl].watched = false;
+  clause.deleted = true;
+  clause.watched = false;
   _deleted_clauses.push_back(cl);
   NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
   if(_proof)
@@ -157,7 +161,7 @@ void napsat::NapSAT::print_lit(Tlit lit)
     cout << "\033[0;31m";
   }
   if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
-    cout << esc_char << "[4m";
+    cout << "\033[4m";
   if (!lit_pol(lit))
     cout << "-";
   cout << lit_to_var(lit);
@@ -179,16 +183,12 @@ string NapSAT::lit_to_string(Tlit lit)
     ASSERT(lit_false(lit));
     s += "\033[0;31m";
   }
-  if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF) {
-    s += esc_char;
-    s += "[4m";
-  }
+  if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
+    s += "\033[4m";
   if (!lit_pol(lit))
     s += "-";
   s += to_string(lit_to_var(lit));
 
-  s += esc_char;
-  s += "[0m";
   s += "\033[0m";
   return s;
 }
@@ -206,15 +206,11 @@ string NapSAT::clause_to_string(Tclause cl)
   for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses_sizes[cl]; i++) {
     if (i == _clauses[cl].lits + _clauses[cl].size)
       s += "| ";
-    if (*i == _clauses[cl].blocker) {
-      s += esc_char;
-      s += "[3mb";
-    }
+    if (*i == _clauses[cl].blocker)
+      s += "\033[3mb";
     s += lit_to_string(*i);
-    if (*i == _clauses[cl].blocker) {
-      s += esc_char;
-      s += "[0m";
-    }
+    if (*i == _clauses[cl].blocker)
+      s += "\033[0m";
     s += " ";
   }
   return s;

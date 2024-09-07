@@ -102,6 +102,11 @@ namespace napsat::proof
     std::vector<napsat::Tclause> root_reason;
 
     /**
+     * @brief Temporary vector used in check_resolution_chain
+     */
+    std::vector<Tlit> tmp_lits;
+
+    /**
      * @brief Applies the resolution rule in place on the base clause with the
      * resolvent clause over the literal pivot.
      * @param base The base clause. Will be modified to contain the result of
