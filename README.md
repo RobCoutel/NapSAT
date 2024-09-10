@@ -79,7 +79,7 @@ For example, the follwing command shows the behavior of the solver in lazy stron
 One can set the navigation level to show more details. use the command `set level 10` to show all details.
 
 ```bash {"id":"01HY3JFHKX9XFSMFV3FCKMT46S"}
-build/NapSAT test/cnf/test-trigger-mli.cnf -i -commands test/cnf/test-trigger-commands.txt -lscb
+build/NapSAT tests/cnf/test-trigger-mli.cnf -i -commands test/cnf/test-trigger-commands.txt -lscb
 ```
 
 #### Proof generation
@@ -87,7 +87,7 @@ build/NapSAT test/cnf/test-trigger-mli.cnf -i -commands test/cnf/test-trigger-co
 The solver generates proofs for UNSAT formulas. The proof can be printed in a human-readable format or simply checked using the options `-pp` and `-cp` respectively.
 
 ```bash {"id":"01HY3JP30T3GT3XST25X9BDT9R"}
-build/NapSAT test/cnf/unsat-01.cnf -pp
+build/NapSAT tests/cnf/unsat-01.cnf -pp
 ```
 
 ## License
