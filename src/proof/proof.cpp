@@ -73,6 +73,7 @@ void napsat::proof::resolution_proof::start_resolution_chain(void)
 
 void napsat::proof::resolution_proof::link_resolution(napsat::Tlit pivot, napsat::Tclause id)
 {
+  assert(id < clause_matches.size());
   unsigned cl_num = clause_matches[id];
   assert(cl_num != CLAUSE_UNDEF);
   assert(current_resolution_chain.size() != 0 || pivot == LIT_UNDEF);
@@ -238,6 +239,7 @@ void napsat::proof::resolution_proof::remove_root_literals(napsat::Tclause id)
 
 void napsat::proof::resolution_proof::deactivate_clause(napsat::Tclause id)
 {
+  assert(id < clause_matches.size());
   assert(clause_matches[id] != CLAUSE_UNDEF);
   clause_matches[id] = CLAUSE_UNDEF;
 }
@@ -274,6 +276,39 @@ void napsat::proof::resolution_proof::print_clause(unsigned index)
   }
 }
 
+void napsat::proof::resolution_proof::print_resolution_chain(unsigned index) {
+  assert(index < clauses.size());
+  clause &c = clauses[index];
+  vector<Tlit> base;
+  // first clause in the resolution chain
+  unsigned first_index = c.resolution_chain[0].second;
+  clause cl = clauses[first_index];
+
+  for (unsigned i = 0; i < cl.size; i++)
+    base.push_back(cl.lits[i]);
+
+  string last_clause_number = to_string(first_index);
+  assert(c.resolution_chain.size() >= 2);
+  for (unsigned i = 1; i < c.resolution_chain.size(); i++) {
+    pair<Tlit, unsigned> link = c.resolution_chain[i];
+    apply_resolution(base, link.second, link.first);
+    cl = clauses[link.second];
+
+    if (i != c.resolution_chain.size() - 1)
+      cout << index << "." << i-1 << ": (";
+    else
+      cout << index << ": (";
+
+    for (unsigned i = 0; i < base.size(); i++) {
+      cout << lit_to_int(base[i]);
+      if (i != base.size() - 1)
+        cout << " ";
+    }
+    cout << ") [resolution " << last_clause_number << ", " << link.second << "]\n";
+    last_clause_number = to_string(index) + "." + to_string(i-1);
+  }
+}
+
 void napsat::proof::resolution_proof::print_proof(void)
 {
   assert(empty_clause_id != CLAUSE_UNDEF);
@@ -300,34 +335,7 @@ void napsat::proof::resolution_proof::print_proof(void)
       cout << ") [input]\n";
       continue;
     }
-    vector<Tlit> base;
-    // first clause in the resolution chain
-    unsigned first_index = c.resolution_chain[0].second;
-    clause cl = clauses[first_index];
-
-    for (unsigned i = 0; i < cl.size; i++)
-      base.push_back(cl.lits[i]);
-
-    string last_clause_number = to_string(first_index);
-    assert(c.resolution_chain.size() >= 2);
-    for (unsigned i = 1; i < c.resolution_chain.size(); i++) {
-      pair<Tlit, unsigned> link = c.resolution_chain[i];
-      apply_resolution(base, link.second, link.first);
-      cl = clauses[link.second];
-
-      if (i != c.resolution_chain.size() - 1)
-        cout << index << "." << i-1 << ": (";
-      else
-        cout << index << ": (";
-
-      for (unsigned i = 0; i < base.size(); i++) {
-        cout << lit_to_int(base[i]);
-        if (i != base.size() - 1)
-          cout << " ";
-      }
-      cout << ") [resolution " << last_clause_number << ", " << link.second << "]\n";
-      last_clause_number = to_string(index) + "." + to_string(i-1);
-    }
+    print_resolution_chain(index);
   }
 }
 

@@ -28,7 +28,7 @@
   }
 #else
 #define ASSERT(cond) assert(cond);
-#define ASSERT_MSG(cond, msg) assert(cond && msg);
+#define ASSERT_MSG(cond, msg) assert(cond);
 #endif
 #else
 #define ASSERT(cond)

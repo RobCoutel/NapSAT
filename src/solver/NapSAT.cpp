@@ -585,8 +585,9 @@ void napsat::NapSAT::backtrack(Tlevel level)
     ASSERT(_options.lazy_strong_chronological_backtracking);
     // adds the literals on the lazy reimplication buffer to the trail by order of increasing level
     // Sort the literals by increasing level. It is not necessary, but it probably is more effective
-    // TODO evaluate the performance of this
+    // TODO evaluate the performance of this. Is sorting useful?
     // The topological order will automatically be respected because the reimplied literals cannot depend on each other.
+    // see Theorem 17 in [Lazy Reimplication in Chronological Backtracking, Robin Coutelier and Mathias Fleury and Laura Kovács]
     sort(_reimplication_backtrack_buffer.begin(), _reimplication_backtrack_buffer.end(), [this](Tclause a, Tclause b)
       { return lit_level(_clauses[a].lits[1]) < lit_level(_clauses[b].lits[1]); });
     for (Tclause lazy_clause : _reimplication_backtrack_buffer) {
@@ -1186,8 +1187,11 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
     else if (lit_false(lits[1]) && lit_true(lits[0]) && _options.lazy_strong_chronological_backtracking)
       reimply_literal(lits[0], cl);
   }
-  if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination)
+  if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
     simplify_clause_set();
+    // The clause we just added should not be deleted
+    ASSERT(!_clauses[cl].deleted);
+  }
   return cl;
 }
 
@@ -1332,7 +1336,7 @@ status NapSAT::solve()
     && ((!_options.weak_chronological_backtracking && !_options.restoring_strong_chronological_backtracking)
        || solver_level() == LEVEL_ROOT)) {
       // in WCB and RSCB, missed lower implications can be a problem when purging clauses.
-      // TODO: try to find a way to make it work with RSCB and WCB without needing to be at level 0
+      // this is the same trick as in CaDiCaL, but we might be able to do better
       purge_clauses();
       _purge_threshold = _n_root_lvl_lits + _purge_inc;
       if (_status == UNSAT)

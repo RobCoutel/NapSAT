@@ -129,8 +129,7 @@ namespace napsat
     /*                            Data structures                            */
     /*************************************************************************/
     /**
-     * @brief Structure to store the state an metadata of a variable.
-     * TODO add details
+     * @brief Structure to store the state an metadata of a propositional variable.
      */
     typedef struct TSvar
     {
@@ -205,7 +204,6 @@ namespace napsat
 
     /**
      * @brief Structure to store a clause and its metadata.
-     * TODO add details
      */
     typedef struct  alignas(16) TSclause
     {
@@ -701,7 +699,7 @@ namespace napsat
     {
       ASSERT(cl < _clauses.size());
       return is_reason_of     (cl, _clauses[cl].lits[0])
-          || is_lazy_reason_of(cl, _clauses[cl].lits[1]);
+          || is_lazy_reason_of(cl, _clauses[cl].lits[0]);
     }
 
     inline Tlevel solver_level() const

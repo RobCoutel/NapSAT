@@ -234,6 +234,11 @@ namespace napsat::proof
     bool check_proof(void);
 
     /**
+     * Prints a resolution chain leading to the clause with the given index.
+     */
+    void print_resolution_chain(unsigned index);
+
+    /**
      * @brief Print the proof in a top-down format. Only the clauses relevant
      * to reaching the empty clause are printed.
      * @pre The proof must be correct.

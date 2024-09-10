@@ -12,12 +12,6 @@
 
 #include <string>
 
-// TODO
-// Save runs in files and replay them
-// Toggle between one run or the other
-// Check and generate proofs
-// Drill down on variables and clauses
-
 namespace napsat::gui
 {
   class observer;

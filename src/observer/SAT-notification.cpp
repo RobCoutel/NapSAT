@@ -201,21 +201,19 @@ bool napsat::gui::implication::apply(observer* obs)
         continue;
       }
       Tvar v = lit_to_var(l);
-      if (obs->_variables[v].level > level_check)
-        level_check = obs->_variables[v].level;
+      level_check = max(level_check, obs->_variables[v].level);
     }
     bool success = true;
-    // TODO: Make those errors instead of warnings
     if (!found) {
-      LOG_WARNING("The clause " << reason << " does not contain the literal " << lit_to_int(lit));
+      LOG_ERROR("The clause " << reason << " does not contain the literal " << lit_to_int(lit));
       success = false;
     }
     if (level_check == LEVEL_ERROR || level_check == LEVEL_UNDEF) {
-      LOG_WARNING("The clause " << reason << " seems to contain a literal that is not assigned different from " << lit_to_int(lit));
+      LOG_ERROR("The clause " << reason << " seems to contain a literal that is not assigned different from " << lit_to_int(lit));
       success = false;
     }
     else if (level_check != level) {
-      LOG_WARNING("level of variable " << var << " is " << level_check << " but was given as " << level << " by the solver");
+      LOG_ERROR("level of variable " << var << " is " << level_check << " but was given as " << level << " by the solver");
       success = false;
     }
     if (!success) {
