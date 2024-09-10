@@ -1,9 +1,13 @@
 #include "SAT-API.hpp"
 #include "SAT-types.hpp"
 #include "SAT-config.hpp"
+#include "SAT-options.hpp"
 
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
+
+#include <fstream>
+#include <vector>
 
 using namespace std;
 using namespace napsat;
@@ -17,7 +21,10 @@ static NapSAT* setup(const char* filename) {
   if (!file.good()) {
     filename += 3;
   }
-  options options(nullptr, 0);
+  vector<string> args;
+  args.push_back("--suppress-info");
+  args = env::extract_environment_variables(args);
+  options options(args);
   NapSAT* solver = create_solver(0, 0, options);
   REQUIRE(solver != nullptr);
 

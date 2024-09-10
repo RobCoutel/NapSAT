@@ -6,8 +6,9 @@
  * SAT solver such as printing, cleaning watch lists, parsing,...
  */
 #include "NapSAT.hpp"
+
 #include "custom-assert.hpp"
-#include "../environment.hpp"
+#include "../utils/printer.hpp"
 #include "../utils/decoder.hpp"
 
 #include <iostream>
@@ -214,23 +215,6 @@ string NapSAT::clause_to_string(Tclause cl)
     s += " ";
   }
   return s;
-}
-
-/**
- * @brief Returns the length of the string when escaped.
- */
-static unsigned string_length_escaped(string str)
-{
-  unsigned length = 0;
-  for (unsigned i = 0; i < str.length(); i++) {
-    if (str[i] == esc_char) {
-      while (str[i] != 'm')
-        i++;
-      continue;
-    }
-    length++;
-  }
-  return length;
 }
 
 void NapSAT::print_clause(Tclause cl)

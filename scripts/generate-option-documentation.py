@@ -6,7 +6,7 @@ description of the options
 """
 import pandas as pd
 
-option_file = "../include/SAT-options.hpp"
+option_file = "include/SAT-options.hpp"
 
 columns = ["Category", "Option", "Alias", "Type", "Default", "Description", "Requires", "Subsumed by", "Warning"]
 
@@ -15,6 +15,7 @@ tag_to_column = {
     "@alias": "Alias",
     "@requires": "Requires",
     "@subsumed": "Subsumed by",
+    "@warning": "Warning"
 }
 
 dataframe = pd.DataFrame(columns=columns)
@@ -26,13 +27,19 @@ with open(option_file, "r") as f:
   current_category = ""
   current_tag = ""
   current_tag_value = ""
+
+  document = False
   for line in lines:
     line = line.strip()
     # print(line)
     if line.find("/**") != -1 and line.find("**/") != -1 :
       current_category = line.split("/**")[1].split("**/")[0].strip()
       if current_category == "Stop Documentation":
-        break
+        document = False
+      if current_category == "Start Documentation":
+        document = True
+      continue
+    if not document:
       continue
     if line.find("/**") != -1:
       # add a line to the dataframe
@@ -157,7 +164,7 @@ for i in range(len(dataframe)):
   if option_line["Category"] != last_category:
     category_string = option_line["Category"]
     total_length = len(category_string)
-    max_length = 80
+    max_length = 100
     pading = int((max_length - total_length - 2) / 2)
     category_string = "*" * pading + " " + category_string + " " + "*" * pading
     if len(category_string) < max_length - 2:
@@ -181,5 +188,5 @@ for i in range(len(dataframe)):
     if option_line[column] != "":
       if (column != "Description"):
         option_line[column] = column + ": " + option_line[column]
-      option_string += split_line_to_length(option_line[column], 80, 4) + "\n"
+      option_string += split_line_to_length(option_line[column], max_length, 4) + "\n"
   print(option_string)

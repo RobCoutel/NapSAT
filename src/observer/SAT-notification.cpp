@@ -6,7 +6,9 @@
  * implementation of the notifications' apply and rollback methods.
  */
 #include "SAT-notification.hpp"
+
 #include "SAT-observer.hpp"
+#include "../utils/printer.hpp"
 
 #include <cassert>
 #include <algorithm>
@@ -20,16 +22,13 @@ using namespace std;
 #ifndef NDEBUG
 #define ASSERT_OBS(notif, x) \
 if (!(x)) { \
-  if (!notification::_suppress_warning) \
+  if (!env::suppress_warning) \
     LOG_ERROR("Assertion failed: " << #x << " in notification " << notif->get_message()); \
   return false; \
 }
 #else
 #define ASSERT_OBS(this, x) assert(x)
 #endif
-
-bool napsat::gui::notification::_suppress_warning = false;
-
 
 std::string napsat::gui::notification_type_to_string(ENotifType type)
 {
@@ -192,7 +191,7 @@ bool napsat::gui::implication::apply(observer* obs)
   obs->_variables[var].reason = reason;
   obs->_variables[var].level = level;
 
-  if (!notification::_suppress_warning) {
+  if (!env::suppress_warning) {
     Tlevel level_check = 0;
     bool found = false;
     for (Tlit l : obs->_active_clauses[reason]->literals) {
@@ -395,7 +394,7 @@ bool napsat::gui::new_clause::apply(observer* obs)
     hash = obs->hash_clause(lits);
     while (obs->_clauses_dict.find(hash) != obs->_clauses_dict.end()) {
       // if the clause are identical, send a warning message
-      if (!notification::_suppress_warning && obs->_clauses_dict[hash]->literals == lits) {
+      if (!env::suppress_warning && obs->_clauses_dict[hash]->literals == lits) {
         if (!obs->_clauses_dict[hash]->active) {
           // The clause was deleted. This is not a big problem.
           LOG_INFO("(at notification number " << obs->_notifications.size() << "): The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << " that was deleted earlier");

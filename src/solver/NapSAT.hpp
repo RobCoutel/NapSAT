@@ -93,10 +93,10 @@
 #include "SAT-options.hpp"
 #include "custom-assert.hpp"
 #include "heap.hpp"
-#include "../observer/SAT-stats.hpp"
+#include "../proof/proof.hpp"
+#include "../utils/printer.hpp"
 #include "../observer/SAT-notification.hpp"
 #include "../observer/SAT-observer.hpp"
-#include "../proof/proof.hpp"
 
 #include <vector>
 #include <set>
@@ -519,12 +519,6 @@ namespace napsat
      * last synchronization.
      */
     std::set<Tvar> _touched_variables;
-
-    /**  STATISTICS  **/
-    /**
-     * @brief Statistics of the solver.
-     */
-    napsat::statistics _stats;
 
     /**  INTERACTIVE SOLVER  **/
 #if USE_OBSERVER

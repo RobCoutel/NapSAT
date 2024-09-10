@@ -9,7 +9,6 @@
 
 #include "SAT-config.hpp"
 #include "SAT-types.hpp"
-// #include "SAT-observer.hpp"
 
 #include <vector>
 #include <string>
@@ -75,24 +74,7 @@ namespace napsat::gui
      */
     unsigned event_level;
 
-  protected:
-    /**
-     * @brief True if the warning that are displayed when notification do not make sense to the observer are suppressed. False otherwise.
-     * The default value is false.
-     * To suppress the warnings, use notification::suppress_warning(true).
-     * To display the warnings, use notification::suppress_warning(false).
-     */
-    static bool _suppress_warning;
-
   public:
-    /**
-     * @brief Suppresses the warning that are displayed when notification do not make sense to the observer.
-     */
-    static void suppress_warning(bool suppress)
-
-    {
-      _suppress_warning = suppress;
-    }
     /**
      * @brief Returns a copy of the notification.
      */

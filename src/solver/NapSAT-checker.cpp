@@ -8,7 +8,9 @@
  * Only invariants on the integrity of the solver's data structure are checked here.
  */
 #include "NapSAT.hpp"
+
 #include "custom-assert.hpp"
+#include "../utils/printer.hpp"
 
 #include <unordered_set>
 

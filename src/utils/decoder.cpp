@@ -5,15 +5,16 @@
  * @brief This file is part of the NapSAT solver. It contains the implementation of the XZ
  * decompression function.
  */
+#include "decoder.hpp"
+
+#include "printer.hpp"
+#include "../include/SAT-types.hpp"
 
 #include <iostream>
 #include <fstream>
 #include <lzma.h>
 #include <string>
 #include <sstream>
-
-#include "../include/SAT-types.hpp"
-#include "decoder.hpp"
 
 using namespace std;
 

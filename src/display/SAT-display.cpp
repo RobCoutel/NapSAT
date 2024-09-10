@@ -6,7 +6,9 @@
  * solver's observer.
  */
 #include "SAT-display.hpp"
-#include "../environment.hpp"
+
+#include "SAT-options.hpp"
+#include "../utils/printer.hpp"
 
 #include <cassert>
 #include <iostream>
@@ -305,8 +307,9 @@ void napsat::gui::display::notify_change(unsigned level)
       }
     }
     else if (command == "check invariants" || command == "c") {
-      if (_observer->check_invariants())
+      if (_observer->check_invariants()) {
         LOG_INFO("Invariants are satisfied");
+      }
       else {
         LOG_WARNING("Invariants are not satisfied");
         LOG_INFO("(Note that checking the invariants at an intermediate state may lead to false positives.)");

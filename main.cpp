@@ -4,7 +4,8 @@
 #include <chrono>
 #include "SAT-API.hpp"
 #include "SAT-config.hpp"
-#include "src/environment.hpp"
+#include "SAT-options.hpp"
+#include "src/utils/printer.hpp"
 
 using namespace std;
 using namespace napsat;
@@ -72,10 +73,10 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  napsat::env::set_input_file(argv[1]);
-  napsat::env::set_problem_name(string(basename(argv[1])));
+  vector<string> tokens(argv + 2, argv + argc);
+  tokens = napsat::env::extract_environment_variables(tokens);
 
-  napsat::options options(argv + 2, argc - 2);
+  napsat::options options(tokens);
   napsat::NapSAT* solver = create_solver(0, 0, options);
 
   if (!parse_dimacs(solver, argv[1])) {

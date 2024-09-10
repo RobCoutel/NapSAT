@@ -11,8 +11,8 @@
 
 #include "SAT-types.hpp"
 #include "SAT-options.hpp"
-#include "../display/SAT-display.hpp"
 #include "SAT-notification.hpp"
+#include "../display/SAT-display.hpp"
 
 #include <vector>
 #include <functional>

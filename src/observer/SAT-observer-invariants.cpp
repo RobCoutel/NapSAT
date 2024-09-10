@@ -6,7 +6,8 @@
  * implementation of the invariant checkers in the observer.
  */
 #include "SAT-observer.hpp"
-#include "../environment.hpp"
+
+#include "../utils/printer.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -27,55 +28,38 @@ void napsat::gui::observer::load_invariant_configuration()
   filename += ".conf";
   ifstream file(filename);
   if (!file.is_open()) {
-    if (!_options.suppress_warning)
-      LOG_ERROR("The invariant configuration could not be loaded from file: " + filename);
+    LOG_ERROR("The invariant configuration could not be loaded from file: " + filename);
     return;
   }
-  // TODO this is a bit brutal. Do like in the options.
-  // reset all the invariants to false
-  _check_trail_sanity = false;
-  _check_level_ordering = false;
-  _check_trail_monotonicity = false;
-  _check_no_missed_implications = false;
-  _check_topological_order = false;
+  unordered_map<string, bool*> invariants({
+    {"trail_sanity", &_check_trail_sanity},
+    {"level_ordering", &_check_level_ordering},
+    {"trail_monotonicity", &_check_trail_monotonicity},
+    {"no_missed_implications", &_check_no_missed_implications},
+    {"topological_order", &_check_topological_order},
 #if NOTIFY_WATCH_CHANGES
-  _check_weak_watched_literals = false;
-  _check_strong_watched_literals = false;
-  _check_backtrack_compatible_watched_literals = false;
-  _check_lazy_backtrack_compatible_watch_literals = false;
+    {"weak_watched_literals", &_check_weak_watched_literals},
+    {"strong_watched_literals", &_check_strong_watched_literals},
+    {"backtrack_compatible_watched_literals", &_check_backtrack_compatible_watched_literals},
+    {"lazy_backtrack_compatible_watched_literals", &_check_lazy_backtrack_compatible_watch_literals},
+    {"weak_blocker_level", &_check_weak_blocker_level},
+    {"strong_blocker_level", &_check_strong_blocker_level},
 #endif
-  _check_weak_blocker_level = false;
-  _check_strong_blocker_level = false;
-  _check_assignment_coherence = false;
+    {"assignment_coherence", &_check_assignment_coherence},
+  });
+
+  // reset all invariants to false
+  for (auto &invariant : invariants)
+    *(invariant.second) = false;
+
+
   // read the file
   string line;
   while (getline(file, line)) {
-    if (line == "trail_sanity")
-      _check_trail_sanity = true;
-    else if (line == "level_ordering")
-      _check_level_ordering = true;
-    else if (line == "trail_monotonicity")
-      _check_trail_monotonicity = true;
-    else if (line == "no_missed_implications")
-      _check_no_missed_implications = true;
-    else if (line == "topological_order")
-      _check_topological_order = true;
-    else if (line == "weak_watched_literals")
-      _check_weak_watched_literals = true;
-    else if (line == "strong_watched_literals")
-      _check_strong_watched_literals = true;
-    else if (line == "backtrack_compatible_watched_literals")
-      _check_backtrack_compatible_watched_literals = true;
-    else if (line == "lazy_backtrack_compatible_watched_literals")
-      _check_lazy_backtrack_compatible_watch_literals = true;
-    else if (line == "assignment_coherence")
-      _check_assignment_coherence = true;
-    else if (line == "weak_blocker_level")
-      _check_weak_blocker_level = true;
-    else if (line == "strong_blocker_level")
-      _check_strong_blocker_level = true;
+    if (invariants.find(line) != invariants.end())
+      *(invariants[line]) = true;
     else
-      LOG_WARNING("unknown invariant " << line);
+      LOG_WARNING("Unknown invariant: " + line);
   }
   file.close();
 }

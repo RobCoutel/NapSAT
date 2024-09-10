@@ -1,14 +1,13 @@
-NapSAT is a CDCL SAT solver supporting both chronological and non-chrono-
-logical backtracking. The solver will print "s SATISFIABLE" if the problem has a
-solution, and "s UNSATISFIABLE" otherwise.
+NapSAT is a CDCL SAT solver  supporting both  chronological and  non-chronological backtracking. The
+solver will print "s SATISFIABLE" if the problem has a solution, and "s UNSATISFIABLE" otherwise.
 
 By default, Boolean options [on/off] are set [on] if the specification is omitted
 
 To use the solver, use the following command:
-    NapSAT-<version>[-dbg] <input_file/-h/-hs/-hn> [options]
+    NapSAT <input_file/-h/-hs/-hn> [options]
 
 The options are the following:
-*********************************** HELPERS ************************************
+********************************************* HELPERS **********************************************
   -h or --help
     Print this helper
 
@@ -18,47 +17,69 @@ The options are the following:
   -hn or --help-navigation
     Print the documentation of the navigation commands the observer supports
 
-******************************* SOLVER BEHAVIOR *******************************
-  -cb or --chronological-backtracking <bool = off>
-    Enables  chronological  backtracking.  If enabled directly,  the solver will
-    use weak chronological  backtracking.  This option  is not meant  to be used
-    standalone,  but can be, in which case, wcb is used. This option  is enabled
-    by any chronological  backtracking  variant.  wcb => cb, rscb => cb, lscb =>
-    cb There exists a hierarchy  between  the options.  If several  are enabled,
-    the highest in the hierarchy will be used. cb <= wcb < rscb < lscb
+**************************************** GLOBAL ENVIRONMENT ****************************************
+  -m or --man-page-folder <string = "../">
+    The directory  of the manual pages. This option in general should not be set by the user, unless
+    NapSAT is used as a library and the main program is not the NapSAT executable.  NapSAT will find
+    the manual  pages folder  if the option  is not set. This option is only meant to be used by the
+    user of the library.
 
-  -cb or --weak-chronological-backtracking <bool = off>
+  -icf or --invariant-configuration-folder <string = "../invariant-configurations/">
+    The directory  of the invariant configurations.  This option in general should not be set by the
+    user, unless  NapSAT  is used as a library  and the main program  is not the NapSAT executable.
+    NapSAT  will find the invariant  configurations  folder  if the option is not set. However,  the
+    user can use this option  to set their own configurations.  The invariants  will only be used if
+    the observer is active (-i, -o or -c).
+
+  -sw or --suppress-warning <bool = off>
+    If true, the solver will not print warnings to the standard output.
+
+  -si or --suppress-info <bool = off>
+    If true, the solver will not print information to the standard output.
+
+***************************************** SOLVER BEHAVIOR *****************************************
+  -cb or --chronological-backtracking <bool = off>
+    Enables chronological  backtracking. If enabled directly, the solver will use weak chronological
+    backtracking.  This option is not meant to be used standalone, but can be, in which case, wcb is
+    used. This option is enabled by any chronological  backtracking  variant. wcb => cb, rscb => cb,
+    lscb => cb There exists a hierarchy  between the options. If several are enabled, the highest in
+    the hierarchy will be used. cb <= wcb < rscb < lscb
+    Subsumed by: -wcb, -lscb and -rscb
+
+  -wcb or --weak-chronological-backtracking <bool = off>
     Enables the solver to use chronological backtracking.
+    Subsumed by: lscb and rscb
 
   -rscb or --restoring-strong-chronological-backtracking <bool = off>
-    Enables  the solver to use restoring  chronological  backtracking.  That is,
-    the solver will re-propagate literals that moved during backtracking.
+    Enables  the  solver  to use restoring  chronological  backtracking.  That  is, the solver will
+    re-propagate literals that moved during backtracking.
+    Subsumed by: lscb
 
   -scb or --lazy-strong-chronological-backtracking <bool = off>
-    Enables  the solver to use strong chronological  backtracking.  That is, the
-    solver will use the lazy reimplication scheme.
+    Enables  the solver to use strong chronological  backtracking.  That is, the solver will use the
+    lazy reimplication scheme.
 
   -del or --delete-clauses <bool = on>
     Enables the solver to delete learned clauses.
 
-*********************************** OBSERVER ***********************************
-  -sw or --suppress-warning <bool = off>
-    If true, the observer will not print warnings.
-    Requires: observing, interactive, check_invariants or print_stats is on
-
+********************************************* OBSERVER *********************************************
   -i or --interactive <bool = off>
-    Sets the solver to interactive  mode. Before each decision,  the solver will
-    wait for the user to enter a command before continuing.
+    Sets the solver to interactive  mode. Before each decision, the solver will wait for the user to
+    enter a command before continuing.
+    Warning: The interactive mode will slow down the solver significantly.
 
   -o or --observing <bool = off>
-    Sets an observer  to the solver. The observer will print information  about
-    the solver.
+    Sets an observer to the solver. The observer will print information about the solver.
+    Subsumed by: -i
+    Warning: The observer will slow down the solver significantly.
 
   -c or --check-invariants <bool = off>
     Enables the solver to check some invariants through the observers.
+    Subsumed by: -o and -i
+    Warning: Checking the invariants will slow down the solver significantly.
 
   -stat or --print-stats <bool = off>
-    Enables the observer to print statistics at the end of the execution.
+    Enables the observer to print statistics during, and at the end of the execution.
     Requires: observing or interactive is on
 
   -bp or --build-proof <bool = off>
@@ -77,55 +98,51 @@ The options are the following:
     Requires: interactive is on
 
   -s or --save-folder <string = "">
-    Folder  where  the  solver  will  save  the LaTeX  files.  (see  $  NapSAT
-    --help-navigation for more information)
+    Folder  where the solver  will save the LaTeX files.  (see $ NapSAT  --help-navigation  for more
+    information)
 
-****************************** VARIABLE ACTIVITY ******************************
+**************************************** VARIABLE ACTIVITY ****************************************
   --var-activity-decay <double = 0.95>
     Decay factor of the _var_activity_increment.
     Requires: 0 < decay < 1
 
-******************************* CLAUSE DELETION *******************************
+***************************************** CLAUSE DELETION *****************************************
   --clause-elimination-multiplier <double = 1.5>
-    Multiplier of the number of clauses before elimination. When the
-    simplifying  procedure is called to eliminate clauses, the new threshold for
-    deletion is multiplied by this multiplier.
+    Multiplier  of the number  of clauses  before  elimination.  When the simplifying  procedure  is
+    called to eliminate clauses, the new threshold for deletion is multiplied by this multiplier.
     Requires: multiplier > 1
 
   --clause-activity-multiplier <double = 1.001>
-    Multiplier for the activity increment of clauses. The higher the
-    multiplier, faster the clauses are considered irrelevant.
+    Multiplier for the activity increment of clauses. The higher the multiplier,  faster the clauses
+    are considered irrelevant.
     Requires: The multiplier must be greater than 1.
 
   --clause-activity-threshold-decay <double = 0.85>
-    Decay factor  of the clause activity  threshold.  If the solver deletes  too
-    many clauses,  the solver will not make progress.  Therefore,  the threshold
-    is multiplied  by the threshold decay factor upon each clause deletion. This
-    hyper parameter must be set to a value lower than 1.
+    Decay factor  of the clause  activity  threshold.  If the solver deletes  too many clauses,  the
+    solver will not make progress.  Therefore,  the threshold  is multiplied  by the threshold decay
+    factor upon each clause deletion. This hyper parameter must be set to a value lower than 1.
     Requires: 0 < decay < 1
 
-*********************************** RESTARTS ***********************************
+********************************************* RESTARTS *********************************************
   --agility-decay <double = 0.9999>
     Decay factor the of moving average of the agility.
     Requires: 0 < decay < 1
 
   --agility-threshold <double = 0.4>
-    Threshold  of the agility.  If the agility is lower than the threshold,  the
-    solver restarts and the the threshold is multiplied by
-    agility_threshold_decay.
+    Threshold  of the agility.  If the agility is lower than the threshold,  the solver restarts and
+    the the threshold is multiplied by agility_threshold_decay.
     Requires: 0 < threshold < 1
 
   --threshold-multiplier <double = 1>
-    Multiplier  for the agility threshold. Since formulas can be very different,
-    the agility  for one problem  may not be the same as the agility for another
-    problem. Therefore,  the threshold is multiplied by the threshold multiplier
-    upon each implication.  This hyper parameter  must be set to a value greater
-    than 1.
+    Multiplier  for the agility threshold. Since formulas can be very different, the agility for one
+    problem  may not be the same as the agility  for another problem.  Therefore,  the threshold  is
+    multiplied  by the threshold multiplier upon each implication.  This hyper parameter must be set
+    to a value greater than 1.
     Requires: multiplier >= 1
 
   --agility-threshold-decay <double = 1>
-    Decay factor of the threshold.  If the solver restarts too often, the solver
-    will  not  make  progress.  Therefore,  the threshold  is multiplied  by the
-    threshold  decay factor upon each restart. This hyper parameter  must be set
-    to a value lower than 1 and lower than 2 - threshold_multiplier.
+    Decay  factor  of the threshold.  If the solver  restarts  too often,  the solver will not make
+    progress.  Therefore,  the threshold  is multiplied  by the threshold decay  factor  upon  each
+    restart.  This  hyper  parameter  must  be set  to a value  lower  than  1 and  lower than 2 -
+    threshold_multiplier.
     Requires: 0 < decay < 1

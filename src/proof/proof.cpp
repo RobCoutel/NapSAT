@@ -1,5 +1,7 @@
-#include "SAT-types.hpp"
 #include "proof.hpp"
+
+#include "SAT-types.hpp"
+#include "../utils/printer.hpp"
 
 #include <iostream>
 #include <vector>

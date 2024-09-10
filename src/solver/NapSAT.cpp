@@ -6,6 +6,7 @@
  * solver such as the CDCL loop, BCP, conflict analysis, backtracking and clause set simplification.
  */
 #include "NapSAT.hpp"
+
 #include "custom-assert.hpp"
 
 #include <iostream>

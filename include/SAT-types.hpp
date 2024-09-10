@@ -106,11 +106,3 @@ namespace napsat
   inline int lit_to_int(Tlit lit) { return (int) lit_pol(lit) ? (int) lit_to_var(lit) : -(int) lit_to_var(lit); }
 
 }
-
-const std::string ERROR_HEAD = "\033[1;31mERROR: \033[0m";
-const std::string WARNING_HEAD = "\033[0;33mWARNING: \033[0m";
-const std::string INFO_HEAD = "\033[34mINFO: \033[0m";
-
-#define LOG_ERROR(msg) std::cerr << ERROR_HEAD << msg << std::endl
-#define LOG_WARNING(msg) std::cout << WARNING_HEAD << msg << std::endl
-#define LOG_INFO(msg) std::cout << INFO_HEAD << msg << std::endl

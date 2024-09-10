@@ -1,5 +1,6 @@
 #include "../src/observer/SAT-notification.hpp"
 #include "../src/observer/SAT-observer.hpp"
+#include "SAT-options.hpp"
 
 #include <catch2/catch.hpp>
 
@@ -7,6 +8,7 @@
 #include <functional>
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <cstring>
 
@@ -14,11 +16,23 @@ using namespace napsat;
 using namespace napsat::gui;
 using namespace std;
 
+/**
+ * Sets up the invariant configuration in the environment.
+ */
+static void setup() {
+  string invariant_folder = "../invariant-configurations/";
+  ifstream file(invariant_folder + "non-chronological-backtracking.conf");
+  if (!file.good()) {
+    invariant_folder = "invariant-configurations/";
+  }
+  env::set_invariant_configuration_folder(invariant_folder);
+}
+
 TEST_CASE( "[Notification] Unit Test : New Variable Forward" )
 {
-  string arg = "-c";
-  char* arg_c = &arg[0];
-  options opt(&arg_c, 1);
+  setup();
+  vector<string> args{"-c"};
+  options opt(args);
   observer obs(opt);
   obs.notify(new new_variable(1));
   obs.notify(new new_variable(2));
@@ -37,10 +51,9 @@ TEST_CASE( "[Notification] Unit Test : New Variable Forward" )
 
 TEST_CASE( "[Notification] Unit Test" )
 {
-  char* arg0 = const_cast<char*>("-c");
-  char* arg1 = const_cast<char*>("-sw");
-  char* argc[2] = { arg0, arg1 };
-  options opt(argc, 1);
+  setup();
+  vector<string> args{"-c"};
+  options opt(args);
   observer obs(opt);
   obs.notify(new new_variable(1));
   obs.notify(new new_variable(2));

@@ -6,6 +6,8 @@
  */
 #pragma once
 
+#include "../utils/printer.hpp"
+
 #include <cassert>
 
 #ifndef NDEBUG

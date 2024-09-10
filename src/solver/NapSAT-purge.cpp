@@ -1,4 +1,5 @@
 #include "NapSAT.hpp"
+
 #include "custom-assert.hpp"
 
 #include <iostream>

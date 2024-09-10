@@ -8,9 +8,39 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
+/** Start Documentation **/
 namespace napsat
 {
+
+  namespace env
+  {
+    /** GLOBAL ENVIRONMENT **/
+    /**
+     * @brief The directory of the manual pages. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable. NapSAT will find the manual pages folder if the option is not set. This option is only meant to be used by the user of the library.
+     * @alias -m
+     */
+    static std::string man_page_folder = "../";
+    /**
+     * @brief The directory of the invariant configurations. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable.
+     * NapSAT will find the invariant configurations folder if the option is not set. However, the user can use this option to set their own configurations.
+     * The invariants will only be used if the observer is active (-i, -o or -c).
+     * @alias -icf
+     */
+    static std::string invariant_configuration_folder = "../invariant-configurations/";
+    /**
+     * @brief If true, the solver will not print warnings to the standard output.
+     * @alias -sw
+    */
+    static bool suppress_warning = false;
+    /**
+     * @brief If true, the solver will not print information to the standard output.
+     * @alias -si
+    */
+    static bool suppress_info = false;
+  }
+
   class options {
   public:
     /** SOLVER BEHAVIOR **/
@@ -20,21 +50,21 @@ namespace napsat
      * There exists a hierarchy between the options. If several are enabled, the highest in the hierarchy will be used.
      * cb <= wcb < rscb < lscb
      * @alias -cb
-     * @subsumedby weak-chronological-backtracking, lazy-strong-chronological-backtracking and restoring-strong-chronological-backtracking
+     * @subsumed -wcb, -lscb and -rscb
      */
     bool chronological_backtracking = false;
 
     /**
      * @brief Enables the solver to use chronological backtracking.
-     * @alias -cb
-     * @subsumedby lazy-strong-chronological-backtracking and restoring-strong-chronological-backtracking
+     * @alias -wcb
+     * @subsumed lscb and rscb
      */
     bool weak_chronological_backtracking = false;
     /**
      * @brief Enables the solver to use restoring chronological backtracking.
      * That is, the solver will re-propagate literals that moved during backtracking.
      * @alias -rscb
-     * @subsumedby lazy-strong-chronological-backtracking
+     * @subsumed lscb
      */
     bool restoring_strong_chronological_backtracking = false;
     /**
@@ -51,30 +81,27 @@ namespace napsat
 
     /** OBSERVER **/
     /**
-     * @brief If true, the observer will not print warnings.
-     * @requires observing, interactive, check_invariants or print_stats is on
-     * @alias -sw
-    */
-    bool suppress_warning = false;
-    /**
      * @brief Sets the solver to interactive mode. Before each decision, the solver will wait for the user to enter a command before continuing.
+     * @warning The interactive mode will slow down the solver significantly.
      * @alias -i
     */
     bool interactive = false;
     /**
      * @brief Sets an observer to the solver. The observer will print information about the solver.
+     * @subsumed -i
      * @warning The observer will slow down the solver significantly.
      * @alias -o
     */
     bool observing = false;
     /**
      * @brief Enables the solver to check some invariants through the observers.
-     * @subsumedby observing and interactive
+     * @subsumed -o and -i
+     * @warning Checking the invariants will slow down the solver significantly.
      * @alias -c
     */
     bool check_invariants = false;
     /**
-     * @brief Enables the observer to print statistics at the end of the execution.
+     * @brief Enables the observer to print statistics during, and at the end of the execution.
      * @requires observing or interactive is on
      * @alias -stat
     */
@@ -171,7 +198,60 @@ namespace napsat
     /**
      * @brief Constructor
     */
-    options(char** tokens, unsigned n_tokens);
+    options(std::vector<std::string>& tokens);
   };
+
+  namespace env
+  {
+    /**
+     * @brief Given a list of tokens, extract the environment variables. The function will return a the list of tokens without the environment variables.
+     */
+    std::vector<std::string> extract_environment_variables(std::vector<std::string>& tokens);
+
+    /**
+     * @brief Returns the directory of the manual pages.
+     */
+    std::string get_man_page_directory();
+
+    /**
+     * @brief Returns the directory of the invariant configurations.
+     */
+    std::string get_invariant_configuration_folder();
+
+    /**
+     * @brief Returns true if the solver will not print warnings.
+     */
+    bool get_suppress_warning();
+
+    /**
+     * @brief Returns true if the solver will not print information.
+     */
+    bool get_suppress_info();
+
+
+    /**
+     * @brief Sets the directory of the manual pages
+     * @param dir The directory of the manual pages.
+     */
+    void set_man_page_directory(std::string dir);
+
+    /**
+     * @brief Sets the directory of the invariant configurations.
+     * @param dir The directory of the invariant configurations.
+     */
+    void set_invariant_configuration_folder(std::string dir);
+
+    /**
+     * @brief Sets the solver to suppress warnings.
+     * @param sw True if the solver will not print warnings.
+     */
+    void set_suppress_warning(bool sw);
+
+    /**
+     * @brief Sets the solver to suppress information.
+     * @param si True if the solver will not print information.
+     */
+    void set_suppress_info(bool si);
+  } // namespace env
 
 } // namespace napsat

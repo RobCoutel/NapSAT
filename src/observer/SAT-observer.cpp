@@ -7,6 +7,7 @@
  */
 
 #include "SAT-observer.hpp"
+
 #include "SAT-config.hpp"
 #include "../utils/printer.hpp"
 

@@ -7,6 +7,7 @@
  */
 #include "SAT-options.hpp"
 
+#include "../utils/printer.hpp"
 #include "../observer/SAT-notification.hpp"
 
 #include <string>
@@ -15,8 +16,104 @@
 #include <unordered_map>
 
 using namespace std;
+using namespace napsat::env;
 
-napsat::options::options(char** tokens, unsigned n_tokens)
+/**************************************************************************************************/
+/*                                  GLOBAL ENVIRONMENT                                            */
+/**************************************************************************************************/
+static unordered_map<string, bool*> bool_options = {
+  {"--suppress-warning", &suppress_warning},
+  {"-sw", &suppress_warning},
+  {"--suppress-info", &suppress_info},
+  {"-si", &suppress_info}
+};
+
+static unordered_map<string, string*> string_options = {
+  {"--man-page-folder", &man_page_folder},
+  {"-m", &man_page_folder},
+  {"--invariant-configuration-folder", &invariant_configuration_folder},
+  {"-icf", &invariant_configuration_folder}};
+
+
+vector<string> napsat::env::extract_environment_variables(vector<string>& tokens) {
+  vector<string> to_return;
+
+  unsigned n_tokens = tokens.size();
+  for (unsigned i = 0; i < n_tokens; i++) {
+    string token = string(tokens[i]);
+    string next_token = (i + 1 < n_tokens) ? string(tokens[i + 1]) : "";
+
+    if(bool_options.find(token) != bool_options.end()) {
+      if (next_token != "" && next_token[0] != '-') {
+        if (next_token == "on") {
+          *bool_options[token] = true;
+        }
+        else if (next_token == "off") {
+          *bool_options[token] = false;
+        }
+        else {
+          LOG_WARNING("option " << token << " requires a boolean value (on/off).");
+          LOG_WARNING("Default value " << (*bool_options[token] ? "on" : "off") << " is used.");
+          continue;
+        }
+      }
+      else
+        *bool_options[token] = true;
+    }
+    else if (string_options.find(token) != string_options.end()) {
+      if (next_token == "" || next_token[0] == '-') {
+        LOG_WARNING("option " << token << " requires a string value.");
+        LOG_WARNING("The option is ignored.");
+        continue;
+      }
+      *string_options[token] = next_token;
+      i++;
+    }
+    else {
+      to_return.push_back(token);
+    }
+  }
+  return to_return;
+}
+
+string napsat::env::get_man_page_directory() {
+  return man_page_folder;
+}
+
+string napsat::env::get_invariant_configuration_folder() {
+  return invariant_configuration_folder;
+}
+
+void napsat::env::set_man_page_directory(string dir) {
+  man_page_folder = dir;
+}
+
+void napsat::env::set_invariant_configuration_folder(string dir) {
+  invariant_configuration_folder = dir;
+}
+
+bool napsat::env::get_suppress_warning() {
+  return suppress_warning;
+}
+
+void napsat::env::set_suppress_warning(bool sw) {
+  suppress_warning = sw;
+}
+
+bool napsat::env::get_suppress_info() {
+  return suppress_info;
+}
+
+void napsat::env::set_suppress_info(bool si) {
+  suppress_info = si;
+}
+
+
+/**************************************************************************************************/
+/*                                    LOCAL OPTIONS                                               */
+/**************************************************************************************************/
+
+napsat::options::options(vector<string>& tokens)
 {
   /**
    * @brief set of options that are already set. Used to prevent setting twice the same option.
@@ -38,8 +135,6 @@ napsat::options::options(char** tokens, unsigned n_tokens)
     {"--observing", &observing},
     {"-i", &interactive},
     {"--interactive", &interactive},
-    {"-sw", &suppress_warning},
-    {"--suppress-warning", &suppress_warning},
     {"-c", &check_invariants},
     {"--check-invariants", &check_invariants},
     {"-stat", &print_stats},
@@ -77,8 +172,7 @@ napsat::options::options(char** tokens, unsigned n_tokens)
     {"--command_file", &commands_file}
   };
 
-
-
+  unsigned n_tokens = tokens.size();
   for (unsigned i = 0; i < n_tokens; i++) {
     string token = string(tokens[i]);
     string next_token = (i + 1 < n_tokens) ? string(tokens[i + 1]) : "";
@@ -159,15 +253,6 @@ napsat::options::options(char** tokens, unsigned n_tokens)
 
   interactive |= commands_file != "";
 
-  if (suppress_warning && !observing && !interactive && !check_invariants) {
-    LOG_WARNING("suppress warning requires observing. The options is ignored");
-  }
-  else if (suppress_warning) {
-    napsat::gui::notification::suppress_warning(true);
-  }
-  // if (print_stats && !observing && !interactive && !check_invariants) {
-  //   cerr << "\033[0;33mWARNING\033[0m: print stats requires observing or interactive. The option is ignored." << endl;
-  // }
   if (clause_activity_threshold_decay <= 0 || clause_activity_threshold_decay >= 1) {
     LOG_ERROR("clause activity threshold decay must be between 0 and 1.");
     exit(1);
