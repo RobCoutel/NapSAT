@@ -22,26 +22,30 @@
 #include <unordered_map>
 
 using namespace std;
-using namespace napsat::env;
+
+std::string napsat::env::man_page_folder = "../";
+std::string napsat::env::invariant_configuration_folder = "../invariant-configurations/";
+bool napsat::env::suppress_warning = false;
+bool napsat::env::suppress_info = false;
+
 
 /**************************************************************************************************/
 /*                                  GLOBAL ENVIRONMENT                                            */
 /**************************************************************************************************/
-static unordered_map<string, bool*> bool_options = {
-  {"--suppress-warning", &suppress_warning},
-  {"-sw", &suppress_warning},
-  {"--suppress-info", &suppress_info},
-  {"-si", &suppress_info}
-};
-
-static unordered_map<string, string*> string_options = {
-  {"--man-page-folder", &man_page_folder},
-  {"-m", &man_page_folder},
-  {"--invariant-configuration-folder", &invariant_configuration_folder},
-  {"-icf", &invariant_configuration_folder}};
-
-
 vector<string> napsat::env::extract_environment_variables(vector<string>& tokens) {
+  static unordered_map<string, bool*> bool_options = {
+    {"--suppress-warning", &napsat::env::suppress_warning},
+    {"-sw",                &napsat::env::suppress_warning},
+    {"--suppress-info",    &napsat::env::suppress_info},
+    {"-si",                &napsat::env::suppress_info}
+  };
+
+  static unordered_map<string, string*> string_options = {
+    {"--man-page-folder",                &napsat::env::man_page_folder},
+    {"-m",                               &napsat::env::man_page_folder},
+    {"--invariant-configuration-folder", &napsat::env::invariant_configuration_folder},
+    {"-icf",                             &napsat::env::invariant_configuration_folder}};
+
   vector<string> to_return;
 
   unsigned n_tokens = tokens.size();
@@ -82,7 +86,7 @@ vector<string> napsat::env::extract_environment_variables(vector<string>& tokens
   return to_return;
 }
 
-string napsat::env::get_man_page_directory() {
+string napsat::env::get_man_page_folder() {
   return man_page_folder;
 }
 
@@ -90,7 +94,7 @@ string napsat::env::get_invariant_configuration_folder() {
   return invariant_configuration_folder;
 }
 
-void napsat::env::set_man_page_directory(string dir) {
+void napsat::env::set_man_page_folder(string dir) {
   man_page_folder = dir;
 }
 
@@ -129,53 +133,53 @@ napsat::options::options(vector<string>& tokens)
    * @brief map of boolean options that can be set with a string.
   */
   std::unordered_map<string, bool*> bool_options = {
-    {"-cb", &chronological_backtracking},
-    {"--chronological-backtracking", &chronological_backtracking},
-    {"-wcb", &weak_chronological_backtracking},
-    {"--weak-chronological-backtracking", &weak_chronological_backtracking},
-    {"-lscb", &lazy_strong_chronological_backtracking},
+    {"-cb",                                      &chronological_backtracking},
+    {"--chronological-backtracking",             &chronological_backtracking},
+    {"-wcb",                                     &weak_chronological_backtracking},
+    {"--weak-chronological-backtracking",        &weak_chronological_backtracking},
+    {"-rscb",                                    &restoring_strong_chronological_backtracking},
+    {"--restoring-chronological-backtracking",   &restoring_strong_chronological_backtracking},
+    {"-lscb",                                    &lazy_strong_chronological_backtracking},
     {"--lazy-strong-chronological-backtracking", &lazy_strong_chronological_backtracking},
-    {"-rscb", &restoring_strong_chronological_backtracking},
-    {"--restoring-chronological-backtracking", &restoring_strong_chronological_backtracking},
-    {"-o", &observing},
-    {"--observing", &observing},
-    {"-i", &interactive},
-    {"--interactive", &interactive},
-    {"-c", &check_invariants},
-    {"--check-invariants", &check_invariants},
-    {"-stat", &print_stats},
-    {"--statistics", &print_stats},
-    {"-del", &delete_clauses},
-    {"--delete-clauses", &delete_clauses},
-    {"-bp", &build_proof},
-    {"--proof", &build_proof},
-    {"-pp", &print_proof},
-    {"--print-proof", &print_proof},
-    {"-cp", &check_proof},
-    {"--check-proof", &check_proof},
+    {"-o",                                       &observing},
+    {"--observing",                              &observing},
+    {"-i",                                       &interactive},
+    {"--interactive",                            &interactive},
+    {"-c",                                       &check_invariants},
+    {"--check-invariants",                       &check_invariants},
+    {"-stat",                                    &print_stats},
+    {"--statistics",                             &print_stats},
+    {"-del",                                     &delete_clauses},
+    {"--delete-clauses",                         &delete_clauses},
+    {"-bp",                                      &build_proof},
+    {"--proof",                                  &build_proof},
+    {"-pp",                                      &print_proof},
+    {"--print-proof",                            &print_proof},
+    {"-cp",                                      &check_proof},
+    {"--check-proof",                            &check_proof},
   };
 
   /**
    * @brief map of double options that can be set with a string.
   */
   std::unordered_map<string, double*> double_options = {
-    {"--clause-elimination-multiplier", &clause_elimination_multiplier},
-    {"--clause-activity-multiplier", &clause_activity_multiplier},
+    {"--clause-elimination-multiplier",   &clause_elimination_multiplier},
+    {"--clause-activity-multiplier",      &clause_activity_multiplier},
     {"--clause-activity-threshold-decay", &clause_activity_threshold_decay},
-    {"--var-activity-decay", &var_activity_decay},
-    {"--agility-decay", &agility_decay},
-    {"--agility-threshold", &agility_threshold},
-    {"--agility-threshold-decay", &agility_threshold_decay}
+    {"--var-activity-decay",              &var_activity_decay},
+    {"--agility-decay",                   &agility_decay},
+    {"--agility-threshold",               &agility_threshold},
+    {"--agility-threshold-decay",         &agility_threshold_decay}
   };
 
   /**
    * @brief map of string options that can be set with a string.
   */
   std::unordered_map<string, string*> string_options = {
-    {"-s", &save_folder},
-    {"--save", &save_folder},
-    {"-commands", &commands_file},
-    {"--command_file", &commands_file}
+    {"-s",             &save_folder},
+    {"--save",         &save_folder},
+    {"-commands",      &commands_file},
+    {"--command-file", &commands_file}
   };
 
   unsigned n_tokens = tokens.size();

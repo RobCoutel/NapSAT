@@ -43,21 +43,21 @@ int main(int argc, char** argv)
   }
 
   string exec_dir = string(dirname(argv[0]));
-  napsat::env::set_man_page_directory(exec_dir + "/../");
+  napsat::env::set_man_page_folder(exec_dir + "/../");
   napsat::env::set_invariant_configuration_folder(exec_dir + "/../invariant-configurations/");
 
   if (string(argv[1]) == "-h" || string(argv[1]) == "--help") {
-    string man_file = napsat::env::get_man_page_directory() + "man.txt";
+    string man_file = napsat::env::get_man_page_folder() + "man.txt";
     print_man_page(man_file);
     return 0;
   }
   else if (string(argv[1]) == "-hs" || string(argv[1]) == "--help-sat-commands") {
-    string man_file = napsat::env::get_man_page_directory() + "man-sat.txt";
+    string man_file = napsat::env::get_man_page_folder() + "man-sat.txt";
     print_man_page(man_file);
     return 0;
   }
   else if (string(argv[1]) == "-hn" || string(argv[1]) == "--help-navigation") {
-    string man_file = napsat::env::get_man_page_directory() + "man-nav.txt";
+    string man_file = napsat::env::get_man_page_folder() + "man-nav.txt";
     print_man_page(man_file);
     return 0;
   }

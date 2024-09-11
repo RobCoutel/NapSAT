@@ -3,7 +3,7 @@ LIB_NAME = NapSAT
 MAIN = main.cpp
 TARGET_LIB ?= $(LIB_NAME).a
 
-CC := clang++
+CC := g++
 
 BUILD_DIR ?= ./build
 SRC_DIRS ?= ./src

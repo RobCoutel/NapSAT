@@ -287,7 +287,7 @@ void napsat::proof::resolution_proof::print_clause(unsigned index)
   clause &c = clauses[index];
   for (unsigned i = 0; i < c.size; i++) {
     cout << lit_to_int(c.lits[i]);
-    if (i != c.size - 1)
+    if (i + 1 != c.size)
       cout << " ";
   }
 }

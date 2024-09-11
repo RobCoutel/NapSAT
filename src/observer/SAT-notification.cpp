@@ -28,8 +28,7 @@ using namespace std;
 #ifndef NDEBUG
 #define ASSERT_OBS(notif, x) \
 if (!(x)) { \
-  if (!env::suppress_warning) \
-    LOG_ERROR("Assertion failed: " << #x << " in notification " << notif->get_message()); \
+  LOG_ERROR("Assertion failed: " << #x << " in notification " << notif->get_message()); \
   return false; \
 }
 #else
@@ -197,7 +196,7 @@ bool napsat::gui::implication::apply(observer* obs)
   obs->_variables[var].reason = reason;
   obs->_variables[var].level = level;
 
-  if (!env::suppress_warning) {
+  if (!env::get_suppress_warning()) {
     Tlevel level_check = 0;
     bool found = false;
     for (Tlit l : obs->_active_clauses[reason]->literals) {
@@ -400,7 +399,7 @@ bool napsat::gui::new_clause::apply(observer* obs)
     hash = obs->hash_clause(lits);
     while (obs->_clauses_dict.find(hash) != obs->_clauses_dict.end()) {
       // if the clause are identical, send a warning message
-      if (!env::suppress_warning && obs->_clauses_dict[hash]->literals == lits) {
+      if (!env::get_suppress_warning() && obs->_clauses_dict[hash]->literals == lits) {
         if (!obs->_clauses_dict[hash]->active) {
           // The clause was deleted. This is not a big problem.
           LOG_INFO("(at notification number " << obs->_notifications.size() << "): The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl << " that was deleted earlier");

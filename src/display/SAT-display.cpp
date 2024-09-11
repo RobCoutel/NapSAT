@@ -324,7 +324,7 @@ void napsat::gui::display::notify_change(unsigned level)
     }
     else if (command == "help" || command == "h") {
       // read the man page on the navigation
-      std::string man_nav = napsat::env::get_man_page_directory() + "man-nav.txt";
+      std::string man_nav = napsat::env::get_man_page_folder() + "man-nav.txt";
       std::ifstream file(man_nav);
       if (file.is_open()) {
         std::string line;

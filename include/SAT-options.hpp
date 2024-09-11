@@ -10,39 +10,93 @@
 #include <string>
 #include <vector>
 
-/** Start Documentation **/
 namespace napsat
 {
 
-  namespace env
+  class env
   {
+    private:
+    /* Note that the flags "[Start/Stop] Documentation are used to generate the man page".*/
+    /** Start Documentation **/
     /** GLOBAL ENVIRONMENT **/
     /**
      * @brief The directory of the manual pages. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable. NapSAT will find the manual pages folder if the option is not set. This option is only meant to be used by the user of the library.
      * @alias -m
      */
-    static std::string man_page_folder = "../";
+    static std::string man_page_folder;
     /**
      * @brief The directory of the invariant configurations. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable.
      * NapSAT will find the invariant configurations folder if the option is not set. However, the user can use this option to set their own configurations.
      * The invariants will only be used if the observer is active (-i, -o or -c).
      * @alias -icf
      */
-    static std::string invariant_configuration_folder = "../invariant-configurations/";
+    static std::string invariant_configuration_folder;
     /**
      * @brief If true, the solver will not print warnings to the standard output.
      * @alias -sw
     */
-    static bool suppress_warning = false;
+    static bool suppress_warning;
     /**
      * @brief If true, the solver will not print information to the standard output.
      * @alias -si
     */
-    static bool suppress_info = false;
-  }
+    static bool suppress_info;
+
+    public:
+    /** Stop Documentation **/
+    /**
+     * @brief Given a list of tokens, extract the environment variables. The function will return a the list of tokens without the environment variables.
+     */
+    static std::vector<std::string> extract_environment_variables(std::vector<std::string>& tokens);
+
+    /**
+     * @brief Returns the directory of the manual pages.
+     */
+    static std::string get_man_page_folder();
+
+    /**
+     * @brief Returns the directory of the invariant configurations.
+     */
+    static std::string get_invariant_configuration_folder();
+
+    /**
+     * @brief Returns true if the solver will not print warnings.
+     */
+    static bool get_suppress_warning();
+
+    /**
+     * @brief Returns true if the solver will not print information.
+     */
+    static bool get_suppress_info();
+
+    /**
+     * @brief Sets the directory of the manual pages
+     * @param dir The directory of the manual pages.
+     */
+    static void set_man_page_folder(std::string dir);
+
+    /**
+     * @brief Sets the directory of the invariant configurations.
+     * @param dir The directory of the invariant configurations.
+     */
+    static void set_invariant_configuration_folder(std::string dir);
+
+    /**
+     * @brief Sets the solver to suppress warnings.
+     * @param sw True if the solver will not print warnings.
+     */
+    static void set_suppress_warning(bool sw);
+
+    /**
+     * @brief Sets the solver to suppress information.
+     * @param si True if the solver will not print information.
+     */
+    static void set_suppress_info(bool si);
+  };
 
   class options {
   public:
+    /** Start Documentation **/
     /** SOLVER BEHAVIOR **/
     /**
      * @brief Enables chronological backtracking. If enabled directly, the solver will use weak chronological backtracking. This option is not meant to be used standalone, but can be, in which case, wcb is used. This option is enabled by any chronological backtracking variant.
@@ -200,58 +254,5 @@ namespace napsat
     */
     options(std::vector<std::string>& tokens);
   };
-
-  namespace env
-  {
-    /**
-     * @brief Given a list of tokens, extract the environment variables. The function will return a the list of tokens without the environment variables.
-     */
-    std::vector<std::string> extract_environment_variables(std::vector<std::string>& tokens);
-
-    /**
-     * @brief Returns the directory of the manual pages.
-     */
-    std::string get_man_page_directory();
-
-    /**
-     * @brief Returns the directory of the invariant configurations.
-     */
-    std::string get_invariant_configuration_folder();
-
-    /**
-     * @brief Returns true if the solver will not print warnings.
-     */
-    bool get_suppress_warning();
-
-    /**
-     * @brief Returns true if the solver will not print information.
-     */
-    bool get_suppress_info();
-
-
-    /**
-     * @brief Sets the directory of the manual pages
-     * @param dir The directory of the manual pages.
-     */
-    void set_man_page_directory(std::string dir);
-
-    /**
-     * @brief Sets the directory of the invariant configurations.
-     * @param dir The directory of the invariant configurations.
-     */
-    void set_invariant_configuration_folder(std::string dir);
-
-    /**
-     * @brief Sets the solver to suppress warnings.
-     * @param sw True if the solver will not print warnings.
-     */
-    void set_suppress_warning(bool sw);
-
-    /**
-     * @brief Sets the solver to suppress information.
-     * @param si True if the solver will not print information.
-     */
-    void set_suppress_info(bool si);
-  } // namespace env
 
 } // namespace napsat

@@ -478,7 +478,7 @@ bool napsat::NapSAT::parse_command(std::string input)
   }
   else if (tokens[0] == "HELP") {
     // print the content of the help file
-    string man_file = napsat::env::get_man_page_directory() + "man-sat.txt";
+    string man_file = napsat::env::get_man_page_folder() + "man-sat.txt";
     ifstream file(man_file);
     if (file.is_open()) {
       string line;
