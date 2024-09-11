@@ -1,3 +1,9 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
 /**
  * @file src/observer/SAT-notification.cpp
  * @author Robin Coutelier

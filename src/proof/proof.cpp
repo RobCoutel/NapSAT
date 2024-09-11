@@ -1,3 +1,17 @@
+/**
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/proof/proof.cpp
+ * @author Robin Coutelier
+ * @brief This file is part of the NapSAT solver. It implements a simple resolution proof for the SAT solver.
+ * It is used to check the correctness of the SAT solver on unsatisfiable instances.
+ * @note This implementation is simplistic and does not aim to be efficient. A more efficient
+ * version should be implemented in the future.
+ */
 #include "proof.hpp"
 
 #include "SAT-types.hpp"

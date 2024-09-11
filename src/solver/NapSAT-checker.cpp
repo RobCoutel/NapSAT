@@ -1,8 +1,14 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
 /**
  * @file src/solver/NapSAT-checker.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SAT solver NapSAT. It implements some invariant checkers
+ * @brief This file is part of the NapSAT solver. It implements some invariant checkers
  * for the solver.
  * @details Not all the invariants are checked here since some are verified by the observer.
  * Only invariants on the integrity of the solver's data structure are checked here.

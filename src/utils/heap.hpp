@@ -1,8 +1,14 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
 /**
- * @file src/solver/heap.hpp
+ * @file src/utils/heap.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the SAT solver NapSAT. If defines a heap data structure for integer keys with double activities.
+ * @brief This file is part of the NapSAT solver. If defines a heap data structure for integer keys with double activities.
 */
 #pragma once
 

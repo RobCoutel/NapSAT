@@ -1,3 +1,14 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file main.cpp
+ * @author Robin Coutelier
+ * @brief This file is part of the NapSAT solver. It contains the main function of the SAT solver.
+ */
 #include <iostream>
 #include <fstream>
 #include <libgen.h>
@@ -9,24 +20,6 @@
 
 using namespace std;
 using namespace napsat;
-
-static string time_to_string(chrono::milliseconds time)
-{
-  string str = "";
-  const long long ms = time.count();
-  const long long hours = ms / 3600000;
-  const long long minutes = (ms % 3600000) / 60000;
-  const long long seconds = (ms % 60000) / 1000;
-  const long long milliseconds = ms % 1000;
-  if (hours > 0)
-    str += to_string(hours) + "h ";
-  if (minutes > 0)
-    str += to_string(minutes) + "m ";
-  if (seconds > 0)
-    str += to_string(seconds) + "s ";
-  str += to_string(milliseconds) + "ms";
-  return str;
-}
 
 static void print_man_page(string man_file)
 {
@@ -89,7 +82,7 @@ int main(int argc, char** argv)
   chrono::time_point<chrono::high_resolution_clock> end = chrono::high_resolution_clock::now();
   chrono::milliseconds duration = chrono::duration_cast<chrono::milliseconds>(end - start);
 
-  cout << "Solution found in " << time_to_string(duration) << endl;
+  cout << "Solution found in " << pretty_time(duration) << endl;
 
   if (get_status(solver) == napsat::SAT)
     cout << "s SATISFIABLE" << endl;

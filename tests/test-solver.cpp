@@ -1,3 +1,14 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file tests/test-solver.cpp
+ * @author Robin Coutelier
+ * @brief This file is part of the NapSAT solver. It contains the integration tests for the SAT solver.
+ */
 #include "SAT-API.hpp"
 #include "SAT-types.hpp"
 #include "SAT-config.hpp"

@@ -1,3 +1,14 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file tests/test-notifications.cpp
+ * @author Robin Coutelier
+ * @brief This file is part of the NapSAT solver. It contains the unit tests for the observer notifications.
+ */
 #include "../src/observer/SAT-notification.hpp"
 #include "../src/observer/SAT-observer.hpp"
 #include "SAT-options.hpp"

@@ -1,3 +1,17 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/solver/NapSAT-purge.cpp
+ * @author Robin Coutelier
+ * @brief This file is part of the NapSAT solver. It implements the clause purging mechanism of the NapSAT solver.
+ * @details Clauses are purged when i) the solver propagated literals at root level, ii) there are too many clauses.
+ * In the first case, the function purge_clauses removes clauses that are satisfied at root level and removes literals that are falsified at root level.
+ * In the second case, the function simplify_clause_set removes clauses that are not active enough.
+ */
 #include "NapSAT.hpp"
 
 #include "custom-assert.hpp"

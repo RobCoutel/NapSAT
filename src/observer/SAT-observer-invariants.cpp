@@ -1,9 +1,15 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
 /**
  * @file src/observer/SAT-observer-invariants.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the observer of the SAT solver NapSAT. It contains the
- * implementation of the invariant checkers in the observer.
+ * @brief This file is part of the NapSAT solver. It contains the implementation of the invariant
+ * checkers in the observer.
  */
 #include "SAT-observer.hpp"
 
