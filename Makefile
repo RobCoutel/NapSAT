@@ -62,6 +62,7 @@ debug: $(BUILD_DIR)/$(TARGET_LIB)
 debug: $(BUILD_DIR)/$(EXEC)
 
 .PHONY: install
+install:
 	sudo apt-get install liblzma-dev
 
 install-test:
