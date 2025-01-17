@@ -9,7 +9,7 @@
  * @author Robin Coutelier
  * @brief This file is part of the NapSAT solver. It tests the printer utility functions.
  */
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 #include "../src/utils/printer.hpp"
 

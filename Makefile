@@ -26,7 +26,7 @@ MODULES :=
 INC_DIRS += ./include/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 LINK_FLAGS := -llzma
-TEST_LINK_FLAGS := -I /usr/include/catch2/catch.hpp
+TEST_LINK_FLAGS := -lCatch2Main -lCatch2
 
 CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
 REL_FLAGS ?= -O3 -DNDEBUG
@@ -46,7 +46,7 @@ $(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
 	ar rcs $@ $^
 
 # tests
-tests: REL_FLAGS = $(DBG_FLAGS)
+tests: REL_FLAGS = $(DBG_FLAGS) $(TEST_LINK_FLAGS)
 tests: $(OBJS) $(TEST_OBJS)
 	$(CC) -o $(BUILD_DIR)/NapSAT-tests $(OBJS) $(TEST_OBJS) $(CFLAGS) $(DBG_FLAGS) $(LINK_FLAGS) $(TEST_LINK_FLAGS)
 

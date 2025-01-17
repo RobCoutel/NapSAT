@@ -13,7 +13,7 @@
 #include "../src/observer/SAT-observer.hpp"
 #include "SAT-options.hpp"
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 #include <vector>
 #include <functional>
