@@ -44,18 +44,18 @@ std::string napsat::gui::notification_type_to_string(ENotifType type)
   return "Done";
   case ENotifType::MARKER:
   return "Marker";
-  case ENotifType::NEW_VARIABLE:
-  return "New variable";
-  case ENotifType::DELETE_VARIABLE:
-  return "variable deleted";
+  case ENotifType::VARIABLE_ADDED:
+  return "Variable added";
+  case ENotifType::VARIABLE_DELETED:
+  return "Variable deleted";
   case ENotifType::DECISION:
   return "Decision";
   case ENotifType::IMPLICATION:
   return "Implication";
-  case ENotifType::PROPAGATION:
-  return "Propagation";
-  case ENotifType::REMOVE_PROPAGATION:
-  return "Removed propagation";
+  case ENotifType::PROPAGATION_ADDED:
+  return "Propagation added";
+  case ENotifType::PROPAGATION_REMOVED:
+  return "Propagation removed";
   case ENotifType::CONFLICT:
   return "Conflict";
   case ENotifType::BACKTRACKING_STARTED:
@@ -64,24 +64,24 @@ std::string napsat::gui::notification_type_to_string(ENotifType type)
   return "Backtracking completed";
   case ENotifType::UNASSIGNMENT:
   return "Unassignement";
-  case ENotifType::NEW_CLAUSE:
-  return "New clause";
-  case ENotifType::DELETE_CLAUSE:
+  case ENotifType::CLAUSE_NEW:
+  return "Clause added";
+  case ENotifType::CLAUSE_DELETED:
   return "Clause deleted";
   case ENotifType::WATCH:
-  return "Watch";
+  return "Watch added";
   case ENotifType::UNWATCH:
-  return "Stop watching";
+  return "Watch removed";
   case ENotifType::REMOVE_LITERAL:
-  return "Remove literal";
+  return "Literal removed from clause";
   case ENotifType::CHECK_INVARIANTS:
-  return "Invariants checking";
+  return "Invariants checked";
   case ENotifType::BLOCKER:
   return "Blocker set";
-  case ENotifType::MISSED_LOWER_IMPLICATION:
-  return "Missed lower implication";
-  case ENotifType::REMOVE_LOWER_IMPLICATION:
-  return "Remove lower implication";
+  case ENotifType::MISSED_LOWER_IMPLICATION_LOGGED:
+  return "Missed lower implication logged";
+  case ENotifType::REMOVE_LOWER_IMPLICATION_REMOVED:
+  return "Missed lower implication removed";
   default:
   return "UNKNOWN";
   }
@@ -417,6 +417,13 @@ bool napsat::gui::new_clause::apply(observer* obs)
     obs->_clauses_dict.insert({ hash, c });
     if (obs->_active_clauses.size() <= cl)
       obs->_active_clauses.resize(cl + 1);
+
+    // constrain all the variables in the clause
+    for (Tlit lit : lits) {
+      Tvar var = lit_to_var(lit);
+      assert(obs->_variables.size() > var);
+      obs->_variables[var].constrained = true;
+    }
   }
   ASSERT_OBS(this, obs->_active_clauses.size() > cl);
   obs->_active_clauses[cl] = obs->_clauses_dict[hash];

@@ -147,7 +147,8 @@ namespace napsat
         propagated(false),
         state(VAR_UNDEF),
         phase_cache(0),
-        state_last_sync(VAR_UNDEF)
+        state_last_sync(VAR_UNDEF),
+        constrained(0)
       {}
       /**
        * @brief Decision level at which the variable was assigned.
@@ -193,6 +194,11 @@ namespace napsat
        * synchronization.
        */
       Tval state_last_sync : 2;
+
+      /**
+       * @brief True if at least one clause constraints this variable.
+       */
+      unsigned constrained : 1;
 
       /**
        * @brief Stores the a clause that could propagate the variable at a
@@ -348,12 +354,12 @@ namespace napsat
      * @brief When in clause input mode, contains a pointer to the first
      * literal of the clause being written.
      */
-    Tlit* _literal_buffer;
+    Tlit* _literal_buffer = nullptr;
     /**
      * @brief When in clause input mode, contains the index of the next literal
      * to write.
      */
-    unsigned _next_literal_index;
+    unsigned _next_literal_index = 0;
 
     /**  ACTIVITY HEAP  **/
     /**
@@ -769,6 +775,25 @@ namespace napsat
     }
 
     /**
+     * @brief Marks a variable as being constrained. That is, the variable should be assigned a value by the solver.
+     * @details if the options ignore_unused_variables is set to false, all variables are marked as constrained.
+     */
+    inline void var_mark_constrained(Tvar var) {
+      if (var_constrained(var)) {
+        return;
+      }
+      _variable_heap.insert(var, _vars[var].activity);
+      _vars[var].constrained = 1;
+    }
+
+    /**
+     * @brief Returns true if the variable is constrained. That is, the variable should be assigned a value by the solver.
+     */
+    inline bool var_constrained(Tvar var) const {
+      return _vars[var].constrained == 1;
+    }
+
+    /**
      * @brief Returns the clause blocker
      */
     inline Tlit lit_blocker(Tclause cl) const
@@ -829,21 +854,27 @@ namespace napsat
      */
     inline void var_allocate(Tvar var)
     {
-      for (Tvar i = _vars.size(); i <= var; i++) {
-        _variable_heap.insert(i, 0.0);
+      if (_vars.size() >= var + 1)
+        return;
+
+      unsigned old_size = _vars.size();
+      _vars.resize(var + 1);
+      for (Tvar i = old_size; i <= var; i++) {
+        assert(_vars[i].constrained == 0);
+        if (!_options.ignore_unused_variables)
+          var_mark_constrained(i);
         NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(i));
       }
-      if (var >= _vars.size() - 1) {
-        _vars.resize(var + 1);
-        _watch_lists.resize(2 * var + 2);
-        _binary_clauses.resize(2 * var + 2);
-        // reallocate the literal buffer to make sure it is big enough
-        Tlit* new_literal_buffer = new Tlit[_vars.size()];
-        std::memcpy(new_literal_buffer, _literal_buffer,
-                    _next_literal_index * sizeof(Tlit));
-        delete[] _literal_buffer;
-        _literal_buffer = new_literal_buffer;
-      }
+
+      _watch_lists.resize(2 * var + 2);
+      _binary_clauses.resize(2 * var + 2);
+      // reallocate the literal buffer to make sure it is big enough
+      Tlit* new_literal_buffer = new Tlit[_vars.size()];
+      assert(_literal_buffer || _next_literal_index == 0);
+      std::memcpy(new_literal_buffer, _literal_buffer,
+                  _next_literal_index * sizeof(Tlit));
+      delete[] _literal_buffer;
+      _literal_buffer = new_literal_buffer;
     }
 
     /**

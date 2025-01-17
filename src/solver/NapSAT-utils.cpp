@@ -22,6 +22,10 @@
 #include <iomanip>
 #include <algorithm>
 
+#define ORANGE "\033[0;33m"
+#define GREEN "\033[0;32m"
+#define RED "\033[0;31m"
+
 using namespace napsat;
 using namespace std;
 
@@ -58,6 +62,17 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       continue;
     if (line[0] == '%')
       break;
+    if (line.find("p cnf") == 0) {
+      unsigned n_var, n_clauses;
+      sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
+      if (n_var > _vars.size()) {
+        cout << "Allocating " << n_var << " variables" << endl;
+        var_allocate(n_var);
+      }
+      // we ignore the number of clauses
+      // TODO preallocated the clauses
+      continue;
+    }
     start_clause();
 
     string token = "";
@@ -160,12 +175,12 @@ void napsat::NapSAT::print_lit(Tlit lit)
   if (lit_seen(lit))
     cout << "M";
   if (lit_undef(lit))
-    cout << "\033[0;33m";
+    cout << ORANGE;
   else if (lit_true(lit))
-    cout << "\033[0;32m";
+    cout << GREEN;
   else { // lit_false(lit)
     ASSERT(lit_false(lit));
-    cout << "\033[0;31m";
+    cout << RED;
   }
   if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
     cout << "\033[4m";
@@ -183,12 +198,12 @@ string NapSAT::lit_to_string(Tlit lit)
   if (lit_seen(lit))
     s += "M";
   if (lit_undef(lit))
-    s += "\033[0;33m";
+    s += ORANGE;
   else if (lit_true(lit))
-    s += "\033[0;32m";
+    s += GREEN;
   else { // lit_false(lit)
     ASSERT(lit_false(lit));
-    s += "\033[0;31m";
+    s += RED;
   }
   if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
     s += "\033[4m";

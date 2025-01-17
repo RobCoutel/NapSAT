@@ -32,6 +32,10 @@
 #include <windows.h>
 #endif
 
+#define ORANGE "\033[0;33m"
+#define GREEN "\033[0;32m"
+#define RED "\033[0;31m"
+
 #define COLORBLIND_MODE 1
 
 static unsigned TERMINAL_WIDTH = 169;
@@ -119,7 +123,7 @@ bool observer::notify(notification* notification)
   }
 
   // print the statistics
-  if (_options.print_stats && level < 3) {
+  if (false && _options.print_stats && level < 3) {
 #ifdef __unix__
       struct winsize size;
       ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
@@ -178,25 +182,28 @@ bool observer::notify(notification* notification)
 std::string observer::get_statistics()
 {
   string s = "";
-  s += "Core Statistics:\n";
-  s += "  - Notifications: " + pretty_integer(_n_notifications) + "\n";
+  s += "c Core Statistics:\n";
+  s += "c  - Notifications: " + pretty_integer(_n_notifications) + "\n";
   if(!_stats_only) {
-    s += "  - Variables: " + to_string(_variables.size()) + "\n";
+    s += "c  - Variables: " + to_string(_variables.size()) + "\n";
     unsigned n_clauses = 0;
     for (clause* cl : _active_clauses)
       if (cl && cl->active)
         n_clauses++;
 
-    s += "  - Clauses: " + to_string(n_clauses) + "\n";
+    s += "c  - Clauses: " + to_string(n_clauses) + "\n";
   }
-  for (auto pair : notification_count) {
-    s += "  - " + notification_type_to_string(pair.first) + ": " + pretty_integer(pair.second) + "\n";
-  }
+  vector<ENotifType> types;
+  for (auto pair : notification_count)
+    types.push_back(pair.first);
+  sort(types.begin(), types.end(), [](ENotifType a, ENotifType b) { return a < b; });
+  for (ENotifType type : types)
+    s += "c  - " + notification_type_to_string(type) + ": " + pretty_integer(notification_count.at(type)) + "\n";
 
   if (stat_count.size() > 0) {
-    s += "Additional Statistics:\n";
+    s += "c Additional Statistics:\n";
     for (auto pair : stat_count) {
-      s += "  - " + pair.first + ": " + pretty_integer(pair.second) + "\n";
+      s += "c  - " + pair.first + ": " + pretty_integer(pair.second) + "\n";
     }
   }
   return s;
@@ -429,11 +436,11 @@ std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
   string s = "";
   Tvar var = lit_to_var(lit);
   if (lit_value(lit) == VAR_UNDEF)
-    s += "\033[0;33m";
+    s += ORANGE;
   else if (lit_value(lit) == VAR_TRUE)
-    s += "\033[0;32m";
+    s += GREEN;
   else
-    s += "\033[0;31m";
+    s += RED;
   if (lit_value(lit) != VAR_UNDEF && _variables[var].reason == CLAUSE_UNDEF)
     s += "\033[4m";
   s += std::to_string(lit_to_int(lit));
@@ -525,11 +532,11 @@ std::string napsat::gui::observer::clause_to_string(Tclause cl)
     return "undef";
   if (enable_sorting) {
     if (_active_clauses[cl]->literals.size() > 0 && lit_value(_active_clauses[cl]->literals[0]) == VAR_UNDEF)
-      s += "\033[0;33m";
+      s += ORANGE;
     else if (_active_clauses[cl]->literals.size() > 0 && lit_value(_active_clauses[cl]->literals[0]) == VAR_TRUE)
-      s += "\033[0;32m";
+      s += GREEN;
     else
-      s += "\033[0;31m";
+      s += RED;
     s += std::to_string(cl) + "\033[0m: ";
   }
   else {
@@ -686,6 +693,8 @@ void napsat::gui::observer::print_variables()
   vector<string> variables_str;
   unsigned max_var_str_length = 0;
   for (Tvar var = 0; var < _variables.size(); var++) {
+    if (!_variables[var].constrained)
+      continue;
     string variable_str = variable_to_string(var);
     max_var_str_length = max(max_var_str_length, string_length_escaped(variable_str));
     variables_str.push_back(variable_str);
@@ -695,7 +704,7 @@ void napsat::gui::observer::print_variables()
   max_var_str_length += 3;
 
   // pad the variables with spaces
-  for (Tvar var = 0; var < _variables.size(); var++) {
+  for (Tvar var = 0; var < variables_str.size(); var++) {
     string variable_str = variables_str[var];
     while (string_length_escaped(variable_str) < max_var_str_length)
       variable_str += " ";
@@ -710,7 +719,7 @@ void napsat::gui::observer::print_variables()
   for (unsigned i = 0; i < n_lines; i++) {
     for (unsigned j = 0; j < n_columns; j++) {
       Tvar var = i + j * n_lines;
-      if (var >= _variables.size())
+      if (var >= variables_str.size())
         break;
       cout << variables_str[var];
     }

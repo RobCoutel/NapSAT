@@ -86,6 +86,7 @@ namespace napsat::gui
       napsat::Tclause lazy_reason = napsat::CLAUSE_UNDEF;
       bool active = false;
       bool propagated = false;
+      bool constrained = false;
     };
 
     struct clause

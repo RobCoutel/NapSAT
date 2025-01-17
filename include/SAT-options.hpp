@@ -5,6 +5,24 @@
  * @brief This file is part of the NapSAT solver. It contains the runtime options of the SAT
  * solver.
  */
+
+/**
+ * HOW TO ADD NEW OPTIONS
+ *
+ * To add a new option, you must:
+ * - Add a new field in the options class.
+ * - Add an entry in the SAT-options.cpp file "bool_options", "string_options" or "double_options" unordered_map.
+ * - Add a comment above the field in this file with the following information:
+ *   - @brief A description of the option.
+ *   - @default The default value of the option for static (environment) options.
+ * You also may:
+ * - Add an alias to the option with @alias. The alias should also be entered in the unordered_maps in the SAT-options.cpp file.
+ * - mention if an option is subsumed by another option with the tag @subsumed and the option that subsumes it.
+ * - mention a warning that the user may need to know with the tag @warning.
+ * - specific ranges of values or other constraints with the tag @requires.
+ *
+ * Finally, you should run the script/generate-option-documentation.py script from the root of the directory.
+ */
 #pragma once
 
 #include <string>
@@ -16,28 +34,35 @@ namespace napsat
   class env
   {
     private:
-    /* Note that the flags "[Start/Stop] Documentation are used to generate the man page".*/
+    /* Note that the flags "[Start/Stop] Documentation" are used to generate the man page.*/
     /** Start Documentation **/
     /** GLOBAL ENVIRONMENT **/
     /**
      * @brief The directory of the manual pages. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable. NapSAT will find the manual pages folder if the option is not set. This option is only meant to be used by the user of the library.
+     * @default [exec_dir]/../
      * @alias -m
      */
     static std::string man_page_folder;
+
     /**
      * @brief The directory of the invariant configurations. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable.
      * NapSAT will find the invariant configurations folder if the option is not set. However, the user can use this option to set their own configurations.
      * The invariants will only be used if the observer is active (-i, -o or -c).
+     * @default [exec_dir]/../invariant-configurations/
      * @alias -icf
      */
     static std::string invariant_configuration_folder;
+
     /**
      * @brief If true, the solver will not print warnings to the standard output.
+     * @default off
      * @alias -sw
     */
     static bool suppress_warning;
+
     /**
      * @brief If true, the solver will not print information to the standard output.
+     * @default off
      * @alias -si
     */
     static bool suppress_info;
@@ -114,6 +139,7 @@ namespace napsat
      * @subsumed lscb and rscb
      */
     bool weak_chronological_backtracking = false;
+
     /**
      * @brief Enables the solver to use restoring chronological backtracking.
      * That is, the solver will re-propagate literals that moved during backtracking.
@@ -121,6 +147,7 @@ namespace napsat
      * @subsumed lscb
      */
     bool restoring_strong_chronological_backtracking = false;
+
     /**
      * @brief Enables the solver to use strong chronological backtracking. That is, the solver will use the lazy reimplication scheme.
      * @alias -scb
@@ -133,6 +160,12 @@ namespace napsat
     */
     bool delete_clauses = true;
 
+    /**
+     * @brief If true, unused variables not be assigned a value.
+     * @alias -iuv
+     */
+    bool ignore_unused_variables = false;
+
     /** OBSERVER **/
     /**
      * @brief Sets the solver to interactive mode. Before each decision, the solver will wait for the user to enter a command before continuing.
@@ -140,6 +173,7 @@ namespace napsat
      * @alias -i
     */
     bool interactive = false;
+
     /**
      * @brief Sets an observer to the solver. The observer will print information about the solver.
      * @subsumed -i
@@ -147,6 +181,7 @@ namespace napsat
      * @alias -o
     */
     bool observing = false;
+
     /**
      * @brief Enables the solver to check some invariants through the observers.
      * @subsumed -o and -i
@@ -154,16 +189,19 @@ namespace napsat
      * @alias -c
     */
     bool check_invariants = false;
+
     /**
      * @brief Enables the observer to print statistics during, and at the end of the execution.
      * @requires observing or interactive is on
      * @alias -stat
     */
+
     bool print_stats = false;
     /**
      * @brief Enables the observer to build a proof during the execution.
      * @alias -bp
     */
+
     bool build_proof = false;
     /**
      * @brief Enables the observer to check the proof during the execution.

@@ -157,6 +157,8 @@ napsat::options::options(vector<string>& tokens)
     {"--print-proof",                            &print_proof},
     {"-cp",                                      &check_proof},
     {"--check-proof",                            &check_proof},
+    {"--ignore-unused_variables",                &ignore_unused_variables},
+    {"-iuv",                                     &ignore_unused_variables}
   };
 
   /**

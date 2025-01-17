@@ -1047,8 +1047,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
   for (unsigned i = 0; !satisfied_at_root && i < input_size; i++) {
     if (lit_level(lits_input[i]) == LEVEL_ROOT) {
       // The solver should not generate redundant literals and clauses
+      // TODO should be taken into account in the proof
       ASSERT(external);
-      satisfied_at_root = lit_true(lits_input[i]);
+      satisfied_at_root |= lit_true(lits_input[i]);
       n_removed++;
     }
   }
@@ -1141,6 +1142,12 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
     return cl;
   }
 
+  if (external && _options.ignore_unused_variables) {
+    // mark all the variables in the clause as constrained
+    for (unsigned i = 0; i < clause_size; i++)
+      var_mark_constrained(lit_to_var(lits[i]));
+  }
+
   if (clause_size == 1) {
     clause->watched = false;
     if (lit_undef(lits[0]))
@@ -1209,23 +1216,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
 napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options) :
   _options(options)
 {
-  _vars = vector<TSvar>(n_var + 1);
-  _trail = vector<Tlit>();
-  _trail.reserve(n_var);
-  _watch_lists.resize(2 * n_var + 2);
-
-  for (Tvar var = 1; var <= n_var; var++) {
-    NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(var));
-    _variable_heap.insert(var, 0);
-  }
-
-  _clauses = vector<TSclause>();
-  _clauses.reserve(n_clauses);
-  _activities.reserve(n_clauses);
-
-  _literal_buffer = new Tlit[n_var];
-  _next_literal_index = 0;
-
+  // We have to create the observer before allocating the variables. Otherwise the notifications will not be sent
 #if USE_OBSERVER
   if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
     _observer = new napsat::gui::observer(options);
@@ -1252,6 +1243,18 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
       LOG_WARNING("The option --print-stats is not available in this build");
   }
 #endif
+
+  var_allocate(n_var + 1);
+  _trail = vector<Tlit>();
+  _trail.reserve(n_var);
+  _watch_lists.resize(2 * n_var + 2);
+
+  _clauses = vector<TSclause>();
+  _clauses.reserve(n_clauses);
+  _activities.reserve(n_clauses);
+
+  _literal_buffer = new Tlit[n_var];
+  _next_literal_index = 0;
 
   if (options.build_proof)
     _proof = new napsat::proof::resolution_proof();
@@ -1381,6 +1384,7 @@ bool NapSAT::decide()
     return false;
   }
   Tvar var = _variable_heap.top();
+  ASSERT(var_constrained(var));
   Tlit lit = literal(var, _vars[var].phase_cache);
   imply_literal(lit, CLAUSE_UNDEF);
   return true;

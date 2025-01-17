@@ -46,25 +46,25 @@ namespace napsat::gui
     CHECKPOINT,
     DONE,
     MARKER,
-    NEW_VARIABLE,
-    DELETE_VARIABLE,
+    VARIABLE_ADDED,
+    VARIABLE_DELETED,
+    CLAUSE_NEW,
+    CLAUSE_DELETED,
+    REMOVE_LITERAL,
     DECISION,
     IMPLICATION,
-    PROPAGATION,
-    REMOVE_PROPAGATION,
+    UNASSIGNMENT,
+    PROPAGATION_ADDED,
+    PROPAGATION_REMOVED,
     CONFLICT,
     BACKTRACKING_STARTED,
     BACKTRACKING_DONE,
-    UNASSIGNMENT,
-    NEW_CLAUSE,
-    DELETE_CLAUSE,
     WATCH,
     UNWATCH,
     BLOCKER,
-    REMOVE_LITERAL,
     CHECK_INVARIANTS,
-    MISSED_LOWER_IMPLICATION,
-    REMOVE_LOWER_IMPLICATION,
+    MISSED_LOWER_IMPLICATION_LOGGED,
+    REMOVE_LOWER_IMPLICATION_REMOVED,
     STAT
   };
   std::string notification_type_to_string(ENotifType type);
@@ -213,7 +213,7 @@ namespace napsat::gui
     new_variable(napsat::Tvar var) : var(var) {}
     new_variable* clone() const override { return new new_variable(var); }
     unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return NEW_VARIABLE; }
+    const ENotifType get_type() override { return VARIABLE_ADDED; }
     const std::string get_message() override { return "New variable " + std::to_string(var) + " added"; }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
@@ -238,7 +238,7 @@ namespace napsat::gui
     delete_variable(napsat::Tvar var) : var(var) {}
     delete_variable* clone() const override { return new delete_variable(var); }
     unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return DELETE_VARIABLE; }
+    const ENotifType get_type() override { return VARIABLE_DELETED; }
     const std::string get_message() override { return "Variable " + std::to_string(var) + " deleted"; }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
@@ -325,7 +325,7 @@ namespace napsat::gui
     propagation(napsat::Tlit lit) : lit(lit) {}
     propagation* clone() const override { return new propagation(lit); }
     unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return PROPAGATION; }
+    const ENotifType get_type() override { return PROPAGATION_ADDED; }
     const std::string get_message() override { return "Propagation : " + std::to_string(napsat::lit_to_int(lit)) + " propagated"; }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
@@ -349,7 +349,7 @@ namespace napsat::gui
     remove_propagation(napsat::Tlit lit) : lit(lit) {}
     remove_propagation* clone() const override { return new remove_propagation(lit); }
     unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return PROPAGATION; }
+    const ENotifType get_type() override { return PROPAGATION_ADDED; }
     const std::string get_message() override { return "Propagation removed : " + std::to_string(napsat::lit_to_int(lit)); }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
@@ -507,7 +507,7 @@ namespace napsat::gui
     new_clause(napsat::Tclause cl, std::vector<napsat::Tlit> lits, bool learnt, bool external) : cl(cl), lits(lits), learnt(learnt), external(external) {}
     new_clause* clone() const override { return new new_clause(cl, lits, learnt, external); }
     unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return NEW_CLAUSE; }
+    const ENotifType get_type() override { return CLAUSE_NEW; }
     const std::string get_message() override
     {
       std::string s = "New clause : " + std::to_string(cl) + ": ";
@@ -543,7 +543,7 @@ namespace napsat::gui
     delete_clause(napsat::Tclause cl) : cl(cl) {}
     delete_clause* clone() const override { return new delete_clause(cl); }
     unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return DELETE_CLAUSE; }
+    const ENotifType get_type() override { return CLAUSE_DELETED; }
     const std::string get_message() override { return "Delete clause : " + std::to_string(cl); }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
@@ -690,7 +690,7 @@ namespace napsat::gui
     missed_lower_implication* clone() const override { return new missed_lower_implication(var, cl); }
     const std::string get_message() override { return "Missed lower implication: " + std::to_string(var) + " in clause " + std::to_string(cl); }
     unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return MISSED_LOWER_IMPLICATION; }
+    const ENotifType get_type() override { return MISSED_LOWER_IMPLICATION_LOGGED; }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
   };
@@ -708,7 +708,7 @@ namespace napsat::gui
     remove_lower_implication* clone() const override { return new remove_lower_implication(var); }
     const std::string get_message() override { return "Remove lower implication: " + std::to_string(var) + " in clause " + std::to_string(last_cl); }
     unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return REMOVE_LOWER_IMPLICATION; }
+    const ENotifType get_type() override { return REMOVE_LOWER_IMPLICATION_REMOVED; }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
   };

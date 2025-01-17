@@ -1,3 +1,4 @@
+
 NapSAT is a CDCL SAT solver  supporting both  chronological and  non-chronological backtracking. The
 solver will print "s SATISFIABLE" if the problem has a solution, and "s UNSATISFIABLE" otherwise.
 
@@ -18,13 +19,13 @@ The options are the following:
     Print the documentation of the navigation commands the observer supports
 
 **************************************** GLOBAL ENVIRONMENT ****************************************
-  -m or --man-page-folder <string = "../">
+  -m or --man-page-folder; <string = [exec_dir]/../>
     The directory  of the manual pages. This option in general should not be set by the user, unless
     NapSAT is used as a library and the main program is not the NapSAT executable.  NapSAT will find
     the manual  pages folder  if the option  is not set. This option is only meant to be used by the
     user of the library.
 
-  -icf or --invariant-configuration-folder <string = "../invariant-configurations/">
+  -icf or --invariant-configuration-folder; <string = [exec_dir]/../invariant-configurations/>
     The directory  of the invariant configurations.  This option in general should not be set by the
     user, unless  NapSAT  is used as a library  and the main program  is not the NapSAT executable.
     NapSAT  will find the invariant  configurations  folder  if the option is not set. However,  the
@@ -61,6 +62,9 @@ The options are the following:
 
   -del or --delete-clauses <bool = on>
     Enables the solver to delete learned clauses.
+
+  -iuv or --ignore-unused-variables <bool = off>
+    If true, unused variables not be assigned a value.
 
 ********************************************* OBSERVER *********************************************
   -i or --interactive <bool = off>
@@ -146,3 +150,5 @@ The options are the following:
     restart.  This  hyper  parameter  must  be set  to a value  lower  than  1 and  lower than 2 -
     threshold_multiplier.
     Requires: 0 < decay < 1
+
+****************************************************************************************************

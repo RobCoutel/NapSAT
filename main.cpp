@@ -82,10 +82,15 @@ int main(int argc, char** argv)
   chrono::time_point<chrono::high_resolution_clock> end = chrono::high_resolution_clock::now();
   chrono::milliseconds duration = chrono::duration_cast<chrono::milliseconds>(end - start);
 
-  cout << "Solution found in " << pretty_time(duration) << endl;
+  cout << "c Solution found in " << pretty_time(duration) << endl;
 
-  if (get_status(solver) == napsat::SAT)
+  if (get_status(solver) == napsat::SAT) {
     cout << "s SATISFIABLE" << endl;
+    cout << "v ";
+    for (Tlit lit : get_partial_assignment(solver))
+      cout << (lit_pol(lit) ? "" : "-") << lit_to_var(lit) << " ";
+    cout << endl;
+  }
   else if (get_status(solver) == napsat::UNSAT)
     cout << "s UNSATISFIABLE" << endl;
   else
