@@ -53,7 +53,7 @@ std::string napsat::gui::notification_type_to_string(ENotifType type)
   case ENotifType::IMPLICATION:
   return "Implication";
   case ENotifType::PROPAGATION_ADDED:
-  return "Propagation added";
+  return "Propagation";
   case ENotifType::PROPAGATION_REMOVED:
   return "Propagation removed";
   case ENotifType::CONFLICT:

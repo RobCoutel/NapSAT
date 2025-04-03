@@ -35,6 +35,7 @@
 #define ORANGE "\033[0;33m"
 #define GREEN "\033[0;32m"
 #define RED "\033[0;31m"
+#define UNDERLINE "\033[4m"
 
 #define COLORBLIND_MODE 1
 
@@ -123,7 +124,7 @@ bool observer::notify(notification* notification)
   }
 
   // print the statistics
-  if (false && _options.print_stats && level < 3) {
+  if (_options.print_stats && level < 3) {
 #ifdef __unix__
       struct winsize size;
       ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
@@ -286,6 +287,16 @@ void napsat::gui::observer::unset_breakpoint(unsigned n_notifications)
   _breakpoints.erase(n_notifications);
 }
 
+void napsat::gui::observer::set_alias(napsat::Tvar var, std::string alias)
+{
+  _variables[var].alias = alias;
+}
+
+std::string napsat::gui::observer::get_alias(napsat::Tvar var)
+{
+  return _variables[var].alias;
+}
+
 void napsat::gui::observer::notify_checkpoint()
 {
   while (_commands.size() != 0) {
@@ -435,15 +446,24 @@ std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
 {
   string s = "";
   Tvar var = lit_to_var(lit);
+
+  // styling
   if (lit_value(lit) == VAR_UNDEF)
     s += ORANGE;
   else if (lit_value(lit) == VAR_TRUE)
     s += GREEN;
   else
     s += RED;
-  if (lit_value(lit) != VAR_UNDEF && _variables[var].reason == CLAUSE_UNDEF)
-    s += "\033[4m";
-  s += std::to_string(lit_to_int(lit));
+
+  // the literal
+  if (_variables[var].alias == "")
+    s += std::to_string(lit_to_int(lit));
+  else if (lit_pol(lit))
+    s += _variables[var].alias;
+  else
+    s += "-" + _variables[var].alias;
+
+  // reset the style
   s += "\033[0m";
   return s;
 }
@@ -453,6 +473,10 @@ std::string napsat::gui::observer::variable_to_string(napsat::Tvar var)
   string s = "";
   s += std::to_string(var) + ": ";
   s += pad(var, _variables.size());
+  if (_variables[var].alias != "")
+    s += _variables[var].alias + ": ";
+  else
+    s += "v" + std::to_string(var) + " ";
   if (_variables[var].active) {
     if (_variables[var].value == VAR_UNDEF)
       s += "\033[0;33mundef\033[0m";
@@ -475,7 +499,7 @@ std::string napsat::gui::observer::variable_to_string(napsat::Tvar var)
     else if (_variables[var].reason == CLAUSE_LAZY)
       s += "lazy";
     else
-      s += std::to_string(_variables[var].reason);
+      s += "C" + std::to_string(_variables[var].reason);
     if (_variables[var].lazy_reason != CLAUSE_UNDEF)
       s += "/" + std::to_string(_variables[var].lazy_reason);
   }
@@ -662,8 +686,9 @@ void napsat::gui::observer::print_assignment()
       if (lit_level(lit) == lvl)
         cout << lit_to_string(lit) << " ";
       else {
+        unsigned len_str = string_length_escaped(lit_to_string(lit));
         cout << " ";
-        for (unsigned j = 0; j < to_string(lit_to_int(lit)).size(); j++)
+        for (unsigned j = 0; j < len_str; j++)
           cout << " ";
       }
 

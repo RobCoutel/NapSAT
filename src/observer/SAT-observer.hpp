@@ -87,6 +87,7 @@ namespace napsat::gui
       bool active = false;
       bool propagated = false;
       bool constrained = false;
+      std::string alias = "";
     };
 
     struct clause
@@ -203,8 +204,9 @@ namespace napsat::gui
 
     /**
      * @brief Number of the next file to be written
+     * @note We start at one such that is is simpler for the calling LaTeX code to use loops (sync with \only<i>)
      */
-    unsigned file_number = 0;
+    unsigned file_number = 1;
 
   public:
     /**
@@ -304,6 +306,17 @@ namespace napsat::gui
      * @brief Removes the breakpoint.
     */
     void unset_breakpoint(unsigned n_notifications);
+
+    /**
+     * @brief Sets an alias for a variable in the observer
+     */
+    void set_alias(napsat::Tvar var, std::string alias);
+
+    /**
+     * @brief Returns the alias of a variable in the observer
+     * @return The alias of the variable, or an empty string if the variable has no alias.
+     */
+    std::string get_alias(napsat::Tvar var);
 
     /**  ALTERING EXECUTION  **/
     /**

@@ -31,6 +31,7 @@ using namespace std;
 
 bool napsat::NapSAT::parse_dimacs(const char* filename)
 {
+  bool printed_warning = false;
   // the file is a compressed xz file
   // first decompress it and store it in a temporary file
   istringstream stream;
@@ -58,8 +59,39 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
   while (getline(stream, line)) {
     while (line.size() > 0 && line[0] == ' ')
       line.erase(0, 1);
-    if (line.size() == 0 || line[0] == 'c' || line[0] == 'p' || line[0] == '\n')
+    if (line.size() == 0 || line[0] == '\n')
       continue;
+    if (line[0] == 'c') {
+      if (_observer && line.size() > 1 && line[1] == 'o') {
+        // parse the alias name of the variable
+        // the comment should be of the form:
+        // >co <var> <alias>
+        string alias = "";
+        string var_string = "";
+        unsigned i = 3;
+        while (i < line.size() && line[i] != '=' && line[i] != ' ')
+          var_string += line[i++];
+        i++;
+        while (i < line.size() && line[i] != ' ' && line[i] != '\n')
+          alias += line[i++];
+        if (alias != "" && var_string != "") {
+          try {
+            unsigned var = stoi(var_string);
+            if (var >= _vars.size())
+              var_allocate(var + 1);
+            _observer->set_alias(var, alias);
+          }
+          catch (invalid_argument e) {
+            if (!printed_warning) {
+              LOG_WARNING("The comments starting with \'co\' are interpreted as aliases for variables. The format of the comment should be: \'co <var> <alias>\' with alias a string without spaces");
+              printed_warning = true;
+            }
+            continue;
+          }
+        }
+      }
+      continue;
+    }
     if (line[0] == '%')
       break;
     if (line.find("p cnf") == 0) {
@@ -80,12 +112,20 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       if (c == ' ' || c == '\n') {
         if (token == "")
           continue;
-        int lit = stoi(token);
-        if (lit == 0)
-          break;
-        add_literal(napsat::literal(abs(lit), lit > 0));
-        token = "";
-        continue;
+        try {
+          int lit = stoi(token);
+          if (lit == 0)
+            break;
+          add_literal(napsat::literal(abs(lit), lit > 0));
+          token = "";
+          continue;
+        }
+        catch (invalid_argument e) {
+          LOG_ERROR("The token " << token << " is not a number.");
+          _status = ERROR;
+          throw invalid_argument("The token " + token + " is not a number.");
+          return false;
+        }
       }
       token += c;
     }

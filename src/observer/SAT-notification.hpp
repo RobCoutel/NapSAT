@@ -202,7 +202,7 @@ namespace napsat::gui
   class new_variable : public notification
   {
   private:
-    unsigned event_level = 3;
+    unsigned event_level = 4;
 
     /**
      * @brief The variable that was added.
