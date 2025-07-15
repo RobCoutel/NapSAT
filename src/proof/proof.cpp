@@ -107,6 +107,11 @@ void napsat::proof::resolution_proof::finalize_resolution(napsat::Tclause id, co
   assert(check_resolution_chain(clauses.size() - 1));
 }
 
+void napsat::proof::resolution_proof::cancel_resolution_chain(void)
+{
+  current_resolution_chain.clear();
+}
+
 static unsigned binary_search(napsat::Tlit* lits, unsigned size, napsat::Tlit lit)
 {
   unsigned left = 0;

@@ -308,6 +308,34 @@ namespace napsat::gui
     ~implication() override = default;
   };
 
+  class update_level : public notification
+  {
+  private:
+    unsigned event_level = 5;
+
+    /**
+     * @brief The literal that was updated.
+     */
+    napsat::Tlit lit;
+
+    /**
+     * @brief The new level of the literal.
+     */
+    napsat::Tlevel level = LEVEL_UNDEF;
+
+    napsat::Tlevel old_level = LEVEL_UNDEF;
+
+  public:
+    update_level(napsat::Tlit lit, napsat::Tlevel level) : lit(lit), level(level) {}
+    update_level* clone() const override { return new update_level(lit, level); }
+    unsigned get_event_level(observer* observer) override;
+    const ENotifType get_type() override { return IMPLICATION; }
+    const std::string get_message() override { return "Update level : " + std::to_string(napsat::lit_to_int(lit)) + " updated to level " + std::to_string(level); }
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
+    ~update_level() override = default;
+  };
+
   /**
    * @brief Notification that a literal was propagated.
    */

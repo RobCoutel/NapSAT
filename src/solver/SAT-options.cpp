@@ -141,6 +141,8 @@ napsat::options::options(vector<string>& tokens)
     {"--restoring-chronological-backtracking",   &restoring_strong_chronological_backtracking},
     {"-lscb",                                    &lazy_strong_chronological_backtracking},
     {"--lazy-strong-chronological-backtracking", &lazy_strong_chronological_backtracking},
+    {"-gb",                                      &graph_backtracking},
+    {"--graph-backtracking",                     &graph_backtracking},
     {"-o",                                       &observing},
     {"--observing",                              &observing},
     {"-i",                                       &interactive},
@@ -264,6 +266,12 @@ napsat::options::options(vector<string>& tokens)
   chronological_backtracking = weak_chronological_backtracking || restoring_strong_chronological_backtracking || lazy_strong_chronological_backtracking;
 
   interactive |= commands_file != "";
+
+  if (graph_backtracking && chronological_backtracking) {
+    LOG_WARNING("graph backtracking subsumes chronological backtracking.");
+    LOG_WARNING("The solver will run with graph backtracking.");
+    chronological_backtracking = false;
+  }
 
   if (clause_activity_threshold_decay <= 0 || clause_activity_threshold_decay >= 1) {
     LOG_ERROR("clause activity threshold decay must be between 0 and 1.");

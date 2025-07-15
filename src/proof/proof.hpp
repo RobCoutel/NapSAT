@@ -202,6 +202,13 @@ namespace napsat::proof
     void finalize_resolution(napsat::Tclause id, const napsat::Tlit* lits, unsigned n_lits);
 
     /**
+     * @brief Cancel the current resolution chain.
+     * @details The resolution chain is cleared, and the next link will be the
+     * first link of a new resolution chain.
+     */
+    void cancel_resolution_chain(void);
+
+    /**
      * @brief Assigns a literal at root level.
      * @details This must be done before calling remove_root_literals.
      * @param lit The literal to assign.

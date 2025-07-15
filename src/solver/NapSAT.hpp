@@ -101,6 +101,7 @@
 #include "../proof/proof.hpp"
 #include "../utils/printer.hpp"
 #include "../utils/heap.hpp"
+#include "../utils/bitvector.hpp"
 #include "../observer/SAT-notification.hpp"
 #include "../observer/SAT-observer.hpp"
 
@@ -125,6 +126,9 @@
 #endif
 namespace napsat
 {
+  typedef unsigned Tchunk;
+  #define CHUNK_UNDEF (Tchunk)(0xFFFFFFFF)
+
   class NapSAT
   {
   public:
@@ -143,7 +147,7 @@ namespace napsat
         : level(LEVEL_UNDEF),
         reason(CLAUSE_UNDEF),
         activity(0.0),
-        seen(false),
+        marked(false),
         propagated(false),
         state(VAR_UNDEF),
         phase_cache(0),
@@ -168,12 +172,12 @@ namespace napsat
        */
       double activity;
       /**
-       * @brief Boolean indicating if the variable was already seen. It is used
+       * @brief Boolean indicating if the variable was already marked. It is used
        * in conflict analysis.
        * @details Variables must remain marked locally. That is, upon exiting
        * the method, all variables must be unmarked.
        */
-      unsigned seen : 1;
+      unsigned marked : 1;
       /**
        * @brief Boolean indicating whether the variable is in the propagation
        * queue.
@@ -210,6 +214,30 @@ namespace napsat
        *          ∧ δ(λ(ℓ) \ {ℓ}) < δ(ℓ)
        */
       Tclause missed_lower_implication = CLAUSE_UNDEF;
+
+      /** GRAPH BACKTRACKING **/
+      /**
+       * @brief Contains the set of of chunk in which this variable is
+       * @details The chunk set, denoted by γ(ℓ) is either
+       * - the union of the chunks of the variables in the reason
+       *   clause of the variable, or
+       *   ρ(ℓ) ≠ ■ ⇒ γ(ℓ) = U {γ(ℓ') : ℓ' ∈ ρ(ℓ) \ {ℓ}}
+       * - a new chunk if the variable is a decision
+       *   ρ(ℓ) = ■ ⇒ γ(ℓ) = { new_chunk(ℓ) }
+       */
+      bitvector chunks;
+
+      /**
+       * @brief Contains the set of variables on which this variable depends
+       * in cross-chunk implications
+       * @details The dependencies, denoted by η(ℓ) is the set of decisions that
+       * make this variable true in cross-chunk implications.
+       * A cross-chunk implication is a clause C that implies a ℓ such that there
+       * is no literal ℓ' in C \ {ℓ} such that γ(ℓ) = γ(ℓ').
+       * @invariant For each clause C in F watched by c₁ and c₂:
+       *   ¬c₁ ∈ τ ⇒ c₂ ∈ π ∧ [γ(c₁) ⊆ γ(c₂) ∪ η(c₂)]
+       */
+      bitvector cross_chunks;
     } TSvar;
 
 #define CLAUSE_HEAD_SIZE 5
@@ -513,6 +541,39 @@ namespace napsat
      */
     std::vector<Tclause> _reimplication_backtrack_buffer;
 
+    /**  GRAPH BACKTRACKING  **/
+
+    struct TSchunk
+    {
+      Tvar decision;
+      unsigned weight;
+
+      bool is_active() const
+      {
+        return decision != VAR_UNDEF;
+      }
+    };
+
+    /**
+     * @brief Contains the set of chunks in which the variables are stored.
+     * @details A chunk is a set of variables reachable from a decision in the
+     * implication graph.
+     */
+    std::vector<TSchunk> _chunks;
+
+    /**
+     * @brief Contains the free chunks that can be reused.
+     * @details Free chunks happen after backtracking, when a chunk is removed.
+     */
+    std::vector<Tchunk> _free_chunks;
+
+    /**
+     * @brief Number of allocated chunks.
+     * @details This is the number of chunks that variables are able to use.
+     * i.e., the size of the bitvector of each variable.
+     */
+    unsigned _n_allocated_chunks = 1;
+
     /**  PROOFS  **/
     /**
      * @brief Proof builder of the solver. If _proof is not nullptr, the solver
@@ -550,6 +611,10 @@ namespace napsat
     /*************************************************************************/
     /*                       Quality of life functions                       */
     /*************************************************************************/
+    inline Tlevel var_level(Tvar var) const
+    {
+      return _vars[var].level;
+    }
     /**
      * @brief Returns the level of the given literal. If the literal is not
      * assigned, returns LEVEL_UNDEF.
@@ -558,7 +623,24 @@ namespace napsat
      */
     inline Tlevel lit_level(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].level;
+      return var_level(lit_to_var(lit));
+    }
+
+    /**
+     * @brief Returns the level of a clause.
+     * @details The level of a clause is the maximum level of its literals.
+     * @details In some location of the code, this is not the best way to do it.
+     * In most cases, the first literal of the clause is the highest level.
+     * This function is mostly used for assertion checks.
+     */
+    Tlevel clause_level(Tclause cl) const
+    {
+      ASSERT(cl != CLAUSE_UNDEF);
+      Tlevel level = LEVEL_ROOT;
+      for (unsigned i = 0; i < _clauses[cl].size; i++) {
+        level = std::max(level, lit_level(_clauses[cl].lits[i]));
+      }
+      return level;
     }
 
     /**
@@ -685,6 +767,52 @@ namespace napsat
       return _vars[lit_to_var(lit)].missed_lower_implication == cl;
     }
 
+    /**  GRAPH BACKTRACKING  **/
+    /**
+     * @brief Returns the chunk of a variable.
+     * @param var variable to evaluate.
+     * @return chunk of the variable.
+     */
+    inline bitvector& var_chunks(Tvar var)
+    {
+      ASSERT(var < _vars.size());
+      ASSERT(_vars[var].chunks.size() > 0);
+      return _vars[var].chunks;
+    }
+
+    /**
+     * @brief Returns the chunk of a literal.
+     * @param lit literal to evaluate.
+     * @return chunk of the variable of the literal.
+     */
+    inline bitvector& lit_chunks(Tlit lit)
+    {
+      return var_chunks(lit_to_var(lit));
+    }
+
+    /**
+     * @brief Returns the cross-chunk dependencies of a variable.
+     * @param var variable to evaluate.
+     * @return cross-chunk dependencies of the variable.
+     */
+    inline bitvector& var_cross_chunks(Tvar var)
+    {
+      ASSERT(var < _vars.size());
+      ASSERT(_vars[var].cross_chunks.size() > 0);
+      return _vars[var].cross_chunks;
+    }
+
+    /**
+     * @brief Returns the cross-chunk dependencies of a literal.
+     * @param lit literal to evaluate.
+     * @return cross-chunk dependencies of the variable of the literal.
+     */
+    inline bitvector& lit_cross_chunks(Tlit lit)
+    {
+      return var_cross_chunks(lit_to_var(lit));
+    }
+
+
     /**
      * @brief Returns true if the clause cl is the reason for the literal lit.
      * @param cl clause to evaluate as a reason.
@@ -751,27 +879,32 @@ namespace napsat
     }
 
     /**
-     * @brief Mark the literal as seen
+     * @brief Mark the literal as marked
      */
-    inline void lit_mark_seen(Tlit lit)
+    inline void lit_mark(Tlit lit)
     {
-      _vars[lit_to_var(lit)].seen = true;
+      _vars[lit_to_var(lit)].marked = true;
     }
 
     /**
-     * @brief Unmark the literal as seen
+     * @brief Unmark the literal as marked
      */
-    inline void lit_unmark_seen(Tlit lit)
+    inline void lit_unmark(Tlit lit)
     {
-      _vars[lit_to_var(lit)].seen = false;
+      _vars[lit_to_var(lit)].marked = false;
+    }
+
+    inline bool var_marked(Tvar var) const
+    {
+      return _vars[var].marked;
     }
 
     /**
-     * @brief Returns true if the literal is marked as seen
+     * @brief Returns true if the literal is marked as marked
      */
-    inline bool lit_seen(Tlit lit) const
+    inline bool lit_marked(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].seen;
+      return var_marked(lit_to_var(lit));
     }
 
     /**
@@ -954,6 +1087,18 @@ namespace napsat
     void reimply_literal(Tlit lit, Tclause reason);
 
     /**
+     * @brief Searches for a replacement literal for the first watched literal
+     * of a clause.
+     * @details Provided a clause C = {c₁, c₂, ...} and a partial assignment
+     * π = τ ⋅ ω quick_replacement(C) returns a literal r ∈ C \ {c₁} such that
+     *   ¬r ∈ (τ ⋅ ¬c₁) ⇒ C \ {c₂}, π ⊧ ⊥
+     * that is, this procedure simply searches for a literal that is not falsified
+     * by the current assignment. If it fails, it returns the second watched
+     * literal of the clause.
+     */
+    Tlit* quick_replacement(Tlit* lits, unsigned size);
+
+    /**
      * @brief Searches for a replacement literal for the second watched literal
      * of a clause.
      * @details Provided a clause C = {c₂, c₁, ...} and a partial assignment
@@ -965,7 +1110,20 @@ namespace napsat
      *   C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})
      * @pre ¬c₁ ∈ ω
     */
-    Tlit* search_replacement(Tlit* lits, unsigned size);
+    Tlit* advanced_replacement(Tlit* lits, unsigned size);
+
+    /**
+     * @brief Searches for a replacement literal for the first watched literal
+     * of a clause.
+     * @details Provided a clause C = {c₁, c₂, ...} and a partial assignment
+     * π = τ ⋅ ω graph_replacement(C) returns a literal r ∈ C \ {c₁} such that
+     * - the chunks of r is a superset of the chunks of c₁
+     *   γ(c₁) ⊆ γ(r)
+     * - r is a top element of the chunk lattice of the clause
+     *   ∀ ℓ' ∈ C ∖ {ℓ} . γ(r) ⊈ γ(ℓ')
+     * @pre All literals in C \ {c₁} are falsified by the current assignment.
+     */
+    Tlit* graph_replacement(Tlit* lits, unsigned size);
 
     /**
      * @brief Propagate the literal lit on the binary clauses.
@@ -1022,6 +1180,35 @@ namespace napsat
     void backtrack(Tlevel level);
 
     /**
+     * @brief Unassigns all the variables in the chunk.
+     * @param chunk chunk to undo.
+     */
+    void undo_chunk(Tchunk chunk);
+
+    /**
+     * @brief Given a learned clause, chooses the level to backtrack to
+     * according to the options and the literals in the clause.
+     */
+    Tlevel choose_backtracked_level(Tlit* learned_lits, unsigned size);
+
+    /**
+     * @brief Given a conflict clause, chooses the chunk in which the UIP will
+     * be searched.
+     * @details The chunk c is chosen given total order on the chunks.
+     * The total order must be such that for all chunks c' and literal ℓ,
+     *   c' < c' U {ℓ}
+     * TODO: check if this is really necessary.
+     * This is because we need to ensure that the clause will be propagating after
+     * undoing the chunk.
+     * If it were not the case, undoing c could also unassign other literals in
+     * the learned clause, making it not propagating anymore.
+     * @param conflict clause that caused the conflict.
+     */
+    Tchunk choose_analyzed_chunk(Tclause conflict);
+
+    void repair_unary_clause_conflict(Tclause conflict);
+
+    /**
      * @brief Repairs the conflict by analyzing it if needed and backtracking
      * to the appropriate level.
      * @param conflict clause that caused the conflict.
@@ -1043,6 +1230,8 @@ namespace napsat
      * @return false if the literal is redundant with the current learned clause
      */
     bool lit_is_required_in_learned_clause(Tlit lit);
+
+    void create_learned_clause();
 
     /**
      * Analyze a conflict and learn a new clause.
@@ -1069,6 +1258,12 @@ namespace napsat
      *    |{ℓ ∈ C' : δ(ℓ) = δ(C')}| = 1
      */
     void analyze_conflict(Tclause conflict);
+
+    /**
+     * @details Sets the clause in the literal_buffer and _next_literal_index variables.
+     * @post The literal_buffer is set such that the first literal is the UIP
+     */
+    void analyze_conflict_level(Tlevel level);
 
     /**
      * @brief Link resolutions in the proof system to get rid of the literals at

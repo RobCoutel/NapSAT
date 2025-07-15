@@ -81,7 +81,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
               var_allocate(var + 1);
             _observer->set_alias(var, alias);
           }
-          catch (invalid_argument e) {
+          catch (invalid_argument const&) {
             if (!printed_warning) {
               LOG_WARNING("The comments starting with \'co\' are interpreted as aliases for variables. The format of the comment should be: \'co <var> <alias>\' with alias a string without spaces");
               printed_warning = true;
@@ -98,7 +98,6 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       unsigned n_var, n_clauses;
       sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
       if (n_var > _vars.size()) {
-        cout << "Allocating " << n_var << " variables" << endl;
         var_allocate(n_var);
       }
       // we ignore the number of clauses
@@ -120,7 +119,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
           token = "";
           continue;
         }
-        catch (invalid_argument e) {
+        catch (invalid_argument const&) {
           LOG_ERROR("The token " << token << " is not a number.");
           _status = ERROR;
           throw invalid_argument("The token " + token + " is not a number.");
@@ -212,7 +211,7 @@ unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
 
 void napsat::NapSAT::print_lit(Tlit lit)
 {
-  if (lit_seen(lit))
+  if (lit_marked(lit))
     cout << "M";
   if (lit_undef(lit))
     cout << ORANGE;
@@ -235,7 +234,7 @@ void napsat::NapSAT::print_lit(Tlit lit)
 string NapSAT::lit_to_string(Tlit lit)
 {
   string s = "";
-  if (lit_seen(lit))
+  if (lit_marked(lit))
     s += "M";
   if (lit_undef(lit))
     s += ORANGE;
@@ -299,6 +298,10 @@ void NapSAT::print_trail()
     print_lit(lit);
     cout << " --> reason: ";
     print_clause(lit_reason(lit));
+    if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+      cout << " / (lazy) ";
+      print_clause(lit_lazy_reason(lit));
+    }
     cout << "\n";
   }
   cout << "\n";

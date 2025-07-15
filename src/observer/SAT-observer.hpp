@@ -39,6 +39,7 @@ namespace napsat::gui
     friend class new_variable;
     friend class delete_variable;
     friend class decision;
+    friend class update_level;
     friend class implication;
     friend class propagation;
     friend class remove_propagation;

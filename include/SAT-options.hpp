@@ -155,6 +155,13 @@ namespace napsat
     bool lazy_strong_chronological_backtracking = false;
 
     /**
+     * @brief Enables the solver to use graph backtracking. That is, upon a conflict, the solver will only undo the literals that are reachable from the conflicting level in the implication graph.
+     * @subsumes chronological backtracking: -wcb, -rscb or -lscb
+     * @alias -gb
+     */
+    bool graph_backtracking = false;
+
+    /**
      * @brief Enables the solver to delete learned clauses.
      * @alias -del
     */

@@ -175,6 +175,42 @@ bool napsat::gui::decision::rollback(observer* obs)
   return true;
 }
 
+unsigned napsat::gui::update_level::get_event_level(observer* obs)
+{
+  ASSERT_OBS(this, obs);
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
+}
+bool napsat::gui::update_level::apply(observer* obs)
+{
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, obs);
+  ASSERT_OBS(this, obs->_variables.size() > var);
+  ASSERT_OBS(this, obs->_variables[var].active);
+  ASSERT_OBS(this, obs->_variables[var].value != VAR_UNDEF);
+
+
+  old_level = obs->_variables[var].level;
+  obs->_variables[var].level = level;
+  if (old_level == obs->_decision_level && obs->_variables[var].reason == CLAUSE_UNDEF) {
+    obs->_decision_level--;
+  }
+  return true;
+}
+bool napsat::gui::update_level::rollback(observer* obs)
+{
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, obs);
+  ASSERT_OBS(this, obs->_variables.size() > var);
+  ASSERT_OBS(this, obs->_variables[var].active);
+  ASSERT_OBS(this, obs->_variables[var].value != VAR_UNDEF);
+  ASSERT_OBS(this, obs->_variables[var].level == level);
+  obs->_variables[var].level = old_level;
+
+  obs->_decision_level = max(obs->_decision_level, old_level);
+  return true;
+}
+
+
 unsigned napsat::gui::implication::get_event_level(observer* obs)
 {
   ASSERT_OBS(this, obs);
@@ -192,6 +228,7 @@ bool napsat::gui::implication::apply(observer* obs)
   ASSERT_OBS(this, reason != CLAUSE_LAZY);
   ASSERT_OBS(this, reason <= obs->_active_clauses.size());
   ASSERT_OBS(this, obs->_active_clauses[reason]->active);
+  ASSERT_OBS(this, level <= obs->_decision_level);
   obs->_variables[var].value = lit_pol(lit);
   obs->_variables[var].reason = reason;
   obs->_variables[var].level = level;
@@ -223,10 +260,12 @@ bool napsat::gui::implication::apply(observer* obs)
     if (!success) {
       event_level = 0;
       obs->_assignment_stack.push_back(lit);
-      cout << "Notification number " << obs->_notifications.size() << endl;
+      LOG_ERROR("The notification \"" + get_message() + "\" will not be applied, as it is inconsistent with the current state of the observer.");
       return false;
     }
   }
+  if (obs->_variables[var].level > obs->_decision_level)
+    cout << obs->_variables[var].level << " !<= " <<  obs->_decision_level << endl;
   ASSERT_OBS(this, obs->_variables[var].level <= obs->_decision_level);
   obs->_assignment_stack.push_back(lit);
   return true;
@@ -241,6 +280,7 @@ bool napsat::gui::implication::rollback(observer* obs)
   ASSERT_OBS(this, obs->_variables[var].value == lit_pol(lit));
   ASSERT_OBS(this, obs->_variables[var].level <= obs->_decision_level);
   ASSERT_OBS(this, obs->_assignment_stack.back() == lit);
+
   obs->_variables[var].value = VAR_UNDEF;
   obs->_assignment_stack.pop_back();
   return true;
@@ -259,6 +299,7 @@ bool napsat::gui::propagation::apply(observer* obs)
   ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].active);
   ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
   ASSERT_OBS(this, obs->_assignment_stack[obs->_n_propagated] == lit);
+
   obs->_n_propagated++;
   obs->_variables[lit_to_var(lit)].propagated = true;
   return true;
@@ -268,11 +309,11 @@ bool napsat::gui::propagation::rollback(observer* obs)
 {
   ASSERT_OBS(this, obs);
   ASSERT_OBS(this, obs->_n_propagated > 0);
-  obs->_n_propagated--;
   ASSERT_OBS(this, obs->_variables.size() > lit_to_var(lit));
   ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].active);
   ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
-  // ASSERT_OBS(this, obs->_assignment_stack[obs->_n_propagated] == lit);
+
+  obs->_n_propagated--;
   obs->_variables[lit_to_var(lit)].propagated = false;
   return true;
 }
@@ -322,38 +363,31 @@ bool napsat::gui::unassignment::apply(observer* obs)
   ASSERT_OBS(this, obs->_variables.size() > var);
   ASSERT_OBS(this, obs->_variables[var].active);
   ASSERT_OBS(this, obs->_variables[var].value != VAR_UNDEF);
-  obs->_variables[lit_to_var(lit)].propagated = false;
-  if (obs->_variables[var].reason == CLAUSE_UNDEF)
+  if (obs->_variables[var].reason == CLAUSE_UNDEF && obs->_variables[var].level == obs->_decision_level) {
     obs->_decision_level--;
-  obs->_variables[var].value = VAR_UNDEF;
+  }
+
 
   if (location == MAX_UNSIGNED) {
-    unsigned i;
-    for (i = obs->_assignment_stack.size() - 1; i < obs->_assignment_stack.size(); i--) {
-      Tvar v = lit_to_var(obs->_assignment_stack[i]);
-      if (v == var) {
-        obs->_assignment_stack.erase(obs->_assignment_stack.begin() + i);
-        location = i;
+    for (location = 0; location < obs->_assignment_stack.size(); location++) {
+      if (obs->_assignment_stack[location] == lit)
         break;
-      }
     }
-    ASSERT_OBS(this, i < obs->_assignment_stack.size() + 1);
   }
-  else {
-    ASSERT_OBS(this, location < obs->_assignment_stack.size());
-    ASSERT_OBS(this, lit_to_var(obs->_assignment_stack[location]) == var);
-    obs->_assignment_stack.erase(obs->_assignment_stack.begin() + location);
-  }
-  if (location < obs->_n_propagated) {
-    obs->_n_propagated--;
-    propagated = true;
-  }
+  propagated = obs->_variables[var].propagated;
+
+  ASSERT_OBS(this, location < obs->_assignment_stack.size());
+  ASSERT_OBS(this, lit_to_var(obs->_assignment_stack[location]) == var);
+  obs->_assignment_stack.erase(obs->_assignment_stack.begin() + location);
+  obs->_n_propagated -= propagated;
 
   level = obs->_variables[var].level;
   reason = obs->_variables[var].reason;
 
+  obs->_variables[var].value = VAR_UNDEF;
   obs->_variables[var].level = LEVEL_UNDEF;
   obs->_variables[var].reason = CLAUSE_UNDEF;
+  obs->_variables[var].propagated = false;
   return true;
 }
 
@@ -645,8 +679,8 @@ bool napsat::gui::missed_lower_implication::apply(observer* obs)
 {
   ASSERT_OBS(this, obs);
   ASSERT_OBS(this, obs->_variables.size() > var);
-  ASSERT_OBS(this, obs->_active_clauses.size() > cl);
-  ASSERT_OBS(this, obs->_active_clauses[cl] != nullptr);
+  ASSERT_OBS(this, cl == CLAUSE_UNDEF || obs->_active_clauses.size() > cl);
+  ASSERT_OBS(this, cl == CLAUSE_UNDEF || obs->_active_clauses[cl] != nullptr);
   last_cl = obs->_variables[var].lazy_reason;
   obs->_variables[var].lazy_reason = cl;
   return true;

@@ -11,7 +11,6 @@
  * @brief This file is part of the NapSAT solver. It contains the implementation of the
  * class observer.
  */
-
 #include "SAT-observer.hpp"
 
 #include "SAT-config.hpp"
@@ -664,7 +663,7 @@ void napsat::gui::observer::print_assignment()
   GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
   TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
 #endif
-  cout << "trail :\n";
+  cout << "trail : " << _n_propagated << "\n";
 
   unsigned max_n_digits_level = 1;
   Tlevel max_level = _decision_level;
