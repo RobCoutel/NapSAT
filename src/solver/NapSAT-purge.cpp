@@ -133,6 +133,7 @@ void napsat::NapSAT::purge_root_watch_lists()
 
 void napsat::NapSAT::purge_clauses()
 {
+  print_trail();
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Purging clauses"));
@@ -168,6 +169,12 @@ void napsat::NapSAT::purge_clauses()
         continue;
       }
       if (lit_false(*i)) {
+        // In Graph bracktracking, a missed cross-implication can create a unit clause satisfied a a level not zero.
+        // We can prevent this by not deleting literals that have a non-empty cross-chunk set.
+        if (_options.graph_backtracking) {
+          i++;
+          continue;
+        }
         // remove the literal and push it to the back
         // we push it to the back so that we can print the clause even after the literal is removed
         NOTIFY_OBSERVER(_observer, new napsat::gui::remove_literal(cl, *i));
@@ -224,7 +231,7 @@ void napsat::NapSAT::purge_clauses()
       clause.watched = false;
       // The literal might be a missed lower implication
       if (lit_true(lits[0])) {
-        ASSERT(_options.chronological_backtracking);
+        ASSERT(_options.chronological_backtracking || _options.graph_backtracking);
         if (_options.lazy_strong_chronological_backtracking)
           reimply_literal(lits[0], cl);
       }

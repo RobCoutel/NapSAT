@@ -35,6 +35,17 @@ namespace napsat {
       void clear();
       bool empty() const;
       void resize(size_t new_size);
+      /**
+       * @brief Counts the number of bits set to true in the bitvector.
+       * @return The number of bits set to true.
+       */
+      unsigned count_non_zero() const {
+        unsigned count = 0;
+        for (const auto& block : _bits) {
+          count += __builtin_popcountl(block.second);
+        }
+        return count;
+      }
 
       // bitwise operations
       bitvector operator&(const bitvector& other) const;

@@ -206,7 +206,16 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
 
 unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
 {
-  return (lit_true(lit) * (2 * solver_level() - lit_level(lit) + 1)) + (lit_undef(lit) * (solver_level() + 1)) + (lit_false(lit) * (lit_level(lit)));
+  // In graph backtracking, we cannot use a utility function anymore, because the literals are
+  // now in a lattice, where all literals are not necessarily comparable.
+  // We can however approximate the utility with the number of non-zero chunks of the literal.
+  unsigned level_weight = lit_level(lit);
+  if (_options.graph_backtracking) {
+    level_weight = lit_chunks(lit).count_non_zero();
+  }
+  return (lit_true(lit) * (2 * solver_level() - level_weight + 1))
+       + (lit_undef(lit) * (solver_level() + 1))
+       + (lit_false(lit) * level_weight);
 }
 
 void napsat::NapSAT::print_lit(Tlit lit)

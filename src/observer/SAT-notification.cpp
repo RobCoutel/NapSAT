@@ -192,7 +192,15 @@ bool napsat::gui::update_level::apply(observer* obs)
   old_level = obs->_variables[var].level;
   obs->_variables[var].level = level;
   if (old_level == obs->_decision_level && obs->_variables[var].reason == CLAUSE_UNDEF) {
-    obs->_decision_level--;
+    // recompute the decision level
+    obs->_decision_level = 0;
+    for (const auto lit: obs->_assignment_stack) {
+      Tvar v = lit_to_var(lit);
+      if (obs->_variables[v].active && obs->_variables[v].level > obs->_decision_level) {
+        obs->_decision_level = obs->_variables[v].level;
+      }
+    }
+    // obs->_decision_level--;
   }
   return true;
 }

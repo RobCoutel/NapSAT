@@ -153,3 +153,16 @@ TEST_CASE("BitVector bitwise xor", "[bitvector]") {
   REQUIRE(result.get(3) == false);
   REQUIRE(result.get(4) == false);
 }
+
+TEST_CASE("BitVector set operations", "[bitvector]") {
+  bitvector bv1(4);
+  bitvector bv2(4);
+  bv1.set(2, true);
+  bv2.set(3, true);
+
+  REQUIRE(bv1.count_non_zero() == 1);
+  REQUIRE(bv2.count_non_zero() == 1);
+  REQUIRE(!(bv1 == bv2));
+  REQUIRE(!(bv1 > bv2));
+  REQUIRE(!(bv1 < bv2));
+}
