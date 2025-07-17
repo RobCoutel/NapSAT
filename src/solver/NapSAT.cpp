@@ -776,7 +776,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
   ASSERT_MSG(_options.chronological_backtracking || waiting_count == 0,
              "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(level) + "\nRestore point: " + to_string(restore_point));
   _propagated_literals = _trail.size() - waiting_count;
-  ASSERT_MSG(_options.chronological_backtracking || _propagated_literals == restore_point,
+  ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking || _propagated_literals == restore_point,
     "Propagated literals: " + to_string(_propagated_literals) + "\nRestore point: " + to_string(restore_point));
   // in RSCB we need to move the propagation head back to the location of the first literal that moved
   // that is, the location of the first literal that was unassigned.
