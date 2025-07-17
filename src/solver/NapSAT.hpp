@@ -776,7 +776,8 @@ namespace napsat
     inline bitvector& var_chunks(Tvar var)
     {
       ASSERT(var < _vars.size());
-      ASSERT(_vars[var].chunks.size() > 0);
+      ASSERT_MSG(_vars[var].chunks.size() > 0,
+                 "Variable " << var << " has no chunks allocated");
       return _vars[var].chunks;
     }
 
@@ -961,23 +962,7 @@ namespace napsat
     /**
      * @brief Unassign a variable.
      */
-    inline void var_unassign(Tvar var)
-    {
-      TSvar& v = _vars[var];
-      NOTIFY_OBSERVER(_observer,
-                      new napsat::gui::unassignment(literal(var, v.state)));
-      v.state = VAR_UNDEF;
-      v.reason = CLAUSE_UNDEF;
-      v.level = LEVEL_UNDEF;
-      v.propagated = false;
-      if (v.missed_lower_implication != CLAUSE_UNDEF) {
-        NOTIFY_OBSERVER(_observer,
-                        new napsat::gui::remove_lower_implication(var));
-        v.missed_lower_implication = CLAUSE_UNDEF;
-      }
-      if (!_variable_heap.contains(var))
-        _variable_heap.insert(var, v.activity);
-    }
+    void var_unassign(Tvar var);
 
     /**
      * @brief If var is an unknown variable, reallocate the data structures to
@@ -996,6 +981,8 @@ namespace napsat
         assert(_vars[i].constrained == 0);
         if (!_options.ignore_unused_variables)
           var_mark_constrained(i);
+        _vars[i].chunks.resize(_n_allocated_chunks);
+        _vars[i].cross_chunks.resize(_n_allocated_chunks);
         NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(i));
       }
 
@@ -1231,8 +1218,6 @@ namespace napsat
      */
     bool lit_is_required_in_learned_clause(Tlit lit);
 
-    void create_learned_clause();
-
     /**
      * Analyze a conflict and learn a new clause.
      * @param conflict clause that caused the conflict.
@@ -1257,13 +1242,14 @@ namespace napsat
      * The clause has one unique literal at the highest decision level
      *    |{ℓ ∈ C' : δ(ℓ) = δ(C')}| = 1
      */
-    void analyze_conflict(Tclause conflict);
-
     /**
      * @details Sets the clause in the literal_buffer and _next_literal_index variables.
      * @post The literal_buffer is set such that the first literal is the UIP
      */
     void analyze_conflict_level(Tlevel level);
+
+    bool analyzed_level_or_chunk(Tlit lit, Tlevel level, Tchunk chunk);
+
 
     /**
      * @brief Link resolutions in the proof system to get rid of the literals at
@@ -1526,11 +1512,6 @@ namespace napsat
     }
 
     /**
-     * @brief Returns the current decision level.
-     */
-    Tlevel decision_level() const;
-
-    /**
      * @brief Prints a proof of unsatisfiability on the standard output.
      * @pre The clause set must be unsatisfiable.
      * @pre The proof must be enabled.
@@ -1577,6 +1558,8 @@ namespace napsat
      * output in a human-readable format.
      */
     void print_trail_simple();
+
+    void print_chunks();
 
     /**
      * @brief Prints a clause on the standard output in a human-readable format.

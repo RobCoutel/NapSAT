@@ -24,6 +24,12 @@ namespace napsat {
 
       void set(size_t index, bool value);
       bool get(size_t index) const;
+
+      inline bool operator[](size_t index) const {
+        return get(index);
+      }
+
+
       size_t size() const;
 
       void clear();
@@ -55,6 +61,9 @@ namespace napsat {
       bool operator<=(const bitvector& other) const;
 
       bool operator>=(const bitvector& other) const;
+
+      bool operator<(const bitvector& other) const;
+      bool operator>(const bitvector& other) const;
 
       // printing
       std::string to_string() const;

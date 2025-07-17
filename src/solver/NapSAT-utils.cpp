@@ -302,6 +302,8 @@ void NapSAT::print_trail()
       cout << " / (lazy) ";
       print_clause(lit_lazy_reason(lit));
     }
+    cout << " (" << lit_chunks(lit).to_string() << ")";
+    cout << " / (" << lit_cross_chunks(lit).to_string() << ")";
     cout << "\n";
   }
   cout << "\n";
@@ -348,6 +350,15 @@ void napsat::NapSAT::print_trail_simple()
       }
     }
     cout << "\n";
+  }
+}
+
+void napsat::NapSAT::print_chunks()
+{
+  for (Tchunk chunk = 0; chunk < _chunks.size(); chunk++) {
+    cout << "Chunk " << chunk << ": ";
+    cout << "weight = " << _chunks[chunk].weight << ", ";
+    cout << "decision = " << _chunks[chunk].decision << endl;
   }
 }
 

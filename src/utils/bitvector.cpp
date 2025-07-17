@@ -284,6 +284,16 @@ bool napsat::bitvector::operator>=(const bitvector& other) const {
   return (*this | other) == *this; // this is a superset of other if union is equal to this
 }
 
+bool napsat::bitvector::operator<(const bitvector& other) const
+{
+  return (*this | other) == other && *this != other; // this is a proper subset of other if union is equal to other and they are not equal
+}
+
+bool napsat::bitvector::operator>(const bitvector& other) const
+{
+  return (*this | other) == *this && *this != other; // this is a proper superset of other if union is equal to this and they are not equal
+}
+
 std::string napsat::bitvector::to_string() const {
   std::string result;
   for (size_t i = 0; i < _size; ++i) {
