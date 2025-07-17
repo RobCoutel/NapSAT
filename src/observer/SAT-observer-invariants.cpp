@@ -29,6 +29,8 @@ void napsat::gui::observer::load_invariant_configuration()
     filename += "restoring-strong-chronological-backtracking";
   else if (_options.weak_chronological_backtracking)
     filename += "weak-chronological-backtracking";
+  else if (_options.graph_backtracking)
+    filename += "graph-backtracking";
   else
     filename += "non-chronological-backtracking";
   filename += ".conf";
