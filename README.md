@@ -79,7 +79,7 @@ For example, the follwing command shows the behavior of the solver in lazy stron
 One can set the navigation level to show more details. use the command `set level 10` to show all details.
 
 ```bash
-build/NapSAT tests/cnf/test-trigger-mli.cnf -i -commands tests/cnf/test-trigger-commands.txt -lscb
+build/NapSAT tests/cnf/test-trigger-mli.cnf -i -commands tests/cnf/test-trigger-mli-commands.txt -lscb
 ```
 
 #### Proof generation
