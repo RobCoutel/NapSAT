@@ -133,7 +133,6 @@ void napsat::NapSAT::purge_root_watch_lists()
 
 void napsat::NapSAT::purge_clauses()
 {
-  print_trail();
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Purging clauses"));
