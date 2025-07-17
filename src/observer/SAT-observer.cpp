@@ -63,7 +63,7 @@ long unsigned napsat::gui::observer::hash_clause(const std::vector<napsat::Tlit>
 napsat::gui::observer::observer(napsat::options& options) : _options(options)
 {
   _display = new napsat::gui::display(this);
-  assert(options.interactive || options.observing || options.check_invariants || options.print_stats);
+  assert(options.interactive || options.observing || options.check_invariants || options.print_stats || options.print_live_stats);
   if (options.interactive || options.observing) {
     notify(new napsat::gui::marker("Start"));
   }
@@ -72,7 +72,7 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
       toggle_checking_only(true);
     }
     else {
-      assert(options.print_stats);
+      assert(options.print_stats || options.print_live_stats);
       toggle_stats_only(true);
     }
   }
@@ -123,7 +123,7 @@ bool observer::notify(notification* notification)
   }
 
   // print the statistics
-  if (_options.print_stats && level < 3) {
+  if (_options.print_live_stats && level < 3) {
 #ifdef __unix__
       struct winsize size;
       ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);

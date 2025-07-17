@@ -155,8 +155,8 @@ namespace napsat
     bool lazy_strong_chronological_backtracking = false;
 
     /**
-     * @brief Enables the solver to use graph backtracking. That is, upon a conflict, the solver will only undo the literals that are reachable from the conflicting level in the implication graph.
-     * @subsumes chronological backtracking: -wcb, -rscb or -lscb
+     * @brief Enables the solver to use graph backtracking. That is, upon a conflict, the solver will only undo the literals that are reachable from the conflicting level in the implication graph. Further, the conflict level can be chosen by a heuristic, and does not necessarily have to be the highest level in the conflict clause.
+     * @requires -cb, -wcb, -rscb and -lscb are false
      * @alias -gb
      */
     bool graph_backtracking = false;
@@ -198,20 +198,34 @@ namespace napsat
     bool check_invariants = false;
 
     /**
-     * @brief Enables the observer to print statistics during, and at the end of the execution.
+     * @brief Enables the observer to print statistics at the end of the execution.
      * @requires observing or interactive is on
      * @alias -stat
-    */
+     * @warning This option has a significant impact on the performance of the solver.
+     * It should not be used when measuring the compute time of the solver. It is recommended
+     * to run the solver twice, once with this option and once without it.
+     */
 
     bool print_stats = false;
+
     /**
-     * @brief Enables the observer to build a proof during the execution.
+     * @brief Enables the observer to print the statistics during the execution.
+     * @requires observing or interactive is on
+     * @alias -live-stat
+     * @warning This option has a significant impact on the performance of the solver.
+     * It should not be used when measuring the compute time of the solver. It is recommended
+     * to run the solver twice, once with this option and once without it.
+     */
+    bool print_live_stats = false;
+
+    /**
+     * @brief Enables resolution proof system to build a proof during the execution.
      * @alias -bp
     */
-
     bool build_proof = false;
+
     /**
-     * @brief Enables the observer to check the proof during the execution.
+     * @brief Enables the resolution proof system to check the proof during the execution.
      * @requires build_proof is on
      * @alias -cp
     */

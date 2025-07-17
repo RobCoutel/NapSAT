@@ -60,6 +60,13 @@ The options are the following:
     Enables  the solver to use strong chronological  backtracking.  That is, the solver will use the
     lazy reimplication scheme.
 
+  -gb or --graph-backtracking <bool = off>
+    Enables  the solver  to use graph backtracking.  That is, upon a conflict,  the solver will only
+    undo  the literals  that  are reachable  from the conflicting  level  in the implication  graph.
+    Further,  the conflict level can be chosen by a heuristic,  and does not necessarily  have to be
+    the highest level in the conflict clause.
+    Requires: -cb, -wcb, -rscb and -lscb are false
+
   -del or --delete-clauses <bool = on>
     Enables the solver to delete learned clauses.
 
@@ -83,14 +90,24 @@ The options are the following:
     Warning: Checking the invariants will slow down the solver significantly.
 
   -stat or --print-stats <bool = off>
-    Enables the observer to print statistics during, and at the end of the execution.
+    Enables the observer to print statistics at the end of the execution.
     Requires: observing or interactive is on
+    Warning:  This option has a significant  impact on the performance  of the solver. It should not
+    be used  when  measuring  the compute  time of the solver.  It is recommended  to run the solver
+    twice, once with this option and once without it.
+
+  -live-stat or --print-live-stats <bool = off>
+    Enables the observer to print the statistics during the execution.
+    Requires: observing or interactive is on
+    Warning:  This option has a significant  impact on the performance  of the solver. It should not
+    be used  when  measuring  the compute  time of the solver.  It is recommended  to run the solver
+    twice, once with this option and once without it.
 
   -bp or --build-proof <bool = off>
-    Enables the observer to build a proof during the execution.
+    Enables resolution proof system to build a proof during the execution.
 
   -cp or --check-proof <bool = off>
-    Enables the observer to check the proof during the execution.
+    Enables the resolution proof system to check the proof during the execution.
     Requires: build_proof is on
 
   -pp or --print-proof <bool = off>

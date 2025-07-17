@@ -151,6 +151,8 @@ napsat::options::options(vector<string>& tokens)
     {"--check-invariants",                       &check_invariants},
     {"-stat",                                    &print_stats},
     {"--statistics",                             &print_stats},
+    {"-live-stat",                               &print_live_stats},
+    {"--live-statistics",                        &print_live_stats},
     {"-del",                                     &delete_clauses},
     {"--delete-clauses",                         &delete_clauses},
     {"-bp",                                      &build_proof},

@@ -1751,7 +1751,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 {
   // We have to create the observer before allocating the variables. Otherwise the notifications will not be sent
 #if USE_OBSERVER
-  if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
+  if (options.interactive || options.observing || options.check_invariants || options.print_stats || options.print_live_stats) {
     _observer = new napsat::gui::observer(options);
     // make a functional object that will parse the command
     if (options.interactive) {
