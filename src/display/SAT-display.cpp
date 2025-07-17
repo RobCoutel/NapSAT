@@ -337,7 +337,7 @@ void napsat::gui::display::notify_change(unsigned level)
       }
     }
     else {
-      std::cout << "Unknown command" << std::endl;
+      LOG_WARNING("Unknown command\n");
       goto loop_start;
     }
   }

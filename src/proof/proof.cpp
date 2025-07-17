@@ -185,7 +185,7 @@ bool napsat::proof::resolution_proof::check_resolution_chain(unsigned index)
         error_msg += to_string(lit_to_int(clauses[link.second].lits[i])) + " ";
       error_msg += "\n";
     }
-    error_msg += "Actual clause (in DB): ";
+    error_msg += "Actual clause (in DB):        ";
     for (unsigned i = 0; i < c.size; i++) {
       error_msg += to_string(lit_to_int(c.lits[i])) + " ";
     }

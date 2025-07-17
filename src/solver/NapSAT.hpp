@@ -1296,6 +1296,8 @@ namespace napsat
      */
     void select_watched_literals(Tlit* lits, unsigned size);
 
+    unsigned cleanup_duplicate_literals(Tlit* lits, unsigned size);
+
     /**
      * @brief allocates a new chunk of memory for a clause, and adds to the
      * clause set. The clause is added to the watch lists if needed (size >= 2).

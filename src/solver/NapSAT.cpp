@@ -1013,6 +1013,15 @@ void NapSAT::analyze_conflict_level(Tlevel level) {
       if(lit_is_required_in_learned_clause(lit)) {
         _literal_buffer[_next_literal_index++] = lit_neg(lit);
       } else {
+        if (_options.lazy_strong_chronological_backtracking) {
+          // It could be that the literal was already added to the buffer
+          // in this case, we need to remove it from the buffer
+          for (unsigned j = 0; j < _next_literal_index; j++) {
+            if (_literal_buffer[j] == lit_neg(lit)) {
+              _literal_buffer[j] = _literal_buffer[--_next_literal_index];
+            }
+          }
+        }
         if (_proof) {
           _proof->link_resolution(lit_neg(lit), lit_reason(lit));
         }
@@ -1259,10 +1268,15 @@ void NapSAT::repair_conflict(Tclause conflict)
         // The UIP is not a missed lower implication, we can stop the analysis
         break;
       }
+
+      // this should not be necessary. The duplicates cannot touch the UIP
+      // _next_literal_index = cleanup_duplicate_literals(_literal_buffer, _next_literal_index);
+
       if (_proof)
         _proof->link_resolution(_literal_buffer[0], lazy_reason);
       // The UIP is a missed lower implication, we need to reanalyze the conflict
       // Replace the UIP by its lazy reason
+      ASSERT(lit_level(_literal_buffer[0]) == conflict_level);
       _literal_buffer[0] = _literal_buffer[--_next_literal_index];
       Tlit* uip_lazy_lits = _clauses[lazy_reason].lits;
       // Note that this may introduce duplicate literals in the learned clause, but they will be cleaned up when marking the literals
@@ -1281,32 +1295,30 @@ void NapSAT::repair_conflict(Tclause conflict)
   }
 
   // Check wether the clause in _literal_buffer is identical to the conflict clause
-  // We do a quadratic search, but it is not a problem since the number of literals in the conflict clause is small
   bool identical = true;
-  for (unsigned i = 0; identical && i < _next_literal_index; i++) {
-    Tlit lit = _literal_buffer[i];
-    unsigned j = 0;
-    for (; j < _clauses[conflict].size; j++) {
-      if (lit == _clauses[conflict].lits[j])
-        break;
-    }
-    if (j == _clauses[conflict].size) {
-      identical = false;
-      break;
-    }
+  // mark the literals in the conflict clause
+  for (unsigned i = 0; i < _clauses[conflict].size; i++) {
+    lit_mark(lits[i]);
   }
-  for (unsigned j = 0; identical && j < _clauses[conflict].size; j++) {
-    Tlit lit = _clauses[conflict].lits[j];
-    unsigned i = 0;
-    for (; i < _next_literal_index; i++) {
-      if (lit == _literal_buffer[i])
-        break;
-    }
-    if (i == _next_literal_index) {
-      identical = false;
-      break;
-    }
+  // check if the literals in the _literal_buffer are the same as the literals in the conflict clause
+  for (unsigned i = 0; i < _next_literal_index && identical; i++) {
+    identical &= lit_marked(_literal_buffer[i]);
   }
+  for (unsigned i = 0; i < _clauses[conflict].size; i++) {
+    lit_unmark(lits[i]);
+  }
+
+  // do the same, but reversed
+  for (unsigned i = 0; i < _next_literal_index; i++) {
+    lit_mark(_literal_buffer[i]);
+  }
+  for (unsigned i = 0; i < _clauses[conflict].size && identical; i++) {
+    identical &= lit_marked(lits[i]);
+  }
+  for (unsigned i = 0; i < _next_literal_index; i++) {
+    lit_unmark(_literal_buffer[i]);
+  }
+
   // Later, if the clause is identical, we do not add it to the clause set.
 
   if (_options.graph_backtracking) {
@@ -1539,6 +1551,26 @@ void napsat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
   lits[second_index] = tmp;
 }
 
+unsigned napsat::NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
+{
+  Tlit* i = lits;
+  Tlit* j = i;
+  Tlit* end = i + size;
+  while(i < end) {
+    if (lit_marked(*i)) {
+      i++;
+      continue;
+    }
+    lit_mark(*i);
+    *j++ = *i++;
+  }
+  unsigned new_size = j - lits;
+  for (unsigned k = 0; k < new_size; k++) {
+    lit_unmark(lits[k]);
+  }
+  return new_size;
+}
+
 Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned input_size, bool learned, bool external)
 {
   ASSERT(lits_input != nullptr);
@@ -1617,18 +1649,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
 
   // Remove duplicate literals
   if (input_size > 1) {
-    sort(lits, lits + clause_size);
-    unsigned j = 1;
-    for (unsigned i = 1; i < clause_size; i++) {
-      if (lits[i] == lits[i - 1]) {
-        // This could happen if the clause is generated using a missed lower implication
-        ASSERT_MSG(external || _options.lazy_strong_chronological_backtracking, "Duplicate literal " + lit_to_string(lits[i]) + " in internal clause");
-        continue;
-      }
-      lits[j++] = lits[i];
-    }
-    clause_size = min(j, clause_size);
-    clause->size = clause_size;
+    clause->size = cleanup_duplicate_literals(lits, input_size);
   }
 
   if (_proof && external) {
