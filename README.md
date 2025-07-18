@@ -65,7 +65,7 @@ NapSAT can be used as a library. The API is defined in `include/SAT-API.hpp`. Th
 
 #### Chronological Backtracking
 
-The main contribution of NapSAT is the implementation of different chronological backtracking strategies that can be selected at runtime. The different versions are described in a paper that is currently under submission.
+The main contribution of NapSAT is the implementation of different chronological backtracking strategies that can be selected at runtime. The different versions are described in the paper "Lazy Reimplication in Chronological Backtracking" - Robin Coutelier, Mathias Fleury, Laura Kovács published at SAT 2024.
 
 #### Observing
 
@@ -73,9 +73,9 @@ An observer can be attached to the solver to check and debug the solver. The obs
 
 It also allows the user to check the behavior of the solver with a configurable level of detail. This can be useful for debugging large formulas.
 
-Furthermore, the interactive mode if the solver allows the user to interact with the solver during runtime. Chosing specific decisions or learning clauses can be done interactively. For bug reproduction, this functionality can be accompanied by a command file that will be executed by the solver.
+Furthermore, the interactive mode if the solver allows the user to interact with the solver during runtime. Choosing specific decisions or learning clauses can be done interactively. For bug reproduction, this functionality can be accompanied by a command file that will be executed by the solver.
 
-For example, the follwing command shows the behavior of the solver in lazy strong chronological backtracking mode on a specific test case:
+For example, the following command shows the behavior of the solver in lazy strong chronological backtracking mode on a specific test case:
 One can set the navigation level to show more details. use the command `set level 10` to show all details.
 
 ```bash
@@ -92,8 +92,8 @@ build/NapSAT tests/cnf/unsat-01.cnf -pp
 
 ## License
 
-This project is not under any license yet, but the author allows anyone to use, modify and redistribute the code as long as the author is credited and the code is not used for commercial purposes.
+This project is not under any license yet, but the author allows anyone to use, modify and redistribute the code as long as the author is credited, and the code is not used for commercial purposes.
 
 ## Contact
 
-If you have any questions or suggestions, feel free to contact me at robin.coutelier@gmail.com.
+If you have any questions or suggestions, feel free to contact me at robin.coutelier@tuwien.ac.at

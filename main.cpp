@@ -83,6 +83,7 @@ int main(int argc, char** argv)
   chrono::milliseconds duration = chrono::duration_cast<chrono::milliseconds>(end - start);
 
   cout << "c Solution found in " << pretty_time(duration) << endl;
+  cout << "c  - Time: " << duration.count() << " ms" << endl;
 
   if (get_status(solver) == napsat::SAT) {
     cout << "s SATISFIABLE" << endl;
@@ -92,9 +93,9 @@ int main(int argc, char** argv)
     cout << endl;
   }
   else if (get_status(solver) == napsat::UNSAT)
-    cout << "s UNSATISFIABLE" << endl;
+  cout << "s UNSATISFIABLE" << endl;
   else
-    cout << "UNKNOWN" << endl;
+  cout << "UNKNOWN" << endl;
 
   if (options.print_stats) {
     print_statistics(solver);

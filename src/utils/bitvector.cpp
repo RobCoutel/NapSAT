@@ -154,7 +154,7 @@ napsat::bitvector napsat::bitvector::operator^(const bitvector& other) const {
 
 napsat::bitvector napsat::bitvector::operator~() const {
   bitvector result(_size);
-  size_t i, j = 0;
+  size_t i = 0, j = 0;
   while (j < _bits.size()) {
     if (j < _bits.size() && _bits[j].first == i) {
       result._bits.push_back({_bits[j].first, ~_bits[j].second});
@@ -173,7 +173,7 @@ napsat::bitvector napsat::bitvector::operator-(const bitvector& other) const
 
 void napsat::bitvector::operator&=(const bitvector& other) {
   assert(_size == other._size);
-  size_t i,j = 0;
+  size_t i = 0, j = 0;
   while (i < _bits.size() && j < other._bits.size()) {
     if (_bits[i].first < other._bits[j].first) {
       i++;
