@@ -1055,7 +1055,7 @@ void NapSAT::analyze_conflict_level(Tlevel level) {
       // if we use the lazy reason, we need to ensure that we will look at all the literals in the clause
       // since the missed lower implication does not satisfy the trail invariant, we need to push the reading head to the back
       // note that this may lead to duplicate literals in the learned clause, but this will be cleaned up in the "internal_add_clause" function
-      i = _trail.size() - 1;
+      i = _trail.size();
     }
     if (_proof)
       _proof->link_resolution(lit_neg(lit), reason);
