@@ -113,15 +113,18 @@
 
 #if USE_OBSERVER
 #define NOTIFY_OBSERVER(observer, notification) \
-  if (observer) \
-    if(!observer->notify(notification)) { \
-      LOG_ERROR("The notification returned an error when executed by the observer"); \
-      if(observer) \
-        observer->notify(new napsat::gui::marker("Notification failed")); \
-      assert(false); \
-    }
+  do {                                          \
+    if (observer) {                             \
+      if(!observer->notify(notification)) {     \
+        LOG_ERROR("The notification returned an error when executed by the observer"); \
+        if(observer)                            \
+          observer->notify(new napsat::gui::marker("Notification failed")); \
+        assert(false);                          \
+      }                                         \
+    }                                           \
+  } while(0)
 #else
-#define NOTIFY_OBSERVER(observer, notification)
+#define NOTIFY_OBSERVER(observer, notification)  ((void)0)
 #endif
 namespace napsat
 {

@@ -1506,13 +1506,13 @@ Tlevel NapSAT::decision_level() const
 void napsat::NapSAT::print_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT)
+  ASSERT(_status == UNSAT);
   _proof->print_proof();
 }
 
 bool napsat::NapSAT::check_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT)
+  ASSERT(_status == UNSAT);
   return _proof->check_proof();
 }
