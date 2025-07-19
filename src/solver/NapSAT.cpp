@@ -131,8 +131,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         if (_clauses[reason].size > 2) {
           Tlit other_watched = _clauses[reason].lits[1];
           bitvector& cross_chunks = lit_cross_chunks(other_watched);
-          ASSERT(cross_chunks.empty());
-          cross_chunks = svar.chunks - lit_chunks(_clauses[reason].lits[1]);
+          cross_chunks |= svar.chunks - lit_chunks(_clauses[reason].lits[1]);
         }
 
         // update the size of the chunk
