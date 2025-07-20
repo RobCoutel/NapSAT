@@ -309,7 +309,7 @@ void napsat::gui::observer::notify_checkpoint()
   _display->notify_checkpoint();
 }
 
-void napsat::gui::observer::load_commands(std::string filename)
+void napsat::gui::observer::load_commands(const std::string& filename)
 {
   ifstream file(filename);
   if (!file.is_open()) {
@@ -323,12 +323,12 @@ void napsat::gui::observer::load_commands(std::string filename)
   file.close();
 }
 
-void napsat::gui::observer::set_command_parser(command_parser parser)
+void napsat::gui::observer::set_command_parser(const command_parser &parser)
 {
   _command_parser = parser;
 }
 
-bool napsat::gui::observer::transmit_command(std::string command)
+bool napsat::gui::observer::transmit_command(const std::string &command)
 {
   assert(_command_parser);
   return _command_parser(command);
@@ -435,7 +435,7 @@ std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> napsat
   for (clause* cl_ptr : _active_clauses) {
     if (cl_ptr && cl_ptr->active) {
       assert(cl_ptr->cl == cl);
-      to_return.push_back(make_pair(cl, &cl_ptr->literals));
+      to_return.emplace_back(cl, &cl_ptr->literals);
     }
     cl++;
   }
@@ -456,7 +456,7 @@ std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
     s += RED;
 
   // the literal
-  if (_variables[var].alias == "")
+  if (_variables[var].alias.empty())
     s += std::to_string(lit_to_int(lit));
   else if (lit_pol(lit))
     s += _variables[var].alias;
