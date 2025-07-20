@@ -17,12 +17,12 @@
 #include "SAT-config.hpp"
 #include "../utils/printer.hpp"
 
-#include <typeinfo>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <cassert>
 #include <cmath>
+#include <algorithm>
 
 #ifdef __unix__
 #include <sys/ioctl.h> //ioctl() and TIOCGWINSZ
