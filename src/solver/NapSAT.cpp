@@ -323,7 +323,7 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
       }
       if (_options.graph_backtracking &&
           !(lit_chunks(bin.first) <= lit_chunks(lit))) {
-        lit_cross_chunks(lit) |= (lit_chunks(lit) - lit_chunks(bin.first));
+        lit_cross_chunks(lit) |= (lit_chunks(bin.first) - lit_chunks(lit));
       }
       continue;
     }
@@ -348,16 +348,6 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
         lits[0] ^= lits[1];
         lits[1] ^= lits[0];
         lits[0] ^= lits[1];
-        // we do not need to update the next watched clause because the clause is binary
-      }
-    }
-    if (_options.graph_backtracking) {
-      // make sure that the first element is at the top of the lattice
-      if (lit_chunks(bin.first) < lit_chunks(lit)) {
-        // in place swapping
-        bin.first ^= lit;
-        lit ^= bin.first;
-        bin.first ^= lit;
         // we do not need to update the next watched clause because the clause is binary
       }
     }
@@ -703,7 +693,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
         chunks_to_update |= lit_chunks(lits[i]);
       }
       // TODO: the setminus is not necessary, but is good for debugging
-      lit_cross_chunks(lit) |= chunks_to_update - lit_chunks(lit);
+      lit_cross_chunks(lits[1]) |= chunks_to_update - lit_chunks(lits[1]);
     }
     /**
      * We now have in addition that δ(λ(c₂) \ {c₂}) ≤ δ(c₁)
