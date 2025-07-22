@@ -161,11 +161,8 @@ bool napsat::gui::observer::check_no_missed_implications()
       continue;
     unsigned n_undef = 0;
     Tlit last_undef = LIT_UNDEF;
-    for (Tlit watched : c->watched)
-      if (lit_value(watched) == VAR_TRUE || !lit_propagated(watched))
-        goto next_clause;
     for (Tlit lit : c->literals) {
-      if (lit_value(lit) == VAR_TRUE || !lit_propagated(lit))
+      if (lit_value(lit) == VAR_TRUE || (lit_value(lit) != VAR_UNDEF && !lit_propagated(lit)))
         goto next_clause;
       if (lit_value(lit) == VAR_UNDEF) {
         n_undef++;
