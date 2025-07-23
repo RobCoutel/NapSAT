@@ -1244,6 +1244,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   }
 #endif
 
+  _vars.resize(1);
   var_allocate(n_var + 1);
   _trail = vector<Tlit>();
   _trail.reserve(n_var);
