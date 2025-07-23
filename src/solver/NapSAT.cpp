@@ -629,7 +629,6 @@ void NapSAT::analyze_conflict(Tclause conflict)
   ASSERT(!_writing_clause);
   // Number of literals at level conflict_level marked in the trail
   unsigned count = 0;
-  unsigned i = _trail.size() - 1;
   Tclause cl = conflict;
 
   if (_proof)
@@ -645,6 +644,8 @@ void NapSAT::analyze_conflict(Tclause conflict)
   // This does nothing in non-chronological backtracking
   ASSERT(_options.chronological_backtracking || conflict_level == solver_level());
   backtrack(conflict_level);
+
+  unsigned i = _trail.size() - 1;
 
   // Variable used to determine the first literal from the clause that should be added to the learned clause
   // This is used to avoid adding the satisfied literal of the reason to the learned clause
@@ -679,6 +680,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
         _proof->link_resolution(lit, lit_reason(lit));
     }
 
+    ASSERT(i < _trail.size());
     while (!lit_seen(_trail[i]) || lit_level(_trail[i]) != conflict_level) {
       ASSERT(i > 0);
       i--;
