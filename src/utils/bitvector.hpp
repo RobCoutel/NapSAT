@@ -18,6 +18,7 @@
 
 namespace napsat {
   class bitvector {
+    typedef unsigned long Tblock; // type of a block of bits, can be changed to a larger type if needed
     public:
       bitvector() = default;
       bitvector(size_t size);
@@ -39,13 +40,7 @@ namespace napsat {
        * @brief Counts the number of bits set to true in the bitvector.
        * @return The number of bits set to true.
        */
-      unsigned count_non_zero() const {
-        unsigned count = 0;
-        for (const auto& block : _bits) {
-          count += __builtin_popcountl(block.second);
-        }
-        return count;
-      }
+      unsigned count_non_zero() const;
 
       // bitwise operations
       bitvector operator&(const bitvector& other) const;
@@ -80,9 +75,9 @@ namespace napsat {
       std::string to_string() const;
 
     private:
-      std::vector<std::pair<size_t, long unsigned>> _bits; // pairs of (index, value)
+      std::vector<std::pair<size_t, Tblock>> _bits; // pairs of (index, value)
       size_t _size = 0; // number of bits in the bitvector
-      static const size_t BLOCK_SIZE = 8 * sizeof(long unsigned); // total size of the bitvector
+      static const size_t BLOCK_SIZE = 8 * sizeof(Tblock); // total size of the bitvector
 
       static inline std::pair<size_t, size_t> find(size_t index) {
         size_t block_index = index / BLOCK_SIZE;

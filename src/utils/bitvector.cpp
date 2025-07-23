@@ -15,7 +15,7 @@ void napsat::bitvector::set(size_t index, bool value) {
     // push a new block at the right position
     _bits.insert(_bits.begin() + block_number, {block_index, 0});
   }
-  long unsigned& block_value = _bits[block_number].second;
+  Tblock& block_value = _bits[block_number].second;
   if (value)
     block_value |= (1UL << bit_index);
   else
@@ -66,6 +66,21 @@ bool napsat::bitvector::empty() const {
 void napsat::bitvector::resize(size_t new_size) {
   assert (new_size >= _size);
   _size = new_size;
+}
+
+unsigned napsat::bitvector::count_non_zero() const
+{
+  unsigned count = 0;
+  for (const auto& block : _bits) {
+    if (sizeof(long unsigned) == sizeof(Tblock))
+      count += __builtin_popcountl(block.second);
+    else { // TODO this is for debugging. This should be removed in production code.
+      for (size_t i = 0; i < BLOCK_SIZE; ++i)
+        if (block.second & (1UL << i))
+          count++;
+    }
+  }
+  return count;
 }
 
 napsat::bitvector napsat::bitvector::operator&(const bitvector& other) const {
@@ -296,10 +311,11 @@ bool napsat::bitvector::operator>(const bitvector& other) const
 
 std::string napsat::bitvector::to_string() const {
   std::string result;
+  result.reserve(_size + (_size / BLOCK_SIZE) + 1); // reserve space for the string
   for (size_t i = 0; i < _size; ++i) {
     result += get(i) ? '1' : '0';
     if (i % BLOCK_SIZE == BLOCK_SIZE - 1) {
-      result += '\n'; // new line every BLOCK_SIZE bits
+      result += '\t'; // new line every BLOCK_SIZE bits
     } else if (i % 8 == 7) {
       result += ' '; // add space every 8 bits for readability
     }
