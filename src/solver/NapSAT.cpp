@@ -1377,6 +1377,7 @@ status NapSAT::get_status()
 
 bool NapSAT::decide()
 {
+  ASSERT(!_variable_heap.contains(0));
   while (!_variable_heap.empty() && !var_undef(_variable_heap.top()))
     _variable_heap.pop();
   if (_variable_heap.empty()) {
