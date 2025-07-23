@@ -66,6 +66,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
   }
 
   string line;
+  bool first_line = true;
   while (getline(stream, line)) {
     ltrim(line);
     if (line.empty())
@@ -108,16 +109,20 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
     if (is_prefix(line, "%"))
       break;
     if (is_prefix(line, "p cnf")) {
-      unsigned n_var, n_clauses;
-      sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
-      if (n_var > _vars.size()) {
-        cout << "Allocating " << n_var << " variables" << endl;
+      if (first_line) {
+        unsigned n_var, n_clauses;
+        sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
+        if (n_var > _vars.size()) {
+          cout << "Allocating " << n_var << " variables" << endl;
         var_allocate(n_var);
       }
       // we ignore the number of clauses
-      // TODO preallocate the clauses
+      // TODO preallocate the clauses} else {
+        LOG_ERROR("Misplaced string \'p cnf\' found. Must be the first non-comment line.");
+      }
       continue;
     }
+    first_line = false;
 
     string token;
     istringstream ss(line);
