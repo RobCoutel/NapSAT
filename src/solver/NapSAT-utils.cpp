@@ -102,32 +102,28 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
         var_allocate(n_var);
       }
       // we ignore the number of clauses
-      // TODO preallocated the clauses
+      // TODO preallocate the clauses
       continue;
     }
-    start_clause();
 
-    string token = "";
-    for (char c : line) {
-      if (c == ' ' || c == '\n') {
-        if (token == "")
-          continue;
-        try {
-          int lit = stoi(token);
-          if (lit == 0)
-            break;
-          add_literal(napsat::literal(abs(lit), lit > 0));
-          token = "";
-          continue;
-        }
-        catch (invalid_argument e) {
-          LOG_ERROR("The token " << token << " is not a number.");
-          _status = ERROR;
-          throw invalid_argument("The token " + token + " is not a number.");
-          return false;
-        }
+    string token;
+    istringstream ss(line);
+    start_clause();
+    while(getline(ss, token, ' ')) {
+      if (token.empty())
+        continue;
+      try {
+        int lit = stoi(token);
+        if (lit == 0)
+          break;
+        add_literal(napsat::literal(abs(lit), lit > 0));
       }
-      token += c;
+      catch (invalid_argument e) {
+        LOG_ERROR("The token " << token << " is not a number.");
+        _status = ERROR;
+        throw invalid_argument("The token " + token + " is not a number.");
+        return false;
+      }
     }
     finalize_clause();
     if (_status != UNDEF)
