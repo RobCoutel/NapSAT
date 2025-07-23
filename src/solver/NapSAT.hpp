@@ -897,6 +897,7 @@ namespace napsat
 
     inline bool var_marked(Tvar var) const
     {
+      ASSERT(var < _vars.size());
       return _vars[var].marked;
     }
 

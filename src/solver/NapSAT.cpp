@@ -1429,61 +1429,6 @@ void NapSAT::repair_conflict(Tclause conflict)
     // finalizing the clause will also imply the first literal of the clause
   }
 
-  // bool unique = true;
-  // for (unsigned i = 1; unique && i < _clauses[conflict].size; i++)
-  //   unique = lit_level(lits[i]) != lit_level(lits[0]);
-
-  /********** CLAUSES WITH ONE LITERAL AT MAX LEVEL **********/
-//   if (unique && lit_lazy_reason(lits[0]) == CLAUSE_UNDEF) {
-//     NOTIFY_OBSERVER(_observer, new napsat::gui::stat("One literal at highest level"));
-//     ASSERT(_options.chronological_backtracking || _clauses[conflict].external);
-
-//     Tlevel backtrack_level = lit_level(lits[1]);
-//     if (_options.chronological_backtracking)
-//       backtrack_level = lit_level(lits[0]) - 1;
-// #ifndef NDEBUG
-//     else {
-//       // In NCB, we need that the second highest level is at the level of C \ {c₁}
-//       //    δ(c₂) = δ(C \ {c₁})
-//       // Such that we can backtrack to the second highest level
-//       for (unsigned i = 2; i < _clauses[conflict].size; i++)
-//         ASSERT(lit_level(lits[i]) <= lit_level(lits[1]));
-//     }
-// #endif
-//     backtrack(backtrack_level);
-//     ASSERT(lit_undef(lits[0]));
-// #ifndef NDEBUG
-//     for (unsigned i = 1; i < _clauses[conflict].size; i++)
-//       ASSERT_MSG(lit_false(lits[i]),
-//         "Conflict: " + clause_to_string(conflict) + "\nLiteral: " + lit_to_string(lits[i]));
-// #endif
-
-//     if (_options.chronological_backtracking) {
-//       // In chronological backtracking, it might be the case that the second highest literal is not at the second position.
-//       // We need to ensure that it becomes the second watched literal
-//       Tlit* end = lits + _clauses[conflict].size;
-//       Tlit* high_lit = lits + 1;
-//       Tlevel high_lvl = lit_level(*high_lit);
-//       for (Tlit* i = lits + 2; i < end; i++) {
-//         if (lit_level(*i) > high_lvl) {
-//           high_lvl = lit_level(*i);
-//           high_lit = i;
-//         }
-//       }
-//       if (high_lit > lits + 1) {
-//         stop_watch(lits[1], conflict);
-//         Tlit tmp = lits[1];
-//         lits[1] = *high_lit;
-//         *high_lit = tmp;
-//         watch_lit(lits[1], conflict);
-//       }
-//     }
-//     imply_literal(lits[0], conflict);
-//     return;
-//   }
-
-  // analyze_conflict(conflict);
-
   _var_activity_increment /= _options.var_activity_decay;
 }
 
@@ -1563,7 +1508,7 @@ unsigned napsat::NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
   return new_size;
 }
 
-Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned input_size, bool learned, bool external)
+Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsigned input_size, bool learned, bool external)
 {
   ASSERT(lits_input != nullptr);
   for (unsigned i = 0; i < input_size; i++)
@@ -1637,18 +1582,20 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
         continue;
       lits[j++] = lits_input[i];
     }
+    clause->size = input_size - n_removed;
   }
 
   // Remove duplicate literals
   if (input_size > 1) {
-    clause->size = cleanup_duplicate_literals(lits, input_size);
+    clause->size = cleanup_duplicate_literals(lits, clause->size);
   }
 
   if (_proof && external) {
     _proof->input_clause(cl, lits_input, input_size);
     // Remove the literals falsified at level 0 in the proof
-    if (n_removed > 0)
+    if (n_removed > 0) {
       _proof->remove_root_literals(cl);
+    }
   }
 
   _activities[cl] = _max_clause_activity;
@@ -1769,6 +1716,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   }
 #endif
 
+  _vars.resize(1);
   var_allocate(n_var + 1);
   _trail = vector<Tlit>();
   _trail.reserve(n_var);
