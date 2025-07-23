@@ -1245,7 +1245,6 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 #endif
 
   _vars.resize(1);
-  var_allocate(n_var + 1);
   _trail = vector<Tlit>();
   _trail.reserve(n_var);
   _watch_lists.resize(2 * n_var + 2);
@@ -1254,8 +1253,9 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _clauses.reserve(n_clauses);
   _activities.reserve(n_clauses);
 
-  _literal_buffer = new Tlit[n_var];
+  _literal_buffer = new Tlit[n_var+1];
   _next_literal_index = 0;
+  var_allocate(n_var + 1);
 
   if (options.build_proof)
     _proof = new napsat::proof::resolution_proof();

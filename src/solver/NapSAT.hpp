@@ -873,7 +873,7 @@ namespace napsat
       _binary_clauses.resize(2 * var + 2);
       // reallocate the literal buffer to make sure it is big enough
       Tlit* new_literal_buffer = new Tlit[_vars.size()];
-      assert(_literal_buffer || _next_literal_index == 0);
+      assert(_literal_buffer);
       std::memcpy(new_literal_buffer, _literal_buffer,
                   _next_literal_index * sizeof(Tlit));
       delete[] _literal_buffer;
