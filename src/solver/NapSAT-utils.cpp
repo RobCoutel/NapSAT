@@ -93,7 +93,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
           // done, next line
           continue;
         }
-        catch (invalid_argument e) {
+        catch (invalid_argument &e) {
           // fall through printing the warning
         }
       }
@@ -117,7 +117,8 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
         var_allocate(n_var);
       }
       // we ignore the number of clauses
-      // TODO preallocate the clauses} else {
+      // TODO preallocate the clauses
+      } else {
         LOG_ERROR("Misplaced string \'p cnf\' found. Must be the first non-comment line.");
       }
       continue;
@@ -135,8 +136,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
         if (lit == 0)
           break;
         add_literal(napsat::literal(abs(lit), lit > 0));
-      }
-      catch (invalid_argument e) {
+      } catch (invalid_argument &e) {
         LOG_ERROR("The token " << token << " is not a number.");
         _status = ERROR;
         throw invalid_argument("The token " + token + " is not a number.");
