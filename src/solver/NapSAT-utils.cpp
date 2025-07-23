@@ -29,6 +29,16 @@
 using namespace napsat;
 using namespace std;
 
+static inline void ltrim(string &s) {
+  s.erase(s.begin(), find_if(s.begin(), s.end(), [](unsigned char ch) {
+    return !isspace(ch);
+  }));
+}
+
+static inline bool is_prefix(const string &s, const string &prefix) {
+  return s.compare(0, prefix.size(), prefix) == 0;
+}
+
 bool napsat::NapSAT::parse_dimacs(const char* filename)
 {
   bool printed_warning = false;
@@ -57,44 +67,47 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
 
   string line;
   while (getline(stream, line)) {
-    while (line.size() > 0 && line[0] == ' ')
-      line.erase(0, 1);
-    if (line.size() == 0 || line[0] == '\n')
+    ltrim(line);
+    if (line.empty())
       continue;
-    if (line[0] == 'c') {
-      if (_observer && line.size() > 1 && line[1] == 'o') {
-        // parse the alias name of the variable
-        // the comment should be of the form:
-        // >co <var> <alias>
-        string alias = "";
-        string var_string = "";
-        unsigned i = 3;
-        while (i < line.size() && line[i] != '=' && line[i] != ' ')
-          var_string += line[i++];
-        i++;
-        while (i < line.size() && line[i] != ' ' && line[i] != '\n')
-          alias += line[i++];
-        if (alias != "" && var_string != "") {
-          try {
-            unsigned var = stoi(var_string);
-            if (var >= _vars.size())
-              var_allocate(var + 1);
-            _observer->set_alias(var, alias);
-          }
-          catch (invalid_argument e) {
-            if (!printed_warning) {
-              LOG_WARNING("The comments starting with \'co\' are interpreted as aliases for variables. The format of the comment should be: \'co <var> <alias>\' with alias a string without spaces");
-              printed_warning = true;
-            }
-            continue;
-          }
+    if (_observer && is_prefix(line, "co")) {
+      // parse the alias name of the variable
+      // the comment should be of the form:
+      // >co <var> <alias>
+      istringstream ss(line);
+      string alias, var_string, rest;
+
+      // does not work with `=` anymore
+      ss.ignore(2);
+      ss >> var_string;
+      ss >> alias;
+      ss >> rest;
+
+      if (!var_string.empty() && !alias.empty() && rest.empty()) {
+        try {
+          unsigned var = stoi(var_string);
+          if (var >= _vars.size())
+            var_allocate(var + 1);
+          _observer->set_alias(var, alias);
+          // done, next line
+          continue;
+        }
+        catch (invalid_argument e) {
+          // fall through printing the warning
         }
       }
+      if (!printed_warning) {
+        LOG_WARNING("The comments starting with \'co\' are interpreted as aliases for variables. The format of the comment should be: \'co <var> <alias>\' with alias a string without spaces");
+        printed_warning = true;
+      }
+      // treat it as a regular comment, continue
       continue;
     }
-    if (line[0] == '%')
+    if (is_prefix(line, "c"))
+      continue;
+    if (is_prefix(line, "%"))
       break;
-    if (line.find("p cnf") == 0) {
+    if (is_prefix(line, "p cnf")) {
       unsigned n_var, n_clauses;
       sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
       if (n_var > _vars.size()) {
