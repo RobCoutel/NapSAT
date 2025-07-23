@@ -258,13 +258,17 @@ Tlit* napsat::NapSAT::graph_replacement(Tlit* lits, unsigned size)
   Tlit* end = lits + size;
   Tlit* top_element = lits + 1;
   Tlit* k = lits + 1;
-  const bitvector* top_elem_chunk = &lit_chunks(lits[1]);
+  /**
+   * We are searching for a top element of the lattice. This is expensive.
+   * Instead, we search for the biggest chunk set. Which is necessarily a top element.
+   */
+  unsigned chunk_size = lit_chunks(*top_element).count_non_zero();
   while (++k < end) {
     ASSERT(lit_false(*k));
-    const bitvector* dep = &lit_chunks(*k);
-    if (*dep > *top_elem_chunk) {
+    unsigned dep_size = lit_chunks(*k).count_non_zero();
+    if (dep_size > chunk_size) {
       top_element = k;
-      top_elem_chunk = dep;
+      chunk_size = dep_size;
     }
   }
   return top_element;
@@ -615,6 +619,10 @@ Tclause NapSAT::propagate_lit(Tlit lit)
         lits[0] ^= lits[1];
         lits[1] ^= lits[0];
         // also swap the next watched clause
+      }
+      if (_options.graph_backtracking) {
+        lit_cross_chunks(lits[0]) |= (lit_chunks(lits[1]) - lit_chunks(lits[0]));
+        lit_cross_chunks(lits[1]) |= (lit_chunks(lits[0]) - lit_chunks(lits[1]));
       }
       ASSERT_MSG(lit_level(lits[0]) >= lit_level(lits[1]),
         "Conflict: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
@@ -1630,8 +1638,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       return cl;
     }
     if (lit_false(lits[0])) {
-      if (_status == SAT)
-        _status = UNDEF;
       repair_conflict(cl);
     }
     return cl;
