@@ -16,12 +16,12 @@
 #include "SAT-config.hpp"
 #include "../utils/printer.hpp"
 
-#include <typeinfo>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <cassert>
 #include <cmath>
+#include <algorithm>
 
 #ifdef __unix__
 #include <sys/ioctl.h> //ioctl() and TIOCGWINSZ
@@ -58,6 +58,21 @@ long unsigned napsat::gui::observer::hash_clause(const std::vector<napsat::Tlit>
     seed ^= x + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
   return seed;
+}
+
+static void update_terminal_width() {
+#ifdef __unix__
+  struct winsize size;
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+  short int width = size.ws_col;
+  if (width > 0)
+    TERMINAL_WIDTH = size.ws_col;
+#endif
+#ifdef _WIN32
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+    TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#endif
 }
 
 napsat::gui::observer::observer(napsat::options& options) : _options(options)
@@ -123,17 +138,8 @@ bool observer::notify(notification* notification)
   }
 
   // print the statistics
-  if (_options.print_live_stats && level < 3) {
-#ifdef __unix__
-      struct winsize size;
-      ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-      TERMINAL_WIDTH = size.ws_col;
-#endif
-#ifdef _WIN32
-      CONSOLE_SCREEN_BUFFER_INFO csbi;
-      GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-      TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-#endif
+  if (_options.print_stats && level < 3) {
+    update_terminal_width();
     string s = get_statistics();
     vector<string> lines;
     unsigned last_line_end = 0;
@@ -308,7 +314,7 @@ void napsat::gui::observer::notify_checkpoint()
   _display->notify_checkpoint();
 }
 
-void napsat::gui::observer::load_commands(std::string filename)
+void napsat::gui::observer::load_commands(const std::string& filename)
 {
   ifstream file(filename);
   if (!file.is_open()) {
@@ -322,12 +328,12 @@ void napsat::gui::observer::load_commands(std::string filename)
   file.close();
 }
 
-void napsat::gui::observer::set_command_parser(command_parser parser)
+void napsat::gui::observer::set_command_parser(const command_parser &parser)
 {
   _command_parser = parser;
 }
 
-bool napsat::gui::observer::transmit_command(std::string command)
+bool napsat::gui::observer::transmit_command(const std::string &command)
 {
   assert(_command_parser);
   return _command_parser(command);
@@ -434,7 +440,7 @@ std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> napsat
   for (clause* cl_ptr : _active_clauses) {
     if (cl_ptr && cl_ptr->active) {
       assert(cl_ptr->cl == cl);
-      to_return.push_back(make_pair(cl, &cl_ptr->literals));
+      to_return.emplace_back(cl, &cl_ptr->literals);
     }
     cl++;
   }
@@ -455,7 +461,7 @@ std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
     s += RED;
 
   // the literal
-  if (_variables[var].alias == "")
+  if (_variables[var].alias.empty())
     s += std::to_string(lit_to_int(lit));
   else if (lit_pol(lit))
     s += _variables[var].alias;
@@ -583,16 +589,7 @@ std::string napsat::gui::observer::clause_to_string(Tclause cl)
 
 void napsat::gui::observer::print_clause_set()
 {
-#ifdef __unix__
-  struct winsize size;
-  ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-  TERMINAL_WIDTH = size.ws_col;
-#endif
-#ifdef _WIN32
-  CONSOLE_SCREEN_BUFFER_INFO csbi;
-  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-  TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-#endif
+  update_terminal_width();
 
   // generate and store the clauses' strings
   vector<string> clauses_str;
@@ -606,7 +603,7 @@ void napsat::gui::observer::print_clause_set()
     clauses_str.push_back(clause_str);
   }
 
-  if (clauses_str.size() == 0) {
+  if (clauses_str.empty()) {
     cout << "No clauses to print" << endl;
     return;
   }
@@ -653,17 +650,9 @@ void napsat::gui::observer::print_deleted_clauses()
 
 void napsat::gui::observer::print_assignment()
 {
-#ifdef __unix__
-  struct winsize size;
-  ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-  TERMINAL_WIDTH = size.ws_col;
-#endif
-#ifdef _WIN32
-  CONSOLE_SCREEN_BUFFER_INFO csbi;
-  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-  TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-#endif
-  cout << "trail : " << _n_propagated << "\n";
+  update_terminal_width();
+
+  cout << "trail :\n";
 
   unsigned max_n_digits_level = 1;
   Tlevel max_level = _decision_level;
@@ -703,16 +692,7 @@ void napsat::gui::observer::print_assignment()
 
 void napsat::gui::observer::print_variables()
 {
-#ifdef __unix__
-  struct winsize size;
-  ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-  TERMINAL_WIDTH = size.ws_col;
-#endif
-#ifdef _WIN32
-  CONSOLE_SCREEN_BUFFER_INFO csbi;
-  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-  TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-#endif
+  update_terminal_width();
 
   vector<string> variables_str;
   unsigned max_var_str_length = 0;
@@ -722,6 +702,11 @@ void napsat::gui::observer::print_variables()
     string variable_str = variable_to_string(var);
     max_var_str_length = max(max_var_str_length, string_length_escaped(variable_str));
     variables_str.push_back(variable_str);
+  }
+
+  if (variables_str.empty()) {
+    cout << "No variables to print" << endl;
+    return;
   }
 
   // add 3 spaces for the variables to be separated

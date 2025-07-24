@@ -26,11 +26,13 @@ using namespace napsat::gui;
 using namespace std;
 
 #ifndef NDEBUG
-#define ASSERT_OBS(notif, x) \
-if (!(x)) { \
-  LOG_ERROR("Assertion failed: " << #x << " in notification " << notif->get_message()); \
-  return false; \
-}
+#define ASSERT_OBS(notif, x)     \
+do {                             \
+  if (!(x)) {                    \
+    LOG_ERROR("Assertion failed: " << #x << " in notification " << (notif)->get_message()); \
+    return false;                \
+  }                              \
+}while(0)
 #else
 #define ASSERT_OBS(this, x) assert(x)
 #endif

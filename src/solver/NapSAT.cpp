@@ -294,7 +294,7 @@ Tlit* napsat::NapSAT::advanced_replacement(Tlit* lits, unsigned size)
   Tlevel high_lvl = lit_level(lits[1]);
   Tlit* high_lit = lits + 1;
   while (k < end) {
-    ASSERT(lit_false(*k))
+    ASSERT(lit_false(*k));
     if (lit_level(*k) > high_lvl) {
       // in non-chronological backtracking, the watched literals are always at the highest level
       ASSERT(_options.chronological_backtracking);
@@ -885,7 +885,7 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
 
 Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size)
 {
-  ASSERT(!_options.graph_backtracking)
+  ASSERT(!_options.graph_backtracking);
 #ifndef NDEBUG
   // The first literal of the clause is at the highest level
   for (unsigned i = 1; i < size; i++) {
@@ -1723,7 +1723,6 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 #endif
 
   _vars.resize(1);
-  var_allocate(n_var + 1);
   _trail = vector<Tlit>();
   _trail.reserve(n_var);
   _watch_lists.resize(2 * n_var + 2);
@@ -1732,8 +1731,9 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _clauses.reserve(n_clauses);
   _activities.reserve(n_clauses);
 
-  _literal_buffer = new Tlit[n_var];
+  _literal_buffer = new Tlit[n_var+1];
   _next_literal_index = 0;
+  var_allocate(n_var + 1);
 
   if (options.build_proof)
     _proof = new napsat::proof::resolution_proof();
@@ -1868,6 +1868,7 @@ status NapSAT::get_status()
 
 bool NapSAT::decide()
 {
+  ASSERT(!_variable_heap.contains(0));
   while (!_variable_heap.empty() && !var_undef(_variable_heap.top()))
     _variable_heap.pop();
   if (_variable_heap.empty()) {
@@ -1993,13 +1994,13 @@ const std::vector<Tlit>& NapSAT::trail() const
 void napsat::NapSAT::print_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT)
+  ASSERT(_status == UNSAT);
   _proof->print_proof();
 }
 
 bool napsat::NapSAT::check_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT)
+  ASSERT(_status == UNSAT);
   return _proof->check_proof();
 }

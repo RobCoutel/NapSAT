@@ -156,7 +156,7 @@ namespace napsat::gui
     /**
      * @brief Hash function for clauses.
      */
-    long unsigned hash_clause(const std::vector<napsat::Tlit>& literals);
+    static long unsigned hash_clause(const std::vector<napsat::Tlit>& literals);
 
     /**
      * @brief List of commands to be executed when the observer receives a checkpoint.
@@ -329,7 +329,7 @@ namespace napsat::gui
      * @brief Reads commands from a file and stores them in the observer.
      * When the "notify_checkpoint" command is reached, the observer will send one command to the solver and wait for the next checkpoint. When the command buffer is empty, the observer will get back to its normal behavior.
      */
-    void load_commands(std::string filename);
+    void load_commands(const std::string& filename);
 
     /**
      * @brief Set the command parser function.
@@ -337,7 +337,7 @@ namespace napsat::gui
      * @param parser The command parser function.
      * @details if no checkpoint is sent, the command parser is not called and does not need to be set.
      */
-    void set_command_parser(command_parser parser);
+    void set_command_parser(const command_parser &parser);
 
     /**
      * @brief Send a command to the solver through the command parser.
@@ -345,7 +345,7 @@ namespace napsat::gui
      * @return true if the command was successfully parsed, and false otherwise.
      * @pre The command parser must be set.
      */
-    bool transmit_command(std::string command);
+    bool transmit_command(const std::string &command);
 
     /**  Saving and loading executions  **/
     /**

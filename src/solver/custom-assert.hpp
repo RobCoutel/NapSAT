@@ -18,27 +18,31 @@
 
 #ifndef NDEBUG
 #if OBSERVED_ASSERTS && USE_OBSERVER
-#define ASSERT(cond)                                                \
-  if (_observer) {                                                  \
+#define ASSERT(cond) \
+  do {                                                              \
+    if (_observer) {                                                \
+      if (!(cond))  {                                               \
+        NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
+        assert(cond);                                               \
+      }                                                             \
+    } else {                                                        \
+      assert(cond);                                                 \
+    }                                                               \
+  } while(0)
+
+#define ASSERT_MSG(cond, msg) \
+  do {                                                              \
     if (!(cond))  {                                                 \
+      LOG_ERROR( "MESSAGE: " << msg );                              \
       NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
       assert(cond);                                                 \
     }                                                               \
-  } else {                                                          \
-    assert(cond);                                                   \
-  }
-
-#define ASSERT_MSG(cond, msg)                                       \
-  if (!(cond))  {                                                   \
-    LOG_ERROR( "MESSAGE: " << msg );                                          \
-    NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
-    assert(cond);                                                 \
-  }
+  } while(0)
 #else
 #define ASSERT(cond) assert(cond);
 #define ASSERT_MSG(cond, msg) assert(cond);
 #endif
 #else
-#define ASSERT(cond)
-#define ASSERT_MSG(cond, msg)
+#define ASSERT(cond)           ((void)0)
+#define ASSERT_MSG(cond, msg)  ((void)0)
 #endif
