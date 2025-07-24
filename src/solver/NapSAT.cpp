@@ -629,7 +629,6 @@ void NapSAT::analyze_conflict(Tclause conflict)
   ASSERT(!_writing_clause);
   // Number of literals at level conflict_level marked in the trail
   unsigned count = 0;
-  unsigned i = _trail.size() - 1;
   Tclause cl = conflict;
 
   if (_proof)
@@ -645,6 +644,8 @@ void NapSAT::analyze_conflict(Tclause conflict)
   // This does nothing in non-chronological backtracking
   ASSERT(_options.chronological_backtracking || conflict_level == solver_level());
   backtrack(conflict_level);
+
+  unsigned i = _trail.size() - 1;
 
   // Variable used to determine the first literal from the clause that should be added to the learned clause
   // This is used to avoid adding the satisfied literal of the reason to the learned clause
@@ -679,6 +680,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
         _proof->link_resolution(lit, lit_reason(lit));
     }
 
+    ASSERT(i < _trail.size());
     while (!lit_seen(_trail[i]) || lit_level(_trail[i]) != conflict_level) {
       ASSERT(i > 0);
       i--;
@@ -1244,7 +1246,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   }
 #endif
 
-  var_allocate(n_var + 1);
+  _vars.resize(1);
   _trail = vector<Tlit>();
   _trail.reserve(n_var);
   _watch_lists.resize(2 * n_var + 2);
@@ -1253,8 +1255,9 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _clauses.reserve(n_clauses);
   _activities.reserve(n_clauses);
 
-  _literal_buffer = new Tlit[n_var];
+  _literal_buffer = new Tlit[n_var+1];
   _next_literal_index = 0;
+  var_allocate(n_var + 1);
 
   if (options.build_proof)
     _proof = new napsat::proof::resolution_proof();
@@ -1377,6 +1380,7 @@ status NapSAT::get_status()
 
 bool NapSAT::decide()
 {
+  ASSERT(!_variable_heap.contains(0));
   while (!_variable_heap.empty() && !var_undef(_variable_heap.top()))
     _variable_heap.pop();
   if (_variable_heap.empty()) {
@@ -1506,13 +1510,13 @@ Tlevel NapSAT::decision_level() const
 void napsat::NapSAT::print_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT)
+  ASSERT(_status == UNSAT);
   _proof->print_proof();
 }
 
 bool napsat::NapSAT::check_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT)
+  ASSERT(_status == UNSAT);
   return _proof->check_proof();
 }
