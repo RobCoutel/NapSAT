@@ -26,6 +26,7 @@
 #include <map>
 #include <set>
 #include <unordered_map>
+#include <chrono>
 
 namespace napsat::gui
 {
@@ -208,6 +209,11 @@ namespace napsat::gui
      * @note We start at one such that is is simpler for the calling LaTeX code to use loops (sync with \only<i>)
      */
     unsigned file_number = 1;
+
+    /**
+     * @brief The time when the observer was created.
+     */
+    std::chrono::time_point<std::chrono::high_resolution_clock> _creation_time;
 
   public:
     /**

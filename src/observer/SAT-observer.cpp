@@ -22,6 +22,7 @@
 #include <cassert>
 #include <cmath>
 #include <algorithm>
+#include <ctime>
 
 #ifdef __unix__
 #include <sys/ioctl.h> //ioctl() and TIOCGWINSZ
@@ -111,6 +112,8 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
       LOG_ERROR("The folder \"" + options.save_folder + "\" could not be created.");
     }
   }
+
+  _creation_time = chrono::high_resolution_clock::now();
 }
 
 napsat::gui::observer::observer(const observer& other) : _options(other._options)
@@ -138,7 +141,7 @@ bool observer::notify(notification* notification)
   }
 
   // print the statistics
-  if (_options.print_stats && level < 3) {
+  if (_options.print_live_stats && level < 3) {
     update_terminal_width();
     string s = get_statistics();
     vector<string> lines;
@@ -188,6 +191,8 @@ bool observer::notify(notification* notification)
 std::string observer::get_statistics()
 {
   string s = "";
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _creation_time);
+  s += "c Time: " + pretty_time(duration) + "\n";
   s += "c Core Statistics:\n";
   s += "c  - Notifications: " + pretty_integer(_n_notifications) + "\n";
   if(!_stats_only) {
