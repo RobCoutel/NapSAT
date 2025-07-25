@@ -54,8 +54,16 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       return false;
     }
     stream = istringstream(decompressed_data.str());
-  }
-  else {
+  } else if (string(filename).substr(string(filename).size() - 4) == ".bz2") {
+    // create a virtual file and read the content of the compressed file
+    ostringstream decompressed_data;
+    if (!decompress_bz2(filename, decompressed_data)) {
+      LOG_ERROR("The file " << filename << " could not be decompressed.");
+      _status = ERROR;
+      return false;
+    }
+    stream = istringstream(decompressed_data.str());
+  } else {
     ifstream file = ifstream(filename);
     if (!file.is_open()) {
       LOG_ERROR("The file " << filename << " could not be opened.");
@@ -113,7 +121,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
         unsigned n_var, n_clauses;
         sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
         if (n_var > _vars.size()) {
-          cout << "Allocating " << n_var << " variables" << endl;
+          cout << "Allocating " << n_var << " variables and " << n_clauses << " clauses." << endl;
         var_allocate(n_var);
       }
       // we ignore the number of clauses

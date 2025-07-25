@@ -25,7 +25,7 @@ MODULES :=
 
 INC_DIRS += ./include/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
-LINK_FLAGS := -llzma
+LINK_FLAGS := -llzma -lbz2
 TEST_LINK_FLAGS := -lCatch2Main -lCatch2
 
 CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
