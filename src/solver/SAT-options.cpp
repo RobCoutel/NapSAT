@@ -143,6 +143,8 @@ napsat::options::options(vector<string>& tokens)
     {"--lazy-strong-chronological-backtracking", &lazy_strong_chronological_backtracking},
     {"-gb",                                      &graph_backtracking},
     {"--graph-backtracking",                     &graph_backtracking},
+    {"-bsc",                                     &backtrack_smallest_chunk},
+    {"--backtrack-smallest-chunk",               &backtrack_smallest_chunk},
     {"-o",                                       &observing},
     {"--observing",                              &observing},
     {"-i",                                       &interactive},
@@ -173,9 +175,6 @@ napsat::options::options(vector<string>& tokens)
     {"--clause-activity-multiplier",      &clause_activity_multiplier},
     {"--clause-activity-threshold-decay", &clause_activity_threshold_decay},
     {"--var-activity-decay",              &var_activity_decay},
-    {"--agility-decay",                   &agility_decay},
-    {"--agility-threshold",               &agility_threshold},
-    {"--agility-threshold-decay",         &agility_threshold_decay}
   };
 
   /**

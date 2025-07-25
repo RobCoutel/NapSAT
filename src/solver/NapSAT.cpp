@@ -72,9 +72,6 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   svar.propagated = false;
   svar.reason = reason;
 
-  _agility *= _options.agility_decay;
-  _options.agility_threshold *= _options.threshold_multiplier;
-
   if (reason == CLAUSE_UNDEF) {
     // Decision
     _decision_index.push_back(_trail.size() - 1);
@@ -85,8 +82,9 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         ASSERT(_chunks.size() == _n_allocated_chunks);
         _chunks.resize(_n_allocated_chunks * 2);
 
-        for (Tchunk i = 0; i < _n_allocated_chunks; i++) {
-          _free_chunks.push_back(i + _n_allocated_chunks);
+        for (Tchunk i = 1; i <= _n_allocated_chunks; i++) {
+          _free_chunks.push_back(2*_n_allocated_chunks - i);
+          NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Allocated Chunk"));
         }
         _n_allocated_chunks *= 2;
         // resize the chunk sets of the variables
@@ -123,10 +121,9 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         }
 
         // compute the chunks and cross-chunks of the variable
-        bitvector& chunks = svar.chunks;
-        ASSERT(chunks.empty());
+        ASSERT(svar.chunks.empty());
         for (unsigned i = 1; i < _clauses[reason].size; i++) {
-          chunks |= lit_chunks(_clauses[reason].lits[i]);
+          svar.chunks |= lit_chunks(_clauses[reason].lits[i]);
         }
         if (_clauses[reason].size > 2) {
           Tlit other_watched = _clauses[reason].lits[1];
@@ -166,8 +163,6 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   }
 
   // phase caching
-  if (lit_pol(lit) != svar.phase_cache)
-    _agility += 1 - _options.agility_decay;
   svar.phase_cache = lit_pol(lit);
 
   if (svar.level == LEVEL_ROOT) {
@@ -201,6 +196,8 @@ void NapSAT::var_unassign(Tvar var)
         if (_chunks[i].weight == 0) {
           ASSERT(v.reason == CLAUSE_UNDEF);
           _free_chunks.push_back(i);
+          // sort in descending order to keep the smallest chunk at the end
+          sort(_free_chunks.begin(), _free_chunks.end(), std::greater<Tchunk>());
           _chunks[i].decision = LIT_UNDEF;
         }
       }
@@ -907,6 +904,7 @@ Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned siz
 }
 
 Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
+  // cout << "Choosing analyzed chunk for conflict: " << clause_to_string(conflict) << endl;
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(_options.graph_backtracking);
   Tlit* lits = _clauses[conflict].lits;
@@ -914,6 +912,9 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
   ASSERT(_clauses[conflict].size > 0);
   unsigned min_chunk_weight = UINT32_MAX;
   Tchunk min_chunk = CHUNK_UNDEF;
+
+  Tchunk smallest_chunk = CHUNK_UNDEF;
+  unsigned smallest_chunk_weight = UINT32_MAX;
 
   for (unsigned i = 0; i < _clauses[conflict].size; i++) {
     Tlit lit = lits[i];
@@ -924,10 +925,44 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
         continue;
       seen_chunks[chunk] = true;
       ASSERT(_chunks[chunk].weight > 0);
-      if (_chunks[chunk].weight < min_chunk_weight) {
-        min_chunk_weight = _chunks[chunk].weight;
-        min_chunk = chunk;
+      if (!_options.backtrack_smallest_chunk) {
+        if (_chunks[chunk].weight < min_chunk_weight) {
+          min_chunk_weight = _chunks[chunk].weight;
+          min_chunk = chunk;
+        }
+      } else {
+        // perform conflict analysis and check the length of the learned clause
+        // first, load the conflict clause in the _literal_buffer
+        ASSERT(_next_literal_index > 0);
+        // then, analyze the conflict at the current chunk
+        // save the proof system, and disable it
+        proof::resolution_proof* p = _proof;
+        _proof = nullptr;
+        analyze_conflict_level(var_level(_chunks[chunk].decision));
+        // restore the proof system
+        _proof = p;
+        if (_next_literal_index < min_chunk_weight) {
+          min_chunk_weight = _next_literal_index;
+          min_chunk = chunk;
+        }
+        if (smallest_chunk == CHUNK_UNDEF
+        || _chunks[smallest_chunk].weight > _chunks[chunk].weight) {
+          smallest_chunk = chunk;
+          smallest_chunk_weight = _next_literal_index;
+        }
+        // the analysis destroyed the clause.
+        // put the literals back in the _literal_buffer
+        for (unsigned k = 0; k < _clauses[conflict].size; k++) {
+          _literal_buffer[k] = lits[k];
+        }
+        _next_literal_index = _clauses[conflict].size;
+
       }
+    }
+  }
+  if (_options.backtrack_smallest_chunk) {
+    for (unsigned i = min_chunk_weight; i < smallest_chunk_weight; i++) {
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Literal saved"));
     }
   }
   return min_chunk;
@@ -956,7 +991,8 @@ bool napsat::NapSAT::analyzed_level_or_chunk(Tlit lit, Tlevel level, Tchunk chun
 void NapSAT::analyze_conflict_level(Tlevel level) {
   // Computes the UIP at a given level
   // We assume that the level is a top level of the clause. That is, the level is is not reachable from a literal l at a higher level in the clause.
-  ASSERT(level <= solver_level());
+  ASSERT_MSG(level <= solver_level(),
+             "Analyzing conflict at level " + to_string(level) + " but current level is " + to_string(solver_level()));
 
 #ifndef NDEBUG
   // check that all variables are unmarked
@@ -1427,6 +1463,7 @@ void NapSAT::repair_conflict(Tclause conflict)
     // we need to imply the literal
     imply_literal(_clauses[conflict].lits[0], conflict);
   } else {
+    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Learned clause: "));
     Tclause learned = internal_add_clause(_literal_buffer, _next_literal_index, true, false);
 
     if (_proof)
@@ -1442,8 +1479,6 @@ void NapSAT::repair_conflict(Tclause conflict)
 
 void NapSAT::restart()
 {
-  _agility = 1;
-  _options.agility_threshold *= _options.agility_threshold_decay;
   backtrack(LEVEL_ROOT);
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
 }
@@ -1647,8 +1682,10 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     // clause->watched = false;
     _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
     _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
+#if NOTIFY_WATCH_CHANGES
     NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
     NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
+#endif
     if (lit_false(lits[0]) && !lit_false(lits[1])) {
       // swap the literals so that the false literal is at the second position
       lits[1] = lits[0] ^ lits[1];
@@ -1806,8 +1843,9 @@ bool NapSAT::propagate()
     repair_conflict(conflict);
     if (_status == UNSAT)
       return false;
-    if (_agility < _options.agility_threshold)
-      restart();
+    if (_luby_counter.increment()) {
+        restart();
+    }
   }
   if (_trail.size() == _vars.size() - 1) {
     _status = SAT;

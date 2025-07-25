@@ -84,9 +84,6 @@ TEST_CASE("BitVector bitwise local or", "[bitvector]") {
   bv2.set(2, true);
   bv2.set(3, true);
 
-  std::cout << "bv1: " << bv1.to_string() << std::endl;
-  std::cout << "bv2: " << bv2.to_string() << std::endl;
-
   bv1 |= bv2;
 
   REQUIRE(bv1.get(0) == false);
@@ -94,9 +91,6 @@ TEST_CASE("BitVector bitwise local or", "[bitvector]") {
   REQUIRE(bv1.get(2) == true);
   REQUIRE(bv1.get(3) == true);
   REQUIRE(bv1.get(4) == false);
-
-  std::cout << "bv1: " << bv1.to_string() << std::endl;
-  std::cout << "bv2: " << bv2.to_string() << std::endl;
 }
 
 TEST_CASE("BitVector bitwise local or 2", "[bitvector]") {
@@ -105,9 +99,6 @@ TEST_CASE("BitVector bitwise local or 2", "[bitvector]") {
   bv2.set(2, true);
   bv2.set(3, true);
 
-  std::cout << "bv1: " << bv1.to_string() << std::endl;
-  std::cout << "bv2: " << bv2.to_string() << std::endl;
-
   bv1 |= bv2;
 
   REQUIRE(bv1.get(0) == false);
@@ -115,9 +106,6 @@ TEST_CASE("BitVector bitwise local or 2", "[bitvector]") {
   REQUIRE(bv1.get(2) == true);
   REQUIRE(bv1.get(3) == true);
   REQUIRE(bv1.get(4) == false);
-
-  std::cout << "bv1: " << bv1.to_string() << std::endl;
-  std::cout << "bv2: " << bv2.to_string() << std::endl;
 }
 
 TEST_CASE("BitVector bitwise and", "[bitvector]") {

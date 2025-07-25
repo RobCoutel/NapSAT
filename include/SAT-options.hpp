@@ -162,6 +162,13 @@ namespace napsat
     bool graph_backtracking = false;
 
     /**
+     * @brief Enables the solver to search the smallest UIP and choose the backtracked chunk accordingly.
+     * @requires -gb is true
+     * @alias -bsc
+     */
+    bool backtrack_smallest_chunk = false;
+
+    /**
      * @brief Enables the solver to delete learned clauses.
      * @alias -del
     */
@@ -275,30 +282,6 @@ namespace napsat
      * @requires 0 < decay < 1
      */
     double clause_activity_threshold_decay = 0.85;
-
-    /** RESTARTS **/
-    /**
-     * @brief Decay factor the of moving average of the agility.
-     * @requires 0 < decay < 1
-     */
-    double agility_decay = 0.9999;
-
-    /**
-     * @brief Threshold of the agility. If the agility is lower than the threshold, the solver restarts and the the threshold is multiplied by agility_threshold_decay.
-     * @requires 0 < threshold < 1
-     */
-    double agility_threshold = 0.4;
-
-    /**
-      * @brief Multiplier for the agility threshold. Since formulas can be very different, the agility for one problem may not be the same as the agility for another problem. Therefore, the threshold is multiplied by the threshold multiplier upon each implication. This hyper parameter must be set to a value greater than 1.
-      * @requires multiplier >= 1
-      */
-    double threshold_multiplier = 1;
-    /**
-     * @brief Decay factor of the threshold. If the solver restarts too often, the solver will not make progress. Therefore, the threshold is multiplied by the threshold decay factor upon each restart. This hyper parameter must be set to a value lower than 1 and lower than 2 - threshold_multiplier.
-     * @requires 0 < decay < 1
-     */
-    double agility_threshold_decay = 1;
 
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.

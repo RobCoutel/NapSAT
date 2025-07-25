@@ -102,6 +102,7 @@
 #include "../utils/printer.hpp"
 #include "../utils/heap.hpp"
 #include "../utils/bitvector.hpp"
+#include "../utils/luby-counter.hpp"
 #include "../observer/SAT-notification.hpp"
 #include "../observer/SAT-observer.hpp"
 
@@ -478,24 +479,11 @@ namespace napsat
 
     /**  RESTART AGILITY  **/
     /**
-     * @brief Progress metric of the solver
-     * @details The agility measures a moving average of the number of flips of
-     * polarity for literals.
-     * If the agility is high, the solver is making a lot of progress and
-     * changes the polarity of literals often.
-     * If the agility is low, the solver is not making much progress and
-     * changes the polarity of literals rarely.
-     * This metric is used to decide when to restart the solver.
-     * @details The agility is updated upon implying a literal with the
-     * following formula:
-     * agility = agility * _agility_decay + (1 - _agility_decay) * change_of_polarity
-     * where change_of_polarity is 1 if the polarity of the literal is changed,
-     * 0 otherwise.
-     * @details The idea is inspired by [2008 - Biere, Armin. "Adaptive restart
-     * strategies for conflict driven SAT solvers."]
-     * TODO Check if there is not a limit to the decay factor such that it is not possible to finish propagating all literals. It probably depends on the threshold decay factor too.
+     * @brief Counter to determine when is the next restart
+     * @details The counter is incremented at each conflict. When the counter
+     * reaches the next element in the luby sequence, the solver restarts.
      */
-    double _agility = 1;
+    luby_counter _luby_counter;
 
     /**  PURGE  **/
     /**
