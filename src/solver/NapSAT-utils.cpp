@@ -336,6 +336,9 @@ void NapSAT::print_trail()
     }
     cout << " (" << lit_chunks(lit).to_string() << ")";
     cout << " / (" << lit_cross_chunks(lit).to_string() << ")";
+    if (lit_propagated(lit)) {
+      cout << " (propagated)";
+    }
     cout << "\n";
   }
   cout << "\n";
