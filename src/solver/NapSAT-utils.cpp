@@ -234,7 +234,7 @@ unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
   // We can however approximate the utility with the number of non-zero chunks of the literal.
   unsigned level_weight = lit_level(lit);
   if (_options.graph_backtracking) {
-    level_weight = lit_chunks(lit).count_non_zero();
+    level_weight = lit_chunks(lit).count();
   }
   return (lit_true(lit) * (2 * solver_level() - level_weight + 1))
        + (lit_undef(lit) * (solver_level() + 1))

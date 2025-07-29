@@ -67,6 +67,10 @@ The options are the following:
     the highest level in the conflict clause.
     Requires: -cb, -wcb, -rscb and -lscb are false
 
+  -bsc or --backtrack-smallest-chunk <bool = off>
+    Enables the solver to search the smallest UIP and choose the backtracked chunk accordingly.
+    Requires: -gb is true
+
   -del or --delete-clauses <bool = on>
     Enables the solver to delete learned clauses.
 
@@ -142,30 +146,6 @@ The options are the following:
     Decay factor  of the clause  activity  threshold.  If the solver deletes  too many clauses,  the
     solver will not make progress.  Therefore,  the threshold  is multiplied  by the threshold decay
     factor upon each clause deletion. This hyper parameter must be set to a value lower than 1.
-    Requires: 0 < decay < 1
-
-********************************************* RESTARTS *********************************************
-  --agility-decay <double = 0.9999>
-    Decay factor the of moving average of the agility.
-    Requires: 0 < decay < 1
-
-  --agility-threshold <double = 0.4>
-    Threshold  of the agility.  If the agility is lower than the threshold,  the solver restarts and
-    the the threshold is multiplied by agility_threshold_decay.
-    Requires: 0 < threshold < 1
-
-  --threshold-multiplier <double = 1>
-    Multiplier  for the agility threshold. Since formulas can be very different, the agility for one
-    problem  may not be the same as the agility  for another problem.  Therefore,  the threshold  is
-    multiplied  by the threshold multiplier upon each implication.  This hyper parameter must be set
-    to a value greater than 1.
-    Requires: multiplier >= 1
-
-  --agility-threshold-decay <double = 1>
-    Decay  factor  of the threshold.  If the solver  restarts  too often,  the solver will not make
-    progress.  Therefore,  the threshold  is multiplied  by the threshold decay  factor  upon  each
-    restart.  This  hyper  parameter  must  be set  to a value  lower  than  1 and  lower than 2 -
-    threshold_multiplier.
     Requires: 0 < decay < 1
 
 ****************************************************************************************************

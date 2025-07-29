@@ -274,6 +274,12 @@ napsat::options::options(vector<string>& tokens)
     chronological_backtracking = false;
   }
 
+  if (backtrack_smallest_chunk && !graph_backtracking) {
+    LOG_WARNING("backtrack smallest chunk requires graph backtracking.");
+    LOG_WARNING("The solver will ignore this option.");
+    backtrack_smallest_chunk = false;
+  }
+
   if (clause_activity_threshold_decay <= 0 || clause_activity_threshold_decay >= 1) {
     LOG_ERROR("clause activity threshold decay must be between 0 and 1.");
     exit(1);

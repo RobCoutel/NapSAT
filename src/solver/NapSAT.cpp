@@ -94,6 +94,10 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         }
       }
       Tchunk chunk_number = _free_chunks.back();
+      ASSERT (_n_allocated_chunks == _chunks.size());
+      ASSERT_MSG(chunk_number < _n_allocated_chunks,
+        "Chunk number: " + std::to_string(chunk_number) +
+        "\nNumber of allocated chunks: " + std::to_string(_n_allocated_chunks));
       _free_chunks.pop_back();
       svar.chunks.set(chunk_number, true);
       _chunks[chunk_number].weight = 1;
@@ -127,15 +131,8 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         }
         if (_clauses[reason].size > 2) {
           Tlit other_watched = _clauses[reason].lits[1];
-          bitvector& cross_chunks = lit_cross_chunks(other_watched);
-          cross_chunks |= svar.chunks - lit_chunks(_clauses[reason].lits[1]);
-        }
-
-        // update the size of the chunk
-        for (Tchunk chunk = 0; chunk < _n_allocated_chunks; chunk++) {
-          if (svar.chunks[chunk]) {
-            _chunks[chunk].weight++;
-          }
+          bitset& cross_chunks = lit_cross_chunks(other_watched);
+          cross_chunks |= svar.chunks;
         }
       } else {
         svar.level = lit_level(_clauses[reason].lits[1]);
@@ -144,8 +141,8 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
       // check that the second literal is at the highest level
       if (_options.graph_backtracking) {
         for (unsigned i = 2; i < _clauses[reason].size; i++) {
-          bitvector& lit_chunk = lit_chunks(_clauses[reason].lits[i]);
-          bitvector& svar_chunks = svar.chunks;
+          bitset& lit_chunk = lit_chunks(_clauses[reason].lits[i]);
+          bitset& svar_chunks = svar.chunks;
           ASSERT_MSG(!(lit_chunk > svar_chunks),
             "Literal: " + lit_to_string(_clauses[reason].lits[i]) +
             "\nReason: " + clause_to_string(reason) +
@@ -189,16 +186,15 @@ void NapSAT::var_unassign(Tvar var)
     _variable_heap.insert(var, v.activity);
 
   if (_options.graph_backtracking) {
-    // decrement the weight of the chunks and reset the value
-    for (Tchunk i = 0; i < v.chunks.size(); i++) {
-      if (v.chunks[i]) {
-        _chunks[i].weight--;
-        if (_chunks[i].weight == 0) {
-          ASSERT(v.reason == CLAUSE_UNDEF);
-          _free_chunks.push_back(i);
-          // sort in descending order to keep the smallest chunk at the end
-          sort(_free_chunks.begin(), _free_chunks.end(), std::greater<Tchunk>());
-          _chunks[i].decision = LIT_UNDEF;
+    if (v.reason == CLAUSE_UNDEF) {
+      ASSERT(v.chunks.count() == 1);
+      for (Tchunk ck = 0; ck < _n_allocated_chunks; ck++) {
+        TSchunk& chunk = _chunks[ck];
+        if (chunk.decision == var) {
+          _free_chunks.push_back(ck);
+          chunk.decision = LIT_UNDEF;
+          chunk.weight = 0;
+          break;
         }
       }
     }
@@ -259,10 +255,10 @@ Tlit* napsat::NapSAT::graph_replacement(Tlit* lits, unsigned size)
    * We are searching for a top element of the lattice. This is expensive.
    * Instead, we search for the biggest chunk set. Which is necessarily a top element.
    */
-  unsigned chunk_size = lit_chunks(*top_element).count_non_zero();
+  unsigned chunk_size = lit_chunks(*top_element).count();
   while (++k < end) {
     ASSERT(lit_false(*k));
-    unsigned dep_size = lit_chunks(*k).count_non_zero();
+    unsigned dep_size = lit_chunks(*k).count();
     if (dep_size > chunk_size) {
       top_element = k;
       chunk_size = dep_size;
@@ -315,16 +311,15 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
         // missed lower implication
         Tlit* lits = _clauses[bin.second].lits;
         if (lits[0] != bin.first) {
-          lits[0] = lits[0] ^ lits[1];
-          lits[1] = lits[0] ^ lits[1];
-          lits[0] = lits[0] ^ lits[1];
+          lits[1] = lits[0];
+          lits[0] = bin.first;
           // no need to update the watch lists because the clause is binary
         }
         reimply_literal(bin.first, bin.second);
       }
       if (_options.graph_backtracking &&
           !(lit_chunks(bin.first) <= lit_chunks(lit))) {
-        lit_cross_chunks(lit) |= (lit_chunks(bin.first) - lit_chunks(lit));
+        lit_cross_chunks(lit) |= lit_chunks(bin.first);
       }
       continue;
     }
@@ -415,7 +410,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * If we have not returned a conflict, at then end of the loop, we will have explored
    * all the clauses watched by ¬ℓ and F* = F. Therefore, we satisfy our contract.
    */
-  const bitvector& chunks_lit = lit_chunks(lit);
+  const bitset& chunks_lit = lit_chunks(lit);
   while (i < end) {
     Tclause cl = *i;
     TSclause& clause = _clauses[cl];
@@ -495,7 +490,9 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     /** TRUE literal **/
     if (lit_true(*replacement)
     && ((!_options.graph_backtracking && replacement_lvl <= lvl)
-     || (_options.graph_backtracking && lit_chunks(*replacement) <= chunks_lit))) {
+     || (_options.graph_backtracking
+      && lit_chunks(*replacement) <= chunks_lit
+      && lit_chunks(*replacement) <= lit_chunks(lits[0])))) {
       /**
        * r ∈ π ∧ δ(r) ≤ δ(c₁)
        * NCB: We know that r ∈ π ⇒ δ(r) ≤ δ(c₁). Therefore after this condition is satisfied in NCB,
@@ -618,8 +615,8 @@ Tclause NapSAT::propagate_lit(Tlit lit)
         // also swap the next watched clause
       }
       if (_options.graph_backtracking) {
-        lit_cross_chunks(lits[0]) |= (lit_chunks(lits[1]) - lit_chunks(lits[0]));
-        lit_cross_chunks(lits[1]) |= (lit_chunks(lits[0]) - lit_chunks(lits[1]));
+        lit_cross_chunks(lits[0]) |= lit_chunks(lits[1]);
+        lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
       }
       ASSERT_MSG(lit_level(lits[0]) >= lit_level(lits[1]),
         "Conflict: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
@@ -693,12 +690,9 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     else {
       // We are in graph backtracking, so we do not need to reimply the literal
       // but we will need to repropagate the literal if one of the other literals in the clause are backtracked
-      bitvector chunks_to_update(_n_allocated_chunks);
       for (unsigned i = 0; i < clause.size; i++) {
-        chunks_to_update |= lit_chunks(lits[i]);
+        lit_cross_chunks(lits[1]) |= lit_chunks(lits[i]);
       }
-      // TODO: the setminus is not necessary, but is good for debugging
-      lit_cross_chunks(lits[1]) |= chunks_to_update - lit_chunks(lits[1]);
     }
     /**
      * We now have in addition that δ(λ(c₂) \ {c₂}) ≤ δ(c₁)
@@ -717,6 +711,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
 
 void napsat::NapSAT::backtrack(Tlevel level)
 {
+  // ASSERT(!_options.graph_backtracking);
   ASSERT_MSG(level <= solver_level(),
              "Backtracking to level " + to_string(level) + " but current level is " + to_string(solver_level()));
   if (level == solver_level())
@@ -770,7 +765,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
   _trail.resize(j);
   _decision_index.resize(level);
 
-  ASSERT_MSG(_options.chronological_backtracking || waiting_count == 0,
+  ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking || waiting_count == 0,
              "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(level) + "\nRestore point: " + to_string(restore_point));
   _propagated_literals = _trail.size() - waiting_count;
   ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking || _propagated_literals == restore_point,
@@ -821,7 +816,7 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
   Tlit* end = i + _trail.size();
   Tlevel decision_counter = LEVEL_ROOT;
   while (i < end) {
-    bitvector& chunks = lit_chunks(*i);
+    bitset& chunks = lit_chunks(*i);
     if (chunks.get(chunk)) {
       // we need to unassign the variable
       _backtracked_variables.push_back(lit_to_var(*i));
@@ -903,34 +898,52 @@ Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned siz
   return lit_level(learned_lits[1]);
 }
 
+static unsigned estimate_backtrack_cost(const Tlit* lits, unsigned size) {
+  return size;
+}
+
 Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
-  // cout << "Choosing analyzed chunk for conflict: " << clause_to_string(conflict) << endl;
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(_options.graph_backtracking);
   Tlit* lits = _clauses[conflict].lits;
   vector<bool> seen_chunks(_n_allocated_chunks, false);
   ASSERT(_clauses[conflict].size > 0);
-  unsigned min_chunk_weight = UINT32_MAX;
-  Tchunk min_chunk = CHUNK_UNDEF;
 
-  Tchunk smallest_chunk = CHUNK_UNDEF;
-  unsigned smallest_chunk_weight = UINT32_MAX;
+  unsigned min_chunk_cost = UINT32_MAX;
+  size_t max_prop_head = 0;
+  Tchunk min_chunk = CHUNK_UNDEF;
 
   for (unsigned i = 0; i < _clauses[conflict].size; i++) {
     Tlit lit = lits[i];
-    bitvector& chunks = lit_chunks(lit);
+    bitset& chunks = lit_chunks(lit);
     for (unsigned j = 0; j < _n_allocated_chunks; j++) {
       Tchunk chunk = Tchunk(j);
-      if (seen_chunks[chunk] || !chunks.get(chunk))
+      if (seen_chunks[chunk] || !chunks[chunk])
         continue;
       seen_chunks[chunk] = true;
       ASSERT(_chunks[chunk].weight > 0);
-      if (!_options.backtrack_smallest_chunk) {
-        if (_chunks[chunk].weight < min_chunk_weight) {
-          min_chunk_weight = _chunks[chunk].weight;
-          min_chunk = chunk;
+
+      size_t new_prop_head = _propagated_literals;
+      // the literal buffer already contains the clause
+      // so we remember the number of literals in the buffer to restore it later
+      size_t old_next_literal_index = _next_literal_index;
+      for (size_t i = 0; i < _trail.size(); i++) {
+        Tlit lit = _trail[i];
+        if (lit_chunks(lit)[chunk]) {
+          _literal_buffer[_next_literal_index++] = lit;
         }
-      } else {
+        if (lit_cross_chunks(lit)[chunk]) {
+          new_prop_head = min(new_prop_head, i);
+        }
+      }
+      unsigned cost = 0;
+      if (!_options.backtrack_smallest_chunk) {
+        cost = _backtrack_cost_estimator(_literal_buffer + old_next_literal_index, _next_literal_index - old_next_literal_index);
+      }
+
+      _next_literal_index = old_next_literal_index; // restore the next literal index
+
+      if (_options.backtrack_smallest_chunk) {
         // perform conflict analysis and check the length of the learned clause
         // first, load the conflict clause in the _literal_buffer
         ASSERT(_next_literal_index > 0);
@@ -941,28 +954,21 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
         analyze_conflict_level(var_level(_chunks[chunk].decision));
         // restore the proof system
         _proof = p;
-        if (_next_literal_index < min_chunk_weight) {
-          min_chunk_weight = _next_literal_index;
-          min_chunk = chunk;
-        }
-        if (smallest_chunk == CHUNK_UNDEF
-        || _chunks[smallest_chunk].weight > _chunks[chunk].weight) {
-          smallest_chunk = chunk;
-          smallest_chunk_weight = _next_literal_index;
-        }
+        cost = _next_literal_index;
+
         // the analysis destroyed the clause.
         // put the literals back in the _literal_buffer
         for (unsigned k = 0; k < _clauses[conflict].size; k++) {
           _literal_buffer[k] = lits[k];
         }
         _next_literal_index = _clauses[conflict].size;
-
       }
-    }
-  }
-  if (_options.backtrack_smallest_chunk) {
-    for (unsigned i = min_chunk_weight; i < smallest_chunk_weight; i++) {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Literal saved"));
+      if (cost < min_chunk_cost
+      || (cost == min_chunk_cost && new_prop_head > max_prop_head)) {
+        min_chunk = chunk;
+        min_chunk_cost = cost;
+        max_prop_head = new_prop_head;
+      }
     }
   }
   return min_chunk;
@@ -1408,7 +1414,7 @@ void NapSAT::repair_conflict(Tclause conflict)
     // We need to ensure that it becomes the second watched literal
     Tlit* end = lits + _clauses[conflict].size;
     Tlit* high_lit = lits + 1;
-    // TODO: In graph backtracking, we should use a different criteria to select the watched literals.
+
     if (_options.graph_backtracking) {
       // If could be that the undefined literal is not the first one
       // We need to find the undefined literal and put it at the first position
@@ -1436,7 +1442,7 @@ void NapSAT::repair_conflict(Tclause conflict)
       }
       // Now, we bring a literal that is at the top of the chunk lattice to the second position
       // This is similar to the highest level in chronological backtracking, but we use the chunk instead
-      bitvector* highest_chunks = &lit_chunks(*high_lit);
+      bitset* highest_chunks = &lit_chunks(*high_lit);
       for (Tlit* i = lits + 2; i < end; i++) {
         if (lit_chunks(*i) > *highest_chunks) {
           highest_chunks = &lit_chunks(*i);
@@ -1479,8 +1485,26 @@ void NapSAT::repair_conflict(Tclause conflict)
 
 void NapSAT::restart()
 {
-  backtrack(LEVEL_ROOT);
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
+  if (_options.graph_backtracking) {
+    // undo all chunks
+    // for (Tchunk ck = 0; ck < _n_allocated_chunks; ck++) {
+    //   if (_chunks[ck].decision != LIT_UNDEF) {
+    //     undo_chunk(Tchunk(ck));
+    //   }
+    // }
+    backtrack(LEVEL_ROOT);
+    if (_observer) {
+      size_t i = _propagated_literals;
+      while (i > 0) {
+        i--;
+        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(_trail[i]));
+      }
+    }
+    _propagated_literals = 0;
+  } else {
+    backtrack(LEVEL_ROOT);
+  }
 }
 
 void napsat::NapSAT::order_trail()
@@ -1570,7 +1594,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   for (unsigned i = 0; !satisfied_at_root && i < input_size; i++) {
     if (lit_level(lits_input[i]) == LEVEL_ROOT) {
       // The solver should not generate redundant literals and clauses
-      // TODO should be taken into account in the proof
       ASSERT(external);
       satisfied_at_root |= lit_true(lits_input[i]);
       n_removed++;
@@ -1632,6 +1655,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   if (input_size > 1) {
     clause->size = cleanup_duplicate_literals(lits, clause->size);
   }
+  clause_size = clause->size;
 
   if (_proof && external) {
     _proof->input_clause(cl, lits_input, input_size);
@@ -1768,7 +1792,8 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _clauses.reserve(n_clauses);
   _activities.reserve(n_clauses);
 
-  _literal_buffer = new Tlit[n_var+1];
+  // TODO replace this with an std::vector
+  _literal_buffer = new Tlit[2*n_var+1];
   _next_literal_index = 0;
   var_allocate(n_var + 1);
 
@@ -1781,8 +1806,11 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     _chunks.resize(_n_allocated_chunks);
     for (unsigned i = 0; i < _n_allocated_chunks; i++) {
       _free_chunks.push_back(i);
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Allocated Chunk"));
     }
   }
+
+  _backtrack_cost_estimator = estimate_backtrack_cost;
 }
 
 NapSAT::~NapSAT()

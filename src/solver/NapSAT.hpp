@@ -19,6 +19,8 @@
  *          δ(ℓ) the decision level of ℓ
  *          ρ(ℓ) the reason of ℓ
  *          λ(ℓ) the lazy reason of ℓ. That is, a missed lower implication of ℓ.
+ *          γ(ℓ) is the set of chunks of ℓ
+ *          η(ℓ) is the set of cross chunks of ℓ
  *          WL(ℓ) the watch list of ℓ
  *          ■ the undefined clause
  *
@@ -229,7 +231,7 @@ namespace napsat
        * - a new chunk if the variable is a decision
        *   ρ(ℓ) = ■ ⇒ γ(ℓ) = { new_chunk(ℓ) }
        */
-      bitvector chunks;
+      bitset chunks;
 
       /**
        * @brief Contains the set of variables on which this variable depends
@@ -241,7 +243,7 @@ namespace napsat
        * @invariant For each clause C in F watched by c₁ and c₂:
        *   ¬c₁ ∈ τ ⇒ c₂ ∈ π ∧ [γ(c₁) ⊆ γ(c₂) ∪ η(c₂)]
        */
-      bitvector cross_chunks;
+      bitset cross_chunks;
     } TSvar;
 
 #define CLAUSE_HEAD_SIZE 5
@@ -559,9 +561,18 @@ namespace napsat
     std::vector<Tchunk> _free_chunks;
 
     /**
+     * @brief Callback function called upon conflict analysis to heuristically determine
+     * the cost of backtracking a set of literals.
+     * @param lits pointer to a list of literals
+     * @param size number of backtracked literals
+     * @returns the estimated cost of backtracking the given literals
+     */
+    std::function<unsigned(const Tlit*, unsigned)> _backtrack_cost_estimator;
+
+    /**
      * @brief Number of allocated chunks.
      * @details This is the number of chunks that variables are able to use.
-     * i.e., the size of the bitvector of each variable.
+     * i.e., the size of the bitset of each variable.
      */
     unsigned _n_allocated_chunks = 1;
 
@@ -764,11 +775,9 @@ namespace napsat
      * @param var variable to evaluate.
      * @return chunk of the variable.
      */
-    inline bitvector& var_chunks(Tvar var)
+    inline bitset& var_chunks(Tvar var)
     {
       ASSERT(var < _vars.size());
-      ASSERT_MSG(_vars[var].chunks.size() > 0,
-                 "Variable " << var << " has no chunks allocated");
       return _vars[var].chunks;
     }
 
@@ -777,7 +786,7 @@ namespace napsat
      * @param lit literal to evaluate.
      * @return chunk of the variable of the literal.
      */
-    inline bitvector& lit_chunks(Tlit lit)
+    inline bitset& lit_chunks(Tlit lit)
     {
       return var_chunks(lit_to_var(lit));
     }
@@ -787,10 +796,9 @@ namespace napsat
      * @param var variable to evaluate.
      * @return cross-chunk dependencies of the variable.
      */
-    inline bitvector& var_cross_chunks(Tvar var)
+    inline bitset& var_cross_chunks(Tvar var)
     {
       ASSERT(var < _vars.size());
-      ASSERT(_vars[var].cross_chunks.size() > 0);
       return _vars[var].cross_chunks;
     }
 
@@ -799,7 +807,7 @@ namespace napsat
      * @param lit literal to evaluate.
      * @return cross-chunk dependencies of the variable of the literal.
      */
-    inline bitvector& lit_cross_chunks(Tlit lit)
+    inline bitset& lit_cross_chunks(Tlit lit)
     {
       return var_cross_chunks(lit_to_var(lit));
     }
@@ -981,7 +989,8 @@ namespace napsat
       _watch_lists.resize(2 * var + 2);
       _binary_clauses.resize(2 * var + 2);
       // reallocate the literal buffer to make sure it is big enough
-      Tlit* new_literal_buffer = new Tlit[_vars.size()];
+      // TODO replace with std::vector
+      Tlit* new_literal_buffer = new Tlit[2 * _vars.size() + 1];
       assert(_literal_buffer);
       std::memcpy(new_literal_buffer, _literal_buffer,
                   _next_literal_index * sizeof(Tlit));
@@ -1043,6 +1052,7 @@ namespace napsat
      * reason clause if the reason is not CLAUSE_UNDEF.
      *    C ≠ ■ ⇔ δ(ℓ) = max(δ(C) \ {ℓ})
      *    C = ■ ⇔ δ(ℓ) = |πᵈ| + 1
+     *
      */
     void imply_literal(Tlit lit, Tclause reason);
 
