@@ -145,6 +145,8 @@ napsat::options::options(vector<string>& tokens)
     {"--graph-backtracking",                     &graph_backtracking},
     {"-bsc",                                     &backtrack_smallest_chunk},
     {"--backtrack-smallest-chunk",               &backtrack_smallest_chunk},
+    {"-bfc",                                     &backtrack_first_chunk},
+    {"--backtrack-first-chunk",                  &backtrack_first_chunk},
     {"-o",                                       &observing},
     {"--observing",                              &observing},
     {"-i",                                       &interactive},
@@ -277,6 +279,18 @@ napsat::options::options(vector<string>& tokens)
   if (backtrack_smallest_chunk && !graph_backtracking) {
     LOG_WARNING("backtrack smallest chunk requires graph backtracking.");
     LOG_WARNING("The solver will ignore this option.");
+    backtrack_smallest_chunk = false;
+  }
+
+  if (backtrack_first_chunk && !graph_backtracking) {
+    LOG_WARNING("backtrack first chunk requires graph backtracking.");
+    LOG_WARNING("The solver will ignore this option.");
+    backtrack_first_chunk = false;
+  }
+
+  if (backtrack_first_chunk && backtrack_smallest_chunk) {
+    LOG_WARNING("backtrack first chunk subsumes backtrack smallest chunk.");
+    LOG_WARNING("The solver will run with backtrack first chunk.");
     backtrack_smallest_chunk = false;
   }
 

@@ -932,9 +932,12 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     lit_cross_chunks(lits[0]) |= chunks; // ensure that the cross chunks are set
     lit_cross_chunks(lits[1]) |= chunks; // ensure that the cross chunks are set
   }
-  for (Tchunk ck = 0; ck < _n_allocated_chunks; ck++) {
+  for (Tchunk i = 0; i < _n_allocated_chunks; i++) {
+    Tchunk ck = _n_allocated_chunks - i - 1;
     if (!chunks[ck])
       continue;
+    if (_options.backtrack_first_chunk)
+      return ck;
 
     ASSERT(_chunks[ck].weight > 0);
 

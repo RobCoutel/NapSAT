@@ -72,12 +72,15 @@ int main(int argc, char** argv)
   napsat::options options(tokens);
   napsat::NapSAT* solver = create_solver(0, 0, options);
 
+  chrono::time_point<chrono::high_resolution_clock> start = chrono::high_resolution_clock::now();
   if (!parse_dimacs(solver, argv[1])) {
     LOG_ERROR("The input file could not be parsed.");
     delete_solver(solver);
     return 1;
   }
-  chrono::time_point<chrono::high_resolution_clock> start = chrono::high_resolution_clock::now();
+  chrono::milliseconds parse_duration = chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - start);
+  cout << "c Input file parsed in " << pretty_time(parse_duration) << endl;
+  start = chrono::high_resolution_clock::now();
   solve(solver);
   chrono::time_point<chrono::high_resolution_clock> end = chrono::high_resolution_clock::now();
   chrono::milliseconds duration = chrono::duration_cast<chrono::milliseconds>(end - start);
@@ -87,10 +90,10 @@ int main(int argc, char** argv)
 
   if (get_status(solver) == napsat::SAT) {
     cout << "s SATISFIABLE" << endl;
-    cout << "v ";
-    for (Tlit lit : get_partial_assignment(solver))
-      cout << (lit_pol(lit) ? "" : "-") << lit_to_var(lit) << " ";
-    cout << endl;
+    // cout << "v ";
+    // for (Tlit lit : get_partial_assignment(solver))
+    //   cout << (lit_pol(lit) ? "" : "-") << lit_to_var(lit) << " ";
+    // cout << endl;
   }
   else if (get_status(solver) == napsat::UNSAT)
   cout << "s UNSATISFIABLE" << endl;

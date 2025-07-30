@@ -163,10 +163,17 @@ namespace napsat
 
     /**
      * @brief Enables the solver to search the smallest UIP and choose the backtracked chunk accordingly.
-     * @requires -gb is true
+     * @requires -gb is true, -bfc is false
      * @alias -bsc
      */
     bool backtrack_smallest_chunk = false;
+
+    /**
+     * @brief Enables the solver to backtrack the first chunk in the conflict clause.
+     * @requires -gb is true, -bsc is false
+     * @alias -bfc
+     */
+    bool backtrack_first_chunk = false;
 
     /**
      * @brief Enables the solver to delete learned clauses.
