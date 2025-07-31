@@ -8,8 +8,6 @@
 #include <bit>
 #endif
 
-#define BITS   (sizeof(uint64_t) * CHAR_BIT)
-
 // mask the lower/upper n bits
 #define MSK_LO(N)  msk_lo(N)
 #define MSK_HI(N)  msk_hi(N)
@@ -23,19 +21,9 @@ static inline constexpr uint64_t msk_hi(const unsigned n) {
   return ~(-1ULL >> (n & 0x3F)) - (n >> 6);
 }
 
-// mask the n-th bit
-#define MSK_BT(N)  (1ULL << (N))
-
 // lowest bit
 #define LB(X) (X & MSK_BT(0))
 
-// metadate capacity
-#define MS     ((sizeof(uint64_t) * CHAR_BIT) - 1)
-// bits per metadata block
-#define MMS    (MS * BITS)
-// metadata position and offset of a bit
-#define MP(b)  ((b / BITS) / MS)
-#define MO(b)  ((b / BITS) % MS)
 // bitmask of the next metadata identifier (MSBit) and data fields
 #define M_NEXT_MSK  MSK_HI(1)
 #define M_DATA_MSK  (~M_NEXT_MSK)
@@ -55,12 +43,6 @@ static inline constexpr unsigned count_zero_r(uint64_t b) {
   // not defined for 0
   return b ? __builtin_ctzll(b) : sizeof(uint64_t) * CHAR_BIT;
 #endif
-}
-
-/** Extract the n-th bit of b. */
-static inline constexpr bool get_bit(uint64_t b, unsigned n) {
-  assert(n < BITS);
-  return b & MSK_BT(n);
 }
 
 /** sets p to the index of the next 1 in b. returns true if one exist */
@@ -88,7 +70,7 @@ static inline void clear_bit(uint64_t &b, unsigned n) {
 }
 
 /** Counts the number of bits set in b within the first n bits. */
-static inline unsigned count_bits_lo(uint64_t b, unsigned n) {
+static inline constexpr unsigned count_bits_lo(uint64_t b, unsigned n) {
   return count_bits(b, MSK_LO(n));
 }
 
@@ -122,8 +104,7 @@ void bitset::resize(size_t size) {
 // TODO: all with the same size? use a manager? Pass data offset via param from manager?
 
 /** Gets the offset in the data, based on the metadata and index. */
-
-static unsigned get_offset(const uint64_t *md, size_t index) {
+unsigned get_offset(const uint64_t *md, size_t index) {
   unsigned cnt = 0;
   const uint64_t *p = md;
   while (index >= MMS) {
@@ -136,15 +117,6 @@ static unsigned get_offset(const uint64_t *md, size_t index) {
   // skip the remaining metadata blocks
   while (*(p++) & M_NEXT_MSK);
   return cnt + (p - md);
-}
-
-bool bitset::get(size_t index) const {
-  unsigned mp = MP(index), mo = MO(index);
-  assert(capacity() >= index);
-  // check if the corresponding data field exists
-  if (!get_bit(_bits[mp], mo))
-    return false;
-  return get_bit(_bits[get_offset(_bits.data(), index)], index % BITS);
 }
 
 void bitset::set(size_t index, bool value) {
@@ -325,7 +297,7 @@ static bitset::bitstore combine(const bitset::bitstore &a, const bitset::bitstor
   // clear the next bit for the last metadata word
   out[mo-1] &= ~M_NEXT_MSK;
 
-  return std::move(out);
+  return out;
 }
 
 bitset bitset::operator&(const bitset &other) const {  // check metadata

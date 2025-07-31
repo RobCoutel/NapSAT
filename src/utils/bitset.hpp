@@ -2,8 +2,29 @@
 #define BITSET_HPP
 
 #include <vector>
-#include <cstdint>
 #include <string>
+#include <cstdint>
+#include <cstddef>
+
+#define BITS   (sizeof(uint64_t) * 8)
+
+// mask the n-th bit
+#define MSK_BT(N)  (1ULL << (N))
+
+// metadate capacity
+#define MS     ((sizeof(uint64_t) * 8) - 1)
+// bits per metadata block
+#define MMS    (MS * BITS)
+// metadata position and offset of a bit
+#define MP(b)  (b / (BITS * MS))
+#define MO(b)  ((b / BITS) % MS)
+
+/** Extract the n-th bit of b. */
+static inline constexpr bool get_bit(uint64_t b, unsigned n) {
+  return b & MSK_BT(n);
+}
+
+unsigned get_offset(const uint64_t *md, size_t index);
 
 class bitset {
 public:
@@ -11,7 +32,15 @@ public:
   explicit bitset(size_t size) noexcept;
 
   void set(size_t index, bool value);
-  bool get(size_t index) const;
+
+  inline bool get(size_t index) const {
+    unsigned mp = MP(index), mo = MO(index);
+    // check if the corresponding data field exists
+    if (!get_bit(_bits[mp], mo))
+      return false;
+    return get_bit(_bits[get_offset(_bits.data(), index)], index % BITS);
+  }
+
 
   inline bool operator[](size_t index) const {
     return get(index);
