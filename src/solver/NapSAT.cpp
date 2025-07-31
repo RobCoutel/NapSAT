@@ -100,7 +100,6 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         "\nNumber of allocated chunks: " + std::to_string(_n_allocated_chunks));
       _free_chunks.pop_back();
       svar.chunks.set(chunk_number, true);
-      _chunks[chunk_number].weight = 1;
       _chunks[chunk_number].decision = var;
       ASSERT(_chunks.size() == solver_level() + _free_chunks.size());
     }
@@ -191,7 +190,6 @@ void NapSAT::var_unassign(Tvar var)
         if (chunk.decision == var) {
           _free_chunks.push_back(ck);
           chunk.decision = LIT_UNDEF;
-          chunk.weight = 0;
           break;
         }
       }
@@ -813,7 +811,7 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
 {
   // cout << "Undoing chunk: " << chunk << endl;
   ASSERT(chunk < _n_allocated_chunks);
-  ASSERT(_chunks[chunk].weight > 0);
+  ASSERT(_chunks[chunk].decision != LIT_UNDEF);
   ASSERT(_backtracked_variables.empty());
 
   Tvar chunk_decision = _chunks[chunk].decision;
@@ -910,8 +908,8 @@ Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned siz
   return lit_level(learned_lits[1]);
 }
 
-static unsigned estimate_backtrack_cost(const Tlit* lits, unsigned size) {
-  return size;
+static unsigned estimate_backtrack_cost(Tlit lits) {
+  return 1;
 }
 
 Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
@@ -921,7 +919,6 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
   ASSERT(_clauses[conflict].size > 0);
 
   unsigned min_chunk_cost = UINT32_MAX;
-  size_t max_prop_head = 0;
   Tchunk min_chunk = CHUNK_UNDEF;
 
   bitset chunks(_n_allocated_chunks);
@@ -932,36 +929,43 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     lit_cross_chunks(lits[0]) |= chunks; // ensure that the cross chunks are set
     lit_cross_chunks(lits[1]) |= chunks; // ensure that the cross chunks are set
   }
-  for (Tchunk i = 0; i < _n_allocated_chunks; i++) {
-    Tchunk ck = _n_allocated_chunks - i - 1;
-    if (!chunks[ck])
-      continue;
+  // cout << "Chunks: " << chunks.to_string() << endl;
+  vector<Tchunk> used_chunks;
+  for (auto i = chunks.cbegin(); i != chunks.cend(); ++i) {
+    used_chunks.push_back(*i);
+  }
+  // sort by decision level of the chunks
+
+  reverse(used_chunks.begin(), used_chunks.end());
+  // sort(used_chunks.begin(), used_chunks.end(),
+  //      [this](Tchunk a, Tchunk b) { return var_level(_chunks[a].decision) > var_level(_chunks[b].decision); });
+
+  for (Tchunk ck : used_chunks) {
+    // cout << "Analyzing chunk: " << ck << endl;
+    ASSERT(ck < _n_allocated_chunks);
+    ASSERT(chunks[ck]);
     if (_options.backtrack_first_chunk)
       return ck;
 
-    ASSERT(_chunks[ck].weight > 0);
+    ASSERT(_chunks[ck].decision != LIT_UNDEF);
+    unsigned cost = 0;
 
-    size_t new_prop_head = _propagated_literals;
     // the literal buffer already contains the clause
     // so we remember the number of literals in the buffer to restore it later
-    size_t old_next_literal_index = _next_literal_index;
-    for (size_t i = 0; i < _trail.size(); i++) {
-      Tlit lit = _trail[i];
-      if (lit_chunks(lit)[ck]) {
-        _literal_buffer[_next_literal_index++] = lit;
-      }
-      if (lit_cross_chunks(lit)[ck]) {
-        new_prop_head = min(new_prop_head, i);
-      }
-    }
-    unsigned cost = 0;
     if (!_options.backtrack_smallest_chunk) {
-      cost = _backtrack_cost_estimator(_literal_buffer + old_next_literal_index, _next_literal_index - old_next_literal_index);
-    }
-
-    _next_literal_index = old_next_literal_index; // restore the next literal index
-
-    if (_options.backtrack_smallest_chunk) {
+      // we know that no literal before the decision can depend on that decision because of the topological order of the trail
+      size_t level_start = _decision_index[var_level(_chunks[ck].decision) - 1];
+      for (size_t i = level_start; i < _trail.size(); i++) {
+        // NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Inspecting literal for choice"));
+        Tlit lit = _trail[i];
+        if (lit_chunks(lit)[ck]) {
+          cost += _backtrack_cost_estimator(lit);
+          if (cost > min_chunk_cost) {
+            break;
+          }
+        }
+      }
+    } else if (_options.backtrack_smallest_chunk) {
       // perform conflict analysis and check the length of the learned clause
       // first, load the conflict clause in the _literal_buffer
       ASSERT(_next_literal_index > 0);
@@ -981,11 +985,10 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
       }
       _next_literal_index = _clauses[conflict].size;
     }
-    if (cost < min_chunk_cost
-    || (cost == min_chunk_cost && new_prop_head > max_prop_head)) {
+
+    if (cost < min_chunk_cost) {
       min_chunk = ck;
       min_chunk_cost = cost;
-      max_prop_head = new_prop_head;
     }
   }
   return min_chunk;
@@ -1033,7 +1036,6 @@ void NapSAT::analyze_conflict_level(Tlevel level) {
     // unfortunately, we need a to do a linear seach to find the chunk
     for (unsigned i = 0; i < _n_allocated_chunks; i++) {
       if (var_level(_chunks[i].decision) == level){
-        ASSERT_MSG(_chunks[i].weight > 0, "Chunk " + to_string(i) + " has weight " + to_string(_chunks[i].weight) + " but has variable " + to_string(_chunks[i].decision));
         chunk = Tchunk(i);
         break;
       }
@@ -1215,7 +1217,6 @@ void napsat::NapSAT::repair_unary_clause_conflict(Tclause conflict)
       _status = UNSAT;
       return;
     }
-    ASSERT(_chunks[undone_chunk].weight > 0);
     undo_chunk(undone_chunk);
     ASSERT(lit_undef(lit));
   } else {
@@ -1304,7 +1305,6 @@ void NapSAT::repair_conflict(Tclause conflict)
       }
       return;
     }
-    ASSERT(_chunks[analyzed_chunk].weight > 0);
     Tlevel chunk_level = var_level(_chunks[analyzed_chunk].decision);
     analyze_conflict_level(chunk_level);
   } else {

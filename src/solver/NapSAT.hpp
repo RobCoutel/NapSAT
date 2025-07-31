@@ -103,7 +103,7 @@
 #include "../proof/proof.hpp"
 #include "../utils/printer.hpp"
 #include "../utils/heap.hpp"
-#include "../utils/bitvector.hpp"
+#include "../utils/bitset.hpp"
 #include "../utils/luby-counter.hpp"
 #include "../observer/SAT-notification.hpp"
 #include "../observer/SAT-observer.hpp"
@@ -539,12 +539,6 @@ namespace napsat
     struct TSchunk
     {
       Tvar decision;
-      unsigned weight;
-
-      bool is_active() const
-      {
-        return decision != VAR_UNDEF;
-      }
     };
 
     /**
@@ -567,7 +561,7 @@ namespace napsat
      * @param size number of backtracked literals
      * @returns the estimated cost of backtracking the given literals
      */
-    std::function<unsigned(const Tlit*, unsigned)> _backtrack_cost_estimator;
+    std::function<unsigned(Tlit)> _backtrack_cost_estimator;
 
     /**
      * @brief Number of allocated chunks.
@@ -990,7 +984,7 @@ namespace napsat
       _binary_clauses.resize(2 * var + 2);
       // reallocate the literal buffer to make sure it is big enough
       // TODO replace with std::vector
-      Tlit* new_literal_buffer = new Tlit[2 * _vars.size() + 1];
+      Tlit* new_literal_buffer = new Tlit[_vars.size() + 1];
       assert(_literal_buffer);
       std::memcpy(new_literal_buffer, _literal_buffer,
                   _next_literal_index * sizeof(Tlit));

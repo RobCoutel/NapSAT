@@ -392,7 +392,6 @@ void napsat::NapSAT::print_chunks()
 {
   for (Tchunk chunk = 0; chunk < _chunks.size(); chunk++) {
     cout << "Chunk " << chunk << ": ";
-    cout << "weight = " << _chunks[chunk].weight << ", ";
     cout << "decision = " << _chunks[chunk].decision << endl;
   }
 }
