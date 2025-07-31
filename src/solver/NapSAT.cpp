@@ -809,18 +809,18 @@ void napsat::NapSAT::backtrack(Tlevel level)
 
 void napsat::NapSAT::undo_chunk(Tchunk chunk)
 {
-  // cout << "Undoing chunk: " << chunk << endl;
   ASSERT(chunk < _n_allocated_chunks);
   ASSERT(_chunks[chunk].decision != LIT_UNDEF);
   ASSERT(_backtracked_variables.empty());
 
   Tvar chunk_decision = _chunks[chunk].decision;
   Tlevel decision_level = var_level(chunk_decision);
-
-  Tlit* i = _trail.data();
+  size_t start_position = _decision_index[decision_level - 1];
+  ASSERT(start_position < _trail.size());
+  Tlit* i = _trail.data() + start_position;
   Tlit* j = i;
-  Tlit* end = i + _trail.size();
-  Tlevel decision_counter = LEVEL_ROOT;
+  Tlit* end = i + _trail.size() - start_position;
+  Tlevel decision_counter = decision_level - 1;
   while (i < end) {
     bitset& chunks = lit_chunks(*i);
     if (chunks.get(chunk)) {
@@ -954,10 +954,15 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     // so we remember the number of literals in the buffer to restore it later
     if (!_options.backtrack_smallest_chunk) {
       // we know that no literal before the decision can depend on that decision because of the topological order of the trail
-      size_t level_start = _decision_index[var_level(_chunks[ck].decision) - 1];
+      Tlevel level = var_level(_chunks[ck].decision);
+      size_t level_start = _decision_index[level - 1];
       for (size_t i = level_start; i < _trail.size(); i++) {
-        // NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Inspecting literal for choice"));
         Tlit lit = _trail[i];
+        if (lit_level(lit) < level) {
+          // we are at the end of the decision level
+          continue;
+        }
+        // NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Inspecting literal for choice"));
         if (lit_chunks(lit)[ck]) {
           cost += _backtrack_cost_estimator(lit);
           if (cost > min_chunk_cost) {
