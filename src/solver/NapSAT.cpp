@@ -232,15 +232,25 @@ void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
   lit_set_lazy_reason(lit, reason);
 }
 
-Tlit* napsat::NapSAT::quick_replacement(Tlit* lits, unsigned size) {
+Tlit* napsat::NapSAT::quick_replacement(Tclause cl) {
+  Tlit* lits = _clauses[cl].lits;
+  unsigned size = _clauses[cl].size;
+  unsigned& last_look = _clauses[cl].last_looked;
+  unsigned last_look_save = last_look;
   ASSERT(size >= 2);
   ASSERT(lit_false(lits[1]));
   // This must be as efficient as possible!
-  Tlit* end = lits + size;
-  Tlit* k = lits + 1;
-  while (++k < end)
-    if (!lit_false(*k))
-      return k;
+  while (last_look < size) {
+    if (!lit_false(lits[last_look++])) {
+      return lits + last_look - 1;
+    }
+  }
+  last_look = 2;
+  while (last_look < last_look_save) {
+    if (!lit_false(lits[last_look++])) {
+      return lits + last_look - 1;
+    }
+  }
   return lits + 1;
 }
 
@@ -454,8 +464,8 @@ Tclause NapSAT::propagate_lit(Tlit lit)
 
     /** SKIP CONDITIONS **/
     if (lit_true(lit2)
-      && (!_options.lazy_strong_chronological_backtracking || lit_level(lit2) <= lvl)
-      && (!_options.graph_backtracking || lit_chunks(lit2) <= lit_cross_chunks(lit))) {
+    && (!_options.lazy_strong_chronological_backtracking || lit_level(lit2) <= lvl)
+    && (!_options.graph_backtracking                     || lit_chunks(lit2) <= lit_cross_chunks(lit))) {
       /**
        * NCB: c₂ ∈ π
        * WCB: c₂ ∈ π
@@ -470,8 +480,9 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       i++;
       continue;
     }
+
     /** SEARCH REPLACEMENT **/
-    Tlit* replacement = quick_replacement(lits, clause.size);
+    Tlit* replacement = quick_replacement(cl);
     /**
      * Quick replacement returns a non-falsified literal r ∈ C \ {c₂} if such a literal exists.
      */
@@ -493,12 +504,12 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     ASSERT(replacement != nullptr);
     ASSERT(!lit_propagated(lit));
 
-
     Tlevel replacement_lvl = lit_level(*replacement);
 
     ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking
            || (!lit_true(*replacement) || replacement_lvl <= lvl),
       "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit) + "\nReplacement: " + lit_to_string(*replacement) + "\nLevel: " + to_string(lvl));
+
     /** TRUE literal **/
     if (lit_true(*replacement)
     && ((!_options.graph_backtracking && replacement_lvl <= lvl)
@@ -517,6 +528,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       i++;
       continue;
     }
+
     /**
      * We know that
      * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]
@@ -617,12 +629,11 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       */
       ASSERT(lit_level(lits[1]) == replacement_lvl);
       if (lit_level(lit2) < replacement_lvl) {
+        ASSERT(lit2 == lits[0]);
         // swap the literals
         // we want the highest literal to be at the first position
-        lits[1] ^= lits[0];
-        lits[0] ^= lits[1];
-        lits[1] ^= lits[0];
-        // also swap the next watched clause
+        lits[0] = lits[1];
+        lits[1] = lit2;
       }
       if (_options.graph_backtracking) {
         lit_cross_chunks(lits[0]) |= lit_chunks(lits[1]);
@@ -696,8 +707,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
      */
     if (_options.lazy_strong_chronological_backtracking) {
       reimply_literal(lit2, cl);
-    }
-    else {
+    } else {
       // We are in graph backtracking, so we do not need to reimply the literal
       // but we will need to repropagate the literal if one of the other literals in the clause are backtracked
       for (unsigned i = 0; i < clause.size; i++) {

@@ -299,6 +299,8 @@ namespace napsat
        * @details Used to know the size of the allocated memory.
        */
       unsigned size : 28;
+
+      unsigned last_looked = 1;
     } TSclause;
 
     typedef struct TSwatch {
@@ -1086,7 +1088,7 @@ namespace napsat
      * by the current assignment. If it fails, it returns the second watched
      * literal of the clause.
      */
-    Tlit* quick_replacement(Tlit* lits, unsigned size);
+    Tlit* quick_replacement(Tclause cl);
 
     /**
      * @brief Searches for a replacement literal for the second watched literal
