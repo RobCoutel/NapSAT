@@ -583,12 +583,19 @@ std::string napsat::gui::observer::clause_to_string(Tclause cl)
       s += "| ";
     Tlit lit = lits[i];
     assert(i + _active_clauses[cl]->n_deleted_literals < lits.size() || lit_value(lit) == VAR_FALSE);
-    if (is_watching(cl, lit))
-      s += "w";
-    if (_active_clauses[cl]->blocker == lit)
-      s += "b";
     s += lit_to_string(lit) + " ";
   }
+  if (_active_clauses[cl]->watched.empty())
+    return s.substr(0, s.size() - 1); // remove the last space
+  s += " (";
+  for (auto watched: _active_clauses[cl]->watched) {
+    if (watched.second == LIT_UNDEF)
+      s += lit_to_string(watched.first) + " ";
+    else
+      s += lit_to_string(watched.first) + "->" + lit_to_string(watched.second) + " ";
+  }
+  s = s.substr(0, s.size() - 1); // remove the last space
+  s += ")";
   return s;
 }
 
@@ -823,19 +830,20 @@ std::string napsat::gui::observer::clause_to_latex(Tclause cl)
   // If there are some watched literals, print those first
   assert(_active_clauses[cl]->watched.size() == 0 || _active_clauses[cl]->watched.size() == 2);
   bool printed = false;
-  set<Tlit>& watched_lit = _active_clauses[cl]->watched;
+  map<Tlit, Tlit>& watched_lit = _active_clauses[cl]->watched;
   if (watched_lit.size() > 0) {
-    Tlit first_watched = *watched_lit.begin();
-    Tlit second_watched = *watched_lit.rbegin();
-    if (lit_value(first_watched) == VAR_FALSE) {
+    assert(watched_lit.size() == 2);
+    pair<Tlit, Tlit> first_watched = *watched_lit.begin();
+    pair<Tlit, Tlit> second_watched = *watched_lit.rbegin();
+    if (lit_value(first_watched.first) == VAR_FALSE) {
       // swap the literals
-      Tlit tmp = first_watched;
+      pair<Tlit, Tlit> tmp = first_watched;
       first_watched = second_watched;
       second_watched = tmp;
     }
-    s += literal_to_latex(first_watched, true, false);
+    s += literal_to_latex(first_watched.first, true, false);
     s += " \\lor ";
-    s += literal_to_latex(second_watched, true, false);
+    s += literal_to_latex(second_watched.first, true, false);
     printed = true;
   }
 
@@ -851,7 +859,7 @@ std::string napsat::gui::observer::clause_to_latex(Tclause cl)
       break;
     }
     bool watched = cl_ptr->watched.find(lit) != cl_ptr->watched.end();
-    bool blocked = cl_ptr->blocker == lit;
+    bool blocked = false;
     s += literal_to_latex(lit, watched, blocked);
   }
   s += "$";
@@ -866,32 +874,32 @@ std::string napsat::gui::observer::clause_to_aligned_latex(Tclause cl)
   // If there are some watched literals, print those first
   assert(_active_clauses[cl]->watched.size() == 0 || _active_clauses[cl]->watched.size() == 2);
   bool printed = false;
-  set<Tlit>& watched_lit = _active_clauses[cl]->watched;
+  map<Tlit, Tlit>& watched_lit = _active_clauses[cl]->watched;
 
   if (watched_lit.size() > 0) {
-    Tlit first_watched = *watched_lit.begin();
-    Tlit second_watched = *watched_lit.rbegin();
-    if (lit_value(first_watched) == VAR_FALSE) {
+    pair<Tlit, Tlit> first_watched = *watched_lit.begin();
+    pair<Tlit, Tlit> second_watched = *watched_lit.rbegin();
+    if (lit_value(first_watched.first) == VAR_FALSE) {
       // swap the literals
-      Tlit tmp = first_watched;
+      pair<Tlit, Tlit> tmp = first_watched;
       first_watched = second_watched;
       second_watched = tmp;
     }
-    s += literal_to_aligned_latex(first_watched, true, false);
+    s += literal_to_aligned_latex(first_watched.first, true, false);
     s += " \\lor ";
-    s += literal_to_aligned_latex(second_watched, true, false);
+    s += literal_to_aligned_latex(second_watched.first, true, false);
     printed = true;
   }
 
   for (unsigned i = 0; i < _active_clauses[cl]->literals.size(); i++) {
-    if (find(watched_lit.begin(), watched_lit.end(), _active_clauses[cl]->literals[i]) != watched_lit.end())
+    if (watched_lit.count(_active_clauses[cl]->literals[i]))
       continue;
     if (i > 0 || printed)
       s += " \\lor ";
     clause* cl_ptr = _active_clauses[cl];
     Tlit lit = cl_ptr->literals[i];
     bool watched = cl_ptr->watched.find(lit) != cl_ptr->watched.end();
-    bool blocked = cl_ptr->blocker == lit;
+    bool blocked = false;
     s += literal_to_aligned_latex(lit, watched, blocked);
   }
   return s;

@@ -55,13 +55,18 @@ bool napsat::NapSAT::is_watched(Tlit lit, Tclause cl)
 {
   if (_clauses[cl].size == 2) {
     // check the binary clause list
-    for (pair bin : _binary_clauses[lit])
-      if (bin.second == cl)
+    for (TSwatch &w : _binary_clauses[lit])
+      if (w.cl == cl)
         return true;
     return false;
   }
-  vector<Tclause>& watch_list = _watch_lists[lit];
-  return find(watch_list.begin(), watch_list.end(), cl) != watch_list.end();
+  vector<TSwatch>& watch_list = _watch_lists[lit];
+  for (TSwatch &w : watch_list) {
+    if (w.cl == cl) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool napsat::NapSAT::watch_lists_complete()
@@ -86,7 +91,8 @@ bool napsat::NapSAT::watch_lists_minimal()
 {
   bool success = true;
   for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
-    for (Tclause cl : _watch_lists[lit]) {
+    for (TSwatch w : _watch_lists[lit]) {
+      Tclause cl = w.cl;
       TSclause clause = _clauses[cl];
       if (clause.size < 2) {
         success = false;
@@ -113,7 +119,8 @@ bool napsat::NapSAT::watch_lists_minimal()
   std::unordered_set<Tclause> seen_clauses;
   for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
     seen_clauses.clear();
-    for (Tclause cl : _watch_lists[lit]) {
+    for (TSwatch w : _watch_lists[lit]) {
+      Tclause cl = w.cl;
       if (seen_clauses.find(cl) != seen_clauses.end()) {
         success = false;
         LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit << " multiple times");

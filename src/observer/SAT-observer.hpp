@@ -100,8 +100,10 @@ namespace napsat::gui
       std::vector<napsat::Tlit> literals;
       unsigned n_deleted_literals = 0;
       napsat::Tclause cl;
-      std::set<napsat::Tlit> watched;
-      Tlit blocker = LIT_UNDEF;
+      /**
+       * @brief Map of watched literals. They key is the watched literal, the value is the blocker of that literal.
+       */
+      std::map<napsat::Tlit, napsat::Tlit> watched;
       bool active = false;
       bool learnt = false;
       bool external = false;
@@ -549,7 +551,6 @@ namespace napsat::gui
     // True if the blocker must be lower than at least one of the watched literals
     bool _check_weak_blocker_level = false;
     // True if the blocker must be lower than the watched literals
-    bool _check_strong_blocker_level = false;
     bool _check_assignment_coherence = false;
 
   public:
@@ -657,8 +658,6 @@ namespace napsat::gui
 #endif
 
     bool check_weak_blocker_level(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
-
-    bool check_strong_blocker_level(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit);
 
     /**
      * @brief Checks that no variable is assigned twice in the propagation queue.

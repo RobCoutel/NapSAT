@@ -550,7 +550,7 @@ bool napsat::gui::watch::apply(observer* obs)
   ASSERT_OBS(this, c->active);
   // the watched literal must be in the clause
   ASSERT_OBS(this, !obs->is_watching(cl, lit));
-  c->watched.insert(lit);
+  c->watched.insert(make_pair(lit, LIT_UNDEF));
   return true;
 }
 
@@ -580,6 +580,7 @@ bool napsat::gui::unwatch::apply(observer* obs)
   ASSERT_OBS(this, obs->_active_clauses[cl]->active);
   napsat::gui::observer::clause* c = obs->_active_clauses[cl];
   ASSERT_OBS(this, obs->is_watching(cl, lit));
+  previous_blocker = c->watched[lit];
   c->watched.erase(lit);
   return true;
 }
@@ -591,7 +592,7 @@ bool napsat::gui::unwatch::rollback(observer* obs)
   ASSERT_OBS(this, obs->_active_clauses[cl] != nullptr);
   napsat::gui::observer::clause* c = obs->_active_clauses[cl];
   ASSERT_OBS(this, !obs->is_watching(cl, lit));
-  c->watched.insert(lit);
+  c->watched.insert(make_pair(lit, previous_blocker));
   return true;
 }
 
@@ -657,7 +658,7 @@ bool napsat::gui::check_invariants::rollback(observer* obs)
 unsigned napsat::gui::block::get_event_level(observer* obs)
 {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(blocker)) || obs->is_clause_marked(cl) ? 0 : event_level;
 }
 
 bool napsat::gui::block::apply(observer* obs)
@@ -667,9 +668,11 @@ bool napsat::gui::block::apply(observer* obs)
   ASSERT_OBS(this, obs->_active_clauses[cl] != nullptr);
   observer::clause* c = obs->_active_clauses[cl];
   ASSERT_OBS(this, c->active);
-  ASSERT_OBS(this, find(c->literals.begin(), c->literals.end(), lit) != c->literals.end());
-  previous_blocker = c->blocker;
-  c->blocker = lit;
+  ASSERT_OBS(this, find(c->literals.begin(), c->literals.end(), blocker) != c->literals.end());
+  // LOG_INFO("Blocking clause " + to_string(cl) + " with " + obs->lit_to_string(blocker) + " for " + obs->lit_to_string(blocked_lit));
+  ASSERT_OBS(this, c->watched.count(blocked_lit));
+  previous_blocker = c->watched[blocked_lit];
+  c->watched[blocked_lit] = blocker;
   return true;
 }
 
@@ -680,8 +683,8 @@ bool napsat::gui::block::rollback(observer* obs)
   ASSERT_OBS(this, obs->_active_clauses[cl] != nullptr);
   observer::clause* c = obs->_active_clauses[cl];
   ASSERT_OBS(this, c->active);
-  ASSERT_OBS(this, c->blocker == lit);
-  c->blocker = previous_blocker;
+  ASSERT_OBS(this, c->watched[blocked_lit] == blocker);
+  c->watched[blocked_lit] = previous_blocker;
   return true;
 }
 

@@ -27,9 +27,9 @@ void napsat::NapSAT::repair_watch_lists()
   /** REPAIR BINARY WATCH LIST **/
   for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
     for (unsigned j = 0; j < _binary_clauses[lit].size(); j++) {
-      Tclause cl = _binary_clauses[lit][j].second;
+      Tclause cl = _binary_clauses[lit][j].cl;
       ASSERT_MSG(cl != CLAUSE_UNDEF,
-        "Error: binary clause " << lit_to_string(lit) << " <- " << lit_to_string(_binary_clauses[lit][j].first) << " is undefined");
+        "Error: binary clause " << lit_to_string(lit) << " <- " << lit_to_string(_binary_clauses[lit][j].block) << " is undefined");
       if (_clauses[cl].deleted) {
         _binary_clauses[lit].erase(_binary_clauses[lit].begin() + j);
         j--;
@@ -38,18 +38,18 @@ void napsat::NapSAT::repair_watch_lists()
   }
   /** REPAIR WATCH LISTS **/
   for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
-    vector<Tclause>& watch_list = _watch_lists[lit];
-    Tclause* i = watch_list.data();
-    Tclause* end = i + watch_list.size();
+    vector<TSwatch>& watch_list = _watch_lists[lit];
+    TSwatch* i = watch_list.data();
+    TSwatch* end = i + watch_list.size();
 
     while (i < end) {
-      TSclause &clause = _clauses[*i];
+      TSclause &clause = _clauses[i->cl];
       if (clause.deleted || !clause.watched
        || (clause.lits[0] != lit && clause.lits[1] != lit)
        || clause.size <= 2) {
 #if NOTIFY_WATCH_CHANGES
         if(!clause.deleted && clause.size != 2)
-          NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(*i, lit));
+          NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(i->cl, lit));
 #endif
         *i = *(--end);
         continue;
@@ -72,22 +72,23 @@ void napsat::NapSAT::purge_root_watch_lists()
       continue;
 
     lit = lit_neg(lit);
-    vector<Tclause>& watch_list = _watch_lists[lit];
-    Tclause* j = watch_list.data();
-    Tclause* k = j;
+    vector<TSwatch>& watch_list = _watch_lists[lit];
+    TSwatch* j = watch_list.data();
+    TSwatch* k = j;
     // start one before so that we just need to increment at the start of the loop
     j--;
-    Tclause* end = j + watch_list.size();
+    TSwatch* end = j + watch_list.size();
     while (j++ < end) {
-      Tclause cl = *j;
+      TSwatch &w = *j;
+      Tclause cl = w.cl;
       TSclause& clause = _clauses[cl];
       if (clause.deleted) {
         // remove the clause from the watch list
         continue;
       }
-      if (lit_reason(clause.lits[0]) == cl) {
+      if (is_protected(cl)) {
         // keep the clause
-        *(k++) = cl;
+        *(k++) = *j;
         continue;
       }
 #if NOTIFY_WATCH_CHANGES
@@ -99,7 +100,7 @@ void napsat::NapSAT::purge_root_watch_lists()
 
       ASSERT_MSG(clause.size > 2,
         "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
-      if (lit_true(clause.blocker) && lit_level(clause.blocker) == LEVEL_ROOT) {
+      if (lit_true(w.block) && lit_level(w.block) == LEVEL_ROOT) {
         // delete the clause. repair_watch_lists will take care of the rest
         delete_clause(cl);
         continue;
@@ -222,8 +223,8 @@ void napsat::NapSAT::purge_clauses()
     }
 
     if (clause.size == 2) {
-      _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
-      _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
+      _binary_clauses[lits[0]].push_back(TSwatch(cl, lits[1]));
+      _binary_clauses[lits[1]].push_back(TSwatch(cl, lits[0]));
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause simplified"));
     }
     if (clause.size == 1) {

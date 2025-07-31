@@ -51,7 +51,6 @@ void napsat::gui::observer::load_invariant_configuration()
     {"backtrack_compatible_watched_literals", &_check_backtrack_compatible_watched_literals},
     {"lazy_backtrack_compatible_watched_literals", &_check_lazy_backtrack_compatible_watch_literals},
     {"weak_blocker_level", &_check_weak_blocker_level},
-    {"strong_blocker_level", &_check_strong_blocker_level},
 #endif
     {"assignment_coherence", &_check_assignment_coherence},
   });
@@ -67,7 +66,7 @@ void napsat::gui::observer::load_invariant_configuration()
     if (invariants.find(line) != invariants.end())
       *(invariants[line]) = true;
     else
-      LOG_WARNING("Unknown invariant: " + line);
+      LOG_INFO("Unknown invariant: " + line + "\nWatched literal invariants are not supported in this build. Check the SAT-config.hpp file to enable them.");
   }
   file.close();
 }
@@ -217,76 +216,77 @@ bool napsat::gui::observer::check_watched_literals()
     if (!c->active || c->literals.size() - c->n_deleted_literals < 2)
       continue;
     if (c->literals.size() - c->n_deleted_literals == 2) {
-      c->watched.insert(c->literals[0]);
-      c->watched.insert(c->literals[1]);
+      c->watched.insert(make_pair(c->literals[0], c->literals[1]));
+      c->watched.insert(make_pair(c->literals[1], c->literals[0]));
     }
     if (c->watched.size() != 2) {
       _error_message += error_header + "clause " + clause_to_string(cl) + " has " + to_string(c->watched.size()) + " watched literals.\n";
       _error_message += error_header + "watched literals: ";
-      for (Tlit lit : c->watched)
-        _error_message += lit_to_string(lit) + " ";
+      for (pair<Tlit, Tlit> p : c->watched)
+        _error_message += lit_to_string(p.first) + " ";
       _error_message += "\n";
       success = false;
       continue;
     }
 
 
-    for (Tlit lit : c->watched) {
+    for (pair<Tlit, Tlit> p : c->watched) {
+      Tlit lit = p.first;
+      Tlit blocker = p.second;
       Tlit other = LIT_UNDEF;
-      for (Tlit l : c->watched) {
-        if (l != lit) {
-          other = l;
+      for (pair<Tlit, Tlit> p2 : c->watched) {
+        if (p2.first != lit) {
+          other = p2.first;
           break;
         }
       }
+      bool last_failed = false;
 
       // weak blocker level
       // c₁ ∈ π ∨ c₂ ∈ π ∨ [b ∈ π ∧ [δ(b) ≤ δ(c₁) ∨ δ(b) ≤ δ(c₂)]]
-      if (_check_weak_blocker_level && !check_weak_blocker_level(lit, other, c->blocker)) {
+      if (_check_weak_blocker_level && !check_weak_blocker_level(lit, other, blocker)) {
         success = false;
+        last_failed = true;
         _error_message += ERROR_HEAD + "c₁ ∈ π ∨ c₂ ∈ π ∨ [b ∈ π ∧ [δ(b) ≤ δ(c₁) ∨ δ(b) ≤ δ(c₂)]]  --  Weak blocker level invariant violation: \n";
-        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
-      }
-
-      // strong blocker level
-      // δ(b) ≤ δ(c₁) ∧ δ(b) ≤ δ(c₂)
-      if (_check_strong_blocker_level && !check_strong_blocker_level(lit, other, c->blocker)) {
-        success = false;
-        _error_message += ERROR_HEAD + "δ(b) ≤ δ(c₁) ∧ δ(b) ≤ δ(c₂)  --  Strong blocker level invariant violation: \n";
-        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
       }
 
       // weak watched literals
       // ¬c₁ ∈ τ ⇒ c₂ ∉ τ ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
-      if (_check_weak_watched_literals && !weak_watched_literals(lit, other, c->blocker))  {
+      if (_check_weak_watched_literals && !weak_watched_literals(lit, other, blocker))  {
         success = false;
+        last_failed = true;
         _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∉ τ ∨ b ∈ π]  --  Weak watched literals invariant violation: \n";
-        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
       }
 
       // strong watched literals
       // ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
-      if (_check_strong_watched_literals && !strong_watched_literals(lit, other, c->blocker)) {
+      if (_check_strong_watched_literals && !strong_watched_literals(lit, other, blocker)) {
         success = false;
+        last_failed = true;
         _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∨ b ∈ π]  --  Strong watched literals invariant violation: \n";
-        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
       }
 
       // lazy backtrack compatible watched literals
       // ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
       //          ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
-      if (_check_lazy_backtrack_compatible_watch_literals && !lazy_backtrack_compatible_watched_literals(lit, other, c->blocker)) {
+      if (_check_lazy_backtrack_compatible_watch_literals && !lazy_backtrack_compatible_watched_literals(lit, other, blocker)) {
         success = false;
+        last_failed = true;
         _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \\ {c₂}) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]  --  Lazy backtrack compatible watched literals invariant violation: \n";
-        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
       }
 
       // backward compatible watched literals
       // ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
-      if (_check_backtrack_compatible_watched_literals && !backward_compatible_watched_literals(lit, other, c->blocker)) {
+      if (_check_backtrack_compatible_watched_literals && !backward_compatible_watched_literals(lit, other, blocker)) {
         success = false;
-        _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]  --  Backward compatible watched literals invariant violation: \n";
-        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant if c₁ is " + lit_to_string(lit) + " and c₂ is " + lit_to_string(other) + ".\n";
+        last_failed = true;
+        _error_message += ERROR_HEAD + "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]  --  Backward compatible watched literals invariant violation: \n";
+      }
+      if (last_failed) {
+        _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant.\n";
+        _error_message += ERROR_HEAD + " c₁ = " + lit_to_string(lit) + "\n";
+        _error_message += ERROR_HEAD + " c₂ = " + lit_to_string(other) + "\n";
+        _error_message += ERROR_HEAD + " b  = " + lit_to_string(blocker) + ".\n";
       }
     }
   }
@@ -336,7 +336,7 @@ bool napsat::gui::observer::backward_compatible_watched_literals(napsat::Tlit c1
   // ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₂)]
   bool success = !lit_propagated(c1) || lit_value(c1) != VAR_FALSE;
   success |= lit_value(c2) == VAR_TRUE && lit_level(c2) <= lit_level(c1);
-  success |= lit_value(blocker) == VAR_TRUE && lit_level(blocker) <= lit_level(c2);
+  success |= lit_value(blocker) == VAR_TRUE && lit_level(blocker) <= lit_level(c1);
   return success;
 }
 
@@ -348,16 +348,7 @@ bool napsat::gui::observer::check_weak_blocker_level(napsat::Tlit c1, napsat::Tl
   success |= lit_value(blocked_lit) == VAR_TRUE && (lit_level(blocked_lit) <= lit_level(c1) || lit_level(blocked_lit) <= lit_level(c2));
   return success;
 }
-
-bool napsat::gui::observer::check_strong_blocker_level(napsat::Tlit c1, napsat::Tlit c2, napsat::Tlit blocked_lit)
-{
-  // c₁ ∉ τ ∨ c₂ ∉ τ ∨ [b ∈ π ∧ [δ(b) ≤ δ(c₁) ∧ δ(b) ≤ δ(c₂)]]
-  bool success = lit_value(c1) != VAR_FALSE || !lit_propagated(c1);
-  success |= lit_value(c2) != VAR_FALSE || !lit_propagated(c2);
-  success |= lit_value(blocked_lit) == VAR_TRUE && lit_level(blocked_lit) <= lit_level(c1) && lit_level(blocked_lit) <= lit_level(c2);
-  return success;
-}
-#endif
+#endif // NOTIFY_WATCH_CHANGES
 
 bool napsat::gui::observer::check_assignment_coherence()
 {

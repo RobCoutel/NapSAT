@@ -204,14 +204,16 @@ static const char esc_char = 27; // the decimal code for escape character is 27
 
 void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
 {
-#if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
-#endif
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(cl < _clauses.size());
   ASSERT(_clauses[cl].size > 2);
   ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
-  _watch_lists[lit].push_back(cl);
+  Tlit* lits = _clauses[cl].lits;
+  _watch_lists[lit].push_back(TSwatch(cl, lits[0] ^ lits[1] ^ lit));
+  #if NOTIFY_WATCH_CHANGES
+    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lits[0] ^ lits[1] ^ lit, lit));
+  #endif
 }
 
 void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
@@ -222,9 +224,12 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
   ASSERT(_clauses[cl].size > 2);
-  auto location = find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl);
-  ASSERT(location != _watch_lists[lit].end());
-  _watch_lists[lit].erase(location);
+  size_t loc = 0;
+  while (loc < _watch_lists[lit].size() && _watch_lists[lit][loc].cl != cl) {
+    loc++;
+  }
+  ASSERT(loc < _watch_lists[lit].size());
+  _watch_lists[lit].erase(_watch_lists[lit].begin() + loc);
 }
 
 unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
@@ -299,11 +304,7 @@ string NapSAT::clause_to_string(Tclause cl)
   for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses_sizes[cl]; i++) {
     if (i == _clauses[cl].lits + _clauses[cl].size)
       s += "| ";
-    if (*i == _clauses[cl].blocker)
-      s += "\033[3mb";
     s += lit_to_string(*i);
-    if (*i == _clauses[cl].blocker)
-      s += "\033[0m";
     s += " ";
   }
   return s;
@@ -454,14 +455,14 @@ void napsat::NapSAT::print_watch_lists(Tlit lit)
     cout << ": ";
     // print the binary list
     cout << "binary: ";
-    for (pair<Tlit, Tclause> p : _binary_clauses[i]) {
-      print_lit(p.first);
-      cout << " <- " << p.second << " ";
+    for (TSwatch w : _binary_clauses[i]) {
+      print_lit(w.block);
+      cout << " <- " << w.cl << " ";
     }
     cout << "\n                non-binary: ";
 
-    for (Tclause cl : _watch_lists[i])
-      cout << cl << " ";
+    for (TSwatch w : _watch_lists[i])
+      cout << w.cl << " ";
     cout << "\n";
   }
 }

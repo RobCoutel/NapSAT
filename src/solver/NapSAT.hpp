@@ -264,8 +264,7 @@ namespace napsat
         learned(learned),
         watched(true),
         external(external),
-        size(size),
-        blocker(LIT_UNDEF)
+        size(size)
       {
         assert(size < (1 << 28));
       }
@@ -300,14 +299,30 @@ namespace napsat
        * @details Used to know the size of the allocated memory.
        */
       unsigned size : 28;
+    } TSclause;
+
+    typedef struct TSwatch {
+      /**
+       * @brief Number of the clause watched
+       */
+      Tclause cl = CLAUSE_UNDEF;
       /**
        * @brief Blocking literal. If the clause is satisfied by the blocking
        * literal, the watched literals are allowed to be falsified.
        * @details In chronological backtracking, the blocking literal must be
        * at a lower level than the watched literals.
        */
-      Tlit blocker = LIT_UNDEF;
-    } TSclause;
+      Tlit block = LIT_UNDEF;
+
+      // constructor
+      TSwatch(Tclause cl, Tlit block) :
+        cl(cl),
+        block(block) { /* do nothing */}
+
+      TSwatch() :
+        cl(CLAUSE_UNDEF),
+        block(LIT_UNDEF) { /* do nothing */ }
+    } TSwatch;
 
     /*************************************************************************/
     /*                          Fields definitions                           */
@@ -361,13 +376,13 @@ namespace napsat
      * @brief _watch_lists[i] is the first clause of the watch list of the
      * literal i.
      */
-    std::vector<std::vector<Tclause>> _watch_lists;
+    std::vector<std::vector<TSwatch>> _watch_lists;
     /**
      * @brief _binary_clauses[l] is the contains the pairs <lit, cl> where lit
      * is a literal to be propagated if l is falsified, and <cl> is the clause
      * that propagates lit.
     */
-    std::vector<std::vector<std::pair<Tlit, Tclause>>> _binary_clauses;
+    std::vector<std::vector<TSwatch>> _binary_clauses;
     /**
      * @brief _decision_index[i] is the index of the decision made after level i.
      * @remark _decision_index[0] is the index of the first decision.
@@ -919,14 +934,6 @@ namespace napsat
      */
     inline bool var_constrained(Tvar var) const {
       return _vars[var].constrained == 1;
-    }
-
-    /**
-     * @brief Returns the clause blocker
-     */
-    inline Tlit lit_blocker(Tclause cl) const
-    {
-      return _clauses[cl].blocker;
     }
 
     /**

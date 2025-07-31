@@ -618,6 +618,8 @@ namespace napsat::gui
      */
     napsat::Tlit lit;
 
+    napsat::Tlit previous_blocker = LIT_UNDEF;
+
   public:
     unwatch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
     unwatch* clone() const override { return new unwatch(cl, lit); }
@@ -642,20 +644,25 @@ namespace napsat::gui
     napsat::Tclause cl;
 
     /**
-     * @brief The literal that was watched.
+     * @brief The  blocker that was set
      */
-    napsat::Tlit lit;
+    napsat::Tlit blocker;
+
+    /**
+     * @brief The literal that is blocked in the watch list.
+     */
+    napsat::Tlit blocked_lit;
     /**
      * @brief The previous blocker of the clause (for rollback)
     */
     napsat::Tlit previous_blocker;
 
   public:
-    block(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
-    block* clone() const override { return new block(cl, lit); }
+    block(napsat::Tclause cl, napsat::Tlit blocker, napsat::Tlit blocked_lit) : cl(cl), blocker(blocker), blocked_lit(blocked_lit) {}
+    block* clone() const override { return new block(cl, blocker, previous_blocker); }
     unsigned get_event_level(observer* observer) override;
     const ENotifType get_type() override { return BLOCKER; }
-    const std::string get_message() override { return "Block literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+    const std::string get_message() override { return "Block literal : " + std::to_string(napsat::lit_to_int(blocker)) + " in clause " + std::to_string(cl); }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
   };

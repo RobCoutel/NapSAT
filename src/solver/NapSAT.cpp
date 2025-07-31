@@ -208,7 +208,9 @@ void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
   ASSERT(lit_true(lit));
   ASSERT(reason != CLAUSE_UNDEF);
   ASSERT(reason != CLAUSE_LAZY);
-  ASSERT(lit == _clauses[reason].lits[0]);
+  ASSERT_MSG(lit == _clauses[reason].lits[0],
+    "Literal: " + lit_to_string(lit) +
+    "\nReason: " + clause_to_string(reason));
   ASSERT(_options.lazy_strong_chronological_backtracking);
 
   TSclause& clause = _clauses[reason];
@@ -305,43 +307,41 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
   lit = lit_neg(lit);
   ASSERT(lit_false(lit));
 
-  for (pair<Tlit, Tclause> bin : _binary_clauses[lit]) {
-    ASSERT_MSG(_clauses[bin.second].size == 2, "Clause: " + clause_to_string(bin.second) + ",Literal: " + lit_to_string(lit));
-    // cout << "Binary clause: " << clause_to_string(bin.second) << endl;
-    if (lit_true(bin.first)) {
-      if (_options.lazy_strong_chronological_backtracking && lit_level(bin.first) > lit_level(lit)) {
+  for (TSwatch& w : _binary_clauses[lit]) {
+    Tlit other_lit = w.block;
+    Tclause cl = w.cl;
+    ASSERT_MSG(_clauses[cl].size == 2, "Clause: " + clause_to_string(cl) + ",Literal: " + lit_to_string(lit));
+
+    if (lit_true(other_lit)) {
+      if (_options.lazy_strong_chronological_backtracking && lit_level(other_lit) > lit_level(lit)) {
         // missed lower implication
-        Tlit* lits = _clauses[bin.second].lits;
-        if (lits[0] != bin.first) {
-          lits[1] = lits[0];
-          lits[0] = bin.first;
-          // no need to update the watch lists because the clause is binary
-        }
-        reimply_literal(bin.first, bin.second);
+        Tlit* lits = _clauses[cl].lits;
+        lits[0] = other_lit;
+        lits[1] = lit;
+        reimply_literal(other_lit, cl);
       }
       if (_options.graph_backtracking &&
-          !(lit_chunks(bin.first) <= lit_chunks(lit))) {
-        lit_cross_chunks(lit) |= lit_chunks(bin.first);
+          !(lit_chunks(other_lit) <= lit_chunks(lit))) {
+        lit_cross_chunks(lit) |= lit_chunks(other_lit);
       }
       continue;
     }
     ASSERT(!lit_propagated(lit));
-    if (lit_undef(bin.first)) {
+    Tlit* lits = _clauses[cl].lits;
+    if (lit_undef(other_lit)) {
       // ensure that the implied literal is positioned at the first position
-      Tlit* lits = _clauses[bin.second].lits;
       ASSERT(lits[0] == lit || lits[1] == lit);
-      ASSERT(lits[0] == bin.first || lits[1] == bin.first);
-      lits[0] = bin.first;
+      ASSERT(lits[0] == other_lit || lits[1] == other_lit);
+      lits[0] = other_lit;
       lits[1] = lit;
-      imply_literal(bin.first, bin.second);
+      imply_literal(other_lit, cl);
       continue;
     }
     // Conflict
     ASSERT(_options.chronological_backtracking || _options.graph_backtracking
-           || lit_level(bin.first) == lit_level(lit));
+           || lit_level(other_lit) == lit_level(lit));
     if (_options.chronological_backtracking) {
       // make sure that the highest literal is at the first position
-      Tlit* lits = _clauses[bin.second].lits;
       if (lit_level(lits[0]) < lit_level(lits[1])) {
         // in place swapping
         lits[0] ^= lits[1];
@@ -350,8 +350,8 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
         // we do not need to update the next watched clause because the clause is binary
       }
     }
-    ASSERT(_options.graph_backtracking || lit_level(_clauses[bin.second].lits[0]) >= lit_level(_clauses[bin.second].lits[1]));
-    return bin.second;
+    ASSERT(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]));
+    return cl;
   }
   return CLAUSE_UNDEF;
 }
@@ -364,17 +364,18 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
    */
   lit = lit_neg(lit);
+  // cout << "-- Propagating literal: " << lit_to_string(lit) << endl;
   ASSERT(lit_false(lit));
 
   // level of the propagation
   Tlevel lvl = lit_level(lit);
-  vector<Tclause>& watch_list = _watch_lists[lit];
+  vector<TSwatch>& watch_list = _watch_lists[lit];
 
   // Be careful that with this method, we do not want to push anything to the watch list.
   // Otherwise the memory might be reallocated and the pointers invalidated.
   // TODO check if this watch list shuffling is good for performance
-  Tclause* i = watch_list.data();
-  Tclause* end = i + watch_list.size();
+  TSwatch* i = watch_list.data();
+  TSwatch* end = i + watch_list.size();
 
   /**
    * Let F* be a set of clauses such that each clause in the set satisfies
@@ -414,16 +415,17 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * all the clauses watched by ¬ℓ and F* = F. Therefore, we satisfy our contract.
    */
   while (i < end) {
-    Tclause cl = *i;
-    // cout << "Processing clause: " << clause_to_string(cl) << endl;
+    TSwatch& w = *i;
+    Tclause cl = w.cl;
     TSclause& clause = _clauses[cl];
     ASSERT(clause.watched);
     ASSERT(clause.size >= 2);
     // Skip condition before dereferencing the pointers
     ASSERT(lit_cross_chunks(lit) >= lit_chunks(lit));
-    if (lit_true(clause.blocker)
-      && (!_options.chronological_backtracking || lit_level(clause.blocker) <= lvl)
-      && (!_options.graph_backtracking || lit_chunks(clause.blocker) <= lit_cross_chunks(lit))) {
+    Tlit blocker = w.block;
+    if (lit_true(blocker)
+      && (!_options.chronological_backtracking || lit_level(blocker) <= lvl)
+      && (!_options.graph_backtracking         || lit_chunks(blocker) <= lit_cross_chunks(lit))) {
       /**
        * NCB: b ∈ π
        * WCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
@@ -461,6 +463,10 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        * GB:  c₂ ∈ π ∧ γ(c₁) ⊆ γ(c₂) ∪ η(c₂)
        * the invariants are preserved without any action
        */
+      w.block = lit2;
+#if NOTIFY_WATCH_CHANGES
+      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lit2, lit));
+#endif
       i++;
       continue;
     }
@@ -497,17 +503,16 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     if (lit_true(*replacement)
     && ((!_options.graph_backtracking && replacement_lvl <= lvl)
      || (_options.graph_backtracking
-      && lit_chunks(*replacement) <= lit_cross_chunks(lits[0])
-      && lit_chunks(*replacement) <= lit_cross_chunks(lits[1])))) {
+      && lit_chunks(*replacement) <= lit_cross_chunks(lit)))) {
       /**
        * r ∈ π ∧ δ(r) ≤ δ(c₁)
        * NCB: We know that r ∈ π ⇒ δ(r) ≤ δ(c₁). Therefore after this condition is satisfied in NCB,
        *      we know that r ∉ π
        * ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] is satisfied if we set b = r
       */
-      clause.blocker = *replacement;
+      w.block = *replacement;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, *replacement));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, *replacement, lit));
 #endif
       i++;
       continue;
@@ -1728,8 +1733,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   else if (clause_size == 2) {
     NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause added"));
     // clause->watched = false;
-    _binary_clauses[lits[0]].push_back(make_pair(lits[1], cl));
-    _binary_clauses[lits[1]].push_back(make_pair(lits[0], cl));
+    _binary_clauses[lits[0]].push_back(TSwatch(cl, lits[1]));
+    _binary_clauses[lits[1]].push_back(TSwatch(cl, lits[0]));
 #if NOTIFY_WATCH_CHANGES
     NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
     NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
