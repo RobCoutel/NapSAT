@@ -1932,10 +1932,26 @@ bool NapSAT::propagate()
   return true;
 }
 
+static inline void print_bt_option(const options &options) {
+  string bt = "non-chronological";
+  if (options.chronological_backtracking)
+    bt = "chronological";
+  else if (options.weak_chronological_backtracking)
+    bt = "weak-chronological";
+  else if (options.restoring_strong_chronological_backtracking)
+    bt = "restoring-strong-chronological";
+  else if (options.lazy_strong_chronological_backtracking)
+    bt = "lazy-strong-chronological";
+  else if (options.graph_backtracking)
+    bt = "graph";
+  LOG_INFO("Using backtracking strategy: " + bt);
+}
+
 status NapSAT::solve()
 {
   if (_status != UNDEF)
     return _status;
+  print_bt_option(_options);
   while (true) {
     NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
     if (!propagate()) {
