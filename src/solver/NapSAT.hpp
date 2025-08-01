@@ -550,6 +550,11 @@ namespace napsat
      */
     bool _interactive = false;
 
+    /**
+     * @brief Number of conflicts encountered so far
+     */
+    long _n_conflicts = 0;
+
     /*************************************************************************/
     /*                       Quality of life functions                       */
     /*************************************************************************/

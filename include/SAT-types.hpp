@@ -20,7 +20,11 @@ namespace napsat
     // The solver does not know if the clause set is satisfiable or not.
     UNDEF,
     // An error occurred.
-    ERROR
+    ERROR,
+    // The solver was stopped by the user.
+    INTERRUPTED,
+    // The solver timed out.
+    TIMEOUT
   };
   /**
    * @brief Type to denote a variable.

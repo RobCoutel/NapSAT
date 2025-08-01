@@ -171,7 +171,11 @@ napsat::options::options(vector<string>& tokens)
     {"--var-activity-decay",              &var_activity_decay},
     {"--agility-decay",                   &agility_decay},
     {"--agility-threshold",               &agility_threshold},
-    {"--agility-threshold-decay",         &agility_threshold_decay}
+    {"--agility-threshold-decay",         &agility_threshold_decay},
+    {"--timeout",                         &timeout},
+    {"-t",                                &timeout},
+    {"--conflict-limit",                  &conflict_limit},
+    {"-cl",                               &conflict_limit},
   };
 
   /**

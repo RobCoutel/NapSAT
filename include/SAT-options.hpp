@@ -279,6 +279,20 @@ namespace napsat
      */
     double agility_threshold_decay = 1;
 
+    /**
+     * @brief Timeout of the solver in milliseconds. If the solver does not finish within this time, it will stop and return UNKNOWN.
+     * @requires timeout > 0
+     * @alias -t
+     */
+    double timeout = 5000;
+
+    /**
+     * @brief Number of conflicts before the solver exists with UNKNOWN.
+     * If conflict-limit is set to -1, the option is ignored.
+     * @alias -cl
+     */
+    double conflict_limit = -1;
+
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.
 

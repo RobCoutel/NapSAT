@@ -18,6 +18,7 @@
 #include <iostream>
 #include <cstring>
 #include <functional>
+#include <chrono>
 
 using namespace napsat;
 using namespace std;
@@ -1319,7 +1320,11 @@ bool NapSAT::propagate()
       NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
       continue;
     }
-    NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(conflict));
+    _n_conflicts++;
+    if (_options.conflict_limit != -1 && _n_conflicts > _options.conflict_limit) {
+      _status = TIMEOUT;
+      return false;
+    }
     repair_conflict(conflict);
     if (_status == UNSAT)
       return false;
@@ -1335,12 +1340,19 @@ bool NapSAT::propagate()
 
 status NapSAT::solve()
 {
+  auto start_time = std::chrono::steady_clock::now();
   if (_status != UNDEF)
     return _status;
   while (true) {
+    auto current_time = std::chrono::steady_clock::now();
+    std::chrono::duration<double, std::milli> elapsed_time = current_time - start_time;
+    if (elapsed_time.count() > _options.timeout * 1000) {
+      _status = TIMEOUT;
+      return TIMEOUT;
+    }
     NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
     if (!propagate()) {
-      if (_status == UNSAT || !_options.interactive)
+      if ((_status != UNSAT && _status != TIMEOUT) || !_options.interactive)
         break;
       NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
     }
