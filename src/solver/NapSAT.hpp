@@ -585,7 +585,7 @@ namespace napsat
      * @details This is the number of chunks that variables are able to use.
      * i.e., the size of the bitset of each variable.
      */
-    unsigned _n_allocated_chunks = 1;
+    unsigned _n_allocated_chunks = 4032;
 
     /**  PROOFS  **/
     /**

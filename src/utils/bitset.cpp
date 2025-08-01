@@ -78,7 +78,7 @@ bitset::bitset() noexcept : _bits(1) {
   assert(_bits[0] == 0);
 }
 
-bitset::bitset(size_t size) noexcept : _bits(MP(size) + 1, M_NEXT_MSK) {
+bitset::bitset(size_t size) noexcept : _bits(MP(size-1) + 1, M_NEXT_MSK) {
   // clear the last entry
   _bits.back() = 0;
 }
@@ -93,7 +93,7 @@ void bitset::resize(size_t size) {
   while(*(it++) & M_NEXT_MSK);
   *(it - 1) |= M_NEXT_MSK;
 
-  size_t cnt_n = MP(size) + 1;
+  size_t cnt_n = MP(size-1) + 1;
   size_t cnt_m = it - _bits.begin();
   assert(cnt_m < cnt_n);
   unsigned n = cnt_n - cnt_m;
@@ -150,9 +150,10 @@ void bitset::set(size_t index, bool value) {
 }
 
 void bitset::clear() {
-  _bits.clear();
-  _bits.push_back(0);
-  assert(count() == 0);
+  auto it = _bits.begin();
+  do {
+    *it &= M_NEXT_MSK;
+  } while(*(it++) & M_NEXT_MSK);
 }
 
 bool bitset::empty() const {

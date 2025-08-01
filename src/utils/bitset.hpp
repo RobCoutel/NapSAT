@@ -16,8 +16,8 @@
 // bits per metadata block
 #define MMS    (MS * BITS)
 // metadata position and offset of a bit
-#define MP(b)  (b / (BITS * MS))
-#define MO(b)  ((b / BITS) % MS)
+#define MP(b)  ((b) / (BITS * MS))
+#define MO(b)  (((b) / BITS) % MS)
 
 /** Extract the n-th bit of b. */
 static inline constexpr bool get_bit(uint64_t b, unsigned n) {
