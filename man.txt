@@ -69,7 +69,11 @@ The options are the following:
 
   -bsc or --backtrack-smallest-chunk <bool = off>
     Enables the solver to search the smallest UIP and choose the backtracked chunk accordingly.
-    Requires: -gb is true
+    Requires: -gb is true, -bfc is false
+
+  -bfc or --backtrack-first-chunk <bool = off>
+    Enables the solver to backtrack the first chunk in the conflict clause.
+    Requires: -gb is true, -bsc is false
 
   -del or --delete-clauses <bool = on>
     Enables the solver to delete learned clauses.
@@ -147,5 +151,8 @@ The options are the following:
     solver will not make progress.  Therefore,  the threshold  is multiplied  by the threshold decay
     factor upon each clause deletion. This hyper parameter must be set to a value lower than 1.
     Requires: 0 < decay < 1
+
+  --no-restart <bool = off>
+    Disables restarts of the solver.
 
 ****************************************************************************************************

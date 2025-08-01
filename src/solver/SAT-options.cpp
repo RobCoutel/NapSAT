@@ -166,7 +166,8 @@ napsat::options::options(vector<string>& tokens)
     {"-cp",                                      &check_proof},
     {"--check-proof",                            &check_proof},
     {"--ignore-unused_variables",                &ignore_unused_variables},
-    {"-iuv",                                     &ignore_unused_variables}
+    {"-iuv",                                     &ignore_unused_variables},
+    {"--no-restart",                             &no_restart}
   };
 
   /**
@@ -211,6 +212,7 @@ napsat::options::options(vector<string>& tokens)
           LOG_WARNING("Default value " << (*bool_options[token] ? "on" : "off") << " is used.");
           continue;
         }
+        i++;
       }
       else
         *bool_options[token] = true;

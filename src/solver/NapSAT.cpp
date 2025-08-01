@@ -891,9 +891,8 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
       lit_chunks(*k).set(chunk, false);
       while(_propagated_literals > location) {
         _propagated_literals--;
-        Tlit lit = _trail[_propagated_literals];
         // _vars[lit_to_var(lit)].propagated = false;
-        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
+        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(_trail[_propagated_literals]));
       }
       ASSERT(_propagated_literals <= _trail.size());
     }
@@ -1922,7 +1921,7 @@ bool NapSAT::propagate()
     repair_conflict(conflict);
     if (_status == UNSAT)
       return false;
-    if (_luby_counter.increment()) {
+    if (!_options.no_restart &&_luby_counter.increment()) {
       restart();
     }
   }

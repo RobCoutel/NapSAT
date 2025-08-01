@@ -290,6 +290,11 @@ namespace napsat
      */
     double clause_activity_threshold_decay = 0.85;
 
+    /**
+     * @brief Disables restarts of the solver.
+     */
+    bool no_restart = false;
+
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.
 

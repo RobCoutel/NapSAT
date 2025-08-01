@@ -41,7 +41,9 @@ static inline bool is_prefix(const string &s, const string &prefix) {
 
 bool napsat::NapSAT::parse_dimacs(const char* filename)
 {
+#if USE_OBSERVER
   bool printed_warning = false;
+#endif
   // the file is a compressed xz file
   // first decompress it and store it in a temporary file
   istringstream stream;
@@ -79,6 +81,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
     ltrim(line);
     if (line.empty())
       continue;
+#if USE_OBSERVER
     if (_observer && is_prefix(line, "co")) {
       // parse the alias name of the variable
       // the comment should be of the form:
@@ -112,6 +115,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       // treat it as a regular comment, continue
       continue;
     }
+#endif
     if (is_prefix(line, "c"))
       continue;
     if (is_prefix(line, "%"))
