@@ -213,6 +213,12 @@ namespace napsat
        *          ∧ δ(λ(ℓ) \ {ℓ}) < δ(ℓ)
        */
       Tclause missed_lower_implication = CLAUSE_UNDEF;
+
+      /**
+       * @brief Stores the highest level that, if backtracked, requires this
+       * variable to be repropagated.
+       */
+      Tlevel repropagate_level = LEVEL_ROOT;
     } TSvar;
 
 #define CLAUSE_HEAD_SIZE 5
@@ -850,6 +856,7 @@ namespace napsat
                         new napsat::gui::remove_lower_implication(var));
         v.missed_lower_implication = CLAUSE_UNDEF;
       }
+      v.repropagate_level = LEVEL_ROOT;
       if (!_variable_heap.contains(var))
         _variable_heap.insert(var, v.activity);
     }

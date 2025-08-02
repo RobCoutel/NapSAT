@@ -173,8 +173,14 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
         }
         reimply_literal(bin.first, bin.second);
       }
+      if (_options.restoring_strong_chronological_backtracking && _vars[lit_to_var(lit)].repropagate_level < lit_level(bin.first)) {
+        _vars[lit_to_var(lit)].repropagate_level = lit_level(bin.first);
+      }
       continue;
     }
+
+    ASSERT(!lit_propagated(lit));
+
     if (lit_undef(bin.first)) {
       // ensure that the implied literal is positioned at the first position
       Tlit* lits = _clauses[bin.second].lits;
@@ -270,6 +276,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        * SCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
        * the invariants are preserved without any action
        */
+      // TODO: Here can relax in RSCB, but need to log in _repropagation_level
       i++;
       continue;
     }
@@ -298,9 +305,15 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        * SCB: c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)
        * the invariants are preserved without any action
        */
+      if (_options.restoring_strong_chronological_backtracking && _vars[lit_to_var(lit)].repropagate_level < lit_level(lit2)) {
+        _vars[lit_to_var(lit)].repropagate_level = lit_level(lit2);
+      }
       i++;
       continue;
     }
+
+    ASSERT(!lit_propagated(lit));
+
     /** SEARCH REPLACEMENT **/
     Tlit* replacement = search_replacement(lits, clause.size);
     /**
@@ -559,7 +572,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
     }
     else { // lit_level(lit) <= level
       _trail[j++] = lit;
-      waiting_count += !_vars[var].propagated;
+      waiting_count += i >= _propagated_literals ? 1 : 0;
     }
   }
   // Here we unassign the literals as mentioned above
@@ -579,14 +592,22 @@ void napsat::NapSAT::backtrack(Tlevel level)
   // in RSCB we need to move the propagation head back to the location of the first literal that moved
   // that is, the location of the first literal that was unassigned.
   if (_options.restoring_strong_chronological_backtracking) {
-    while (_propagated_literals > restore_point) {
-      Tlit lit = _trail[_propagated_literals - 1];
+    // we need to refresh the propagation status, even after the propagation head
+    // this is because of potential chained conflicts
+    for (unsigned i = _trail.size(); i > restore_point; ) {
+      i--;
+      Tlit lit = _trail[i];
       Tvar var = lit_to_var(lit);
-      ASSERT_MSG(_vars[var].propagated,
-                  "Literal: " + lit_to_string(lit) + "\nLevel: " + to_string(lit_level(lit)));
-      _vars[var].propagated = false;
-      _propagated_literals--;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
+
+      if (_vars[var].propagated && _vars[var].repropagate_level <= level) {
+        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Repropagation"));
+        _vars[var].propagated = false;
+      }
+
+      if (i == _propagated_literals - 1) {
+        _propagated_literals--;
+        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
+      }
     }
   }
   if (_reimplication_backtrack_buffer.size() > 0) {
@@ -977,6 +998,7 @@ void NapSAT::repair_conflict(Tclause conflict)
 
 void NapSAT::restart()
 {
+  return;
   _agility = 1;
   _options.agility_threshold *= _options.agility_threshold_decay;
   backtrack(LEVEL_ROOT);
@@ -1311,6 +1333,15 @@ bool NapSAT::propagate()
     return false;
   while (_propagated_literals < _trail.size()) {
     Tlit lit = _trail[_propagated_literals];
+#ifdef NDEBUG
+    if (lit_propagated(lit)) {
+      _propagated_literals++;
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Skipped Propagation"));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
+      continue;
+    }
+#endif
+    _vars[lit_to_var(lit)].repropagate_level = LEVEL_ROOT;
     Tclause conflict = propagate_binary_clauses(lit);
     if (conflict == CLAUSE_UNDEF)
       conflict = propagate_lit(lit);

@@ -313,6 +313,8 @@ void NapSAT::print_trail()
     print_lit(lit);
     cout << " --> reason: ";
     print_clause(lit_reason(lit));
+    if (lit_propagated(lit))
+      cout << " (propagated)";
     cout << "\n";
   }
   cout << "\n";
