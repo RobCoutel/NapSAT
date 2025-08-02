@@ -154,6 +154,7 @@ void bitset::clear() {
   do {
     *it &= M_NEXT_MSK;
   } while(*(it++) & M_NEXT_MSK);
+  _bits.resize(it - _bits.begin());
 }
 
 bool bitset::empty() const {
@@ -479,17 +480,23 @@ bitset::iterator bitset::iterator::end(const bitset &bs) {
 }
 
 std::string bitset::to_string() const {
+  std::string result = "[";
+  auto i = cbegin();
+  while (i != cend()) {
+    result += std::to_string(*i) + "  ";
+    ++i;
+  }
+  result = result.substr(0, result.size() - 1) + "]";
+  return result;
+}
+
+#include <bitset>
+
+std::string bitset::bit_string() const {
   std::string result;
-  result.reserve(capacity() + (capacity() / 8) + 1); // reserve space for the string
-  for (size_t i = 0; i < capacity(); ++i) {
-    if (_bits[i / (BITS*BITS)] >> ((i / BITS) % BITS) == 0) {
-      result += " ..."; // add space for readability
-      break;
-    }
-    result += get(i) ? '1' : '0';
-    if (i % 8 == 7 && i < capacity() - 1) {
-      result += ' ';
-    }
+  result.reserve(_bits.size() * 65);
+  for (uint64_t block : _bits) {
+    result += std::bitset<64>(block).to_string() + "\n";
   }
   return result;
 }

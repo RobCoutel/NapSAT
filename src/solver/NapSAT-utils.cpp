@@ -125,11 +125,9 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
         unsigned n_var, n_clauses;
         sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
         if (n_var > _vars.size()) {
-          cout << "Allocating " << n_var << " variables and " << n_clauses << " clauses." << endl;
-        var_allocate(n_var);
-      }
-      // we ignore the number of clauses
-      // TODO preallocate the clauses
+          LOG_INFO("Allocating " << n_var << " variables and " << n_clauses << " clauses.");
+          var_allocate(n_var);
+        }
       } else {
         LOG_ERROR("Misplaced string \'p cnf\' found. Must be the first non-comment line.");
       }

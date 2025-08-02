@@ -52,8 +52,8 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         ASSERT_MSG(!(lit_chunks(lit_i) > lit_chunks(lit1)),
                    "Literal: " + lit_to_string(lit_i) +
                    "\nReason: " + clause_to_string(reason) +
-                   "\nChunk:       " + lit_chunks(lit_i).to_string() +
-                   "\nSVar chunks: " + _vars[lit_to_var(lit1)].chunks.to_string());
+                   "\nlit_i: " + lit_chunks(lit_i).to_string() +
+                   "\nlit1 : " + lit_chunks(lit1).to_string());
       }
     } else {
       for (unsigned i = 2; i < _clauses[reason].size; i++) {

@@ -91,6 +91,7 @@ public:
   bool operator>(const bitset& other) const;
 
   std::string to_string() const;
+  std::string bit_string() const;
   using bitstore = std::vector<uint64_t>;
 
   struct iterator {
