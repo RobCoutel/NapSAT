@@ -137,6 +137,7 @@ namespace napsat
      * @brief Enables the solver to use chronological backtracking.
      * @alias -wcb
      * @subsumed lscb and rscb
+     * @warning This option is deprecated and will be removed in a future version.
      */
     bool weak_chronological_backtracking = false;
 

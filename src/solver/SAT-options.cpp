@@ -268,6 +268,14 @@ napsat::options::options(vector<string>& tokens)
     LOG_WARNING("The solver will run with restoring strong chronological backtracking.");
     weak_chronological_backtracking = false;
   }
+  if (weak_chronological_backtracking) {
+    LOG_WARNING("weak chronological backtracking is deprecated and will be removed in a future version.");
+    LOG_WARNING("Please use restoring strong chronological backtracking instead.");
+    LOG_INFO("Switching to restoring strong chronological backtracking.");
+    restoring_strong_chronological_backtracking = true;
+    weak_chronological_backtracking = false;
+  }
+
   chronological_backtracking = weak_chronological_backtracking || restoring_strong_chronological_backtracking || lazy_strong_chronological_backtracking;
 
   interactive |= commands_file != "";

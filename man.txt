@@ -50,6 +50,7 @@ The options are the following:
   -wcb or --weak-chronological-backtracking <bool = off>
     Enables the solver to use chronological backtracking.
     Subsumed by: lscb and rscb
+    Warning: This option is deprecated and will be removed in a future version.
 
   -rscb or --restoring-strong-chronological-backtracking <bool = off>
     Enables  the  solver  to use restoring  chronological  backtracking.  That  is, the solver will

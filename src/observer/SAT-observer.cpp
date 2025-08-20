@@ -587,12 +587,12 @@ std::string napsat::gui::observer::clause_to_string(Tclause cl)
   }
   if (_active_clauses[cl]->watched.empty())
     return s.substr(0, s.size() - 1); // remove the last space
-  s += " (";
+  s += "(";
   for (auto watched: _active_clauses[cl]->watched) {
     if (watched.second == LIT_UNDEF)
       s += lit_to_string(watched.first) + " ";
     else
-      s += lit_to_string(watched.first) + "->" + lit_to_string(watched.second) + " ";
+      s += lit_to_string(watched.first) + ">" + lit_to_string(watched.second) + " ";
   }
   s = s.substr(0, s.size() - 1); // remove the last space
   s += ")";
