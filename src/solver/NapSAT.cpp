@@ -72,6 +72,11 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   svar.propagated = false;
   svar.reason = reason;
 
+  // for the logic, look at the comment in NapSAT.hpp
+  ASSERT(svar.synced != 0);
+  if (svar.synced == 1)
+    svar.synced = 3;
+
   if (reason == CLAUSE_UNDEF) {
     // Decision
     _decision_index.push_back(_trail.size() - 1);
@@ -201,6 +206,20 @@ void NapSAT::var_unassign(Tvar var)
   v.reason = CLAUSE_UNDEF;
   v.level = LEVEL_UNDEF;
   v.propagated = false;
+
+  // for the logic, look at the comment in NapSAT.hpp
+  switch (v.synced)
+  {
+  case 0:
+  case 2:
+    v.synced = 2;
+    break;
+  case 3:
+    v.synced = 1;
+    break;
+  default:
+    ASSERT(false);
+  }
 }
 
 void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
@@ -708,6 +727,10 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     if (_options.lazy_strong_chronological_backtracking) {
       reimply_literal(lit2, cl);
     } else {
+      if (lit_reason(lits[1]) == CLAUSE_UNDEF) {
+        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
+        NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Cross implication for " + lit_to_string(lits[1]) + " in " + clause_to_string(cl)));
+      }
       // We are in graph backtracking, so we do not need to reimply the literal
       // but we will need to repropagate the literal if one of the other literals in the clause are backtracked
       for (unsigned i = 0; i < clause.size; i++) {
@@ -950,9 +973,9 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
   }
   // sort by decision level of the chunks
 
-  reverse(used_chunks.begin(), used_chunks.end());
-  // sort(used_chunks.begin(), used_chunks.end(),
-  //      [this](Tchunk a, Tchunk b) { return var_level(_chunks[a].decision) > var_level(_chunks[b].decision); });
+  // reverse(used_chunks.begin(), used_chunks.end());
+  sort(used_chunks.begin(), used_chunks.end(),
+       [this](Tchunk a, Tchunk b) { return var_level(_chunks[a].decision) > var_level(_chunks[b].decision); });
 
   for (Tchunk ck : used_chunks) {
     // cout << "Analyzing chunk: " << ck << endl;
@@ -1977,6 +2000,7 @@ status NapSAT::solve()
       continue;
     }
     NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
+    synchronize();
 #if USE_OBSERVER
     if (_observer && _options.interactive)
       _observer->notify(new napsat::gui::checkpoint());
@@ -1987,6 +2011,7 @@ status NapSAT::solve()
     if (_status == SAT)
       break;
   }
+  synchronize();
   if (_status == SAT)
     NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
   NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
@@ -2089,28 +2114,40 @@ void NapSAT::hint(Tlit lit, unsigned int level)
 
 void NapSAT::synchronize()
 {
-  _number_of_valid_literals = _trail.size();
-  for (Tvar var : _touched_variables)
-    _vars[var].state_last_sync = _vars[var].state;
-
-  _touched_variables.clear();
+  for (Tvar var = 1; var < _vars.size(); var++) {
+    TSvar& v = _vars[var];
+    switch (v.synced)
+    {
+    case 0:
+    case 1:
+      // do nothing
+      break;
+    case 2:
+      // cout << "Syncing unassigned variable " << var << endl;
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync unassign"));
+      if (v.state == VAR_UNDEF)
+        v.synced = 1;
+      else {
+        v.synced = 0;
+        // cout << "Syncing assigned variable " << var << endl;
+        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync assign"));
+      }
+      break;
+    case 3:
+      ASSERT (v.state != VAR_UNDEF);
+      // cout << "Syncing assigned variable " << var << endl;
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync assign"));
+      v.synced = 0;
+    default:
+      break;
+    }
+  }
+  _sync_validity_index = _trail.size();
 }
 
 unsigned NapSAT::sync_validity_limit()
 {
-  return _number_of_valid_literals;
-}
-
-unsigned NapSAT::sync_color(Tvar var)
-{
-  ASSERT(var < _vars.size() && var > 0);
-  if (_vars[var].state == _vars[var].state_last_sync)
-    return 0;
-  if (VAR_UNDEF == _vars[var].state)
-    return 1;
-  if (VAR_UNDEF == _vars[var].state_last_sync)
-    return 2;
-  return 3;
+  return _sync_validity_index;
 }
 
 void NapSAT::set_markup(void (*markup_function)(void))

@@ -157,7 +157,7 @@ namespace napsat
         propagated(false),
         state(VAR_UNDEF),
         phase_cache(0),
-        state_last_sync(VAR_UNDEF),
+        synced(1),
         constrained(0)
       {}
       /**
@@ -202,8 +202,17 @@ namespace napsat
       /**
        * @brief Last value assigned to the variable before the last
        * synchronization.
+       * 0 means that the variable is synchronized assigned
+       * 1 means that the variable is synchronized unassigned
+       * 2 means that the variable is not synchronized and was assigned
+       * 3 means that the variable is not synchronized and was unassigned
+       *
+       * 0  -- backtrack --> 2
+       * 1  --  assign   --> 3
+       * 2  --  assign   --> 2
+       * 3  -- backtrack --> 1
        */
-      Tval state_last_sync : 2;
+      unsigned synced : 2;
 
       /**
        * @brief True if at least one clause constraints this variable.
@@ -390,11 +399,6 @@ namespace napsat
      * @remark _decision_index[0] is the index of the first decision.
      */
     std::vector<unsigned> _decision_index;
-    /**
-     * @brief Position of the last literal on the trail that was left unchanged
-     * since the last synchronization.
-     */
-    unsigned sync_validity_index;
 
     /**  ADDING CLAUSES  **/
     /**
@@ -596,15 +600,10 @@ namespace napsat
 
     /**  SMT SYNCHRONIZATION  **/
     /**
-     * @brief Number of literals that were valid since the last synchronization.
-     * @todo Not supported yet.
+     * @brief Position of the last literal on the trail that was left unchanged
+     * since the last synchronization.
      */
-    unsigned _number_of_valid_literals = 0;
-    /**
-     * @brief Set of variables that were touched by the SAT solver since the
-     * last synchronization.
-     */
-    std::set<Tvar> _touched_variables;
+    unsigned _sync_validity_index;
 
     /**  INTERACTIVE SOLVER  **/
 #if USE_OBSERVER
