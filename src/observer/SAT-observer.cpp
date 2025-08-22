@@ -92,7 +92,8 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
       toggle_stats_only(true);
     }
   }
-  load_invariant_configuration();
+  if (!_stats_only)
+    load_invariant_configuration();
   if (options.commands_file != "") {
     load_commands(options.commands_file);
   }

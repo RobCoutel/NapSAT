@@ -344,6 +344,12 @@ void NapSAT::print_trail()
     }
     cout << "\n";
   }
+
+  cout << "Decision index: ";
+  for (unsigned i = 0; i < _decision_index.size(); i++) {
+    cout << _decision_index[i] << " ";
+  }
+  cout << "\n";
   cout << "\n";
 }
 

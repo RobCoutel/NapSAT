@@ -33,7 +33,6 @@
  */
 namespace napsat::gui
 {
-  const unsigned MAX_UNSIGNED = 0xFFFFFFFF;
   /**
    * @brief The level of marker events.
   */
@@ -56,16 +55,19 @@ namespace napsat::gui
     UNASSIGNMENT,
     PROPAGATION_ADDED,
     PROPAGATION_REMOVED,
+    MOVE_LITERAL,
+    REASON_UPDATE,
+    LEVEL_UPDATE,
     CONFLICT,
     BACKTRACKING_STARTED,
     BACKTRACKING_DONE,
     WATCH,
     UNWATCH,
     BLOCKER,
-    CHECK_INVARIANTS,
     MISSED_LOWER_IMPLICATION_LOGGED,
     REMOVE_LOWER_IMPLICATION_REMOVED,
-    STAT
+    CHECK_INVARIANTS,
+    STAT,
   };
   std::string notification_type_to_string(ENotifType type);
 
@@ -329,11 +331,39 @@ namespace napsat::gui
     update_level(napsat::Tlit lit, napsat::Tlevel level) : lit(lit), level(level) {}
     update_level* clone() const override { return new update_level(lit, level); }
     unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return IMPLICATION; }
+    const ENotifType get_type() override { return LEVEL_UPDATE; }
     const std::string get_message() override { return "Update level : " + std::to_string(napsat::lit_to_int(lit)) + " updated to level " + std::to_string(level); }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
     ~update_level() override = default;
+  };
+
+  class update_reason : public notification
+  {
+  private:
+    unsigned event_level = 5;
+
+    /**
+     * @brief The literal that was updated.
+     */
+    napsat::Tlit lit;
+
+    /**
+     * @brief The new level of the literal.
+     */
+    napsat::Tclause reason = CLAUSE_UNDEF;
+
+    napsat::Tclause old_reason = CLAUSE_UNDEF;
+
+  public:
+    update_reason(napsat::Tlit lit, napsat::Tclause reason) : lit(lit), reason(reason) {}
+    update_reason* clone() const override { return new update_reason(lit, reason); }
+    unsigned get_event_level(observer* observer) override;
+    const ENotifType get_type() override { return REASON_UPDATE; }
+    const std::string get_message() override { return "Update reason : " + std::to_string(napsat::lit_to_int(lit)) + " updated to reason " + std::to_string(reason); }
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
+    ~update_reason() override = default;
   };
 
   /**
@@ -373,11 +403,13 @@ namespace napsat::gui
      */
     napsat::Tlit lit;
 
+    bool was_propagated = false;
+
   public:
     remove_propagation(napsat::Tlit lit) : lit(lit) {}
     remove_propagation* clone() const override { return new remove_propagation(lit); }
     unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return PROPAGATION_ADDED; }
+    const ENotifType get_type() override { return PROPAGATION_REMOVED; }
     const std::string get_message() override { return "Propagation removed : " + std::to_string(napsat::lit_to_int(lit)); }
     virtual bool apply(observer* observer) override;
     virtual bool rollback(observer* observer) override;
@@ -748,7 +780,24 @@ namespace napsat::gui
     virtual bool rollback(observer* observer) override;
   };
 
+  class move_literal : public notification
+  {
+    unsigned event_level = 4;
 
+    Tlit lit;
+    size_t from;
+    size_t to;
+    Tlit previous_lit = LIT_UNDEF;
+
+  public:
+    move_literal(Tlit lit, size_t from, size_t to) : lit(lit), from(from), to(to) {}
+    move_literal* clone() const override { return new move_literal(lit, from, to); }
+    unsigned get_event_level(observer* observer) override { return event_level; }
+    const ENotifType get_type() override { return MOVE_LITERAL; }
+    const std::string get_message() override { return "Move literal : " + std::to_string(napsat::lit_to_int(lit)) + " from " + std::to_string(from) + " to " + std::to_string(to); }
+    virtual bool apply(observer* observer) override;
+    virtual bool rollback(observer* observer) override;
+  };
 
 
   class stat : public notification

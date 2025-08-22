@@ -84,7 +84,16 @@ std::string napsat::gui::notification_type_to_string(ENotifType type)
   return "Missed lower implication logged";
   case ENotifType::REMOVE_LOWER_IMPLICATION_REMOVED:
   return "Missed lower implication removed";
+  case ENotifType::STAT:
+  return "Statistics";
+  case ENotifType::MOVE_LITERAL:
+  return "Move literal";
+  case ENotifType::REASON_UPDATE:
+  return "Reason update";
+  case ENotifType::LEVEL_UPDATE:
+  return "Level update";
   default:
+  LOG_ERROR("Unknown notification type: " << static_cast<unsigned>(type));
   return "UNKNOWN";
   }
 }
@@ -343,7 +352,7 @@ bool napsat::gui::remove_propagation::apply(observer* obs)
   ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].active);
   ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
   ASSERT_OBS(this, obs->_assignment_stack[obs->_n_propagated] == lit);
-  ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].propagated);
+  was_propagated = obs->_variables[lit_to_var(lit)].propagated;
   obs->_variables[lit_to_var(lit)].propagated = false;
   return true;
 }
@@ -354,9 +363,9 @@ bool napsat::gui::remove_propagation::rollback(observer* obs)
   ASSERT_OBS(this, obs->_variables.size() > lit_to_var(lit));
   ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].active);
   ASSERT_OBS(this, obs->_variables[lit_to_var(lit)].value != VAR_UNDEF);
-  ASSERT_OBS(this, !obs->_variables[lit_to_var(lit)].propagated);
+
   obs->_n_propagated++;
-  obs->_variables[lit_to_var(lit)].propagated = true;
+  obs->_variables[lit_to_var(lit)].propagated = was_propagated;
   return true;
 }
 
@@ -376,7 +385,6 @@ bool napsat::gui::unassignment::apply(observer* obs)
   if (obs->_variables[var].reason == CLAUSE_UNDEF && obs->_variables[var].level == obs->_decision_level) {
     obs->_decision_level--;
   }
-
 
   if (location == MAX_UNSIGNED) {
     for (location = 0; location < obs->_assignment_stack.size(); location++) {
@@ -725,5 +733,87 @@ bool napsat::gui::remove_lower_implication::rollback(observer* obs)
   ASSERT_OBS(this, obs->_active_clauses[last_cl] != nullptr);
   ASSERT_OBS(this, obs->_variables[var].lazy_reason == CLAUSE_UNDEF);
   obs->_variables[var].lazy_reason = last_cl;
+  return true;
+}
+
+bool napsat::gui::move_literal::apply(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  ASSERT_OBS(this, lit_to_var(lit) < observer->_variables.size());
+  ASSERT_OBS(this, from < observer->_active_clauses.size() || from == MAX_UNSIGNED);
+  ASSERT_OBS(this, to < observer->_active_clauses.size());
+
+  previous_lit = observer->_assignment_stack[to];
+  observer->_assignment_stack[to] = lit;
+  if (from != MAX_UNSIGNED) {
+    observer->_assignment_stack[from] = LIT_UNDEF;
+  }
+  if (to >= observer->_n_propagated) {
+    // if the literal is moved to a position after the last propagated literal, it is not propagated anymore
+    observer->_variables[lit_to_var(lit)].propagated = false;
+  }
+  return true;
+}
+
+bool napsat::gui::move_literal::rollback(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  ASSERT_OBS(this, lit_to_var(lit) < observer->_variables.size());
+  ASSERT_OBS(this, from < observer->_active_clauses.size() || from == MAX_UNSIGNED);
+  ASSERT_OBS(this, to < observer->_active_clauses.size());
+
+  if (from != MAX_UNSIGNED) {
+    observer->_assignment_stack[from] = lit;
+  }
+  observer->_assignment_stack[to] = previous_lit;
+  return true;
+}
+
+unsigned napsat::gui::update_reason::get_event_level(observer* observer)
+{
+  if (!observer->is_variable_marked(lit_to_var(lit)) && !observer->is_clause_marked(reason)) {
+    return event_level;
+  }
+  return 0;
+}
+
+bool napsat::gui::update_reason::apply(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  ASSERT_OBS(this, reason < observer->_active_clauses.size());
+  ASSERT_OBS(this, observer->_active_clauses[reason]->active);
+
+  Tvar var = lit_to_var(lit);
+  old_reason = observer->_variables[var].reason;
+  observer->_variables[var].reason = reason;
+
+  // check that all the literals but lit are falsified
+  for (Tlit l : observer->_active_clauses[reason]->literals) {
+    if (l != lit) {
+      ASSERT_OBS(this, observer->lit_value(l) == VAR_FALSE);
+    }
+  }
+
+  if (old_reason == CLAUSE_UNDEF) {
+    // calculate the new decision level
+    observer->_decision_level = 0;
+    for (const auto& lit : observer->_assignment_stack) {
+      Tvar v = lit_to_var(lit);
+      observer->_decision_level = max(observer->_decision_level, observer->_variables[v].level);
+    }
+  }
+
+  return true;
+}
+
+bool napsat::gui::update_reason::rollback(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  ASSERT_OBS(this, reason < observer->_active_clauses.size());
+  ASSERT_OBS(this, observer->_active_clauses[reason]->active);
+
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, observer->_variables[var].reason == reason);
+  observer->_variables[var].reason = old_reason;
   return true;
 }

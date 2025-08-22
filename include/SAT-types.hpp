@@ -69,6 +69,8 @@ namespace napsat
   const Tclause CLAUSE_LAZY = 0xFFFFFFFE;
   const Tclause CLAUSE_ERROR = 0xFFFFFFFD;
 
+  const unsigned MAX_UNSIGNED = 0xFFFFFFFF;
+
   /*************************************************************************/
   /*                         Operation on literals                         */
   /*************************************************************************/

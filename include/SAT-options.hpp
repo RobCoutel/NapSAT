@@ -167,7 +167,7 @@ namespace napsat
      * @requires -gb is true, -bfc is false
      * @alias -bsc
      */
-    bool backtrack_smallest_chunk = false;
+    bool smallest_uip = false;
 
     /**
      * @brief Enables the solver to backtrack the first chunk in the conflict clause.
@@ -177,16 +177,11 @@ namespace napsat
     bool backtrack_first_chunk = false;
 
     /**
-     * @brief Enables the solver to delete learned clauses.
-     * @alias -del
-    */
-    bool delete_clauses = true;
-
-    /**
-     * @brief If true, unused variables not be assigned a value.
-     * @alias -iuv
+     * @brief Enables the solver to merge decisions that are missed implications. When a decision is detected to be implied by a clause, the solver will delete the chunk of the decision and replace it by the chunks of the clause.
+     * @requires -gb is true
+     * @alias -mmi
      */
-    bool ignore_unused_variables = false;
+    bool merge_missed_implications = false;
 
     /** OBSERVER **/
     /**
@@ -233,6 +228,7 @@ namespace napsat
      */
     bool print_live_stats = false;
 
+    /** PROOF GENERATION **/
     /**
      * @brief Enables resolution proof system to build a proof during the execution.
      * @alias -bp
@@ -275,6 +271,12 @@ namespace napsat
 
     /** CLAUSE DELETION **/
     /**
+     * @brief Enables the solver to delete learned clauses.
+     * @alias -del
+    */
+    bool delete_clauses = true;
+
+    /**
      * @brief Multiplier of the number of clauses before elimination. When the simplifying procedure is called to eliminate clauses, the new threshold for deletion is multiplied by this multiplier.
      * @requires multiplier > 1
      */
@@ -295,6 +297,12 @@ namespace napsat
      * @brief Disables restarts of the solver.
      */
     bool no_restart = false;
+
+    /**
+     * @brief If true, unused variables not be assigned a value.
+     * @alias -iuv
+     */
+    bool ignore_unused_variables = false;
 
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.

@@ -57,6 +57,9 @@ namespace napsat::gui
     friend class missed_lower_implication;
     friend class remove_lower_implication;
     friend class remove_literal;
+    friend class move_literal;
+    friend class update_reason;
+
 
   public:
     /**

@@ -1117,6 +1117,15 @@ namespace napsat
     Tlit* graph_replacement(Tlit* lits, unsigned size);
 
     /**
+     * @brief A chunk can be merged with another set of chunks if its decision
+     * is implied by the reason clause C.
+     * For each literal ℓ in the chunk ck, this procedure changes
+     *   γ(ℓ) = γ(ℓ) ∪ γ(C) \ {ck}
+     * This effectively kills the chunk ck.
+     */
+    void merge_decision(Tlit decision, Tclause reason);
+
+    /**
      * @brief Propagate the literal lit on the binary clauses.
      * @pre The literal ℓ being propagated is in the propagation queue
      *     ℓ ∈ ω ∧ ℓ ∈ π

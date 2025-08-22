@@ -143,10 +143,12 @@ napsat::options::options(vector<string>& tokens)
     {"--lazy-strong-chronological-backtracking", &lazy_strong_chronological_backtracking},
     {"-gb",                                      &graph_backtracking},
     {"--graph-backtracking",                     &graph_backtracking},
-    {"-bsc",                                     &backtrack_smallest_chunk},
-    {"--backtrack-smallest-chunk",               &backtrack_smallest_chunk},
+    {"-suip",                                    &smallest_uip},
+    {"--smallest-uip",                           &smallest_uip},
     {"-bfc",                                     &backtrack_first_chunk},
     {"--backtrack-first-chunk",                  &backtrack_first_chunk},
+    {"-mmi",                                     &merge_missed_implications},
+    {"--merge-missed-implications",              &merge_missed_implications},
     {"-o",                                       &observing},
     {"--observing",                              &observing},
     {"-i",                                       &interactive},
@@ -286,10 +288,10 @@ napsat::options::options(vector<string>& tokens)
     chronological_backtracking = false;
   }
 
-  if (backtrack_smallest_chunk && !graph_backtracking) {
+  if (smallest_uip && !graph_backtracking) {
     LOG_WARNING("backtrack smallest chunk requires graph backtracking.");
     LOG_WARNING("The solver will ignore this option.");
-    backtrack_smallest_chunk = false;
+    smallest_uip = false;
   }
 
   if (backtrack_first_chunk && !graph_backtracking) {
@@ -298,10 +300,10 @@ napsat::options::options(vector<string>& tokens)
     backtrack_first_chunk = false;
   }
 
-  if (backtrack_first_chunk && backtrack_smallest_chunk) {
+  if (backtrack_first_chunk && smallest_uip) {
     LOG_WARNING("backtrack first chunk subsumes backtrack smallest chunk.");
     LOG_WARNING("The solver will run with backtrack first chunk.");
-    backtrack_smallest_chunk = false;
+    smallest_uip = false;
   }
 
   if (clause_activity_threshold_decay <= 0 || clause_activity_threshold_decay >= 1) {

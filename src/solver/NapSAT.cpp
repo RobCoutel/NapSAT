@@ -170,7 +170,12 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
       _proof->root_assign(lit, reason);
   }
   ASSERT(svar.level != LEVEL_UNDEF);
-  ASSERT(svar.level <= solver_level());
+  ASSERT_MSG(svar.level <= solver_level(),
+    "\nLiteral: " + lit_to_string(lit) +
+    "\nReason: " + clause_to_string(reason) +
+    "\nSVar level: " + std::to_string(svar.level) +
+    "\nSolver level: " + std::to_string(solver_level())
+  );
 
 }
 
@@ -294,6 +299,172 @@ Tlit* napsat::NapSAT::graph_replacement(Tlit* lits, unsigned size)
   return top_element;
 }
 
+void napsat::NapSAT::merge_decision(Tlit decision, Tclause reason)
+{
+  Tlevel decision_level = lit_level(decision);
+  bitset& decision_chunks = lit_chunks(decision);
+  // Find the chunk of the decision literal
+  auto it = decision_chunks.cbegin();
+  ASSERT(it != decision_chunks.cend());
+  Tchunk ck = *it;
+  ASSERT(++it == decision_chunks.cend());
+
+
+  unsigned start_index = _decision_index[lit_level(decision) - 1];
+  ASSERT(start_index < _trail.size());
+  ASSERT(_trail[start_index] == decision);
+
+  // Calculate the replacement chunk set
+  bitset reason_chunks;
+  for (unsigned i = 1; i < _clauses[reason].size; i++) {
+    Tlit lit = _clauses[reason].lits[i];
+    ASSERT(lit_false(lit));
+    reason_chunks |= lit_chunks(lit);
+  }
+
+  if (reason_chunks[ck])
+    return;
+
+  Tlevel reason_level = LEVEL_ROOT;
+  for (unsigned i = 1; i < _clauses[reason].size; i++) {
+    // we mark the literals such that we can count how many are on the right of the decision
+    Tlit lit = _clauses[reason].lits[i];
+    lit_mark(lit);
+    reason_level = max(reason_level, lit_level(lit));
+  }
+
+  NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Cross implication for " + lit_to_string(decision) + " in " + clause_to_string(reason)));
+
+  // number of literals in the chunk ck before the merge
+  unsigned chunk_size = 0;
+  // number of literals in the clause reason that are left of the decision
+  unsigned num_implicants_right = 0;
+
+  while (start_index < _trail.size()) {
+    Tlit lit = _trail[start_index++];
+    bitset& chunks = lit_chunks(lit);
+    // if the literal is marked, then it is part of the new implying clause
+    num_implicants_right += lit_marked(lit);
+    if (chunks[ck]) {
+      // we don't set chunks[ck] to false just yet. We want to be able to recognise the literals that were part of the chunk for the topological repair
+      chunks |= reason_chunks;
+      chunk_size++;
+    }
+  }
+  ASSERT_MSG(num_implicants_right < _clauses[reason].size,
+    "\nNumber of implicants right: " + std::to_string(num_implicants_right) +
+    "\nClause size: " + std::to_string(_clauses[reason].size) +
+    "\nReason: " + clause_to_string(reason) +
+    "\nDecision: " + lit_to_string(decision));
+
+  /**
+   * now we want to restore the topological order of the trail after updating the reason for the decision
+   * this procedure should preserve as much of the trail as possible
+   *
+   * We do this by collecting the literals of the chunk ck in a buffer, in the order in which they are in the trail.
+   * We then shift literals that are to the right of the decision to the left until we have found all the literals in the reason
+   * This should leave use with a hole exactly the size of the buffer, and we can copy the buffer to the hole.
+   */
+  start_index = _decision_index[lit_level(decision) - 1];
+
+  unsigned new_propagation_head = _propagated_literals;
+
+  vector<Tlit> buffer;
+  while (num_implicants_right > 0) {
+    ASSERT_MSG(start_index + buffer.size() < _trail.size(),
+      "\nStart index: " + std::to_string(start_index) +
+      "\nBuffer size: " + std::to_string(buffer.size()) +
+      "\nTrail size: " + std::to_string(_trail.size()) +
+      "\nNum implicants right: " + std::to_string(num_implicants_right));
+    Tlit lit = _trail[start_index + buffer.size()];
+    if (lit_chunks(lit)[ck]) {
+      buffer.push_back(lit);
+      continue;
+    }
+    if (lit_marked(lit)) {
+      num_implicants_right--;
+    }
+    if (!lit_propagated(lit) && _propagated_literals > start_index) {
+      // we move a literal that is not propagated, so we need to make sure the propagation head is corrected
+      ASSERT(_propagated_literals > 0);
+      new_propagation_head = min(new_propagation_head, start_index);
+    }
+    ASSERT(buffer.size() != 0); // the first one should always be the decision
+    NOTIFY_OBSERVER(_observer, new napsat::gui::move_literal(lit, start_index + buffer.size(), start_index));
+    _trail[start_index + buffer.size()] = LIT_UNDEF;
+    _trail[start_index++] = lit;
+  }
+
+  // now we have a hole of size buffer.size() starting at start_index
+  ASSERT(start_index + buffer.size() <= _trail.size());
+  for (unsigned i = 0; i < buffer.size(); i++) {
+
+    NOTIFY_OBSERVER(_observer, new napsat::gui::move_literal(buffer[i], MAX_UNSIGNED, start_index + i));
+    _trail[start_index + i] = buffer[i];
+  }
+
+  // adjust the propagation head
+  while (_propagated_literals > new_propagation_head) {
+    NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(_trail[_propagated_literals - 1]));
+    _propagated_literals--;
+    // _vars[lit_to_var(_trail[_propagated_literals])].propagated = false;
+  }
+
+  _propagated_literals = new_propagation_head;
+
+  // we can now remove the mark from the literals in the reason
+  for (unsigned i = 1; i < _clauses[reason].size; i++) {
+    Tlit lit = _clauses[reason].lits[i];
+    ASSERT(lit_marked(lit));
+    lit_unmark(lit);
+  }
+
+  // we can now update the reason for the decision
+  _vars[lit_to_var(decision)].reason = reason;
+
+  // we now need to update the decision levels of the literals above the decision
+  Tlevel current_decision_level = 0;
+  start_index = _decision_index[decision_level - 1];
+
+  // reconstruct the decision levels and the decision index
+  for (size_t i = 0; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    if (lit_reason(lit) == CLAUSE_UNDEF) {
+      _decision_index[current_decision_level++] = i;
+      _vars[lit_to_var(lit)].level = current_decision_level;
+      NOTIFY_OBSERVER(_observer, new napsat::gui::update_level(lit, current_decision_level));
+    } else if (i >= start_index) {
+      // calculate the new level of the literal
+      // we know that the premises of the clause are already update because of the topological order repair
+      Tlevel new_level = LEVEL_ROOT;
+      Tclause curr_reason = lit_reason(lit);
+      for (unsigned j = 1; j < _clauses[curr_reason].size; j++) {
+        new_level = max(new_level, lit_level(_clauses[curr_reason].lits[j]));
+      }
+      _vars[lit_to_var(lit)].level = new_level;
+      NOTIFY_OBSERVER(_observer, new napsat::gui::update_level(lit, new_level));
+
+      lit_chunks(lit).set(ck, false);
+    }
+    if (lit_cross_chunks(lit)[ck]) {
+      lit_cross_chunks(lit).set(ck, false);
+      lit_cross_chunks(lit) |= reason_chunks;
+    }
+  }
+
+  NOTIFY_OBSERVER(_observer, new napsat::gui::update_reason(decision, reason));
+
+  ASSERT_MSG(current_decision_level == _decision_index.size() - 1,
+    "Current decision level: " + std::to_string(current_decision_level) +
+    "\nDecision index size: " + std::to_string(_decision_index.size()));
+  _decision_index.resize(current_decision_level);
+  _free_chunks.push_back(ck);
+  _chunks[ck].decision = LIT_UNDEF;
+
+  NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Merging Finished"));
+}
+
 Tlit* napsat::NapSAT::advanced_replacement(Tlit* lits, unsigned size)
 {
   /**
@@ -328,11 +499,6 @@ Tlit* napsat::NapSAT::advanced_replacement(Tlit* lits, unsigned size)
 
 Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
 {
-  // cout << "Propagating literal: " << lit_to_string(lit) << endl;
-  // if (lit_propagated(lit)) {
-  //   cout << "Literal " << lit_to_string(lit) << " already propagated." << endl;
-  // }
-  // print_trail();
   lit = lit_neg(lit);
   ASSERT(lit_false(lit));
 
@@ -393,7 +559,6 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
    */
   lit = lit_neg(lit);
-  // cout << "-- Propagating literal: " << lit_to_string(lit) << endl;
   ASSERT(lit_false(lit));
 
   // level of the propagation
@@ -727,9 +892,12 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     if (_options.lazy_strong_chronological_backtracking) {
       reimply_literal(lit2, cl);
     } else {
-      if (lit_reason(lits[1]) == CLAUSE_UNDEF) {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
-        NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Cross implication for " + lit_to_string(lits[1]) + " in " + clause_to_string(cl)));
+      ASSERT(lit2 == lits[0]);
+      ASSERT(lit_true(lit2));
+      if (lit_reason(lit2) == CLAUSE_UNDEF) {
+        if (_options.merge_missed_implications) {
+          merge_decision(lit2, cl);
+        }
       }
       // We are in graph backtracking, so we do not need to reimply the literal
       // but we will need to repropagate the literal if one of the other literals in the clause are backtracked
@@ -859,6 +1027,8 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
   Tlit* j = i;
   Tlit* end = i + _trail.size() - start_position;
   Tlevel decision_counter = decision_level - 1;
+  ASSERT(!var_undef(chunk_decision));
+
   while (i < end) {
     bitset& chunks = lit_chunks(*i);
     if (chunks.get(chunk)) {
@@ -895,7 +1065,6 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
 
   // We need to fix the levels of all the literals above the decision level of the chunk
   for (Tlit* k = _trail.data() + _trail.size() - 1; k >= _trail.data(); k--) {
-  // for (Tlit* k = _trail.data(); k < _trail.data() + _trail.size(); k++) {
     ASSERT_MSG(lit_level(*k) != decision_level,
       "Literal: " + lit_to_string(*k) + "\nLevel: " + to_string(lit_level(*k)) + "\nDecision level: " + to_string(decision_level));
     if (lit_level(*k) > decision_level) {
@@ -966,7 +1135,6 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     lit_cross_chunks(lits[0]) |= chunks; // ensure that the cross chunks are set
     lit_cross_chunks(lits[1]) |= chunks; // ensure that the cross chunks are set
   }
-  // cout << "Chunks: " << chunks.to_string() << endl;
   vector<Tchunk> used_chunks;
   for (auto i = chunks.cbegin(); i != chunks.cend(); ++i) {
     used_chunks.push_back(*i);
@@ -978,7 +1146,6 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
        [this](Tchunk a, Tchunk b) { return var_level(_chunks[a].decision) > var_level(_chunks[b].decision); });
 
   for (Tchunk ck : used_chunks) {
-    // cout << "Analyzing chunk: " << ck << endl;
     ASSERT(ck < _n_allocated_chunks);
     ASSERT(chunks[ck]);
     if (_options.backtrack_first_chunk)
@@ -989,7 +1156,7 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
 
     // the literal buffer already contains the clause
     // so we remember the number of literals in the buffer to restore it later
-    if (!_options.backtrack_smallest_chunk) {
+    if (!_options.smallest_uip) {
       // we know that no literal before the decision can depend on that decision because of the topological order of the trail
       Tlevel level = var_level(_chunks[ck].decision);
       size_t level_start = _decision_index[level - 1];
@@ -1007,7 +1174,7 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
           }
         }
       }
-    } else if (_options.backtrack_smallest_chunk) {
+    } else if (_options.smallest_uip) {
       // perform conflict analysis and check the length of the learned clause
       // first, load the conflict clause in the _literal_buffer
       ASSERT(_next_literal_index > 0);
@@ -1544,14 +1711,11 @@ void NapSAT::repair_conflict(Tclause conflict)
 
 void NapSAT::restart()
 {
-  // cout << "RESTART" << endl;
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
   if (_options.graph_backtracking) {
     unsigned tmp = _propagated_literals;
-    // print_trail();
     backtrack(LEVEL_ROOT);
     _propagated_literals = min(tmp, _propagated_literals);
-    // print_trail();
     size_t i = _trail.size();
     while (i > 0) {
       i--;
@@ -1562,7 +1726,6 @@ void NapSAT::restart()
       }
     }
     _propagated_literals = 0;
-    // print_trail();
   } else {
     backtrack(LEVEL_ROOT);
   }
@@ -1865,8 +2028,8 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 
   if (_options.graph_backtracking) {
     _chunks.resize(_n_allocated_chunks);
-    for (unsigned i = 0; i < _n_allocated_chunks; i++) {
-      _free_chunks.push_back(i);
+    for (unsigned i = 1; i <= _n_allocated_chunks; i++) {
+      _free_chunks.push_back(_n_allocated_chunks - i);
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Allocated Chunk"));
     }
   }
@@ -2123,19 +2286,16 @@ void NapSAT::synchronize()
       // do nothing
       break;
     case 2:
-      // cout << "Syncing unassigned variable " << var << endl;
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync unassign"));
       if (v.state == VAR_UNDEF)
         v.synced = 1;
       else {
         v.synced = 0;
-        // cout << "Syncing assigned variable " << var << endl;
         NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync assign"));
       }
       break;
     case 3:
       ASSERT (v.state != VAR_UNDEF);
-      // cout << "Syncing assigned variable " << var << endl;
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync assign"));
       v.synced = 0;
     default:
