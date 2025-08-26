@@ -560,6 +560,7 @@ namespace napsat
     struct TSchunk
     {
       Tvar decision;
+      bitset missed_implication;
     };
 
     /**
@@ -589,7 +590,7 @@ namespace napsat
      * @details This is the number of chunks that variables are able to use.
      * i.e., the size of the bitset of each variable.
      */
-    unsigned _n_allocated_chunks = 4032;
+    unsigned _n_allocated_chunks = 0;
 
     /**  PROOFS  **/
     /**
@@ -730,6 +731,14 @@ namespace napsat
     {
       if (lit_lazy_reason(lit) == CLAUSE_UNDEF)
         return LEVEL_UNDEF;
+      if (_options.graph_backtracking) {
+        // we actually need to calculate it
+        Tlevel level = LEVEL_ROOT;
+        for (unsigned i = 1; i < _clauses[lit_lazy_reason(lit)].size; i++) {
+          level = std::max(level, lit_level(_clauses[lit_lazy_reason(lit)].lits[i]));
+        }
+        return level;
+      }
       ASSERT(lit_level(lit) > LEVEL_ROOT);
 #ifndef NDEBUG
       Tlit* lits = _clauses[lit_lazy_reason(lit)].lits;
@@ -1000,6 +1009,8 @@ namespace napsat
       _literal_buffer = new_literal_buffer;
     }
 
+    void allocate_chunks(size_t n_chunks);
+
     /**
      * @brief Returns a literal utility metric to choose the literals to watch.
      * @param lit literal to evaluate.
@@ -1172,15 +1183,17 @@ namespace napsat
 
     /**
      * @brief Unassigns all the variables in the chunk.
-     * @param chunk chunk to undo.
+     * @param chunks the set of chunks to undo.
      */
-    void undo_chunk(Tchunk chunk);
+    void undo_chunks(const bitset& backtracked_chunks);
 
     /**
      * @brief Given a learned clause, chooses the level to backtrack to
      * according to the options and the literals in the clause.
      */
     Tlevel choose_backtracked_level(Tlit* learned_lits, unsigned size);
+
+    void compute_chunk_combination(Tclause cl, std::vector<bitset>& combinations, const bitset& current);
 
     /**
      * @brief Given a conflict clause, chooses the chunk in which the UIP will
@@ -1195,8 +1208,12 @@ namespace napsat
      * the learned clause, making it not propagating anymore.
      * @param conflict clause that caused the conflict.
      */
-    Tchunk choose_analyzed_chunk(Tclause conflict);
+    bitset choose_analyzed_chunk(Tclause conflict);
 
+    /**
+     * @brief Repairs the conflict caused by clauses with one literal at the highest level.
+     * @details This procedure does not require to learn a new clause. Only to backtrack to the appropriate level.
+     */
     void repair_unary_clause_conflict(Tclause conflict);
 
     /**
@@ -1250,9 +1267,13 @@ namespace napsat
      * @details Sets the clause in the literal_buffer and _next_literal_index variables.
      * @post The literal_buffer is set such that the first literal is the UIP
      */
-    void analyze_conflict_level(Tlevel level);
+    void analyze_conflict(Tlevel level, const bitset& chunks);
 
-    bool analyzed_level_or_chunk(Tlit lit, Tlevel level, Tchunk chunk);
+    /**
+     * @brief Returns true if a literal must be further analyzed in conflict analysis.
+     * That is, depending on the options, check the level or chunk requirements.
+     */
+    bool analyzed_level_or_chunk(Tlit lit, Tlevel level, const bitset& chunks);
 
 
     /**

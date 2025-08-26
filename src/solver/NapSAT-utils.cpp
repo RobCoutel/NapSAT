@@ -234,6 +234,28 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
   _watch_lists[lit].erase(_watch_lists[lit].begin() + loc);
 }
 
+void napsat::NapSAT::allocate_chunks(size_t n_chunks)
+{
+  ASSERT(n_chunks > _n_allocated_chunks);
+  ASSERT(_chunks.size() == _n_allocated_chunks);
+  _chunks.resize(n_chunks);
+
+  for (Tchunk i = 1; i <= n_chunks; i++) {
+    _free_chunks.push_back(_n_allocated_chunks + n_chunks - i);
+    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Allocated Chunk"));
+  }
+  _n_allocated_chunks = n_chunks;
+  // resize the chunk sets of the variables
+  for (Tvar i = 0; i < _vars.size(); i++) {
+    _vars[i].chunks.resize(_n_allocated_chunks);
+    _vars[i].cross_chunks.resize(_n_allocated_chunks);
+  }
+
+  for (Tchunk i = _n_allocated_chunks; i < _chunks.size(); i++) {
+    _chunks[i].missed_implication.resize(_n_allocated_chunks);
+  }
+}
+
 unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
 {
   // In graph backtracking, we cannot use a utility function anymore, because the literals are

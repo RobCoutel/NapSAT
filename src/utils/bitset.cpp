@@ -483,10 +483,13 @@ std::string bitset::to_string() const {
   std::string result = "[";
   auto i = cbegin();
   while (i != cend()) {
-    result += std::to_string(*i) + "  ";
+    result += std::to_string(*i);
     ++i;
+    if (i != cend()) {
+      result += ", ";
+    }
   }
-  result = result.substr(0, result.size() - 1) + "]";
+  result += "]";
   return result;
 }
 
