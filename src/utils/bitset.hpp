@@ -74,6 +74,11 @@ public:
    */
   bitset operator-(const bitset& other) const;
 
+  /** returns true if (this & other) != 0 */
+  bool has_intersection(const bitset& other) const;
+  /** returns true if (this - other) != 0 */
+  bool has_difference(const bitset& other) const;
+
   void operator&=(const bitset& other);
   void operator|=(const bitset& other);
   void operator^=(const bitset& other);

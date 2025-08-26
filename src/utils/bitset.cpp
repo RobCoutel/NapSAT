@@ -382,6 +382,41 @@ void bitset::operator^=(const bitset &other) {
   update(_bits, other._bits, o);
 }
 
+static bool compare(const bitset::bitstore &a, const bitset::bitstore &b, const op_t op) {
+  auto it1 = a.cbegin();
+  auto it2 = b.cbegin();
+  while (*(it1++) & *(it2++) & M_NEXT_MSK);
+
+  // check data
+  auto m1 = a.cbegin();
+  auto m2 = b.cbegin();
+  do {
+    uint64_t v1 = *m1 & M_DATA_MSK;
+    uint64_t v2 = *m2 & M_DATA_MSK;
+    for (; v1 | v2; v1 >>= 1, v2 >>= 1) {
+      uint64_t a1 = LB(v1) ? *(it1++) : 0;
+      uint64_t a2 = LB(v2) ? *(it2++) : 0;
+      uint64_t v = op(a1, a2);
+      if (v) return true;
+    }
+  } while (*(m1++) & *(m2++) & M_NEXT_MSK);
+  assert((*(m1-1) & M_NEXT_MSK) == (*(m2-1) & M_NEXT_MSK));
+  return false;
+}
+
+/** returns true if (this & other) != 0 */
+bool bitset::has_intersection(const bitset &other) const {
+  assert(capacity() == other.capacity());
+  const auto o = [](uint64_t a, uint64_t b) { return a & b; };
+  return compare(_bits, other._bits, o);
+}
+
+bool bitset::has_difference(const bitset &other) const {
+  assert(capacity() == other.capacity());
+  const auto o = [](uint64_t a, uint64_t b) { return a ^ (a & b); };
+  return compare(_bits, other._bits, o);
+}
+
 unsigned bitset::iterator::operator*() const {
   assert(_pos_d < BITS);
   return ((_it_m - _b._bits.cbegin()) * MS + _pos_m) * BITS + _pos_d;

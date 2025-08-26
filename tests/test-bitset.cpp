@@ -497,3 +497,31 @@ TEST_CASE("subset small") {
   REQUIRE_FALSE(s1 == s2);
   REQUIRE(s1 != s2);
 }
+
+TEST_CASE("intersection") {
+  const int CNT = GENERATE(10, 1000, 1000, 4000, 6000, 12000);
+
+  bitset s1(CNT);
+  bitset s2(CNT);
+
+  s1.set(0, true);
+  s1.set(1, true);
+  s2.set(0, true);
+
+  for (int i = 2; i < CNT; ++i) {
+    int r = random();
+    if (r % 2) continue;
+    s1.set(i, true);
+    if (r % 4) continue;
+    s2.set(i, true);
+  }
+
+  REQUIRE(s1.has_intersection(s1));
+  REQUIRE(s2.has_intersection(s2));
+
+  REQUIRE_FALSE(s1.has_difference(s1));
+  REQUIRE_FALSE(s2.has_difference(s2));
+
+  REQUIRE(s1.has_intersection(s2));
+  REQUIRE(s1.has_difference(s2));
+}
