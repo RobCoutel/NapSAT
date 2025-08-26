@@ -1067,7 +1067,6 @@ static unsigned estimate_backtrack_cost(Tlit lits) {
 bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(_options.graph_backtracking);
-  Tlit* lits = _clauses[conflict].lits;
   ASSERT(_clauses[conflict].size > 0);
 
   vector<bitset> possible_set_of_chunks;
@@ -1076,9 +1075,7 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
 
   if (possible_set_of_chunks.empty()) {
     // all literals must either be at root level, or the decision is reimplied at level 0
-    ASSERT_MSG(lit_level(lits[0]) == LEVEL_ROOT || lit_lazy_level(_trail[_decision_index[lit_level(lits[0]) - 1]]) == LEVEL_ROOT,
-      "The clause " + clause_to_string(conflict) + " has a literal " + lit_to_string(lits[0]) + " at an unexpected level. " +
-      "The lazy reason is " + clause_to_string(lit_lazy_reason(_trail[_decision_index[lit_level(lits[0]) - 1]])));
+    ASSERT(lit_level(_clauses[conflict].lits[0]) == LEVEL_ROOT);
     return bitset(_n_allocated_chunks);
   }
 

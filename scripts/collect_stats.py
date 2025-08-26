@@ -7,9 +7,11 @@ import pandas as pd
 
 # Path to the executable
 SAT_exec = "./build/NapSAT"
-additional_options = "-stat"
+additional_options: list[str] = [
+    # "--no-restart"
+]
 
-N_THREADS = 14
+N_THREADS = 20
 
 def parse_output(output:str) -> dict[str, int|str]:
     """
@@ -49,7 +51,8 @@ def run_one_job(filename : str, option: str, df: pd.DataFrame):
     Returns:
         None
     '''
-    args = [SAT_exec, filename] + [option] + ["-stat"]
+
+    args = [SAT_exec, filename] + option.split(" ") + additional_options + ["-stat"]
     output = Popen(args, shell=False, stdout=PIPE, stderr=PIPE)
     out, error = output.communicate()
     out_dec = out.decode("utf-8")
@@ -62,7 +65,7 @@ def run_one_job(filename : str, option: str, df: pd.DataFrame):
         stats["option"] = option
         stats["file"] = filename.split("/")[-1]
     # run the problem a second time, without the -stat option, to get the time
-    args = [SAT_exec, filename] + [option]
+    args = [SAT_exec, filename] + [option]# + ["--no-restart"]
     output = Popen(args, shell=False, stdout=PIPE, stderr=PIPE)
     out, error = output.communicate()
     out_dec = out.decode("utf-8")
@@ -72,9 +75,9 @@ def run_one_job(filename : str, option: str, df: pd.DataFrame):
     if out:
         # parse the time from the output
         for line in out_dec.split("\n"):
-            if line.startswith("c Time:"):
+            if line.startswith("c  - Time (ms):"):
                 time = line.split(":")[1].strip()
-                stats["time"] = time
+                stats["Time"] = time
                 break
 
     mutex.acquire()
@@ -96,6 +99,9 @@ if __name__ == "__main__":
     directory = sys.argv[1]
     out_file = sys.argv[2]
     SAT_options = [""] + sys.argv[3:]
+    # if "-gb" in SAT_options:
+    #     SAT_options.append("-gb -lmi")
+
     print(f"Collecting stats for {directory} with options {SAT_options}")
 
     # a job is a tuple of (filename, option)
@@ -110,27 +116,41 @@ if __name__ == "__main__":
     # sort the jobs by the number of variables in the file, and by file name
     jobs.sort(key=lambda x: (int(x[0].split("uf")[1].split("-")[0]), x[0]))
 
-    df = pd.DataFrame(columns=["file", "option", "Time"])  # Adjust the number of stats as needed
+    df = pd.DataFrame(columns=["file", "option", "Time (ms)"])  # Adjust the number of stats as needed
 
     thread_pool: list[threading.Thread] = []
     # create a thread for each job, but limit the number of threads to N_THREADS
     n_completed = 0
     start = time.time()
-    while len(jobs) > 0:
-        if len(thread_pool) < N_THREADS:
-            filename, option = jobs.pop(0)
-            thread = threading.Thread(target=run_one_job, args=(filename, option, df))
-            thread.start()
-            thread_pool.append(thread)
+    while len(jobs) > 0 or len(thread_pool) > 0:
         for thread in thread_pool:
             if not thread.is_alive():
                 thread_pool.remove(thread)
                 n_completed += 1
-        print(f"Progress: {n_completed} + ({len(thread_pool)})/{len(jobs) + n_completed + len(thread_pool)}", end="\r")
-    # wait for all threads to finish
-    for thread in thread_pool:
-        thread.join()
 
+        print(f"Progress: {n_completed} + ({len(thread_pool)})/{len(jobs) + n_completed + len(thread_pool)}", end="       \r")
+
+        if len(thread_pool) < N_THREADS and len(jobs) > 0:
+            filename, option = jobs.pop(0)
+            thread = threading.Thread(target=run_one_job, args=(filename, option, df))
+            thread.start()
+            thread_pool.append(thread)
+
+        mutex.acquire()
+        # compute the average time of the completed jobs
+        avg_time = 0
+        if n_completed > 0:
+            avg_time = df["Time (ms)"].mean()
+        mutex.release()
+
+        # sleep for avg_time / 100 (expressed in seconds, but the stat is in milliseconds)
+        time.sleep(avg_time / 10**4 if avg_time > 0 else 0.00001)
+
+    # drop the unnecessary columns from the dataframe
+    df = df.drop(columns=["Variable added", "Backtracking started", "Invariants checked", "Allocated Chunk", "Purging clauses", "Binary clause simplified", "Literal removed from clause"], errors="ignore")
+
+    # sort the dataframe by file name and option
+    df = df.sort_values(by=["file", "option"])
     # save the dataframe to a csv file
     df.to_csv(out_file, index=False)
 

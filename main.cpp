@@ -86,7 +86,7 @@ int main(int argc, char** argv)
   chrono::milliseconds duration = chrono::duration_cast<chrono::milliseconds>(end - start);
 
   cout << "c Solution found in " << pretty_time(duration) << endl;
-  cout << "c  - Time: " << duration.count() << " ms" << endl;
+  cout << "c  - Time (ms): " << duration.count() << endl;
 
   if (get_status(solver) == napsat::SAT) {
     cout << "s SATISFIABLE" << endl;
