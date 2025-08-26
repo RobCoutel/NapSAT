@@ -163,6 +163,13 @@ namespace napsat
     bool graph_backtracking = false;
 
     /**
+     * @brief Enables the solver to log missed implications for decisions. When a decision is detected to be implied by a clause, if the chunk of that decision is backtracked, then, one of the chunks of the lazy reason clause needs to be backtracked as well.
+     * @requires -gb is true
+     * @alias -lcm
+     */
+    bool lazy_chunk_merging = false;
+
+    /**
      * @brief Enables the solver to search the smallest UIP and choose the backtracked chunk accordingly.
      * @requires -gb is true, -bfc is false
      * @alias -bsc

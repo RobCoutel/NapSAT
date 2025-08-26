@@ -144,6 +144,8 @@ napsat::options::options(vector<string>& tokens)
     {"-gb",                                      &graph_backtracking},
     {"--graph-backtracking",                     &graph_backtracking},
     {"-bsc",                                     &backtrack_smallest_chunk},
+    {"-lcm",                                     &lazy_chunk_merging},
+    {"--lazy-chunk-merging",                     &lazy_chunk_merging},
     {"--backtrack-smallest-chunk",               &backtrack_smallest_chunk},
     {"-bfc",                                     &backtrack_first_chunk},
     {"--backtrack-first-chunk",                  &backtrack_first_chunk},

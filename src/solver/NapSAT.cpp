@@ -712,7 +712,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     if (_options.lazy_strong_chronological_backtracking) {
       reimply_literal(lit2, cl);
     } else {
-      if (lit_reason(lits[0]) == CLAUSE_UNDEF && lit_lazy_reason(lits[0]) == CLAUSE_UNDEF) {
+      if (_options.lazy_chunk_merging && lit_reason(lits[0]) == CLAUSE_UNDEF && lit_lazy_reason(lits[0]) == CLAUSE_UNDEF) {
         Tlit reimp_lit = lits[0];
         // compute the chunk set of the clause, excluding the lits[1]
         bitset clause_chunks(_n_allocated_chunks);
