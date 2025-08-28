@@ -23,6 +23,88 @@
 using namespace std;
 using namespace napsat;
 
+bool napsat::NapSAT::clause_unit(Tclause cl) const
+{
+  const TSclause& c = _clauses[cl];
+  ASSERT(c.size > 0);
+  if (lit_false(c.lits[0]))
+    return false;
+  for (size_t i = 1; i < c.size; i++)
+    if (!lit_false(c.lits[i]))
+      return false;
+  return true;
+}
+
+bool napsat::NapSAT::clause_implying(Tclause cl) const
+{
+  const TSclause& c = _clauses[cl];
+  ASSERT(c.size > 0);
+  if (!lit_true(c.lits[0]))
+    return false;
+  for (size_t i = 1; i < c.size; i++)
+    if (!lit_false(c.lits[i]))
+      return false;
+  return true;
+}
+
+bool napsat::NapSAT::clause_satisfied(Tclause cl) const
+{
+  const TSclause& c = _clauses[cl];
+  for (size_t i = 0; i < c.size; i++)
+    if (lit_true(c.lits[i]))
+      return true;
+  return false;
+}
+
+bool napsat::NapSAT::clause_falsified(Tclause cl) const
+{
+  const TSclause& c = _clauses[cl];
+  for (size_t i = 0; i < c.size; i++)
+    if (!lit_false(c.lits[i]))
+      return false;
+  return true;
+}
+
+bool napsat::NapSAT::lit_needs_fixing(Tlit lit) const
+{
+  lit = lit_neg(lit);
+  for (const TSwatch& bw : _binary_watch[lit]) {
+    if (!lit_true(bw.block))
+      return true;
+  }
+  for (const TSwatch& w: _watches[lit]) {
+    cout << "Checking watch " << clause_to_string(w.cl) << " blocked by " << lit_to_string(w.block) << endl;
+    if (lit_true(w.block))
+      continue;
+    Tlit c1 = _clauses[w.cl].lits[0];
+    Tlit c2 = _clauses[w.cl].lits[1];
+    if (lit_true(c1) || lit_true(c2))
+      continue;
+    if (lit_false(c1) || lit_false(c2))
+      return true;
+  }
+  return false;
+}
+
+
+bool napsat::NapSAT::max_literal(Tlit lit, const Tlit* lits, size_t size) const
+{
+  if (_options.graph_backtracking) {
+    const bitset& chunks = _vars[lit_to_var(lit)].chunks;
+    for (size_t i = 0; i < size; i++) {
+      const bitset& chunks_i = _vars[lit_to_var(lits[i])].chunks;
+      if (chunks < chunks_i)
+        return false;
+    }
+  } else {
+    for (size_t i = 0; i < size; i++) {
+      if (lit_level(lit) < lit_level(lits[i]))
+        return false;
+    }
+  }
+  return true;
+}
+
 bool napsat::NapSAT::trail_variable_consistency()
 {
   bool success = true;
@@ -55,12 +137,12 @@ bool napsat::NapSAT::is_watched(Tlit lit, Tclause cl)
 {
   if (_clauses[cl].size == 2) {
     // check the binary clause list
-    for (TSwatch &w : _binary_clauses[lit])
+    for (TSwatch &w : _binary_watch[lit])
       if (w.cl == cl)
         return true;
     return false;
   }
-  vector<TSwatch>& watch_list = _watch_lists[lit];
+  vector<TSwatch>& watch_list = _watches[lit];
   for (TSwatch &w : watch_list) {
     if (w.cl == cl) {
       return true;
@@ -90,8 +172,8 @@ bool napsat::NapSAT::watch_lists_complete()
 bool napsat::NapSAT::watch_lists_minimal()
 {
   bool success = true;
-  for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
-    for (TSwatch w : _watch_lists[lit]) {
+  for (Tlit lit = 0; lit < _watches.size(); lit++) {
+    for (TSwatch w : _watches[lit]) {
       Tclause cl = w.cl;
       TSclause clause = _clauses[cl];
       if (clause.size < 2) {
@@ -117,9 +199,9 @@ bool napsat::NapSAT::watch_lists_minimal()
 
   // Check that that are not multiple copies of the same clause in the watch lists
   std::unordered_set<Tclause> seen_clauses;
-  for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
+  for (Tlit lit = 0; lit < _watches.size(); lit++) {
     seen_clauses.clear();
-    for (TSwatch w : _watch_lists[lit]) {
+    for (TSwatch w : _watches[lit]) {
       Tclause cl = w.cl;
       if (seen_clauses.find(cl) != seen_clauses.end()) {
         success = false;

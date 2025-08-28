@@ -40,37 +40,17 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
    * while not strictly necessary, this condition is useful to reduce the
    * number of repropagations.
    */
-  ASSERT_MSG(lit_undef(lit),
-    "Literal: " + lit_to_string(lit) + "\nReason: " + clause_to_string(reason));
-#ifndef NDEBUG
-  if (reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY && _clauses[reason].size >= 2) {
-    Tlit lit1 = _clauses[reason].lits[1];
-    if (_options.graph_backtracking) {
-      for (unsigned i = 2; i < _clauses[reason].size; i++) {
-        Tlit lit_i = _clauses[reason].lits[i];
-        ASSERT(lit_false(lit_i));
-        ASSERT_MSG(!(lit_chunks(lit_i) > lit_chunks(lit1)),
-                   "Literal: " + lit_to_string(lit_i) +
-                   "\nReason: " + clause_to_string(reason) +
-                   "\nlit_i: " + lit_chunks(lit_i).to_string() +
-                   "\nlit1 : " + lit_chunks(lit1).to_string());
-      }
-    } else {
-      for (unsigned i = 2; i < _clauses[reason].size; i++) {
-        Tlit lit_i = _clauses[reason].lits[i];
-        ASSERT(lit_false(lit_i));
-        ASSERT(lit_level(lit_i) <= lit_level(lit1));
-      }
-    }
-  }
-#endif
+  ASSERT(lit_undef(lit));
+  ASSERT(reason == CLAUSE_UNDEF || clause_unit(reason));
+
+  _trail.push_back(lit);
 
   Tvar var = lit_to_var(lit);
-  _trail.push_back(lit);
   TSvar& svar = _vars[var];
   svar.state = lit_pol(lit);
   svar.propagated = false;
   svar.reason = reason;
+  svar.phase_cache = lit_pol(lit);
 
   // for the logic, look at the comment in NapSAT.hpp
   ASSERT(svar.synced != 0);
@@ -103,54 +83,37 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   }
   else {
     // Implied literal
-    ASSERT(lit == _clauses[reason].lits[0]);
-    if (_clauses[reason].size == 1)
+    const Tlit* lits = _clauses[reason].lits;
+    const unsigned size = _clauses[reason].size;
+    ASSERT(lit == lits[0]);
+    ASSERT(clause_implying(reason));
+    ASSERT(size < 2 || max_literal(lits[1], lits + 2, size - 2));
+
+    if (_clauses[reason].size == 1) {
       svar.level = LEVEL_ROOT;
-    else {
-      ASSERT(lit == _clauses[reason].lits[0]);
+    } else {
       if (_options.graph_backtracking) {
         // In graph backtracking we do not have any information about the levels
         // we need to compute it by going through the clause
-        svar.level = lit_level(_clauses[reason].lits[1]);
-        for (unsigned i = 2; i < _clauses[reason].size; i++) {
-          svar.level = std::max(svar.level, lit_level(_clauses[reason].lits[i]));
+        svar.level = lit_level(lits[1]);
+        for (unsigned i = 2; i < size; i++) {
+          svar.level = std::max(svar.level, lit_level(lits[i]));
         }
 
         // compute the chunks and cross-chunks of the variable
         ASSERT(svar.chunks.empty());
-        for (unsigned i = 1; i < _clauses[reason].size; i++) {
-          svar.chunks |= lit_chunks(_clauses[reason].lits[i]);
+        for (unsigned i = 1; i < size; i++) {
+          svar.chunks |= lit_chunks(lits[i]);
         }
-        if (_clauses[reason].size > 2) {
-          lit_cross_chunks(_clauses[reason].lits[1]) |= svar.chunks;
-        }
-      } else {
-        svar.level = lit_level(_clauses[reason].lits[1]);
-      }
-#ifndef NDEBUG
-      // check that the second literal is at the highest level
-      if (_options.graph_backtracking) {
-        for (unsigned i = 2; i < _clauses[reason].size; i++) {
-          bitset& lit_chunk = lit_chunks(_clauses[reason].lits[i]);
-          bitset& svar_chunks = svar.chunks;
-          ASSERT_MSG(!(lit_chunk > svar_chunks),
-            "Literal: " + lit_to_string(_clauses[reason].lits[i]) +
-            "\nReason: " + clause_to_string(reason) +
-            "\nChunk: " + lit_chunk.to_string() +
-            "\nSVar chunks: " + svar_chunks.to_string());
+        if (size > 2) {
+          lit_cross_chunks(lits[1]) |= svar.chunks;
         }
       } else {
-        for (unsigned i = 2; i < _clauses[reason].size; i++) {
-          ASSERT(lit_level(_clauses[reason].lits[i]) <= svar.level);
-        }
+        svar.level = lit_level(lits[1]);
       }
-#endif
     }
     NOTIFY_OBSERVER(_observer, new napsat::gui::implication(lit, reason, svar.level));
   }
-
-  // phase caching
-  svar.phase_cache = lit_pol(lit);
 
   if (svar.level == LEVEL_ROOT) {
     _n_root_lvl_lits++;
@@ -159,17 +122,16 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   }
   ASSERT(svar.level != LEVEL_UNDEF);
   ASSERT(svar.level <= solver_level());
-
 }
 
 void NapSAT::var_unassign(Tvar var)
 {
+  ASSERT(!var_undef(var));
+
   TSvar& v = _vars[var];
-  NOTIFY_OBSERVER(_observer,
-                  new napsat::gui::unassignment(literal(var, v.state)));
+  NOTIFY_OBSERVER(_observer, new napsat::gui::unassignment(literal(var, v.state)));
   if (v.missed_lower_implication != CLAUSE_UNDEF) {
-    NOTIFY_OBSERVER(_observer,
-                    new napsat::gui::remove_lower_implication(var));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::remove_lower_implication(var));
     v.missed_lower_implication = CLAUSE_UNDEF;
   }
   if (!_variable_heap.contains(var))
@@ -213,25 +175,18 @@ void NapSAT::var_unassign(Tvar var)
 
 void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
 {
-  ASSERT(lit_true(lit));
-  ASSERT(reason != CLAUSE_UNDEF);
-  ASSERT(reason != CLAUSE_LAZY);
-  ASSERT_MSG(lit == _clauses[reason].lits[0],
-    "Literal: " + lit_to_string(lit) +
-    "\nReason: " + clause_to_string(reason));
-  ASSERT(_options.lazy_strong_chronological_backtracking);
-
   TSclause& clause = _clauses[reason];
-  Tlevel reimplication_level = clause.size == 1 ? 0 : lit_level(clause.lits[1]);
-#ifndef NDEBUG
-  for (unsigned i = 1; i < clause.size; i++) {
-    ASSERT(lit_false(clause.lits[i]));
-    ASSERT(lit_level(clause.lits[i]) <= reimplication_level);
-  }
-#endif
+  unsigned size = clause.size;
 
-  Tlevel current_level = lit_level(lit);
-  if (current_level <= reimplication_level)
+  ASSERT(lit_true(lit));
+  ASSERT(_options.lazy_strong_chronological_backtracking);
+  ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
+  ASSERT(lit == clause.lits[0]);
+  ASSERT(clause_implying(reason));
+  ASSERT(size < 2 || max_literal(clause.lits[1], clause.lits + 2, size - 2));
+
+  Tlevel reimplication_level = size == 1 ? 0 : lit_level(clause.lits[1]);
+  if (lit_level(lit) <= reimplication_level)
     return;
   if (lit_lazy_reason(lit) != CLAUSE_UNDEF
    && lit_level(_clauses[lit_lazy_reason(lit)].lits[1]) <= reimplication_level)
@@ -241,13 +196,22 @@ void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
 }
 
 Tlit* napsat::NapSAT::quick_replacement(Tclause cl) {
+  // This must be as efficient as possible!
   Tlit* lits = _clauses[cl].lits;
   unsigned size = _clauses[cl].size;
   unsigned& last_look = _clauses[cl].last_looked;
   unsigned last_look_save = last_look;
+
   ASSERT(size >= 2);
   ASSERT(lit_false(lits[1]));
-  // This must be as efficient as possible!
+  /**
+   * Not sure where this trick comes from, but it was used in veriT and mentionned by Mathias Fleury
+   *
+   * We cycle from the last searched position
+   * This is good on big clauses as the literals at the start of the clause are more likely to be falsified
+   * Therefore, skipping them and wrapping around might be beneficial.
+   * Further, this approach spreads the watches a bit more
+   */
   while (last_look < size) {
     if (!lit_false(lits[last_look++])) {
       return lits + last_look - 1;
@@ -262,17 +226,17 @@ Tlit* napsat::NapSAT::quick_replacement(Tclause cl) {
   return lits + 1;
 }
 
-Tlit* napsat::NapSAT::graph_replacement(Tlit* lits, unsigned size)
+Tlit* napsat::NapSAT::advanced_graph_replacement(Tlit* lits, unsigned size)
 {
-  Tlit* end = lits + size;
   Tlit* top_element = lits + 1;
-  Tlit* k = lits + 1;
   /**
+   * We assume that we ran the quick_replacement function before and failed to find a suitable replacement literal
+   *
    * We are searching for a top element of the lattice. This is expensive.
    * Instead, we search for the biggest chunk set. Which is necessarily a top element.
    */
   unsigned chunk_size = lit_chunks(*top_element).count();
-  while (++k < end) {
+  for (Tlit* k = lits + 2; k < lits + size; ++k) {
     ASSERT(lit_false(*k));
     unsigned dep_size = lit_chunks(*k).count();
     if (dep_size > chunk_size) {
@@ -283,7 +247,7 @@ Tlit* napsat::NapSAT::graph_replacement(Tlit* lits, unsigned size)
   return top_element;
 }
 
-Tlit* napsat::NapSAT::advanced_replacement(Tlit* lits, unsigned size)
+Tlit* napsat::NapSAT::advanced_level_replacement(Tlit* lits, unsigned size)
 {
   /**
    * Pre conditions:
@@ -298,70 +262,89 @@ Tlit* napsat::NapSAT::advanced_replacement(Tlit* lits, unsigned size)
   ASSERT(size >= 2);
   ASSERT(lit_false(lits[1]));
   // This must be as efficient as possible!
-  Tlit* end = lits + size;
-  Tlit* k = lits + 2;
+
   Tlevel high_lvl = lit_level(lits[1]);
   Tlit* high_lit = lits + 1;
-  while (k < end) {
+  for (Tlit* k = lits + 2; k < lits + size; ++k) {
     ASSERT(lit_false(*k));
-    if (lit_level(*k) > high_lvl) {
-      // in non-chronological backtracking, the watched literals are always at the highest level
-      ASSERT(_options.chronological_backtracking);
-      high_lvl = lit_level(*k);
+    Tlevel level = lit_level(*k);
+    if (level > high_lvl) {
+      high_lvl = level;
       high_lit = k;
     }
-    k++;
   }
   return high_lit;
 }
 
-Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
+bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks)
 {
-  lit = lit_neg(lit);
-  ASSERT(lit_false(lit));
+  bitset closure = reimplying_chunks;
+  bool changed = true;
 
-  for (TSwatch& w : _binary_clauses[lit]) {
-    Tlit other_lit = w.block;
+  while (changed) {
+    if(closure[decision_chunk]) {
+      // we found a cycle
+      return true;
+    }
+    changed = false;
+    for (auto it = closure.cbegin(); it != closure.cend(); ++it) {
+      Tchunk c = *it;
+      bitset& m = _chunks[c].missed_implication;
+      if (!(m < closure)) {
+        closure |= m;
+        changed = true;
+      }
+    }
+  }
+  return false;
+}
+
+Tclause napsat::NapSAT::propagate_binary_clauses(Tlit c1)
+{
+  c1 = lit_neg(c1);
+  ASSERT(lit_false(c1));
+
+  for (TSwatch& w : _binary_watch[c1]) {
+    Tlit c2 = w.block;
     Tclause cl = w.cl;
-    ASSERT_MSG(_clauses[cl].size == 2, "Clause: " + clause_to_string(cl) + ",Literal: " + lit_to_string(lit));
+    ASSERT(_clauses[cl].size == 2);
 
-    if (lit_true(other_lit)) {
-      if (_options.lazy_strong_chronological_backtracking && lit_level(other_lit) > lit_level(lit)) {
+    if (lit_true(c2)) {
+      if (_options.lazy_strong_chronological_backtracking && lit_level(c2) > lit_level(c1)) {
         // missed lower implication
         Tlit* lits = _clauses[cl].lits;
-        lits[0] = other_lit;
-        lits[1] = lit;
-        reimply_literal(other_lit, cl);
+        lits[0] = c2;
+        lits[1] = c1;
+        reimply_literal(c2, cl);
       }
-      if (_options.graph_backtracking &&
-          !(lit_chunks(other_lit) <= lit_chunks(lit))) {
-        lit_cross_chunks(lit) |= lit_chunks(other_lit);
+      if (_options.graph_backtracking && !(lit_chunks(c2) <= lit_chunks(c1))) {
+        lit_cross_chunks(c1) |= lit_chunks(c2);
+        if (_options.lazy_chunk_merging && lit_decision(c2)) {
+          // TODO check for missed implications
+        }
       }
       continue;
     }
-    ASSERT(!lit_propagated(lit));
+    ASSERT(!lit_propagated(c1));
     Tlit* lits = _clauses[cl].lits;
-    if (lit_undef(other_lit)) {
+    if (lit_undef(c2)) {
       // ensure that the implied literal is positioned at the first position
-      ASSERT(lits[0] == lit || lits[1] == lit);
-      ASSERT(lits[0] == other_lit || lits[1] == other_lit);
-      lits[0] = other_lit;
-      lits[1] = lit;
-      imply_literal(other_lit, cl);
+      ASSERT(lits[0] == c1 || lits[1] == c1);
+      ASSERT(lits[0] == c2 || lits[1] == c2);
+      lits[0] = c2;
+      lits[1] = c1;
+      imply_literal(c2, cl);
       continue;
     }
     // Conflict
     ASSERT(_options.chronological_backtracking || _options.graph_backtracking
-           || lit_level(other_lit) == lit_level(lit));
-    if (_options.chronological_backtracking) {
-      // make sure that the highest literal is at the first position
-      if (lit_level(lits[0]) < lit_level(lits[1])) {
-        // in place swapping
-        lits[0] ^= lits[1];
-        lits[1] ^= lits[0];
-        lits[0] ^= lits[1];
-        // we do not need to update the next watched clause because the clause is binary
-      }
+           || lit_level(c2) == lit_level(c1));
+           // make sure that the highest literal is at the first position
+    if (lit_level(c1) < lit_level(c2)) {
+      ASSERT (_options.chronological_backtracking || _options.graph_backtracking);
+      lits[0] = c2;
+      lits[1] = c1;
+      // we do not need to update the next watched clause because the clause is binary
     }
     ASSERT(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]));
     return cl;
@@ -371,17 +354,15 @@ Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
 
 Tclause NapSAT::propagate_lit(Tlit lit)
 {
-  // ASSERT(watch_lists_complete());
-  // ASSERT(watch_lists_minimal());
   /**
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
    */
-  lit = lit_neg(lit);
-  ASSERT(lit_false(lit));
+  Tlit c1 = lit_neg(lit);
+  ASSERT(lit_false(c1));
 
   // level of the propagation
-  Tlevel lvl = lit_level(lit);
-  vector<TSwatch>& watch_list = _watch_lists[lit];
+  Tlevel c1_lvl = lit_level(c1);
+  vector<TSwatch>& watch_list = _watches[c1];
 
   // Be careful that with this method, we do not want to push anything to the watch list.
   // Otherwise the memory might be reallocated and the pointers invalidated.
@@ -391,17 +372,13 @@ Tclause NapSAT::propagate_lit(Tlit lit)
 
   /**
    * Let F* be a set of clauses such that each clause in the set satisfies
-   * - NCB:  ¬c₁ ∈ τ ⇒ c₂ ∈ π
-   *                 ∨ b ∈ π
+   * For each clause C watched by c₁ and c₂ and such that c₁ is blocked by b, we have
+   * - NCB:  ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ b ∈ π
    *        δ(b) ≤ δ(c₂) is trivially true in NCB since the levels are monotonically increasing
-   * - WCB:  ¬c₁ ∈ τ ⇒  ¬c₂ ∉ τ
-   *                 ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
-   *        We actually want to enforce ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] but cannot
-   *        guarantee that this will hold after backtracking.
    * - LSCB: ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
-   *                 ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
-   * - GB:   ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ γ(c₁) ⊆ γ(c₂) ∪ η(c₂)]
-   *                 ∨ [b ∈ π ∧ γ(b) ⊆ γ(ℓ)]
+   *                 ∨ [b  ∈ π ∧  δ(b)  ≤ δ(c₁)]
+   * - GB:   ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ γ(c₂) ⊆ γ(c₁) ∪ η(c₁)]
+   *                 ∨ [b  ∈ π ∧ γ(b)  ⊆ γ(c₁) ∪ η(c₁)]
    *
    * We initialise F* with all the clauses that are not watched by ¬ℓ. If they satisfied the invariant
    * before the propagation, they will satisfy them after ℓ is added to τ without any action.
@@ -410,39 +387,48 @@ Tclause NapSAT::propagate_lit(Tlit lit)
    * we will reason over the Haore triplets {P} loop body {Q}
    * where P is the precondition that the invariant holds before the loop
    * and Q is the postcondition that the invariant holds after the loop if ℓ = ¬c₁ is added to τ
+   * * For each clause C watched by c₁ and c₂ and such that c₁ is blocked by b, we have
    * - NCB:  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
    *        δ(b) ≤ δ(c₂) is trivially true in NCB since the levels are monotonically increasing
-   * - WCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ ¬c₂ ∉ (τ ⋅ ℓ) ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
-   *        We actually want to enforce ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] but cannot
-   *        guarantee that this will hold after backtracking.
    * - LSCB: ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
-   *                       ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
-   * - GB:   ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ γ(c₁) ⊆ γ(c₂) ∪ η(c₂)]
-   *                       ∨ [b ∈ π ∧ γ(b) ⊆ γ(ℓ)]
+   *                       ∨ [b  ∈ π ∧  δ(b)  ≤ δ(c₁)]
+   * - GB:   ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ γ(c₂) ⊆ γ(c₁) ∪ η(c₁)]
+   *                       ∨ [b  ∈ π ∧ γ(b)  ⊆ γ(c₁) ∪ η(c₁)]
    *
    * If Q is true, then we can add C to F* and we know that the invariants are preserved.
    * If we cannot make Q true, then there is a conflict and we can return C.
    *
    * If we have not returned a conflict, at then end of the loop, we will have explored
    * all the clauses watched by ¬ℓ and F* = F. Therefore, we satisfy our contract.
+   *
+   *
+   * We have ensured previously (in propagate()) that  η(ℓ) = γ(ℓ) ∪ η(ℓ) such that we can simplify the test for GB
+   * The expressions then become
+   * P: GB:   ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ γ(c₂) ⊆ η(c₁)]
+   *                  ∨ [b  ∈ π ∧ γ(b)  ⊆ η(c₁)]
+   * Q: GB:   ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ γ(c₂) ⊆ η(c₁)]
+   *                        ∨ [b  ∈ π ∧ γ(b)  ⊆ η(c₁)]
    */
+  ASSERT(lit_chunks(c1) <= lit_cross_chunks(c1));
+
   while (i < end) {
+    c1 = lit_neg(lit);
     TSwatch& w = *i;
     Tclause cl = w.cl;
     TSclause& clause = _clauses[cl];
     ASSERT(clause.watched);
     ASSERT(clause.size >= 2);
-    // Skip condition before dereferencing the pointers
-    ASSERT(lit_cross_chunks(lit) >= lit_chunks(lit));
-    Tlit blocker = w.block;
-    if (lit_true(blocker)
-      && (!_options.chronological_backtracking || lit_level(blocker) <= lvl)
-      && (!_options.graph_backtracking         || lit_chunks(blocker) <= lit_cross_chunks(lit))) {
+
+    // Checking the validity of the blocker
+    ASSERT(lit_cross_chunks(c1) >= lit_chunks(c1));
+    Tlit b = w.block;
+    if (lit_true(b)
+      && (!_options.chronological_backtracking || lit_level(b) <= c1_lvl)
+      && (!_options.graph_backtracking         || lit_chunks(b) <= lit_cross_chunks(c1))) {
       /**
-       * NCB: b ∈ π
-       * WCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
-       * SCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
-       * GB:  b ∈ π ∧ γ(b) ⊆ γ(ℓ)
+       * NCB:  b ∈ π
+       * LSCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
+       * GB:   b ∈ π ∧ γ(b) ⊆ η(c₁)
        * the invariants are preserved without any action
        */
       i++;
@@ -454,102 +440,99 @@ Tclause NapSAT::propagate_lit(Tlit lit)
      * we call c₁ and c₂ the watched literals of the clause
      * we ensure that c₁ = ¬ℓ to make the rest of the function more efficient
      */
-    ASSERT_MSG(lit == lits[0] || lit == lits[1],
-      "Clause: " + clause_to_string(cl) + ",Literal: " + lit_to_string(lit));
+    Tlit c2 = lits[0] ^ lits[1] ^ c1;
 
-    // ensure that c₁ = ¬ℓ and c₂ = the other watched literal
-    Tlit lit2 = lits[0] ^ lits[1] ^ lit;
-    ASSERT(lit2 == lits[0] || lit2 == lits[1]);
-    ASSERT(lit != lit2);
-    lits[0] = lit2;
-    lits[1] = lit;
+    ASSERT(c1 == lits[0] || c1 == lits[1]);
+    ASSERT(c2 == lits[0] || c2 == lits[1]);
+    ASSERT(c1 != c2);
+
+    lits[0] = c2;
+    lits[1] = c1;
+    Tlevel c2_lvl = lit_level(c2);
+
 
     /** SKIP CONDITIONS **/
-    if (lit_true(lit2)
-    && (!_options.lazy_strong_chronological_backtracking || lit_level(lit2) <= lvl)
-    && (!_options.graph_backtracking                     || lit_chunks(lit2) <= lit_cross_chunks(lit))) {
+    if (lit_true(c2)
+    && (!_options.lazy_strong_chronological_backtracking || c2_lvl <= c1_lvl)
+    && (!_options.graph_backtracking                     || lit_chunks(c2) <= lit_cross_chunks(c1))) {
       /**
-       * NCB: c₂ ∈ π
-       * WCB: c₂ ∈ π
-       * SCB: c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)
-       * GB:  c₂ ∈ π ∧ γ(c₁) ⊆ γ(c₂) ∪ η(c₂)
+       * NCB:  c₂ ∈ π
+       * WCB:  c₂ ∈ π
+       * LSCB: c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)
+       * GB:   c₂ ∈ π ∧ γ(c₂) ⊆ η(c₁)
        * the invariants are preserved without any action
        */
-      w.block = lit2;
+      w.block = c2;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lit2, lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, c2, c1));
 #endif
       i++;
       continue;
     }
 
     /** SEARCH REPLACEMENT **/
-    Tlit* replacement = quick_replacement(cl);
-    /**
-     * Quick replacement returns a non-falsified literal r ∈ C \ {c₂} if such a literal exists.
-     */
+    // Quick replacement returns a non-falsified literal r ∈ C \ {c₂} if such a literal exists.
+    Tlit* r = quick_replacement(cl);
 
     /**
      * Search replacement returns a literal r ∈ C \ {c₂} such that it either is a good replacement
      * such that
-     *   ¬r ∈ (τ ⋅ ¬c₁) ⇒ C \ {c₂}, π ⊧ ⊥
+     *   ¬r ∈ (τ ⋅ ℓ) ⇒ C \ {c₂}, π ⊧ ⊥
      * NCB: If c₂ ∈ π, then we would have stopped at the skip conditions
      *      We know that [C \ {c₂}, π ⊧ ⊥] ⇒ δ(c₁) = δ(c₂) = δ(C) and c₁ will be returned
      *      if C \ {c₂} is conflicting
      *
      * We know that
-     * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ C \ {c₂}, π ⊧ ⊥]
-     * NCB:  c₂ ∉ π                  ∧  b ∉ π
-     * WCB:  c₂ ∉ π                  ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
-     * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * ALL:  [¬r ∈ (τ ⋅ ¬c₁) ⇒ C \ {c₂}, π ⊧ ⊥]
+     * NCB:   c₂ ∉ π                  ∧  b ∉ π
+     * LSCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * GB:   [c₂ ∉ π ∨ γ(c₂) ⊈ η(c₁)] ∧ [b ∉ π ∨ γ(b) ⊈ η(c₁)]
     */
-    ASSERT(replacement != nullptr);
-    ASSERT(!lit_propagated(lit)); // in debug mode, we still run the propagation, but it should not change anything
+    ASSERT(r != nullptr);
+    // in debug mode, we still run the propagation, but it should not change anything
+    ASSERT_MSG(!lit_propagated(c1), lit_to_string(c1) + " requires changes on clause " + clause_to_string(cl));
 
-    Tlevel replacement_lvl = lit_level(*replacement);
-
-    ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking
-           || (!lit_true(*replacement) || replacement_lvl <= lvl),
-      "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit) + "\nReplacement: " + lit_to_string(*replacement) + "\nLevel: " + to_string(lvl));
+    Tlevel r_lvl = lit_level(*r);
 
     /** TRUE literal **/
-    if (lit_true(*replacement)
-    && ((!_options.graph_backtracking && replacement_lvl <= lvl)
-     || (_options.graph_backtracking
-      && lit_chunks(*replacement) <= lit_cross_chunks(lit)))) {
+    if (lit_true(*r)
+    && ((!_options.graph_backtracking && r_lvl <= c1_lvl)
+     || (_options.graph_backtracking  && lit_chunks(*r) <= lit_cross_chunks(c1)))) {
       /**
        * r ∈ π ∧ δ(r) ≤ δ(c₁)
        * NCB: We know that r ∈ π ⇒ δ(r) ≤ δ(c₁). Therefore after this condition is satisfied in NCB,
        *      we know that r ∉ π
+       * GB:   [r ∉ π ∨ γ(r) ⊆ η(c₁)]
+       *    The invariant is satisfied if we set b = r
        * ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] is satisfied if we set b = r
       */
-      w.block = *replacement;
+      w.block = *r;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, *replacement, lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, *r, c1));
 #endif
       i++;
       continue;
     }
 
     /**
-     * We know that
-     * ALL: [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]
-     * NCB: r ∉ π                  ∧ c₂ ∉ π                   ∧  b ∉ π
-     * WCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
-     * SCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * We know that (droping blocker information)
+     * ALL:  ¬r ∈ π ⇒ C \ {c₂}, π ⊧ ⊥
+     * NCB:   r ∉ π                 ∧  c₂ ∉ π
+     * LSCB: [r ∉ π ∨ δ(r) > δ(c₁)] ∧ [c₂ ∉ π ∨ δ(c₂) > δ(c₁)]
+     * GB:    r ∉ π                 ∧ [c₂ ∉ π ∨ γ(c₂) ⊈ η(c₁)]
     */
 
     /** UNDEF or TRUE literal **/
-    if (!lit_false(*replacement)) {
+    if (!lit_false(*r)) {
       /**
-       * We now know that ¬r ∉ π, and a fortiori ¬r ∉ (τ ⋅ ¬c₁) since ¬c₁ ∈ ω ⊆ π
+       * We now know that ¬r ∉ π, and a fortiori ¬r ∉ (τ ⋅ ℓ) since ℓ ∈ ω ⊆ π
        * Therefore, we can replace c₁ by r and satisfy the invariant
        */
-      // watch the replacement and stop watching lit
-      lits[1] = *replacement;
-      *replacement = lit;
+      // watch the replacement and stop watching c1
+      lits[1] = *r;
+      *r = c1;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, c1));
 #endif
       // remove the clause from the watch list
       // bring the last watched clause to the current position
@@ -562,28 +545,45 @@ Tclause NapSAT::propagate_lit(Tlit lit)
 
     /** NO GOOD REPLACEMENT **/
     /**
+     * We know that
+     * ALL:  C \ {c₂}, π ⊧ ⊥
+     * NCB:   c₂ ∉ π
+     * LSCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)]
+     * GB:   [c₂ ∉ π ∨ γ(c₂) ⊈ η(c₁)]
+     *
+     * Which means that this clause is either
+     * 1. Conflicting if ¬c₂ ∈ π
+     * 2. Unit if c₂ ∉ π ∧ ¬c₂ ∉ π
+     * 3. Missed implication if c₂ ∈ π (and was not skipped earlier)
+     *   3.1 Missed lower implication if δ(c₂) > δ(C \ {c₂})
+     *   3.2 Missed chunk implication if γ(c₂) ⊈ η(c₁)
+     *
      * We now perform a more advanced search for a replacement.
      * In case of NCB, this is not necessary because we are certain that c₂ is at the highest level
-     */
+     * We want to find a top element of the clause such that we can replace c₁ with it
+     * The goal is
+     * 1. In CB, we want to find the highest literal in the clause to
+     *   - Determine the level of the clause
+     *   - Ensure that this is the first backtracked literal in the clause
+     * 2. In GB, we want to find a literal r such that for all literals ℓ' in the clause γ(r) ⊈ η(ℓ') to
+     *   - reduce the number of repropagated literals
+    */
     if (_options.graph_backtracking) {
-      replacement = graph_replacement(lits, clause.size);
+      r = advanced_graph_replacement(lits, clause.size);
+    } else if (_options.chronological_backtracking) {
+      r = advanced_level_replacement(lits, clause.size);
     }
-    else if (_options.chronological_backtracking) {
-      replacement = advanced_replacement(lits, clause.size);
-    }
-    replacement_lvl = lit_level(*replacement);
+    ASSERT(lit_false(*r));
+    r_lvl = lit_level(*r);
     /**
-     * We know that [¬r ∈ (τ ⋅ ¬c₁) ⇒ c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]
-     * We also know that ¬r ∈ π and therefore δ(r) = δ(C \ {c₂}) or c₂ ∈ π ∧ δ(c₂) ≤ δ(r)
-     * ALL: ¬r ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(r)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})]]
-     * NCB: c₂ ∉ π                   ∧ b ∉ π
-     * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
-     * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * ALL: ¬r ∈ π ∧ C \ {c₂}, π ⊧ ⊥
+     * NCB:  c₂ ∉ π
+     * LSCB: δ(r) = δ(C \ {c₂}) ∧ [c₂ ∉ π ∨ δ(c₂) > δ(c₁)]
+     * GB:   ∀ℓ' ∈ C ∖ {c₂} γ(c₂) ⊈ γ(ℓ') ∧ [c₂ ∉ π ∨ γ(c₂) ⊈ η(c₁)]
      */
-    ASSERT(lit_false(*replacement));
-    if (replacement != lits + 1) {
+    if (r != lits + 1) {
       /**
-       * If r ≠ c₁, we know that we are in WCB since in NCB we have
+       * If r ≠ c₁, we know that we are in CB or GB since in NCB we have
        *    [C \ {c₂}, π ⊧ ⊥] ⇒ δ(c₁) = δ(c₂) = δ(C) and r = c₁
        * We know that δ(r) > δ(c₁)
        * We swap the literals such that c₁ ← r
@@ -591,17 +591,18 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       ASSERT(_options.chronological_backtracking || _options.graph_backtracking);
       // In strong chronological backtracking, we need to swap the literals such that the highest falsified literal is at the second position. In weak chronological backtracking, it is not necessary, but it is still useful to determine the level of the conflict or the implication.
       // swap the literals
-      lits[1] = *replacement;
-      *replacement = lit;
+      lits[1] = *r;
+      *r = c1;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, c1));
 #endif
+      c1 = lits[1]; // update c1 with the replacement literal
       // remove the clause from the watch list
       // bring the last watched clause to the current position
       *i = *(end - 1);
       end--;
       // watch new literal
-      watch_lit(lits[1], cl);
+      watch_lit(c1, cl);
     }
     else {
       // Increment for the next iteration
@@ -610,61 +611,64 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     }
 
     /**
-     * We no longer need r since it is now in place of c₁
-     * ALL: ¬c₁ ∈ π ∧ [[c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})]]
-     * NCB:  c₂ ∉ π                  ∧  b ∉ π
-     * WCB:  c₂ ∉ π                  ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
-     * SCB: [c₂ ∉ π ∨ δ(c₂) > δ(c₁)] ∧ [b ∉ π ∨ δ(b) > δ(c₁)]
+     * We no longer need r since we replaced c₁ ← r (which might be equal)
+     * However, since we changed c₁ to r, we lost the information related to it.
+     * We write (?) to denote some literal in the clause that used to be c₁
+     *
+     * ALL:  ¬c₁ ∈ π ∧ C \ {c₂}, π ⊧ ⊥
+     * NCB:  c₂ ∉ π
+     * LSCB: δ(c₁) = δ(C \ {c₂}) ∧ [c₂ ∉ π ∨ δ(c₂) > δ(?)]
+     * GB:   ∀ℓ' ∈ C ∖ {c₂} γ(c₁) ⊈ γ(ℓ') ∧ [c₂ ∉ π ∨ γ(c₂) ⊈ η(?)]
      */
 
     // We know that all literals in clause[1:end] are false
     /** CONFLICT **/
-    if (lit_false(lit2)) {
-      // Conflict
+    if (lit_false(c2)) {
       /**
        * We know that C \ {c₂}, π ⊧ ⊥, therefore, if ¬c₂ ∈ π then C, π ⊧ ⊥ and we have a conflict
-       * We cannot safely add ¬c₁ to the trail.
-       * ALL: ¬c₁ ∈ (τ ⋅ ¬c₁) ∧ C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})
-       * NCB: b ∉ π
-       * WCB: [b ∉ π ∨ δ(b) > δ(c₁)]
-       * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
-      */
-      ASSERT(lit_level(lits[1]) == replacement_lvl);
-      if (lit_level(lit2) < replacement_lvl) {
-        ASSERT(lit2 == lits[0]);
-        // swap the literals
-        // we want the highest literal to be at the first position
-        lits[0] = lits[1];
-        lits[1] = lit2;
-      }
+       * We cannot safely add ℓ to the propagated set τ.
+       */
+      ASSERT(lit_level(lits[1]) == r_lvl);
       if (_options.graph_backtracking) {
-        for (size_t j = 0; j < _clauses[cl].size; j++) {
-          lit_cross_chunks(lits[0]) |= lit_chunks(lits[j]);
-          lit_cross_chunks(lits[1]) |= lit_chunks(lits[j]);
+        // we want to make sure that if we do not backtrack the watched literals, they will still be repropagated and fixed
+        ASSERT(!lit_propagated(c2));
+        for (size_t j = 2; j < clause.size; j++) {
+          lit_cross_chunks(c1) |= lit_chunks(lits[j]);
         }
       }
-      ASSERT_MSG(lit_level(lits[0]) >= lit_level(lits[1]),
-        "Conflict: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
+      if (c2_lvl < r_lvl) {
+        ASSERT(c2 == lits[0]);
+        ASSERT(c1 == lits[1]);
+        // swap the literals
+        // we want the highest literal to be at the first position
+        lits[0] = c1;
+        lits[1] = c2;
+      }
       watch_list.resize(end - watch_list.data());
-      // ASSERT(watch_lists_complete());
-      // ASSERT(watch_lists_minimal());
       return cl;
     }
 
     /** UNIT CLAUSE **/
-    if (lit_undef(lit2)) {
+    if (lit_undef(c2)) {
       // unit clause
       /**
        * We add the information that c₂ ∉ π
        * We know that C \ {c₂}, π ⊧ ⊥, therefore the only way to satisfy C is to set c₂ to true
-       * In SCB we additionally need δ(c₂) ≤ δ(c₁), and since c₂ will be implied at level δ(C \ {c₂}),
+       * In LSCB we additionally need δ(c₂) ≤ δ(c₁), and since c₂ will be implied at level δ(C \ {c₂}),
        * we need to ensure that δ(c₁) = δ(C \ {c₂}). This is why we changed the watched literals earlier.
-       * ALL: c₂ ∉ π ∧ ¬c₁ ∈ π ∧ C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})
-       * NCB: b ∉ π
-       * WCB: [b ∉ π ∨ δ(b) > δ(c₁)]
-       * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
-      */
-      imply_literal(lit2, cl);
+       *
+       * ALL:  c₂ ∉ π ∧ ¬c₂ ∉ π ∧ C \ {c₂}, π ⊧ ⊥
+       * NCB:  δ(c₁) = δ(C \ {c₂})
+       * LSCB: δ(c₁) = δ(C \ {c₂})         ∧ [c₂ ∉ π ∨ δ(c₂) ≤ δ(?)]
+       * GB:   ∀ℓ' ∈ C ∖ {c₂} γ(c₂) ⊈ γ(ℓ') ∧ [c₂ ∉ π ∨ γ(c₂) ⊈ η(?)]
+       *
+       * By implying c₂ with C, we ensure that the invariants hold. By construction, we have
+       * - NCB:  c₂ ∈ π
+       * - LSCB: c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)
+       * - GB:   c₂ ∈ π ∧ γ(c₂) ⊆ γ(c₁)
+       * satisfying the invariants for τ ← (τ ⋅ ℓ)
+       */
+      imply_literal(c2, cl);
       // don't increment. We would have done so earlier if we did not change the watched literals
       continue;
     }
@@ -673,33 +677,38 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     /**
      * We know that we can only be in SCB since the skip condition
      * We know that c₂ ∈ π is now satisfied
-     * ALL: c₂ ∈ π ∧ ¬c₁ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})]]
-     * NCB: c₂ ∉ π                   ∧ b ∉ π                   => not possible
-     * WCB: c₂ ∉ π                   ∧ [b ∉ π ∨ δ(b) > δ(c₁)]  => not possible
-     * SCB: [b ∉ π ∨ δ(b) > δ(c₁)]
+     * ALL:   c₂ ∈ π ∧ ¬c₁ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ [C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})]]
+     * NCB:   ⊥    => not possible
+     * LSCB:  δ(c₂) > δ(?)
+     * GB:    γ(c₂) ⊈ η(?)
      * We shall now only consider SCB
     */
-    if ((_options.graph_backtracking || lit_level(lit2) <= replacement_lvl)
-     && (!_options.graph_backtracking || lit_chunks(lit2) <= lit_chunks(lit))) {
+    ASSERT(_options.graph_backtracking || _options.chronological_backtracking);
+    ASSERT(clause_implying(cl));
+    ASSERT(max_literal(c1, lits + 2, clause.size - 2));
+
+    if (( _options.graph_backtracking || lit_level(c2) <= r_lvl)
+     && (!_options.graph_backtracking || lit_chunks(c2) <= lit_chunks(c1))) {
       // This is not a real missed lower implication. The level of the satisfied literal is lower than or equal to the level of the replacement.
       /**
-       * We have δ(c₂) ≤ δ(c₁) as well as c₂ ∈ π ∧ ¬c₁ ∈ π
-       * Which satisfies the invariant:
-       * ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
-       *               ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
-       * and we do not need to do anything more
+       * Since we changed c₁, we cannot be sure that this is actually a MLI
+       *
+       * Now, we know
+       * ALL:  c₂ ∈ π
+       * LSCB: δ(c₂) ≤ δ(c₁)
+       * GB:   γ(c₂) ⊆ η(c₁)
+       *
+       * And the invariants are satisfied when τ ← (τ ⋅ ℓ)
        */
       // don't increment. We would have done so earlier if we did not change the watched literals
       continue;
     }
-    // We know that lit2 is true, and it is a missed lower implication
-    // lit2 is the only satisfied literal in the clause and all other literals are propagated at a level lower than the highest falsified literal
+    // We know that c2 is true, and it is a missed lower implication
+    // c2 is the only satisfied literal in the clause and all other literals are propagated at a level lower than the highest falsified literal
     /**
      * We now also know that δ(c₂) > δ(c₁), so we can simplify our knowledge as
      * c₂ ∈ π ∧ ¬c₁ ∈ π ∧ C \ {c₂}, π ⊧ ⊥ ∧ δ(c₁) = δ(C \ {c₂})
      */
-    ASSERT(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking);
-    ASSERT(lit_true(lit2));
     /**
      * If δ(λ(c₂) \ {c₂}) > δ(c₁), then reimply c₂ at the level of c₁
      * The only way to satisfy the invariant is to add C to the lazy reimplication list of c₂
@@ -710,55 +719,28 @@ Tclause NapSAT::propagate_lit(Tlit lit)
      * Note that reimply literal ensures δ(λ(c₂) \ {c₂}) > δ(c₁) ∧  δ(ℓ) > δ(c₁) before reimplication
      */
     if (_options.lazy_strong_chronological_backtracking) {
-      reimply_literal(lit2, cl);
-    } else {
-      if (_options.lazy_chunk_merging && lit_reason(lits[0]) == CLAUSE_UNDEF && lit_lazy_reason(lits[0]) == CLAUSE_UNDEF) {
-        Tlit reimp_lit = lits[0];
-        // compute the chunk set of the clause, excluding the lits[1]
-        bitset clause_chunks(_n_allocated_chunks);
-        for (unsigned i = 1; i < _clauses[cl].size; i++) {
-          clause_chunks |= lit_chunks(lits[i]);
-        }
-
-        auto it = lit_chunks(reimp_lit).cbegin();
-        Tchunk decision_chunk = *it;
-        ASSERT(++it == lit_chunks(reimp_lit).cend());
-        _chunks[decision_chunk].missed_implication = clause_chunks;
-        if (!clause_chunks[decision_chunk]) {
-          // check for cycles
-          bool changed = true;
-          bitset closure = clause_chunks;
-          while (changed) {
-            changed = false;
-            for (auto it = closure.cbegin(); it != closure.cend(); ++it) {
-              Tchunk c = *it;
-              bitset m = _chunks[c].missed_implication;
-              if (!(m - closure).empty()) {
-                closure |= m;
-                changed = true;
-              }
-            }
-            if(closure[decision_chunk]) {
-              // we found a cycle
-              break;
-            }
-          }
-          if (!closure[decision_chunk]) {
-            NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
-            // NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Cross implication for " + lit_to_string(reimp_lit) + " in " + clause_to_string(cl)));
-
-            _vars[lit_to_var(reimp_lit)].missed_lower_implication = cl;
-            _chunks[decision_chunk].missed_implication = clause_chunks;
-          }
-
-        }
+      reimply_literal(c2, cl);
+    } else if (_options.lazy_chunk_merging && lit_decision(c2) && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
+      Tlit reimp_lit = lits[0];
+      // compute the chunk set of the clause, excluding the lits[1]
+      bitset clause_chunks(_n_allocated_chunks);
+      for (unsigned i = 1; i < _clauses[cl].size; i++) {
+        clause_chunks |= lit_chunks(lits[i]);
       }
-      // We are in graph backtracking, so we do not need to reimply the literal
-      // but we will need to repropagate the literal if one of the other literals in the clause are backtracked
-      for (unsigned i = 0; i < clause.size; i++) {
-        lit_cross_chunks(lits[1]) |= lit_chunks(lits[i]);
+
+      auto it = lit_chunks(reimp_lit).cbegin();
+      Tchunk decision_chunk = *it;
+      ASSERT(++it == lit_chunks(reimp_lit).cend());
+
+      if (!reimplication_cycle(decision_chunk, clause_chunks)) {
+        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
+
+        _vars[lit_to_var(reimp_lit)].missed_lower_implication = cl;
+        _chunks[decision_chunk].missed_implication = clause_chunks;
       }
     }
+
+    lit_cross_chunks(c1) |= lit_chunks(c2);
     /**
      * We now have in addition that δ(λ(c₂) \ {c₂}) ≤ δ(c₁)
      * that satisfies
@@ -769,16 +751,13 @@ Tclause NapSAT::propagate_lit(Tlit lit)
   }
 
   watch_list.resize(end - watch_list.data());
-  // ASSERT(watch_lists_complete());
-  // ASSERT(watch_lists_minimal());
+
   return CLAUSE_UNDEF;
 }
 
 void napsat::NapSAT::backtrack(Tlevel level)
 {
-  // ASSERT(!_options.graph_backtracking);
-  ASSERT_MSG(level <= solver_level(),
-             "Backtracking to level " + to_string(level) + " but current level is " + to_string(solver_level()));
+  ASSERT(level <= solver_level());
   if (level == solver_level())
     return;
   NOTIFY_OBSERVER(_observer, new napsat::gui::backtracking_started(level));
@@ -818,7 +797,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
     }
     else { // lit_level(lit) <= level
       _trail[j++] = lit;
-      waiting_count += (i >= _propagated_literals);
+      waiting_count += (i >= _n_propagated_lits);
     }
   }
   // Here we unassign the literals as mentioned above
@@ -832,19 +811,19 @@ void napsat::NapSAT::backtrack(Tlevel level)
 
   ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking || waiting_count == 0,
              "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(level) + "\nRestore point: " + to_string(restore_point));
-  _propagated_literals = _trail.size() - waiting_count;
-  ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking || _propagated_literals == restore_point,
-    "Propagated literals: " + to_string(_propagated_literals) + "\nRestore point: " + to_string(restore_point));
+  _n_propagated_lits = _trail.size() - waiting_count;
+  ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking || _n_propagated_lits == restore_point,
+    "Propagated literals: " + to_string(_n_propagated_lits) + "\nRestore point: " + to_string(restore_point));
   // in RSCB we need to move the propagation head back to the location of the first literal that moved
   // that is, the location of the first literal that was unassigned.
   if (_options.restoring_strong_chronological_backtracking) {
-    while (_propagated_literals > restore_point) {
-      Tlit lit = _trail[_propagated_literals - 1];
+    while (_n_propagated_lits > restore_point) {
+      Tlit lit = _trail[_n_propagated_lits - 1];
       Tvar var = lit_to_var(lit);
       ASSERT_MSG(_vars[var].propagated,
                   "Literal: " + lit_to_string(lit) + "\nLevel: " + to_string(lit_level(lit)));
       _vars[var].propagated = false;
-      _propagated_literals--;
+      _n_propagated_lits--;
       NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
     }
   }
@@ -877,8 +856,8 @@ void napsat::NapSAT::undo_chunks(const bitset& backtracked_chunks)
   for (Tlevel lvl = 1; lvl <= solver_level(); lvl++) {
     Tlit decision = _trail[_decision_index[lvl - 1]];
     ASSERT(lit_level(decision) == lvl);
-    ASSERT(lit_reason(decision) == CLAUSE_UNDEF);
-    if (!(lit_chunks(decision) & backtracked_chunks).empty()) {
+    ASSERT(lit_decision(decision));
+    if (lit_chunks(decision).has_intersection(backtracked_chunks)) {
       level_transformation[lvl] = LEVEL_ERROR;
     } else {
       level_transformation[lvl] = real_level++;
@@ -900,19 +879,19 @@ void napsat::NapSAT::undo_chunks(const bitset& backtracked_chunks)
   Tlevel decision_counter = min_level - 1;
   while (i < end) {
     bitset& chunks = lit_chunks(*i);
-    if (!(chunks & backtracked_chunks).empty()) {
+    if (chunks.has_intersection(backtracked_chunks)) {
       // we need to unassign the variable
       _backtracked_variables.push_back(lit_to_var(*i));
-      if (lit_propagated(*i) && j - _trail.data() < _propagated_literals) {
+      if (lit_propagated(*i) && j - _trail.data() < _n_propagated_lits) {
         // it could be that a variable is marked as propagated but is behind the propagation head
         // in that case, we do not need to move the propagation head
-        _propagated_literals--;
-        ASSERT(_propagated_literals <= _trail.size());
+        _n_propagated_lits--;
+        ASSERT(_n_propagated_lits <= _trail.size());
       }
       i++;
       continue;
     }
-    if (lit_reason(*i) == CLAUSE_UNDEF) {
+    if (lit_decision(*i)) {
       _decision_index[decision_counter++] = j - _trail.data();
     }
     *(j++) = *(i++);
@@ -934,8 +913,7 @@ void napsat::NapSAT::undo_chunks(const bitset& backtracked_chunks)
 
   // We need to fix the levels of all the literals above the decision level of the chunk
   for (Tlit* k = _trail.data() + _trail.size() - 1; k >= _trail.data(); k--) {
-    ASSERT_MSG(lit_level(*k) != min_level,
-      "Literal: " + lit_to_string(*k) + "\nLevel: " + to_string(lit_level(*k)) + "\nDecision level: " + to_string(min_level));
+    ASSERT(lit_level(*k) != min_level); // all literals at min_level must have been unassigned
     if (lit_level(*k) > min_level) {
       // We need to fix the level of the literal
       Tvar var = lit_to_var(*k);
@@ -945,28 +923,29 @@ void napsat::NapSAT::undo_chunks(const bitset& backtracked_chunks)
       NOTIFY_OBSERVER(_observer, new napsat::gui::update_level(*k, _vars[var].level));
     }
     // We need to fix the propagation head
-    if (lit_propagated(*k) && !(lit_cross_chunks(*k) & backtracked_chunks).empty()) {
+    if (lit_propagated(*k) && lit_cross_chunks(*k).has_intersection(backtracked_chunks)) {
       unsigned location = k - _trail.data();
       _vars[lit_to_var(*k)].propagated = false;
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Replayed Propagation"));
 
       lit_chunks(*k) = lit_chunks(*k) - backtracked_chunks;
-      while(_propagated_literals > location) {
-        _propagated_literals--;
+      while(_n_propagated_lits > location) {
+        _n_propagated_lits--;
         // _vars[lit_to_var(lit)].propagated = false;
-        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(_trail[_propagated_literals]));
+        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(_trail[_n_propagated_lits]));
       }
-      ASSERT(_propagated_literals <= _trail.size());
+      ASSERT(_n_propagated_lits <= _trail.size());
     }
 
-    if (lit_reason(*k) == CLAUSE_UNDEF) {
+    if (lit_decision(*k)) {
       // if the missed implication was undone, we need to remove the lazy reason
       auto it = lit_chunks(*k).cbegin();
       Tchunk decision_chunk = *it;
       ASSERT(++it == lit_chunks(*k).cend());
-      if (!(_chunks[decision_chunk].missed_implication & backtracked_chunks).empty()) {
+      bitset& missed_implication = _chunks[decision_chunk].missed_implication;
+      if (missed_implication.has_intersection(backtracked_chunks)) {
         _vars[lit_to_var(*k)].missed_lower_implication = CLAUSE_UNDEF;
-        _chunks[decision_chunk].missed_implication.clear();
+        missed_implication.clear();
       }
     }
   }
@@ -1099,7 +1078,7 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
 
     Tlit lit = _trail[i];
     // if it is a decision, check if we have finished calculating some sets
-    if (lit_reason(lit) == CLAUSE_UNDEF) {
+    if (lit_decision(lit)) {
       Tlevel level = lit_level(lit);
       for (size_t j = 0; j < possible_set_of_chunks.size(); j++) {
         if (chunks_level[j] >= level) {
@@ -1123,7 +1102,7 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     bitset& chunks = lit_chunks(lit);
     unsigned lit_weight = _backtrack_cost_estimator(lit);
     for (size_t j = 0; j < possible_set_of_chunks.size(); j++) {
-      if ((possible_set_of_chunks[j] & chunks).empty()) {
+      if (!possible_set_of_chunks[j].has_intersection(chunks)) {
         continue;
       }
       weights[j] += lit_weight;
@@ -1147,7 +1126,7 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
 
 bool napsat::NapSAT::lit_is_required_in_learned_clause(Tlit lit)
 {
-  if (lit_reason(lit) == CLAUSE_UNDEF)
+  if (lit_decision(lit))
     return true;
   ASSERT(lit_reason(lit) < _clauses.size());
   TSclause& clause = _clauses[lit_reason(lit)];
@@ -1161,7 +1140,7 @@ bool napsat::NapSAT::lit_is_required_in_learned_clause(Tlit lit)
 
 bool napsat::NapSAT::analyzed_level_or_chunk(Tlit lit, Tlevel level, const bitset& chunks)
 {
-  return (_options.graph_backtracking && !(lit_chunks(lit) & chunks).empty())
+  return (_options.graph_backtracking && lit_chunks(lit).has_intersection(chunks))
       || (!_options.graph_backtracking && lit_level(lit) == level);
 }
 
@@ -1623,19 +1602,19 @@ void NapSAT::restart()
 {
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
   if (_options.graph_backtracking) {
-    unsigned tmp = _propagated_literals;
+    unsigned tmp = _n_propagated_lits;
     backtrack(LEVEL_ROOT);
-    _propagated_literals = min(tmp, _propagated_literals);
+    _n_propagated_lits = min(tmp, _n_propagated_lits);
     size_t i = _trail.size();
     while (i > 0) {
       i--;
       Tlit lit = _trail[i];
       _vars[lit_to_var(lit)].propagated = false;
-      if (i < _propagated_literals) {
+      if (i < _n_propagated_lits) {
         NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
       }
     }
-    _propagated_literals = 0;
+    _n_propagated_lits = 0;
   } else {
     backtrack(LEVEL_ROOT);
   }
@@ -1838,8 +1817,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   else if (clause_size == 2) {
     NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause added"));
     // clause->watched = false;
-    _binary_clauses[lits[0]].push_back(TSwatch(cl, lits[1]));
-    _binary_clauses[lits[1]].push_back(TSwatch(cl, lits[0]));
+    _binary_watch[lits[0]].push_back(TSwatch(cl, lits[1]));
+    _binary_watch[lits[1]].push_back(TSwatch(cl, lits[0]));
 #if NOTIFY_WATCH_CHANGES
     NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
     NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
@@ -1920,7 +1899,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _vars.resize(1);
   _trail = vector<Tlit>();
   _trail.reserve(n_var);
-  _watch_lists.resize(2 * n_var + 2);
+  _watches.resize(2 * n_var + 2);
 
   _clauses = vector<TSclause>();
   _clauses.reserve(n_clauses);
@@ -1986,15 +1965,19 @@ bool NapSAT::propagate()
   // ASSERT(watch_lists_minimal());
   if (_status != UNDEF)
     return false;
-  while (_propagated_literals < _trail.size()) {
-    Tlit lit = _trail[_propagated_literals];
+  while (_n_propagated_lits < _trail.size()) {
+    Tlit lit = _trail[_n_propagated_lits];
 #ifdef NDEBUG
     if (lit_propagated(lit)) {
-      _propagated_literals++;
+      _n_propagated_lits++;
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Skipped Propagation"));
       NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
       continue;
     }
+    if (!lit_propagated(lit)) {
+      lit_cross_chunks(lit).clear();
+    }
+#else
     if (!lit_propagated(lit)) {
       lit_cross_chunks(lit).clear();
     }
@@ -2006,7 +1989,7 @@ bool NapSAT::propagate()
       conflict = propagate_lit(lit);
     if (conflict == CLAUSE_UNDEF) {
       _vars[lit_to_var(lit)].propagated = true;
-      _propagated_literals++;
+      _n_propagated_lits++;
       NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
       continue;
     }
@@ -2051,8 +2034,8 @@ status NapSAT::solve()
         break;
       NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
     }
-    ASSERT_MSG(_propagated_literals == _trail.size(), "Propagation mismatch"
-      "\nPropagated literals: " + to_string(_propagated_literals)
+    ASSERT_MSG(_n_propagated_lits == _trail.size(), "Propagation mismatch"
+      "\nPropagated literals: " + to_string(_n_propagated_lits)
       + "\nTrail size: " + to_string(_trail.size()));
     NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
     if (_n_root_lvl_lits >= _purge_threshold

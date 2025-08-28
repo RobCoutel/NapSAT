@@ -211,7 +211,7 @@ void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
   ASSERT(_clauses[cl].size > 2);
   ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
   Tlit* lits = _clauses[cl].lits;
-  _watch_lists[lit].push_back(TSwatch(cl, lits[0] ^ lits[1] ^ lit));
+  _watches[lit].push_back(TSwatch(cl, lits[0] ^ lits[1] ^ lit));
   #if NOTIFY_WATCH_CHANGES
     NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
     NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lits[0] ^ lits[1] ^ lit, lit));
@@ -227,11 +227,39 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
   ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
   ASSERT(_clauses[cl].size > 2);
   size_t loc = 0;
-  while (loc < _watch_lists[lit].size() && _watch_lists[lit][loc].cl != cl) {
+  while (loc < _watches[lit].size() && _watches[lit][loc].cl != cl) {
     loc++;
   }
-  ASSERT(loc < _watch_lists[lit].size());
-  _watch_lists[lit].erase(_watch_lists[lit].begin() + loc);
+  ASSERT(loc < _watches[lit].size());
+  _watches[lit].erase(_watches[lit].begin() + loc);
+}
+
+void napsat::NapSAT::var_allocate(Tvar var)
+{
+  if (_vars.size() >= var + 1)
+    return;
+
+  unsigned old_size = _vars.size();
+  _vars.resize(var + 1);
+  for (Tvar i = old_size; i <= var; i++) {
+    assert(_vars[i].constrained == 0);
+    if (!_options.ignore_unused_variables)
+      var_mark_constrained(i);
+    _vars[i].chunks.resize(_n_allocated_chunks);
+    _vars[i].cross_chunks.resize(_n_allocated_chunks);
+    NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(i));
+  }
+
+  _watches.resize(2 * var + 2);
+  _binary_watch.resize(2 * var + 2);
+  // reallocate the literal buffer to make sure it is big enough
+  // TODO replace with std::vector
+  Tlit* new_literal_buffer = new Tlit[_vars.size() + 1];
+  assert(_literal_buffer);
+  std::memcpy(new_literal_buffer, _literal_buffer,
+              _next_literal_index * sizeof(Tlit));
+  delete[] _literal_buffer;
+  _literal_buffer = new_literal_buffer;
 }
 
 void napsat::NapSAT::allocate_chunks(size_t n_chunks)
@@ -292,7 +320,7 @@ void napsat::NapSAT::print_lit(Tlit lit)
   cout << "\033[0m";
 }
 
-string NapSAT::lit_to_string(Tlit lit)
+string NapSAT::lit_to_string(Tlit lit) const
 {
   string s = "";
   if (lit_marked(lit))
@@ -315,7 +343,7 @@ string NapSAT::lit_to_string(Tlit lit)
   return s;
 }
 
-string NapSAT::clause_to_string(Tclause cl)
+string NapSAT::clause_to_string(Tclause cl) const
 {
   string s = "";
   if (cl == CLAUSE_UNDEF)
@@ -341,10 +369,10 @@ void NapSAT::print_clause(Tclause cl)
 
 void NapSAT::print_trail()
 {
-  cout << "trail: " << _propagated_literals << " - " << _trail.size() - _propagated_literals << "\n";
+  cout << "trail: " << _n_propagated_lits << " - " << _trail.size() - _n_propagated_lits << "\n";
   for (unsigned int i = 0; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
-    if (i == _propagated_literals) {
+    if (i == _n_propagated_lits) {
       cout << "-------- waiting queue --------\n";
     }
     ASSERT(!lit_undef(lit));
@@ -394,7 +422,7 @@ void napsat::NapSAT::print_trail_simple()
   for (Tlevel lvl = solver_level(); lvl <= solver_level(); lvl--) {
     cout << lvl << ": ";
     for (unsigned i = 0; i < _trail.size(); i++) {
-      if (i == _propagated_literals)
+      if (i == _n_propagated_lits)
         cout << "| ";
       Tlit lit = _trail[i];
       if (lit_level(lit) == lvl) {
@@ -466,7 +494,7 @@ void napsat::NapSAT::print_clause_set()
 void napsat::NapSAT::print_watch_lists(Tlit lit)
 {
   Tlit i = 1;
-  Tlit end = _watch_lists.size();
+  Tlit end = _watches.size();
   if (lit != LIT_UNDEF) {
     i = lit;
     end = lit + 1;
@@ -479,13 +507,13 @@ void napsat::NapSAT::print_watch_lists(Tlit lit)
     cout << ": ";
     // print the binary list
     cout << "binary: ";
-    for (TSwatch w : _binary_clauses[i]) {
+    for (TSwatch w : _binary_watch[i]) {
       print_lit(w.block);
       cout << " <- " << w.cl << " ";
     }
     cout << "\n                non-binary: ";
 
-    for (TSwatch w : _watch_lists[i])
+    for (TSwatch w : _watches[i])
       cout << w.cl << " ";
     cout << "\n";
   }

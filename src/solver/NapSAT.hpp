@@ -360,7 +360,7 @@ namespace napsat
      * @brief Number of propagated literals
      * @details This is the boundary between τ and ω.
      */
-    unsigned _propagated_literals = 0;
+    unsigned _n_propagated_lits = 0;
 
     /**  CLAUSES ALLOCATION  **/
     /**
@@ -384,16 +384,16 @@ namespace napsat
     std::vector<unsigned> _clauses_sizes;
 
     /**
-     * @brief _watch_lists[i] is the first clause of the watch list of the
+     * @brief _watches[i] is the first clause of the watch list of the
      * literal i.
      */
-    std::vector<std::vector<TSwatch>> _watch_lists;
+    std::vector<std::vector<TSwatch>> _watches;
     /**
-     * @brief _binary_clauses[l] is the contains the pairs <lit, cl> where lit
+     * @brief _binary_watch[l] is the contains the pairs <lit, cl> where lit
      * is a literal to be propagated if l is falsified, and <cl> is the clause
      * that propagates lit.
     */
-    std::vector<std::vector<TSwatch>> _binary_clauses;
+    std::vector<std::vector<TSwatch>> _binary_watch;
     /**
      * @brief _decision_index[i] is the index of the decision made after level i.
      * @remark _decision_index[0] is the index of the first decision.
@@ -697,6 +697,16 @@ namespace napsat
       return _vars[lit_to_var(lit)].reason;
     }
 
+    inline bool var_decision(Tvar var) const
+    {
+      return var_lazy_reason(var) == CLAUSE_UNDEF;
+    }
+
+    inline bool lit_decision(Tlit lit) const
+    {
+      return lit_reason(lit) == CLAUSE_UNDEF;
+    }
+
     /**
      * @brief Returns an alternative reason for propagating the variable at a
      * lower level.
@@ -971,6 +981,51 @@ namespace napsat
     }
 
     /**
+     * @brief Returns true if the clause is a unit clause.
+     * Further, it checks that a unit clause has its unassigned literal at the front of the clause
+     * @warning This function is meant to be used for debugging
+     */
+    bool clause_unit(Tclause cl) const;
+
+    /**
+     * @brief Returns true if the clause is implying its first literal.
+     * A clause C is implying its first literal ℓ if C[0] = ℓ and C \ {ℓ} ⊧ ⊥
+     * @warning This function is meant to be used for debugging
+     */
+    bool clause_implying(Tclause cl) const;
+
+    /**
+     * @brief Returns true if the clause is satisfied.
+     * @warning This function is meant to be used for debugging
+     */
+    bool clause_satisfied(Tclause cl) const;
+
+    /**
+     * @brief Returns true if the clause is falsified.
+     * @warning This function is meant to be used for debugging
+     */
+    bool clause_falsified(Tclause cl) const;
+
+    /**
+     * @brief Returns true if there is at least one clause in the watch list of lit that
+     * does not satisfy the invariants.
+     * @warning This function is very expensive and should only be used for debugging
+     */
+    bool lit_needs_fixing(Tlit lit) const;
+
+    /**
+     * @brief Returns true if the literal lit is the maximum literal in cl according to
+     * - either decision level if in NCB or CB
+     * - or chunk lattice if in GB
+     */
+    bool max_literal(Tlit lit, const Tlit* lits, size_t size) const;
+
+    /**
+     * @brief Checks whether reimplying lit (a decision literal) would create a cycle.
+     */
+    bool reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks);
+
+    /**
      * @brief Unassign a variable.
      */
     void var_unassign(Tvar var);
@@ -981,34 +1036,11 @@ namespace napsat
      * @param var variable to allocate.
      * @note Every variable with an index lower than var will be allocated.
      */
-    inline void var_allocate(Tvar var)
-    {
-      if (_vars.size() >= var + 1)
-        return;
+    void var_allocate(Tvar var);
 
-      unsigned old_size = _vars.size();
-      _vars.resize(var + 1);
-      for (Tvar i = old_size; i <= var; i++) {
-        assert(_vars[i].constrained == 0);
-        if (!_options.ignore_unused_variables)
-          var_mark_constrained(i);
-        _vars[i].chunks.resize(_n_allocated_chunks);
-        _vars[i].cross_chunks.resize(_n_allocated_chunks);
-        NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(i));
-      }
-
-      _watch_lists.resize(2 * var + 2);
-      _binary_clauses.resize(2 * var + 2);
-      // reallocate the literal buffer to make sure it is big enough
-      // TODO replace with std::vector
-      Tlit* new_literal_buffer = new Tlit[_vars.size() + 1];
-      assert(_literal_buffer);
-      std::memcpy(new_literal_buffer, _literal_buffer,
-                  _next_literal_index * sizeof(Tlit));
-      delete[] _literal_buffer;
-      _literal_buffer = new_literal_buffer;
-    }
-
+    /**
+     * @brief Allocates new chunks and rescale all variable chunks.
+     */
     void allocate_chunks(size_t n_chunks);
 
     /**
@@ -1112,20 +1144,20 @@ namespace napsat
      *   C \ {c₂}, π ⊧ ⊥ ∧ δ(r) = δ(C \ {c₂})
      * @pre ¬c₁ ∈ ω
     */
-    Tlit* advanced_replacement(Tlit* lits, unsigned size);
+    Tlit* advanced_level_replacement(Tlit* lits, unsigned size);
 
     /**
      * @brief Searches for a replacement literal for the first watched literal
      * of a clause.
      * @details Provided a clause C = {c₁, c₂, ...} and a partial assignment
-     * π = τ ⋅ ω graph_replacement(C) returns a literal r ∈ C \ {c₁} such that
+     * π = τ ⋅ ω advanced_graph_replacement(C) returns a literal r ∈ C \ {c₁} such that
      * - the chunks of r is a superset of the chunks of c₁
      *   γ(c₁) ⊆ γ(r)
      * - r is a top element of the chunk lattice of the clause
      *   ∀ ℓ' ∈ C ∖ {ℓ} . γ(r) ⊈ γ(ℓ')
      * @pre All literals in C \ {c₁} are falsified by the current assignment.
      */
-    Tlit* graph_replacement(Tlit* lits, unsigned size);
+    Tlit* advanced_graph_replacement(Tlit* lits, unsigned size);
 
     /**
      * @brief Propagate the literal lit on the binary clauses.
@@ -1562,7 +1594,7 @@ namespace napsat
      * @param lit literal to print.
      * @return colored string of the literal.
      */
-    std::string lit_to_string(Tlit lit);
+    std::string lit_to_string(Tlit lit) const;
 
     /**
      * @brief Returns a string of a clause. The clause is printed in the form
@@ -1572,7 +1604,7 @@ namespace napsat
      * @param clause clause to print.
      * @return string of the clause.
      */
-    std::string clause_to_string(Tclause cl);
+    std::string clause_to_string(Tclause cl) const;
 
     /**
      * @brief Prints the current assignment of the solver on the standard

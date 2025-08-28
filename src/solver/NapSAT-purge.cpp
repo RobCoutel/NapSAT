@@ -25,20 +25,20 @@ using namespace std;
 void napsat::NapSAT::repair_watch_lists()
 {
   /** REPAIR BINARY WATCH LIST **/
-  for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
-    for (unsigned j = 0; j < _binary_clauses[lit].size(); j++) {
-      Tclause cl = _binary_clauses[lit][j].cl;
+  for (Tlit lit = 2; lit < _watches.size(); lit++) {
+    for (unsigned j = 0; j < _binary_watch[lit].size(); j++) {
+      Tclause cl = _binary_watch[lit][j].cl;
       ASSERT_MSG(cl != CLAUSE_UNDEF,
-        "Error: binary clause " << lit_to_string(lit) << " <- " << lit_to_string(_binary_clauses[lit][j].block) << " is undefined");
+        "Error: binary clause " << lit_to_string(lit) << " <- " << lit_to_string(_binary_watch[lit][j].block) << " is undefined");
       if (_clauses[cl].deleted) {
-        _binary_clauses[lit].erase(_binary_clauses[lit].begin() + j);
+        _binary_watch[lit].erase(_binary_watch[lit].begin() + j);
         j--;
       }
     }
   }
   /** REPAIR WATCH LISTS **/
-  for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
-    vector<TSwatch>& watch_list = _watch_lists[lit];
+  for (Tlit lit = 2; lit < _watches.size(); lit++) {
+    vector<TSwatch>& watch_list = _watches[lit];
     TSwatch* i = watch_list.data();
     TSwatch* end = i + watch_list.size();
 
@@ -66,13 +66,13 @@ void napsat::NapSAT::purge_root_watch_lists()
   ASSERT(_options.weak_chronological_backtracking || _options.restoring_strong_chronological_backtracking);
   // in weak chronological backtracking, a missed lower implication can create a clause that has a watched literal falsified at level 0 while not being satisfied at level 0
   // Therefore we need to clean the watch lists
-  for (unsigned i = 0; i < _propagated_literals; i++) {
+  for (unsigned i = 0; i < _n_propagated_lits; i++) {
     Tlit lit = _trail[i];
     if (lit_level(lit) != LEVEL_ROOT)
       continue;
 
     lit = lit_neg(lit);
-    vector<TSwatch>& watch_list = _watch_lists[lit];
+    vector<TSwatch>& watch_list = _watches[lit];
     TSwatch* j = watch_list.data();
     TSwatch* k = j;
     // start one before so that we just need to increment at the start of the loop
@@ -139,7 +139,7 @@ void napsat::NapSAT::purge_clauses()
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Purging clauses"));
   _purge_threshold = _n_root_lvl_lits + _purge_inc;
   // We assume that all the literals are propagated
-  ASSERT(_propagated_literals == _trail.size());
+  ASSERT(_n_propagated_lits == _trail.size());
 
   if (_options.weak_chronological_backtracking || _options.restoring_strong_chronological_backtracking)
     purge_root_watch_lists();
@@ -223,8 +223,8 @@ void napsat::NapSAT::purge_clauses()
     }
 
     if (clause.size == 2) {
-      _binary_clauses[lits[0]].push_back(TSwatch(cl, lits[1]));
-      _binary_clauses[lits[1]].push_back(TSwatch(cl, lits[0]));
+      _binary_watch[lits[0]].push_back(TSwatch(cl, lits[1]));
+      _binary_watch[lits[1]].push_back(TSwatch(cl, lits[0]));
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause simplified"));
     }
     if (clause.size == 1) {
