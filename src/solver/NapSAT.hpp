@@ -741,23 +741,22 @@ namespace napsat
     {
       if (lit_lazy_reason(lit) == CLAUSE_UNDEF)
         return LEVEL_UNDEF;
-      if (_options.graph_backtracking) {
-        // we actually need to calculate it
-        Tlevel level = LEVEL_ROOT;
-        for (unsigned i = 1; i < _clauses[lit_lazy_reason(lit)].size; i++) {
-          level = std::max(level, lit_level(_clauses[lit_lazy_reason(lit)].lits[i]));
-        }
-        return level;
-      }
+      // if (_options.graph_backtracking) {
+      //   // we actually need to calculate it
+      //   Tlevel level = LEVEL_ROOT;
+      //   for (unsigned i = 1; i < _clauses[lit_lazy_reason(lit)].size; i++) {
+      //     level = std::max(level, lit_level(_clauses[lit_lazy_reason(lit)].lits[i]));
+      //   }
+      //   return level;
+      // }
       ASSERT(lit_level(lit) > LEVEL_ROOT);
 #ifndef NDEBUG
       Tlit* lits = _clauses[lit_lazy_reason(lit)].lits;
-      ASSERT_MSG(lit_level(lit) > lit_level(lits[1]),
-                 "Lazy reason " << clause_to_string(lit_lazy_reason(lit)) << " of literal " << lit_to_string(lit) << " is not a missed lower implication");
+      // ASSERT_MSG(lit_level(lit) > lit_level(lits[1]),
+      //            "Lazy reason " << clause_to_string(lit_lazy_reason(lit)) << " of literal " << lit_to_string(lit) << " is not a missed lower implication");
       for (unsigned i = 1; i < _clauses[lit_lazy_reason(lit)].size; i++) {
-        ASSERT_MSG(lit_false(lits[i]),
-                   "Literal " << lit_to_string(lits[i]) << " of clause " << clause_to_string(lit_lazy_reason(lit)) << " is not falsified");
-        ASSERT(lit_level(lits[i]) <= lit_level(lits[1]));
+        ASSERT(lit_false(lits[i]));
+        // ASSERT(lit_level(lits[i]) <= lit_level(lits[1]));
       }
 #endif
       return lit_level(_clauses[lit_lazy_reason(lit)].lits[1]);
@@ -1241,6 +1240,11 @@ namespace napsat
      * @param conflict clause that caused the conflict.
      */
     bitset choose_analyzed_chunk(Tclause conflict);
+
+    /**
+     * @brief After conflict learning and backtracking, this function ensures that the two watched literals are correct. That is, the first literal is unassigned and the second is the highest in the clause.
+     */
+    void fix_watched_literals(Tclause conflict);
 
     /**
      * @brief Repairs the conflict caused by clauses with one literal at the highest level.

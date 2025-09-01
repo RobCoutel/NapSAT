@@ -193,16 +193,13 @@ bool napsat::gui::update_level::apply(observer* obs)
 
   old_level = obs->_variables[var].level;
   obs->_variables[var].level = level;
-  if (old_level == obs->_decision_level && obs->_variables[var].reason == CLAUSE_UNDEF) {
+  if (old_level == obs->_decision_level) {
     // recompute the decision level
     obs->_decision_level = 0;
     for (const auto lit: obs->_assignment_stack) {
       Tvar v = lit_to_var(lit);
-      if (obs->_variables[v].active && obs->_variables[v].level > obs->_decision_level) {
-        obs->_decision_level = obs->_variables[v].level;
-      }
+      obs->_decision_level = max(obs->_decision_level, obs->_variables[v].level);
     }
-    // obs->_decision_level--;
   }
   return true;
 }
@@ -373,8 +370,15 @@ bool napsat::gui::unassignment::apply(observer* obs)
   ASSERT_OBS(this, obs->_variables.size() > var);
   ASSERT_OBS(this, obs->_variables[var].active);
   ASSERT_OBS(this, obs->_variables[var].value != VAR_UNDEF);
-  if (obs->_variables[var].reason == CLAUSE_UNDEF && obs->_variables[var].level == obs->_decision_level) {
-    obs->_decision_level--;
+  if (obs->_variables[var].level == obs->_decision_level) {
+    // recompute the decision level
+    obs->_decision_level = 0;
+    for (const auto lit: obs->_assignment_stack) {
+      Tvar v = lit_to_var(lit);
+      if (v == var)
+        continue;
+      obs->_decision_level = max(obs->_decision_level, obs->_variables[v].level);
+    }
   }
 
 
@@ -640,6 +644,7 @@ bool napsat::gui::check_invariants::apply(observer* obs)
     LOG_ERROR("Invariants are not satisfied");
     cerr << obs->get_error_message() << endl;
     event_level = 0;
+    return false;
   }
   return true;
 }

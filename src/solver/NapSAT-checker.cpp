@@ -27,7 +27,7 @@ bool napsat::NapSAT::clause_unit(Tclause cl) const
 {
   const TSclause& c = _clauses[cl];
   ASSERT(c.size > 0);
-  if (lit_false(c.lits[0]))
+  if (!lit_undef(c.lits[0]))
     return false;
   for (size_t i = 1; i < c.size; i++)
     if (!lit_false(c.lits[i]))

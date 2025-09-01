@@ -310,7 +310,7 @@ void napsat::NapSAT::print_lit(Tlit lit)
     ASSERT(lit_false(lit));
     cout << RED;
   }
-  if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
+  if (lit_propagated(lit))
     cout << "\033[4m";
   if (!lit_pol(lit))
     cout << "-";
@@ -333,7 +333,7 @@ string NapSAT::lit_to_string(Tlit lit) const
     ASSERT(lit_false(lit));
     s += RED;
   }
-  if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
+  if (lit_propagated(lit))
     s += "\033[4m";
   if (!lit_pol(lit))
     s += "-";
@@ -394,7 +394,7 @@ void NapSAT::print_trail()
     }
     cout << "\n";
   }
-  cout << "\n";
+  cout << endl;
 }
 
 /**

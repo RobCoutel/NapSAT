@@ -578,24 +578,25 @@ std::string napsat::gui::observer::clause_to_string(Tclause cl)
   }
   vector<Tlit> lits = _active_clauses[cl]->literals;
 
+  // first get the two watched literals
+  for (auto watched: _active_clauses[cl]->watched) {
+    if (watched.second == LIT_UNDEF)
+      s += lit_to_string(watched.first) + " ";
+    else
+      s += lit_to_string(watched.first) + "(" + lit_to_string(watched.second) + ") ";
+  }
+
   for (unsigned i = 0; i < lits.size(); i++) {
+    // skip the literal if it is one of the watched literals
+    if (_active_clauses[cl]->watched.count(lits[i]) > 0)
+      continue;
     if (i + _active_clauses[cl]->n_deleted_literals == lits.size())
       s += "| ";
     Tlit lit = lits[i];
     assert(i + _active_clauses[cl]->n_deleted_literals < lits.size() || lit_value(lit) == VAR_FALSE);
     s += lit_to_string(lit) + " ";
   }
-  if (_active_clauses[cl]->watched.empty())
-    return s.substr(0, s.size() - 1); // remove the last space
-  s += "(";
-  for (auto watched: _active_clauses[cl]->watched) {
-    if (watched.second == LIT_UNDEF)
-      s += lit_to_string(watched.first) + " ";
-    else
-      s += lit_to_string(watched.first) + ">" + lit_to_string(watched.second) + " ";
-  }
   s = s.substr(0, s.size() - 1); // remove the last space
-  s += ")";
   return s;
 }
 
