@@ -35,7 +35,7 @@ namespace napsat::gui
   class observer;
   class observer
   {
-    // The notification have to be able to access private members of the observer to make the code more readable
+    // The notifications have to be able to access private members of the observer to make the code more readable
     friend class notification;
     friend class new_variable;
     friend class delete_variable;
@@ -89,14 +89,14 @@ namespace napsat::gui
       bool active = false;
       bool propagated = false;
       bool constrained = false;
-      std::string alias = "";
+      std::string alias;
     };
 
     struct clause
     {
-      clause() = default;
       clause(const std::vector<napsat::Tlit>& literals, napsat::Tclause cl, bool learnt, bool external) : literals(literals), cl(cl), learnt(learnt), external(external) {}
-      clause(const clause& other) : literals(std::move(other.literals)), cl(other.cl), active(other.active), learnt(other.learnt), external(other.external) {}
+      clause(const clause& other) : literals(other.literals), cl(other.cl), active(other.active), learnt(other.learnt), external(other.external) {}
+      clause(clause&& other) noexcept : literals(std::move(other.literals)), cl(other.cl), active(other.active), learnt(other.learnt), external(other.external) {}
       std::vector<napsat::Tlit> literals;
       unsigned n_deleted_literals = 0;
       napsat::Tclause cl;
@@ -221,7 +221,7 @@ namespace napsat::gui
     /**
      * @brief Construct a new observer object
      */
-    observer(napsat::options& options);
+    explicit observer(napsat::options& options);
 
     /**
      * @brief Clone an observer object
@@ -260,7 +260,7 @@ namespace napsat::gui
      */
     std::string last_message();
 
-    unsigned notification_number() { return _location; }
+    unsigned notification_number() const { return _location; }
 
     /**
      * @brief Returns true if the state of the observer corresponds to the last notification it received. In other words, returns true if the observer is in real time.
@@ -270,7 +270,7 @@ namespace napsat::gui
     /**
      * @brief Returns true if the state of the observer corresponds to before the first notification it received. In other words, returns true if the observer is at the beginning of the execution.
      */
-    bool is_back_to_origin() { return _location == 0; }
+    bool is_back_to_origin() const { return _location == 0; }
 
     /**
      * @brief Marks a variable. When this variable is involved in a notification, level of that notification becomes 0.
@@ -535,7 +535,7 @@ namespace napsat::gui
     /*                        Invariant Checkers                             */
     /*************************************************************************/
   private:
-    std::string _error_message = "";
+    std::string _error_message;
 
     bool _check_trail_sanity = false;
     bool _check_level_ordering = false;
@@ -587,7 +587,7 @@ namespace napsat::gui
     /**
      * @brief Returns true if the observer is only checking the invariants.
      */
-    bool is_checking_only() { return _check_invariants_only; }
+    bool is_checking_only() const { return _check_invariants_only; }
 
     /**
      * @brief Checks the enabled invariants of the observer which may be affected by the notification.
