@@ -1241,6 +1241,10 @@ namespace napsat
      */
     bitset choose_analyzed_chunk(Tclause conflict);
 
+    bool conflict_has_one_literal_in_chunks(Tclause conflict, bitset& chunks);
+
+    bool conflict_has_one_literal_at_highest_level(Tclause conflict);
+
     /**
      * @brief After conflict learning and backtracking, this function ensures that the two watched literals are correct. That is, the first literal is unassigned and the second is the highest in the clause.
      */

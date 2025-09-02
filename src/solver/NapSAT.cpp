@@ -862,6 +862,8 @@ void napsat::NapSAT::backtrack(Tlevel level)
   }
 }
 
+static Tvar last_backtracked_decision = 0;
+
 void napsat::NapSAT::undo_chunks(const bitset& backtracked_chunks)
 {
   ASSERT(!backtracked_chunks.empty());
@@ -898,6 +900,9 @@ void napsat::NapSAT::undo_chunks(const bitset& backtracked_chunks)
     // belonging to one of the deleted levels is a sufficient condition, faster to compute than the chunk intersection
     if (level_transformation[lit_lvl] == LEVEL_ERROR
      || chunks.has_intersection(backtracked_chunks)) {
+      if(lit_decision(lit)) {
+        last_backtracked_decision = lit_to_var(lit);
+      }
       // we need to unassign the variable
       var_unassign(lit_to_var(lit));
       unsigned loc = j - _trail.data();
@@ -1102,17 +1107,24 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     return bitset(_n_allocated_chunks);
   }
 
-  vector<size_t> weights(possible_set_of_chunks.size());
+  vector<double> weights(possible_set_of_chunks.size());
   vector<Tlevel> chunks_level(possible_set_of_chunks.size());
+  vector<double> penalty(possible_set_of_chunks.size());
   for (size_t i = 0; i < possible_set_of_chunks.size(); i++) {
     Tlevel level = LEVEL_ROOT;
     for (auto j = possible_set_of_chunks[i].cbegin(); j != possible_set_of_chunks[i].cend(); ++j) {
       level = std::max(level, var_level(_chunks[*j].decision));
     }
     chunks_level[i] = level;
+
+    if (conflict_has_one_literal_in_chunks(conflict, possible_set_of_chunks[i])) {
+      penalty[i] = _options.conflict_penalty;
+    } else {
+      penalty[i] = 1.0;
+    }
   }
 
-  size_t min_weight = SIZE_MAX;
+  double min_weight = std::numeric_limits<double>::max();
   bitset lightest_chunk_set;
 
   for (size_t i = _trail.size(); i-- > 0;) {
@@ -1149,7 +1161,7 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
       if (!possible_set_of_chunks[j].has_intersection(chunks)) {
         continue;
       }
-      weights[j] += lit_weight;
+      weights[j] += lit_weight * penalty[j];
       if (weights[j] > min_weight) {
         // remove the chunks
         possible_set_of_chunks[j] = possible_set_of_chunks.back();
@@ -1166,6 +1178,42 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
   ASSERT(possible_set_of_chunks.empty());
 
   return lightest_chunk_set;
+}
+
+bool napsat::NapSAT::conflict_has_one_literal_in_chunks(Tclause conflict, bitset& chunks)
+{
+  bool found = false;
+  Tlit* lits = _clauses[conflict].lits;
+  for (unsigned i = 0; i < _clauses[conflict].size; i++) {
+    if (chunks.has_intersection(lit_chunks(lits[i]))) {
+      if (found)
+        return false;
+      found = true;
+    }
+  }
+  ASSERT(found);
+  return found;
+}
+
+bool napsat::NapSAT::conflict_has_one_literal_at_highest_level(Tclause conflict)
+{
+  ASSERT(conflict != CLAUSE_UNDEF);
+  ASSERT(_clauses[conflict].size > 0);
+  Tlit* lits = _clauses[conflict].lits;
+  Tlevel high_lvl = lit_level(lits[0]);
+  unsigned count = 1;
+  for (unsigned i = 1; i < _clauses[conflict].size; i++) {
+    Tlevel lvl = lit_level(lits[i]);
+    if (lvl == high_lvl) {
+      count++;
+      if (count > 1)
+        return false;
+    } else if (lvl > high_lvl) {
+      high_lvl = lvl;
+      count = 1;
+    }
+  }
+  return true;
 }
 
 void napsat::NapSAT::fix_watched_literals(Tclause conflict)
@@ -1528,6 +1576,8 @@ void NapSAT::repair_conflict(Tclause conflict)
   }
 
   bitset analyzed_chunks;
+
+  bool identical = false;
   if (_options.graph_backtracking) {
     analyzed_chunks = choose_analyzed_chunk(conflict);
     if (analyzed_chunks.empty()) {
@@ -1539,9 +1589,11 @@ void NapSAT::repair_conflict(Tclause conflict)
       }
       return;
     }
-    analyze_conflict(LEVEL_ROOT, analyzed_chunks);
-    _next_literal_index = cleanup_duplicate_literals(_literal_buffer, _next_literal_index);
-  } else {
+    if (!(identical = conflict_has_one_literal_in_chunks(conflict, analyzed_chunks))) {
+      analyze_conflict(LEVEL_ROOT, analyzed_chunks);
+      _next_literal_index = cleanup_duplicate_literals(_literal_buffer, _next_literal_index);
+    }
+  } else if (!(identical = conflict_has_one_literal_at_highest_level(conflict))) {
     do {
       Tlevel conflict_level = lit_level(_literal_buffer[0]);
       if (conflict_level == LEVEL_ROOT) {
@@ -1586,19 +1638,6 @@ void NapSAT::repair_conflict(Tclause conflict)
       }
     } while (true);
   }
-
-  // Check wether the clause in _literal_buffer is identical to the conflict clause
-  bool identical = true;
-  // mark the literals in the conflict clause
-  for (unsigned i = 0; i < _clauses[conflict].size; i++) { lit_mark(lits[i]); }
-  // check if the literals in the _literal_buffer are the same as the literals in the conflict clause
-  for (unsigned i = 0; i < _next_literal_index && identical; i++) { identical &= lit_marked(_literal_buffer[i]); }
-  for (unsigned i = 0; i < _clauses[conflict].size; i++) { lit_unmark(lits[i]); }
-
-  // do the same, but reversed
-  for (unsigned i = 0; i < _next_literal_index; i++) { lit_mark(_literal_buffer[i]); }
-  for (unsigned i = 0; i < _clauses[conflict].size && identical; i++) { identical &= lit_marked(lits[i]); }
-  for (unsigned i = 0; i < _next_literal_index; i++) { lit_unmark(_literal_buffer[i]); }
 
   // Later, if the clause is identical, we do not add it to the clause set.
 
@@ -1888,7 +1927,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     return cl;
   }
   else if (clause_size == 2) {
-    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause added"));
     // clause->watched = false;
     _binary_watch[lits[0]].push_back(TSwatch(cl, lits[1]));
     _binary_watch[lits[1]].push_back(TSwatch(cl, lits[0]));
@@ -2159,6 +2197,15 @@ bool NapSAT::decide()
     return false;
   }
   Tvar var = _variable_heap.top();
+
+  if (_options.graph_backtracking) {
+    // decay the variable activity
+    _vars[var].activity *= _options.decision_activity_decay;
+  }
+
+  if (var == last_backtracked_decision) {
+    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Re-deciding Last Backtracked"));
+  }
   ASSERT(var_constrained(var));
   Tlit lit = literal(var, _vars[var].phase_cache);
   imply_literal(lit, CLAUSE_UNDEF);

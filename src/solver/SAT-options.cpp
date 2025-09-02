@@ -180,6 +180,8 @@ napsat::options::options(vector<string>& tokens)
     {"--clause-activity-multiplier",      &clause_activity_multiplier},
     {"--clause-activity-threshold-decay", &clause_activity_threshold_decay},
     {"--var-activity-decay",              &var_activity_decay},
+    {"--conflict-penalty",                &conflict_penalty},
+    {"--decision-activity-decay",         &decision_activity_decay}
   };
 
   /**

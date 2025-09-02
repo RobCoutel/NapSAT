@@ -456,7 +456,7 @@ namespace napsat::gui
   class unassignment : public notification
   {
   private:
-    unsigned event_level = 4;
+    unsigned event_level = 5;
 
     /**
      * @brief The literal that was unassigned.

@@ -604,51 +604,68 @@ void napsat::gui::observer::print_clause_set()
 {
   update_terminal_width();
 
-  // generate and store the clauses' strings
-  vector<string> clauses_str;
-  unsigned max_clause_str_length = 0;
-  for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
-    if (_active_clauses[cl] == nullptr || !_active_clauses[cl]->active)
-      continue;
-    sort_clause(cl);
-    string clause_str = clause_to_string(cl);
-    max_clause_str_length = max(max_clause_str_length, string_length_escaped(clause_str));
-    clauses_str.push_back(clause_str);
-  }
+  // for every 100 clauses, check for the size. We do not want that the last clauses, that are super long
+  // destroy the display of the shorter clauses we started with
 
-  if (clauses_str.empty()) {
-    cout << "No clauses to print" << endl;
-    return;
-  }
+  size_t start = 0;
+  size_t end = 144;
+  while (start < _active_clauses.size()) {
+    if (end > _active_clauses.size())
+      end = _active_clauses.size();
 
-  // add 3 spaces for the clauses to be separated
-  max_clause_str_length += 3;
-
-  // pad the clauses with spaces
-  for (unsigned i = 0; i < clauses_str.size(); i++) {
-    string clause_str = clauses_str[i];
-    while (string_length_escaped(clause_str) < max_clause_str_length)
-      clause_str += " ";
-    clauses_str[i] = clause_str;
-  }
-
-  // compute the number of columns to print
-  unsigned n_columns = TERMINAL_WIDTH / max_clause_str_length;
-  n_columns = max(1u, n_columns);
-  unsigned n_lines = clauses_str.size() / n_columns + 1;
-  n_lines -= clauses_str.size() % n_columns == 0;
-
-  // print the clauses
-  for (unsigned i = 0; i < n_lines; i++) {
-    for (unsigned j = 0; j < n_columns; j++) {
-      unsigned k = i + j * n_lines;
-      if (k >= clauses_str.size())
-        break;
-      cout << clauses_str[k];
+    // generate and store the clauses' strings
+    vector<string> clauses_str;
+    unsigned max_clause_str_length = 0;
+    for (Tclause cl = start; cl < end; cl++) {
+      if (_active_clauses[cl] == nullptr || !_active_clauses[cl]->active) {
+        end = min(end + 1, _active_clauses.size());
+        continue;
+      }
+      sort_clause(cl);
+      string clause_str = clause_to_string(cl);
+      max_clause_str_length = max(max_clause_str_length, string_length_escaped(clause_str));
+      clauses_str.push_back(clause_str);
     }
-    cout << "\n";
-  }
 
+    if (clauses_str.empty()) {
+      cout << "No clauses to print" << endl;
+      return;
+    }
+
+    // add 3 spaces for the clauses to be separated
+    max_clause_str_length += 3;
+
+    // compute the number of columns to print
+    unsigned n_columns = TERMINAL_WIDTH / max_clause_str_length;
+    n_columns = max(1u, n_columns);
+    unsigned n_lines = clauses_str.size() / n_columns + 1;
+    n_lines -= clauses_str.size() % n_columns == 0;
+
+    // adjust the max_clause_str_length to fit as well as possible
+    max_clause_str_length += (TERMINAL_WIDTH - (n_columns * max_clause_str_length)) / n_columns;
+
+    // pad the clauses with spaces
+    for (unsigned i = 0; i < clauses_str.size(); i++) {
+      string clause_str = clauses_str[i];
+      while (string_length_escaped(clause_str) < max_clause_str_length)
+        clause_str += " ";
+      clauses_str[i] = clause_str;
+    }
+
+    // print the clauses
+    for (unsigned i = 0; i < n_lines; i++) {
+      for (unsigned j = 0; j < n_columns; j++) {
+        unsigned k = i + j * n_lines;
+        if (k >= clauses_str.size())
+          break;
+        cout << clauses_str[k];
+      }
+      cout << "\n";
+    }
+
+    start = end;
+    end = start + 144;
+  }
   cout << "\n";
   for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
     cout << "*";
