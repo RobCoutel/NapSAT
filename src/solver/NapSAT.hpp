@@ -1224,6 +1224,12 @@ namespace napsat
      */
     Tlevel choose_backtracked_level(Tlit* learned_lits, unsigned size);
 
+    /**
+     * @brief Computes the combinations of chunks that can be backtracked to solve the conflict of a given conflict clause
+     * @param cl the clause to analyze.
+     * @param combinations the vector to store the resulting combinations.
+     * @param current the current combination being built.
+     */
     void compute_chunk_combination(Tclause cl, std::vector<bitset>& combinations, const bitset& current);
 
     /**
@@ -1241,8 +1247,19 @@ namespace napsat
      */
     bitset choose_analyzed_chunk(Tclause conflict);
 
+    /**
+     * @brief Checks if a conflict clause has exactly one literal in the given chunks.
+     * @param conflict the conflict clause to check.
+     * @param chunks the chunks to check against.
+     * @return true if the conflict clause has exactly one literal in the chunks, false otherwise.
+     */
     bool conflict_has_one_literal_in_chunks(Tclause conflict, bitset& chunks);
 
+    /**
+     * @brief Checks if a conflict clause has exactly one literal at the highest level.
+     * @param conflict the conflict clause to check.
+     * @return true if the conflict clause has exactly one literal at the highest level, false otherwise.
+     */
     bool conflict_has_one_literal_at_highest_level(Tclause conflict);
 
     /**
