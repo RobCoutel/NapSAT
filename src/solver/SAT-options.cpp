@@ -314,4 +314,6 @@ napsat::options::options(vector<string>& tokens)
   }
 
   build_proof = build_proof || print_proof || check_proof;
+
+  exhaustive_conflict_search |= graph_backtracking;
 }

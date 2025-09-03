@@ -173,8 +173,6 @@ bool observer::notify(notification* notification)
 
   _location++;
   assert(_location == _notifications.size());
-  // cout << "notification " << _location << "/" << _notifications.size() << endl;
-  // cout << "notification: " << notification->get_message() << endl;
   bool apply_success = notification->apply(this);
 
   if (!_check_invariants_only) {
@@ -1101,8 +1099,6 @@ std::string napsat::gui::observer::implication_graph_to_latex()
         Tlit lit2 = _active_clauses[reason]->literals[j];
         if (lit2 == lit)
           continue;
-        // cout << "lit2: " << lit2 << endl;
-        // cout << "lit: " << lit << endl;
         if (lit_level(lit2) != lit_level(lit) || lit_to_var(lit2) == lit_to_var(_assignment_stack[i - 1])) {
           s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr] (v" + to_string(lit_to_var(lit)) + ");";
         }
@@ -1118,8 +1114,6 @@ std::string napsat::gui::observer::implication_graph_to_latex()
         Tlit lit2 = _active_clauses[reason]->literals[j];
         if (lit2 == lit)
           continue;
-        // cout << "lit2: " << lit2 << endl;
-        // cout << "lit: " << lit << endl;
         assert(lit_level(lit2) != lit_level(lit) || lit_to_var(lit2) == lit_to_var(_assignment_stack[i - 1]));
         s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, dashed] (v" + to_string(lit_to_var(lit)) + ");";
         s += "\n";

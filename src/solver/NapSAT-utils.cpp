@@ -187,30 +187,27 @@ void napsat::NapSAT::bump_clause_activity(Tclause cl)
   }
 }
 
-void napsat::NapSAT::delete_clause(Tclause cl)
-{
-  // If the clause is the reason for a literal, it cannot be deleted
-  ASSERT(cl < _clauses.size());
-  TSclause &clause = _clauses[cl];
-  ASSERT(!is_protected(cl));
-  _n_learned_clauses -= _clauses[cl].learned;
-  clause.deleted = true;
-  clause.watched = false;
-  _deleted_clauses.push_back(cl);
-  NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
-  if(_proof)
-    _proof->deactivate_clause(cl);
-}
-
 static const char esc_char = 27; // the decimal code for escape character is 27
+
+bitset napsat::NapSAT::clause_chunks(Tclause cl)
+{
+  bitset chunk(_n_allocated_chunks);
+  Tlit* lits = clause_lits(cl);
+  unsigned size = clause_size(cl);
+  for (unsigned i = 0; i < size; i++) {
+    const bitset& lit_chunk = lit_chunks(lits[i]);
+    chunk |= lit_chunk;
+  }
+  return chunk;
+}
 
 void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
 {
+  const Tlit* lits = clause_lits(cl);
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(cl < _clauses.size());
-  ASSERT(_clauses[cl].size > 2);
-  ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
-  Tlit* lits = _clauses[cl].lits;
+  ASSERT(clause_size(cl) > 2);
+  ASSERT(lit == lits[0] || lit == lits[1]);
   _watches[lit].push_back(TSwatch(cl, lits[0] ^ lits[1] ^ lit));
   #if NOTIFY_WATCH_CHANGES
     NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
@@ -224,14 +221,34 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
   NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
 #endif
   ASSERT(cl != CLAUSE_UNDEF);
-  ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
-  ASSERT(_clauses[cl].size > 2);
+  ASSERT(clause_lits(cl)[0] == lit || clause_lits(cl)[1] == lit);
+  ASSERT(clause_size(cl) > 2);
   size_t loc = 0;
   while (loc < _watches[lit].size() && _watches[lit][loc].cl != cl) {
     loc++;
   }
   ASSERT(loc < _watches[lit].size());
   _watches[lit].erase(_watches[lit].begin() + loc);
+}
+
+unsigned napsat::NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
+{
+  Tlit* i = lits;
+  Tlit* j = i;
+  Tlit* end = i + size;
+  while(i < end) {
+    if (lit_marked(*i)) {
+      i++;
+      continue;
+    }
+    lit_mark(*i);
+    *j++ = *i++;
+  }
+  unsigned new_size = j - lits;
+  for (unsigned k = 0; k < new_size; k++) {
+    lit_unmark(lits[k]);
+  }
+  return new_size;
 }
 
 void napsat::NapSAT::var_allocate(Tvar var)
@@ -353,8 +370,8 @@ string NapSAT::clause_to_string(Tclause cl) const
     s += "d";
   }
   s += to_string(cl) + ": ";
-  for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses_sizes[cl]; i++) {
-    if (i == _clauses[cl].lits + _clauses[cl].size)
+  for (const Tlit* i = clause_lits(cl); i < clause_lits(cl) + clause_size(cl); i++) {
+    if (i == clause_lits(cl) + clause_size(cl))
       s += "| ";
     s += lit_to_string(*i);
     s += " ";

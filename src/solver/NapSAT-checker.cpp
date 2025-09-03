@@ -76,8 +76,8 @@ bool napsat::NapSAT::lit_needs_fixing(Tlit lit) const
     cout << "Checking watch " << clause_to_string(w.cl) << " blocked by " << lit_to_string(w.block) << endl;
     if (lit_true(w.block))
       continue;
-    Tlit c1 = _clauses[w.cl].lits[0];
-    Tlit c2 = _clauses[w.cl].lits[1];
+    Tlit c1 = clause_lits(w.cl)[0];
+    Tlit c2 = clause_lits(w.cl)[1];
     if (lit_true(c1) || lit_true(c2))
       continue;
     if (lit_false(c1) || lit_false(c2))
@@ -90,9 +90,9 @@ bool napsat::NapSAT::lit_needs_fixing(Tlit lit) const
 bool napsat::NapSAT::max_literal(Tlit lit, const Tlit* lits, size_t size) const
 {
   if (_options.graph_backtracking) {
-    const bitset& chunks = _vars[lit_to_var(lit)].chunks;
+    const bitset& chunks = lit_chunks(lit);
     for (size_t i = 0; i < size; i++) {
-      const bitset& chunks_i = _vars[lit_to_var(lits[i])].chunks;
+      const bitset& chunks_i = lit_chunks(lits[i]);
       if (chunks < chunks_i)
         return false;
     }

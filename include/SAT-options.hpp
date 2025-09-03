@@ -317,6 +317,11 @@ namespace napsat
      */
     bool no_restart = false;
 
+    /**
+     * @brief Search all conflicts until the end of propagation before triggering conflict analysis.
+     */
+    bool exhaustive_conflict_search = false;
+
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.
 

@@ -212,7 +212,6 @@ bool napsat::gui::observer::check_watched_literals()
   bool success = true;
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
-    // cout << "checking clause " << clause_to_string(cl) << endl;
     if (!c->active || c->literals.size() - c->n_deleted_literals < 2)
       continue;
     if (c->literals.size() - c->n_deleted_literals == 2) {
