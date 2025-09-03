@@ -78,10 +78,6 @@ namespace napsat::gui
 
   public:
     /**
-     * @brief Returns a copy of the notification.
-     */
-    virtual notification* clone() const = 0;
-    /**
      * @brief Get the level of the event.
      * - 0: reserved for checkpoints.
      * - 1: reserved for markers.
@@ -143,7 +139,6 @@ namespace napsat::gui
 
     explicit checkpoint() = default;
 
-    checkpoint* clone() const override { return new checkpoint(); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override { return true; }
   };
@@ -166,7 +161,6 @@ namespace napsat::gui
 
     explicit done(bool sat) : sat(sat) {}
 
-    done* clone() const override { return new done(sat); }
     bool apply(observer* observer) override { return true; }
     bool rollback(observer* observer) override { return true; }
   };
@@ -195,7 +189,6 @@ namespace napsat::gui
     explicit marker() = default;
     explicit marker(std::string description) : description(std::move(description)) {}
 
-    marker* clone() const override { return new marker(); }
     bool apply(observer* observer) override { return true; }
     bool rollback(observer* observer) override { return true; }
   };
@@ -221,7 +214,6 @@ namespace napsat::gui
 
     explicit new_variable(napsat::Tvar var) : var(var) {}
 
-    new_variable* clone() const override { return new new_variable(var); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -248,7 +240,6 @@ namespace napsat::gui
 
     explicit delete_variable(napsat::Tvar var) : var(var) {}
 
-    delete_variable* clone() const override { return new delete_variable(var); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -275,7 +266,6 @@ namespace napsat::gui
 
     explicit decision(napsat::Tlit lit) : lit(lit) {}
 
-    decision* clone() const override { return new decision(lit); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -315,7 +305,6 @@ namespace napsat::gui
 
     explicit implication(napsat::Tlit lit, napsat::Tclause cl, napsat::Tlevel level) : lit(lit), reason(cl), level(level) {}
 
-    implication* clone() const override { return new implication(lit, reason, level); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -344,7 +333,6 @@ namespace napsat::gui
 
     explicit update_level(napsat::Tlit lit, napsat::Tlevel level) : lit(lit), level(level) {}
 
-    update_level* clone() const override { return new update_level(lit, level); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -370,7 +358,6 @@ namespace napsat::gui
 
     explicit propagation(napsat::Tlit lit) : lit(lit) {}
 
-    propagation* clone() const override { return new propagation(lit); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -396,7 +383,6 @@ namespace napsat::gui
 
     explicit remove_propagation(napsat::Tlit lit) : lit(lit) {}
 
-    remove_propagation* clone() const override { return new remove_propagation(lit); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -423,7 +409,6 @@ namespace napsat::gui
 
     explicit conflict(napsat::Tclause cl) : cl(cl) {}
 
-    conflict* clone() const override { return new conflict(cl); }
     bool apply(observer* observer) override { return true; }
     bool rollback(observer* observer) override { return true; }
   };
@@ -447,7 +432,6 @@ namespace napsat::gui
 
     explicit backtracking_started(napsat::Tlevel level) : level(level) {}
 
-    backtracking_started* clone() const override { return new backtracking_started(level); }
     bool apply(observer* observer) override { return true; }
     bool rollback(observer* observer) override { return true; }
   };
@@ -467,7 +451,6 @@ namespace napsat::gui
 
     backtracking_done() = default;
 
-    backtracking_done* clone() const override { return new backtracking_done(); }
     bool apply(observer* observer) override { return true; };
     bool rollback(observer* observer) override { return true; };
   };
@@ -516,7 +499,6 @@ namespace napsat::gui
 
     explicit unassignment(napsat::Tlit lit) : lit(lit) {}
 
-    unassignment* clone() const override { return new unassignment(lit); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -563,7 +545,6 @@ namespace napsat::gui
 
     explicit new_clause(napsat::Tclause cl, std::vector<napsat::Tlit> lits, bool learnt, bool external) : cl(cl), lits(std::move(lits)), learnt(learnt), external(external) {}
 
-    new_clause* clone() const override { return new new_clause(cl, lits, learnt, external); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -594,7 +575,6 @@ namespace napsat::gui
 
     explicit delete_clause(napsat::Tclause cl) : cl(cl) {}
 
-    delete_clause* clone() const override { return new delete_clause(cl); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -622,7 +602,6 @@ namespace napsat::gui
 
     explicit watch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
 
-    watch* clone() const override { return new watch(cl, lit); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -652,7 +631,6 @@ namespace napsat::gui
 
     explicit unwatch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
 
-    unwatch* clone() const override { return new unwatch(cl, lit); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -693,7 +671,6 @@ namespace napsat::gui
 
     explicit block(napsat::Tclause cl, napsat::Tlit blocker, napsat::Tlit blocked_lit) : cl(cl), blocker(blocker), blocked_lit(blocked_lit) {}
 
-    block* clone() const override { return new block(cl, blocker, previous_blocker); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -725,7 +702,6 @@ namespace napsat::gui
 
     explicit remove_literal(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
 
-    remove_literal* clone() const override { return new remove_literal(cl, lit); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -742,7 +718,6 @@ namespace napsat::gui
 
     explicit check_invariants() = default;
 
-    check_invariants* clone() const override { return new check_invariants(); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -764,7 +739,6 @@ namespace napsat::gui
 
     explicit missed_lower_implication(Tvar var, Tclause cl) : var(var), cl(cl) {}
 
-    missed_lower_implication* clone() const override { return new missed_lower_implication(var, cl); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -785,7 +759,6 @@ namespace napsat::gui
 
     explicit remove_lower_implication(Tvar var) : var(var) {}
 
-    remove_lower_implication* clone() const override { return new remove_lower_implication(var); }
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
@@ -813,7 +786,6 @@ namespace napsat::gui
 
     explicit stat(std::string measured_variable) : measured_variable(measured_variable) {}
 
-    stat* clone() const override { return new stat(measured_variable); }
     bool apply(observer* observer) override { return true; }
     bool rollback(observer* observer) override { return true; }
   };

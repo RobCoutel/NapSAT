@@ -223,12 +223,7 @@ namespace napsat::gui
      */
     explicit observer(napsat::options& options);
 
-    /**
-     * @brief Clone an observer object
-     * @details The clone is a deep copy of the observer.
-     * @details The clone advances to the same location as the original observer.
-     */
-    observer(const observer& other);
+    observer(const observer& other) = delete;
 
     /**
      * @brief Send a notification to the observer and update its state.

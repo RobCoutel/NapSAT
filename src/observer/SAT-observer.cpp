@@ -116,12 +116,6 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
   _creation_time = chrono::high_resolution_clock::now();
 }
 
-napsat::gui::observer::observer(const observer& other) : _options(other._options)
-{
-  for (auto notification : other._notifications)
-    _notifications.push_back(notification->clone());
-}
-
 bool observer::notify(notification* notification)
 {
   auto type = notification->get_type();
