@@ -60,8 +60,7 @@ namespace napsat::gui
     BLOCKER,
     CHECK_INVARIANTS,
     MISSED_LOWER_IMPLICATION_LOGGED,
-    REMOVE_LOWER_IMPLICATION_REMOVED,
-    STAT
+    REMOVE_LOWER_IMPLICATION_REMOVED
   };
   std::string notification_type_to_string(ENotifType type);
 
@@ -762,32 +761,4 @@ namespace napsat::gui
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
   };
-
-
-
-
-  class stat : public notification
-  {
-  private:
-    /**
-     * @brief The variable that was measured.
-     * @details The variable should be a string that can be used as a key in a map.
-     * @details This is what will be displayed at the end of the execution if the observer computes stats
-    */
-    std::string measured_variable;
-
-  public:
-    static const unsigned DEFAULT_LEVEL = -1;
-    static const ENotifType NTYPE = STAT;
-
-    unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
-    ENotifType get_type() const noexcept override { return NTYPE; }
-    const std::string get_message() const noexcept override { return "Stat : " + measured_variable; }
-
-    explicit stat(std::string measured_variable) : measured_variable(measured_variable) {}
-
-    bool apply(observer* observer) override { return true; }
-    bool rollback(observer* observer) override { return true; }
-  };
-
 }

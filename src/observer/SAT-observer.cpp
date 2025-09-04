@@ -120,19 +120,13 @@ bool observer::notify(notification* notification)
 {
   auto type = notification->get_type();
   auto level = notification->get_event_level(this);
-  if (type == STAT) {
-    stat_count[notification->get_message()]++;
+
+  notification_count[notification->get_type()]++;
+  _n_notifications++;
+  if (_stats_only)
     delete notification;
-    return true;
-  }
-  else {
-    notification_count[notification->get_type()]++;
-    _n_notifications++;
-    if (_stats_only)
-      delete notification;
-    else
-      _notifications.push_back(notification);
-  }
+  else
+    _notifications.push_back(notification);
 
   // print the statistics
   if (_options.print_live_stats && level < 3) {

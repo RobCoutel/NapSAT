@@ -197,7 +197,7 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   clause.deleted = true;
   clause.watched = false;
   _deleted_clauses.push_back(cl);
-  NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
+  NOTIFY_OBSERVER(delete_clause, cl);
   if(_proof)
     _proof->deactivate_clause(cl);
 }
@@ -213,15 +213,15 @@ void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
   Tlit* lits = _clauses[cl].lits;
   _watch_lists[lit].push_back(TSwatch(cl, lits[0] ^ lits[1] ^ lit));
   #if NOTIFY_WATCH_CHANGES
-    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
-    NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lits[0] ^ lits[1] ^ lit, lit));
+    NOTIFY_OBSERVER(watch, cl, lit);
+    NOTIFY_OBSERVER(block, cl, lits[0] ^ lits[1] ^ lit, lit);
   #endif
 }
 
 void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
 {
 #if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
+  NOTIFY_OBSERVER(unwatch, cl, lit);
 #endif
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);

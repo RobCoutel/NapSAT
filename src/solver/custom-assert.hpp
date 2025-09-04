@@ -22,7 +22,7 @@
   do {                                                              \
     if (_observer) {                                                \
       if (!(cond))  {                                               \
-        NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
+        NOTIFY_OBSERVER(marker, "Assertion failed: " #cond);  \
         assert(cond);                                               \
       }                                                             \
     } else {                                                        \
@@ -34,7 +34,7 @@
   do {                                                              \
     if (!(cond))  {                                                 \
       LOG_ERROR( "MESSAGE: " << msg );                              \
-      NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
+      NOTIFY_OBSERVER(marker, "Assertion failed: " #cond);  \
       assert(cond);                                                 \
     }                                                               \
   } while(0)

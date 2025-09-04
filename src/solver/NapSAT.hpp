@@ -116,20 +116,24 @@
 #include <algorithm>
 
 #if USE_OBSERVER
-#define NOTIFY_OBSERVER(observer, notification) \
-  do {                                          \
-    if (observer) {                             \
-      if(!observer->notify(notification)) {     \
+#define NOTIFY_OBSERVER(NAME,...)             \
+  do {                                        \
+    if (_observer) {                          \
+      if(!_observer->notify(new napsat::gui::NAME(__VA_ARGS__))) { \
         LOG_ERROR("The notification returned an error when executed by the observer"); \
-        if(observer)                            \
-          observer->notify(new napsat::gui::marker("Notification failed")); \
-        assert(false);                          \
-      }                                         \
-    }                                           \
+        if(_observer)                         \
+          _observer->notify(new napsat::gui::marker("Notification failed")); \
+        assert(false);                        \
+      }                                       \
+    }                                         \
   } while(0)
 #else
-#define NOTIFY_OBSERVER(observer, notification)  ((void)0)
+#define NOTIFY_OBSERVER(NAME,...)  ((void)0)
 #endif
+
+// TODO implement me
+#define NOTIFY_STAT(type) ((void)0)
+
 namespace napsat
 {
   typedef unsigned Tchunk;
@@ -751,8 +755,7 @@ namespace napsat
     inline void var_set_lazy_reason(Tvar var, Tclause cl)
     {
       _vars[var].missed_lower_implication = cl;
-      NOTIFY_OBSERVER(_observer,
-                      new napsat::gui::missed_lower_implication(var, cl));
+      NOTIFY_OBSERVER(missed_lower_implication, var, cl);
     }
 
     /**
@@ -762,9 +765,7 @@ namespace napsat
     inline void lit_set_lazy_reason(Tlit lit, Tclause cl)
     {
       _vars[lit_to_var(lit)].missed_lower_implication = cl;
-      NOTIFY_OBSERVER(_observer,
-                      new napsat::gui::missed_lower_implication(lit_to_var(lit),
-                                                             cl));
+      NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(lit), cl);
     }
 
     /**
@@ -985,7 +986,7 @@ namespace napsat
           var_mark_constrained(i);
         _vars[i].chunks.resize(_n_allocated_chunks);
         _vars[i].cross_chunks.resize(_n_allocated_chunks);
-        NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(i));
+        NOTIFY_OBSERVER(new_variable, i);
       }
 
       _watch_lists.resize(2 * var + 2);

@@ -81,7 +81,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     // Decision
     _decision_index.push_back(_trail.size() - 1);
     svar.level = solver_level();
-    NOTIFY_OBSERVER(_observer, new napsat::gui::decision(lit));
+    NOTIFY_OBSERVER(decision, lit);
     if (_options.graph_backtracking) {
       if (_free_chunks.empty()) {
         ASSERT(_chunks.size() == _n_allocated_chunks);
@@ -89,7 +89,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
 
         for (Tchunk i = 1; i <= _n_allocated_chunks; i++) {
           _free_chunks.push_back(2*_n_allocated_chunks - i);
-          NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Allocated Chunk"));
+          NOTIFY_STAT("Allocated Chunk");
         }
         _n_allocated_chunks *= 2;
         // resize the chunk sets of the variables
@@ -158,7 +158,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
       }
 #endif
     }
-    NOTIFY_OBSERVER(_observer, new napsat::gui::implication(lit, reason, svar.level));
+    NOTIFY_OBSERVER(implication, lit, reason, svar.level);
   }
 
   // phase caching
@@ -177,11 +177,9 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
 void NapSAT::var_unassign(Tvar var)
 {
   TSvar& v = _vars[var];
-  NOTIFY_OBSERVER(_observer,
-                  new napsat::gui::unassignment(literal(var, v.state)));
-                  if (v.missed_lower_implication != CLAUSE_UNDEF) {
-                    NOTIFY_OBSERVER(_observer,
-                    new napsat::gui::remove_lower_implication(var));
+  NOTIFY_OBSERVER(unassignment, literal(var, v.state));
+  if (v.missed_lower_implication != CLAUSE_UNDEF) {
+    NOTIFY_OBSERVER(remove_lower_implication, var);
     v.missed_lower_implication = CLAUSE_UNDEF;
   }
   if (!_variable_heap.contains(var))
@@ -494,7 +492,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        */
       w.block = lit2;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lit2, lit));
+      NOTIFY_OBSERVER(block, cl, lit2, lit);
 #endif
       i++;
       continue;
@@ -542,7 +540,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       */
       w.block = *replacement;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, *replacement, lit));
+      NOTIFY_OBSERVER(block, cl, *replacement, lit);
 #endif
       i++;
       continue;
@@ -566,7 +564,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       lits[1] = *replacement;
       *replacement = lit;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(unwatch, cl, lit);
 #endif
       // remove the clause from the watch list
       // bring the last watched clause to the current position
@@ -611,7 +609,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       lits[1] = *replacement;
       *replacement = lit;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
+      NOTIFY_OBSERVER(unwatch, cl, lit);
 #endif
       // remove the clause from the watch list
       // bring the last watched clause to the current position
@@ -728,8 +726,8 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       reimply_literal(lit2, cl);
     } else {
       if (lit_reason(lits[1]) == CLAUSE_UNDEF) {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
-        NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Cross implication for " + lit_to_string(lits[1]) + " in " + clause_to_string(cl)));
+        NOTIFY_STAT("Cross implication for decision");
+        NOTIFY_OBSERVER(marker, "Cross implication for " + lit_to_string(lits[1]) + " in " + clause_to_string(cl));
       }
       // We are in graph backtracking, so we do not need to reimply the literal
       // but we will need to repropagate the literal if one of the other literals in the clause are backtracked
@@ -759,7 +757,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
              "Backtracking to level " + to_string(level) + " but current level is " + to_string(solver_level()));
   if (level == solver_level())
     return;
-  NOTIFY_OBSERVER(_observer, new napsat::gui::backtracking_started(level));
+  NOTIFY_OBSERVER(backtracking_started, level);
   unsigned waiting_count = 0;
 
   unsigned restore_point = _decision_index[level];
@@ -823,7 +821,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
                   "Literal: " + lit_to_string(lit) + "\nLevel: " + to_string(lit_level(lit)));
       _vars[var].propagated = false;
       _propagated_literals--;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
+      NOTIFY_OBSERVER(remove_propagation, lit);
     }
   }
   if (_reimplication_backtrack_buffer.size() > 0) {
@@ -839,7 +837,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
       Tlit reimpl_lit = _clauses[lazy_clause].lits[0];
       ASSERT(lit_undef(reimpl_lit));
       imply_literal(reimpl_lit, lazy_clause);
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
+      NOTIFY_STAT("Lazy reimplication used");
     }
     _reimplication_backtrack_buffer.clear();
   }
@@ -903,19 +901,19 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
       Tvar var = lit_to_var(*k);
       ASSERT(var_level(var) > decision_level);
       _vars[var].level--;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::update_level(*k, _vars[var].level));
+      NOTIFY_OBSERVER(update_level, *k, _vars[var].level);
     }
     // We need to fix the propagation head
     if (lit_propagated(*k) && lit_cross_chunks(*k).get(chunk)) {
       unsigned location = k - _trail.data();
       _vars[lit_to_var(*k)].propagated = false;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Replayed Propagation"));
+      NOTIFY_STAT("Replayed Propagation");
 
       lit_chunks(*k).set(chunk, false);
       while(_propagated_literals > location) {
         _propagated_literals--;
         // _vars[lit_to_var(lit)].propagated = false;
-        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(_trail[_propagated_literals]));
+        NOTIFY_OBSERVER(remove_propagation, _trail[_propagated_literals]);
       }
       ASSERT(_propagated_literals <= _trail.size());
     }
@@ -999,7 +997,7 @@ Tchunk napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
           // we are at the end of the decision level
           continue;
         }
-        // NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Inspecting literal for choice"));
+        // NOTIFY_STAT("Inspecting literal for choice");
         if (lit_chunks(lit)[ck]) {
           cost += _backtrack_cost_estimator(lit);
           if (cost > min_chunk_cost) {
@@ -1305,7 +1303,7 @@ void NapSAT::repair_conflict(Tclause conflict)
   }
 #endif
 
-  NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(conflict));
+  NOTIFY_OBSERVER(conflict, conflict);
   if (_status == SAT)
     _status = UNDEF;
 
@@ -1528,7 +1526,7 @@ void NapSAT::repair_conflict(Tclause conflict)
     // we need to imply the literal
     imply_literal(_clauses[conflict].lits[0], conflict);
   } else {
-    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Learned clause: "));
+    NOTIFY_STAT("Learned clause: ");
     Tclause learned = internal_add_clause(_literal_buffer, _next_literal_index, true, false);
 
     if (_proof)
@@ -1545,7 +1543,7 @@ void NapSAT::repair_conflict(Tclause conflict)
 void NapSAT::restart()
 {
   // cout << "RESTART" << endl;
-  NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
+  NOTIFY_STAT("Restart");
   if (_options.graph_backtracking) {
     unsigned tmp = _propagated_literals;
     // print_trail();
@@ -1558,7 +1556,7 @@ void NapSAT::restart()
       Tlit lit = _trail[i];
       _vars[lit_to_var(lit)].propagated = false;
       if (i < _propagated_literals) {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
+        NOTIFY_OBSERVER(remove_propagation, lit);
       }
     }
     _propagated_literals = 0;
@@ -1763,13 +1761,13 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     return cl;
   }
   else if (clause_size == 2) {
-    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Binary clause added"));
+    NOTIFY_STAT("Binary clause added");
     // clause->watched = false;
     _binary_clauses[lits[0]].push_back(TSwatch(cl, lits[1]));
     _binary_clauses[lits[1]].push_back(TSwatch(cl, lits[0]));
 #if NOTIFY_WATCH_CHANGES
-    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
-    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
+    NOTIFY_OBSERVER(watch, cl, lits[0]);
+    NOTIFY_OBSERVER(watch, cl, lits[1]);
 #endif
     if (lit_false(lits[0]) && !lit_false(lits[1])) {
       // swap the literals so that the false literal is at the second position
@@ -1867,7 +1865,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     _chunks.resize(_n_allocated_chunks);
     for (unsigned i = 0; i < _n_allocated_chunks; i++) {
       _free_chunks.push_back(i);
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Allocated Chunk"));
+      NOTIFY_STAT("Allocated Chunk");
     }
   }
 
@@ -1922,8 +1920,8 @@ bool NapSAT::propagate()
 #ifdef NDEBUG
     if (lit_propagated(lit)) {
       _propagated_literals++;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Skipped Propagation"));
-      NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
+      NOTIFY_STAT("Skipped Propagation");
+      NOTIFY_OBSERVER(propagation, lit);
       continue;
     }
     if (!lit_propagated(lit)) {
@@ -1938,7 +1936,7 @@ bool NapSAT::propagate()
     if (conflict == CLAUSE_UNDEF) {
       _vars[lit_to_var(lit)].propagated = true;
       _propagated_literals++;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
+      NOTIFY_OBSERVER(propagation, lit);
       continue;
     }
     repair_conflict(conflict);
@@ -1976,16 +1974,16 @@ status NapSAT::solve()
     return _status;
   print_bt_option(_options);
   while (true) {
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
+    NOTIFY_OBSERVER(check_invariants);
     if (!propagate()) {
       if (_status == UNSAT || !_options.interactive)
         break;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
+      NOTIFY_OBSERVER(done, _status == SAT);
     }
     ASSERT_MSG(_propagated_literals == _trail.size(), "Propagation mismatch"
       "\nPropagated literals: " + to_string(_propagated_literals)
       + "\nTrail size: " + to_string(_trail.size()));
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
+    NOTIFY_OBSERVER(check_invariants);
     if (_n_root_lvl_lits >= _purge_threshold
     && ((!_options.weak_chronological_backtracking && !_options.restoring_strong_chronological_backtracking && !_options.graph_backtracking)
        || solver_level() == LEVEL_ROOT)) {
@@ -1999,7 +1997,7 @@ status NapSAT::solve()
       // therefore we cannot take a decision before we propagate
       continue;
     }
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
+    NOTIFY_OBSERVER(check_invariants);
     synchronize();
 #if USE_OBSERVER
     if (_observer && _options.interactive)
@@ -2013,8 +2011,8 @@ status NapSAT::solve()
   }
   synchronize();
   if (_status == SAT)
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
-  NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
+    NOTIFY_OBSERVER(check_invariants);
+  NOTIFY_OBSERVER(done, _status == SAT);
   return _status;
 }
 
@@ -2124,19 +2122,19 @@ void NapSAT::synchronize()
       break;
     case 2:
       // cout << "Syncing unassigned variable " << var << endl;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync unassign"));
+      NOTIFY_STAT("Sync unassign");
       if (v.state == VAR_UNDEF)
         v.synced = 1;
       else {
         v.synced = 0;
         // cout << "Syncing assigned variable " << var << endl;
-        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync assign"));
+        NOTIFY_STAT("Sync assign");
       }
       break;
     case 3:
       ASSERT (v.state != VAR_UNDEF);
       // cout << "Syncing assigned variable " << var << endl;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync assign"));
+      NOTIFY_STAT("Sync assign");
       v.synced = 0;
     default:
       break;
