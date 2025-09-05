@@ -1093,6 +1093,7 @@ static unsigned estimate_backtrack_cost(Tlit lits) {
 }
 
 bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
+  // cout << "Choosing chunk for clause " << clause_to_string(conflict) << endl;
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(_options.graph_backtracking);
   ASSERT(_clauses[conflict].size > 0);
@@ -1100,6 +1101,15 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
   vector<bitset> possible_set_of_chunks;
 
   compute_chunk_combination(conflict, possible_set_of_chunks, bitset(_n_allocated_chunks));
+
+  // cout << "Possible chunk combinations: " << possible_set_of_chunks.size() << endl;
+  // for (const auto& comb : possible_set_of_chunks) {
+  //   cout << "  " << comb.to_string() << " -> [";
+  //   for (auto it = comb.cbegin(); it != comb.cend(); ++it) {
+  //     cout << _chunks[*it].decision << " ";
+  //   }
+  //   cout << "]" << endl;
+  // }
 
   if (possible_set_of_chunks.empty()) {
     // all literals must either be at root level, or the decision is reimplied at level 0
@@ -1111,9 +1121,9 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
   vector<Tlevel> chunks_level(possible_set_of_chunks.size());
   vector<double> penalty(possible_set_of_chunks.size());
   for (size_t i = 0; i < possible_set_of_chunks.size(); i++) {
-    Tlevel level = LEVEL_ROOT;
+    Tlevel level = LEVEL_UNDEF;
     for (auto j = possible_set_of_chunks[i].cbegin(); j != possible_set_of_chunks[i].cend(); ++j) {
-      level = std::max(level, var_level(_chunks[*j].decision));
+      level = std::min(level, var_level(_chunks[*j].decision));
     }
     chunks_level[i] = level;
 
@@ -1137,11 +1147,16 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     if (lit_decision(lit)) {
       Tlevel level = lit_level(lit);
       for (size_t j = 0; j < possible_set_of_chunks.size(); j++) {
-        if (chunks_level[j] >= level) {
+        if (chunks_level[j] == level) {
+          weights[j] += estimate_backtrack_cost(lit) * penalty[j];
+          // cout << "Weight of " << possible_set_of_chunks[j].to_string() << " is " << weights[j] << endl;
           // we have finished calculating the weight of this set
           if (weights[j] < min_weight) {
             min_weight = weights[j];
             lightest_chunk_set = possible_set_of_chunks[j];
+          }
+          if (weights[j] == min_weight) {
+            NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Weight tie"));
           }
           possible_set_of_chunks[j] = possible_set_of_chunks.back();
           chunks_level[j] = chunks_level.back();

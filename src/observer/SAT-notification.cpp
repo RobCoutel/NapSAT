@@ -402,6 +402,7 @@ bool napsat::gui::unassignment::apply(observer* obs)
   obs->_variables[var].level = LEVEL_UNDEF;
   obs->_variables[var].reason = CLAUSE_UNDEF;
   obs->_variables[var].propagated = false;
+  obs->_variables[var].lazy_reason = CLAUSE_UNDEF;
   return true;
 }
 

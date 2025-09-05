@@ -1114,14 +1114,25 @@ std::string napsat::gui::observer::implication_graph_to_latex()
     }
     reason = _variables[lit_to_var(lit)].lazy_reason;
     if (reason != CLAUSE_UNDEF) {
+      bool still_active = true;
+      for (unsigned k = 1; k < _active_clauses[reason]->literals.size(); k++) {
+        Tlit l = _active_clauses[reason]->literals[k];
+        if (lit_value(l) != VAR_FALSE) {
+          still_active = false;
+          break;
+        }
+      }
+      if (!still_active)
+        continue;
       for (unsigned j = 0; j < _active_clauses[reason]->literals.size(); j++) {
         Tlit lit2 = _active_clauses[reason]->literals[j];
         if (lit2 == lit)
           continue;
+
         // cout << "lit2: " << lit2 << endl;
         // cout << "lit: " << lit << endl;
         assert(lit_level(lit2) != lit_level(lit) || lit_to_var(lit2) == lit_to_var(_assignment_stack[i - 1]));
-        s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, dashed] (v" + to_string(lit_to_var(lit)) + ");";
+        s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, dashed, red] (v" + to_string(lit_to_var(lit)) + ");";
         s += "\n";
       }
     }
