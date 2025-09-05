@@ -285,7 +285,7 @@ namespace napsat
      * @details This is used to prevent loops where the same decisions and conflicts are discovered again and again
      * @requires 0 <= decay <= 1
      */
-    double decision_activity_decay = 0.95;
+    double decision_activity_decay = 1;
 
     /**
      * @brief Penalty applied to chunks that do not lead to learning a new clause
