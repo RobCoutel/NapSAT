@@ -96,9 +96,9 @@ int main(int argc, char** argv)
     // cout << endl;
   }
   else if (get_status(solver) == napsat::UNSAT)
-  cout << "s UNSATISFIABLE" << endl;
+    cout << "s UNSATISFIABLE" << endl;
   else
-  cout << "UNKNOWN" << endl;
+    cout << "UNKNOWN" << endl;
 
   if (options.print_stats) {
     print_statistics(solver);

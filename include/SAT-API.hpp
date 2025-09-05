@@ -143,7 +143,7 @@ namespace napsat
    * @param solver an instance of the SAT solver
    * @pre the solver is a valid instance of NapSAT
   */
-  void print_statistics(NapSAT* solver);
+  void print_statistics(const NapSAT* solver);
 
   /**
    * @brief Prints the proof of the last execution of the solver.

@@ -113,11 +113,7 @@ namespace napsat::gui
 
     std::vector<notification*> _notifications;
 
-    long long _n_notifications = 0;
-
     unsigned _location = 0;
-
-    bool _stopped = true;
 
     /**
      * Set of clauses that were added to the solver from the beginning.
@@ -192,11 +188,6 @@ namespace napsat::gui
     bool _check_invariants_only = false;
 
     /**
-     * @brief If true, the observer will only display the statistics and not simulate the execution.
-     */
-    bool _stats_only = false;
-
-    /**
      * @brief Hash map to count the number of notifications of each type.
      */
     std::unordered_map<napsat::gui::ENotifType, unsigned> notification_count;
@@ -211,11 +202,6 @@ namespace napsat::gui
      * @note We start at one such that is is simpler for the calling LaTeX code to use loops (sync with \only<i>)
      */
     unsigned file_number = 1;
-
-    /**
-     * @brief The time when the observer was created.
-     */
-    std::chrono::time_point<std::chrono::high_resolution_clock> _creation_time;
 
   public:
     /**
@@ -234,7 +220,7 @@ namespace napsat::gui
     /**
      * @brief Formats a string that contains the statistics of the run. That is, the number of notifications of each type.
      */
-    std::string get_statistics();
+    std::string get_statistics() const;
 
     /**  OBSERVING EXECUTION  **/
 
@@ -573,11 +559,6 @@ namespace napsat::gui
      * @brief If this feature is on, the observer will only check the invariants without displaying the execution.
      */
     void toggle_checking_only(bool on) { _check_invariants_only = on; }
-
-    /**
-     * @brief If this feature is on, the observer will only display the statistics and not simulate the execution.
-     */
-    void toggle_stats_only(bool on) { _stats_only = on; }
 
     /**
      * @brief Returns true if the observer is only checking the invariants.

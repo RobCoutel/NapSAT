@@ -136,7 +136,7 @@ void napsat::NapSAT::purge_clauses()
 {
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
-  NOTIFY_STAT("Purging clauses");
+  NOTIFY_STAT(_n_purged_clauses);
   _purge_threshold = _n_root_lvl_lits + _purge_inc;
   // We assume that all the literals are propagated
   ASSERT(_propagated_literals == _trail.size());
@@ -225,7 +225,7 @@ void napsat::NapSAT::purge_clauses()
     if (clause.size == 2) {
       _binary_clauses[lits[0]].push_back(TSwatch(cl, lits[1]));
       _binary_clauses[lits[1]].push_back(TSwatch(cl, lits[0]));
-      NOTIFY_STAT("Binary clause simplified");
+      NOTIFY_STAT(_n_binary_clause_simplified);
     }
     if (clause.size == 1) {
       clause.watched = false;
@@ -239,7 +239,7 @@ void napsat::NapSAT::purge_clauses()
         ASSERT(lit_undef(lits[0]));
         imply_literal(lits[0], cl);
       }
-      NOTIFY_STAT("Unit clause simplified");
+      NOTIFY_STAT(_n_unit_clause_simplified);
     }
   }
   // remove the deleted clauses
@@ -265,11 +265,11 @@ void napsat::NapSAT::simplify_clause_set()
       continue;
     if (_activities[cl] < threshold) {
       delete_clause(cl);
-      NOTIFY_STAT("Clause deleted");
+      NOTIFY_STAT(_n_clause_deleted);
     }
   }
   repair_watch_lists();
   ASSERT(watch_lists_complete());
   ASSERT(watch_lists_minimal());
-  NOTIFY_STAT("Clause set simplified");
+  NOTIFY_STAT(_n_clause_set_simplified);
 }

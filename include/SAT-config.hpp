@@ -16,6 +16,9 @@
 // If this option is enabled, the solver will check the consistency of the clauses
 #define USE_OBSERVER 1
 
+// If this option is enabled, the solver will keep statistics
+#define USE_STATISTICS 1
+
 // It is not recommended to enable this option for difficult problems, as it will slow down the solver significantly.
 // If the observer is not enabled, this option has no effect.
 #ifndef NDEBUG

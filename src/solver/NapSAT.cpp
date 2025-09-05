@@ -82,6 +82,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     _decision_index.push_back(_trail.size() - 1);
     svar.level = solver_level();
     NOTIFY_OBSERVER(decision, lit);
+    NOTIFY_STAT(decision);
     if (_options.graph_backtracking) {
       if (_free_chunks.empty()) {
         ASSERT(_chunks.size() == _n_allocated_chunks);
@@ -89,7 +90,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
 
         for (Tchunk i = 1; i <= _n_allocated_chunks; i++) {
           _free_chunks.push_back(2*_n_allocated_chunks - i);
-          NOTIFY_STAT("Allocated Chunk");
+          NOTIFY_STAT(_n_allocated_chunks);
         }
         _n_allocated_chunks *= 2;
         // resize the chunk sets of the variables
@@ -159,6 +160,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
 #endif
     }
     NOTIFY_OBSERVER(implication, lit, reason, svar.level);
+    NOTIFY_STAT(implication);
   }
 
   // phase caching
@@ -178,8 +180,10 @@ void NapSAT::var_unassign(Tvar var)
 {
   TSvar& v = _vars[var];
   NOTIFY_OBSERVER(unassignment, literal(var, v.state));
+  NOTIFY_STAT(unassignment);
   if (v.missed_lower_implication != CLAUSE_UNDEF) {
     NOTIFY_OBSERVER(remove_lower_implication, var);
+    NOTIFY_STAT(remove_lower_implication);
     v.missed_lower_implication = CLAUSE_UNDEF;
   }
   if (!_variable_heap.contains(var))
@@ -726,7 +730,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       reimply_literal(lit2, cl);
     } else {
       if (lit_reason(lits[1]) == CLAUSE_UNDEF) {
-        NOTIFY_STAT("Cross implication for decision");
+        NOTIFY_STAT(_n_cross_implication_decisions);
         NOTIFY_OBSERVER(marker, "Cross implication for " + lit_to_string(lits[1]) + " in " + clause_to_string(cl));
       }
       // We are in graph backtracking, so we do not need to reimply the literal
@@ -822,6 +826,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
       _vars[var].propagated = false;
       _propagated_literals--;
       NOTIFY_OBSERVER(remove_propagation, lit);
+      NOTIFY_STAT(remove_propagation);
     }
   }
   if (_reimplication_backtrack_buffer.size() > 0) {
@@ -837,7 +842,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
       Tlit reimpl_lit = _clauses[lazy_clause].lits[0];
       ASSERT(lit_undef(reimpl_lit));
       imply_literal(reimpl_lit, lazy_clause);
-      NOTIFY_STAT("Lazy reimplication used");
+      NOTIFY_STAT(_n_lazy_reimplication_used);
     }
     _reimplication_backtrack_buffer.clear();
   }
@@ -907,13 +912,14 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
     if (lit_propagated(*k) && lit_cross_chunks(*k).get(chunk)) {
       unsigned location = k - _trail.data();
       _vars[lit_to_var(*k)].propagated = false;
-      NOTIFY_STAT("Replayed Propagation");
+      NOTIFY_STAT(_n_propagation_replayed);
 
       lit_chunks(*k).set(chunk, false);
       while(_propagated_literals > location) {
         _propagated_literals--;
         // _vars[lit_to_var(lit)].propagated = false;
         NOTIFY_OBSERVER(remove_propagation, _trail[_propagated_literals]);
+        NOTIFY_STAT(remove_propagation);
       }
       ASSERT(_propagated_literals <= _trail.size());
     }
@@ -1304,6 +1310,7 @@ void NapSAT::repair_conflict(Tclause conflict)
 #endif
 
   NOTIFY_OBSERVER(conflict, conflict);
+  NOTIFY_STAT(conflict);
   if (_status == SAT)
     _status = UNDEF;
 
@@ -1526,7 +1533,7 @@ void NapSAT::repair_conflict(Tclause conflict)
     // we need to imply the literal
     imply_literal(_clauses[conflict].lits[0], conflict);
   } else {
-    NOTIFY_STAT("Learned clause: ");
+    NOTIFY_STAT(_n_clause_learned);
     Tclause learned = internal_add_clause(_literal_buffer, _next_literal_index, true, false);
 
     if (_proof)
@@ -1542,8 +1549,7 @@ void NapSAT::repair_conflict(Tclause conflict)
 
 void NapSAT::restart()
 {
-  // cout << "RESTART" << endl;
-  NOTIFY_STAT("Restart");
+  NOTIFY_STAT(_n_restart);
   if (_options.graph_backtracking) {
     unsigned tmp = _propagated_literals;
     // print_trail();
@@ -1761,7 +1767,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     return cl;
   }
   else if (clause_size == 2) {
-    NOTIFY_STAT("Binary clause added");
+    NOTIFY_STAT(_n_binary_clause_added);
     // clause->watched = false;
     _binary_clauses[lits[0]].push_back(TSwatch(cl, lits[1]));
     _binary_clauses[lits[1]].push_back(TSwatch(cl, lits[0]));
@@ -1814,9 +1820,42 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
 napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options) :
   _options(options)
 {
-  // We have to create the observer before allocating the variables. Otherwise the notifications will not be sent
+#if USE_STATISTICS
+  if (options.print_stats || options.print_live_stats) {
+    _statistics = new napsat::gui::statistics(options);
+
+    stat.decision = _statistics->add_stat("Decisions");
+    stat.conflict = _statistics->add_stat("Conflicts");
+    stat.propagation = _statistics->add_stat("Propagation");
+    stat.implication = _statistics->add_stat("Implication");
+    stat.unassignment = _statistics->add_stat("Unassignment");
+    stat.remove_propagation = _statistics->add_stat("Remove propagation");
+    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication");
+
+    stat._n_purged_clauses = _statistics->add_stat("Purging clauses");
+    stat._n_binary_clause_simplified = _statistics->add_stat("Binary clause simplified");
+    stat._n_binary_clause_added = _statistics->add_stat("Binary clause added");
+    stat._n_clause_learned = _statistics->add_stat("Learned clause");
+    stat._n_unit_clause_simplified = _statistics->add_stat("Unit clause simplified");
+    stat._n_clause_deleted = _statistics->add_stat("Clause deleted");
+    stat._n_clause_set_simplified = _statistics->add_stat("Clause set simplified");
+    stat._n_allocated_chunks = _statistics->add_stat("Allocated Chunk");
+    stat._n_cross_implication_decisions = _statistics->add_stat("Cross implication for decision");
+    stat._n_lazy_reimplication_used = _statistics->add_stat("Lazy reimplication used");
+    stat._n_propagation_replayed = _statistics->add_stat("Replayed Propagation");
+    stat._n_skipped_propagation = _statistics->add_stat("Skipped Propagation");
+    stat._n_sync_assign = _statistics->add_stat("Sync assign");
+    stat._n_sync_unassign = _statistics->add_stat("Sync unassign");
+    stat._n_restart = _statistics->add_stat("Restart");
+  }
+#else
+  if (options.print_stats)
+    LOG_WARNING("The option --print-stats is not available in this build");
+#endif
+
+  // We have to create the observer before allocating the variables. Otherwise, the notifications will not be sent
 #if USE_OBSERVER
-  if (options.interactive || options.observing || options.check_invariants || options.print_stats || options.print_live_stats) {
+  if (options.interactive || options.observing || options.check_invariants) {
     _observer = new napsat::gui::observer(options);
     // make a functional object that will parse the command
     if (options.interactive) {
@@ -1826,10 +1865,8 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
       _observer->set_command_parser(command_parser);
     }
   }
-  else
-    _observer = nullptr;
 #else
-  if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
+  if (options.interactive || options.observing || options.check_invariants) {
     LOG_WARNING("Observer not available in this build");
     if (options.interactive)
       LOG_WARNING("The option --interactive is not available in this build");
@@ -1837,8 +1874,6 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
       LOG_WARNING("The option --observing is not available in this build");
     if (options.check_invariants)
       LOG_WARNING("The option --check-invariants is not available in this build");
-    if (options.print_stats)
-      LOG_WARNING("The option --print-stats is not available in this build");
   }
 #endif
 
@@ -1865,7 +1900,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     _chunks.resize(_n_allocated_chunks);
     for (unsigned i = 0; i < _n_allocated_chunks; i++) {
       _free_chunks.push_back(i);
-      NOTIFY_STAT("Allocated Chunk");
+      NOTIFY_STAT(_n_allocated_chunks);
     }
   }
 
@@ -1891,10 +1926,28 @@ bool napsat::NapSAT::is_interactive() const
   return _options.interactive;
 }
 
+napsat::gui::statistics* napsat::NapSAT::get_statistics() const
+{
+#if USE_STATISTICS
+  return _statistics;
+#else
+  return nullptr;
+#endif
+}
+
 bool napsat::NapSAT::is_observing() const
 {
 #if USE_OBSERVER
   return _observer != nullptr;
+#else
+  return false;
+#endif
+}
+
+bool napsat::NapSAT::has_statistics() const
+{
+#if USE_STATISTICS
+  return _statistics != nullptr;
 #else
   return false;
 #endif
@@ -1920,7 +1973,7 @@ bool NapSAT::propagate()
 #ifdef NDEBUG
     if (lit_propagated(lit)) {
       _propagated_literals++;
-      NOTIFY_STAT("Skipped Propagation");
+      NOTIFY_STAT(_n_skipped_propagation);
       NOTIFY_OBSERVER(propagation, lit);
       continue;
     }
@@ -1937,6 +1990,7 @@ bool NapSAT::propagate()
       _vars[lit_to_var(lit)].propagated = true;
       _propagated_literals++;
       NOTIFY_OBSERVER(propagation, lit);
+      NOTIFY_STAT(propagation);
       continue;
     }
     repair_conflict(conflict);
@@ -2122,19 +2176,19 @@ void NapSAT::synchronize()
       break;
     case 2:
       // cout << "Syncing unassigned variable " << var << endl;
-      NOTIFY_STAT("Sync unassign");
+      NOTIFY_STAT(_n_sync_unassign);
       if (v.state == VAR_UNDEF)
         v.synced = 1;
       else {
         v.synced = 0;
         // cout << "Syncing assigned variable " << var << endl;
-        NOTIFY_STAT("Sync assign");
+        NOTIFY_STAT(_n_sync_assign);
       }
       break;
     case 3:
       ASSERT (v.state != VAR_UNDEF);
       // cout << "Syncing assigned variable " << var << endl;
-      NOTIFY_STAT("Sync assign");
+      NOTIFY_STAT(_n_sync_assign);
       v.synced = 0;
     default:
       break;

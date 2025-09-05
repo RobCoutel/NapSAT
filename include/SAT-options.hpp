@@ -307,7 +307,7 @@ namespace napsat
     /**
      * @brief Constructor
     */
-    options(std::vector<std::string>& tokens);
+    explicit options(std::vector<std::string>& tokens);
   };
 
 } // namespace napsat

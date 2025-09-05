@@ -115,6 +115,8 @@
 #include <cassert>
 #include <algorithm>
 
+#include "../observer/SAT-stat.hpp"
+
 #if USE_OBSERVER
 #define NOTIFY_OBSERVER(NAME,...)             \
   do {                                        \
@@ -131,8 +133,16 @@
 #define NOTIFY_OBSERVER(NAME,...)  ((void)0)
 #endif
 
-// TODO implement me
-#define NOTIFY_STAT(type) ((void)0)
+#if USE_STATISTICS
+#define NOTIFY_STAT(type)                     \
+  do {                                        \
+    if (_statistics) {                        \
+      stat.type->inc();                       \
+    }                                         \
+  } while(0)
+#else
+#define NOTIFY_STAT(type)  ((void)0)
+#endif
 
 namespace napsat
 {
@@ -149,7 +159,7 @@ namespace napsat
     /*                            Data structures                            */
     /*************************************************************************/
     /**
-     * @brief Structure to store the state an metadata of a propositional variable.
+     * @brief Structure to store the state and metadata of a propositional variable.
      */
     typedef struct TSvar
     {
@@ -608,6 +618,40 @@ namespace napsat
      * since the last synchronization.
      */
     unsigned _sync_validity_index;
+
+    /**  STATISTICS **/
+#if USE_STATISTICS
+    napsat::gui::statistics* _statistics = nullptr;
+
+    struct {
+      // stats from observable events
+      napsat::gui::statistics::stat *decision = nullptr; // "Decisions"
+      napsat::gui::statistics::stat *conflict = nullptr; // "Conflicts"
+      napsat::gui::statistics::stat *propagation = nullptr; // "Propagation"
+      napsat::gui::statistics::stat *implication = nullptr; // "Implication"
+      napsat::gui::statistics::stat *unassignment = nullptr; // "Unassignment"
+      napsat::gui::statistics::stat *remove_lower_implication = nullptr; // "Remove lower implication"
+      napsat::gui::statistics::stat *remove_propagation = nullptr; // "Remove propagation"
+
+      // auxilary stats
+      napsat::gui::statistics::stat *_n_purged_clauses = nullptr; // "Purging clauses"
+      napsat::gui::statistics::stat *_n_binary_clause_simplified = nullptr; // "Binary clause simplified"
+      napsat::gui::statistics::stat *_n_binary_clause_added = nullptr; // "Binary clause added"
+      napsat::gui::statistics::stat *_n_clause_learned = nullptr; // "Learned clause"
+      napsat::gui::statistics::stat *_n_unit_clause_simplified = nullptr; // "Unit clause simplified"
+      napsat::gui::statistics::stat *_n_clause_deleted = nullptr; // "Clause deleted"
+      napsat::gui::statistics::stat *_n_clause_set_simplified = nullptr; // "Clause set simplified"
+      napsat::gui::statistics::stat *_n_allocated_chunks = nullptr; // "Allocated Chunk"
+      napsat::gui::statistics::stat *_n_cross_implication_decisions = nullptr; // "Cross implication for decision"
+      napsat::gui::statistics::stat *_n_lazy_reimplication_used = nullptr; // "Lazy reimplication used"
+      napsat::gui::statistics::stat *_n_propagation_replayed = nullptr; // "Replayed Propagation"
+      napsat::gui::statistics::stat *_n_skipped_propagation = nullptr; // "Skipped Propagation"
+      napsat::gui::statistics::stat *_n_sync_assign = nullptr; // "Sync assign"
+      napsat::gui::statistics::stat *_n_sync_unassign = nullptr; // "Sync unassign"
+      napsat::gui::statistics::stat *_n_restart = nullptr; // "Restart"
+    } stat;
+#endif
+
 
     /**  INTERACTIVE SOLVER  **/
 #if USE_OBSERVER
@@ -1355,6 +1399,11 @@ namespace napsat
     bool is_observing() const;
 
     /**
+     * @brief Returns true if the solver has statistics.
+     */
+    bool has_statistics() const;
+
+    /**
      * @brief Returns a pointer to the observer of the solver.
      * @return pointer to the observer of the solver.
      * @note The pointer is nullptr if the solver is not observing.
@@ -1365,6 +1414,13 @@ namespace napsat
      * to be used in a library.
      */
     napsat::gui::observer* get_observer() const;
+
+    /**
+     * @brief Returns a pointer to the statistics of the solver;
+     * @return pointer to the statistics of the solver.
+     * @note The pointer is nullptr if the solver does not do statistics.
+     */
+    napsat::gui::statistics* get_statistics() const;
 
     /**
      * @brief Propagate literals in the queue and resolve conflicts if needed.

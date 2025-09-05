@@ -41,6 +41,14 @@ std::string pad(unsigned n, unsigned max_int);
  */
 std::string pretty_integer(long long n);
 
+
+/**
+ * @brief Returns a pretty string representation of a float.
+ * @param n The float to convert.
+ * @return A string representation of the float, with commas every three digits.
+ */
+std::string pretty_float(double f, unsigned n = 2);
+
 /**
  * @brief Returns a string representation of a time in milliseconds.
  * @param time The time to convert.

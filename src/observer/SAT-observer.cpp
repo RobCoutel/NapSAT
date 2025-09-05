@@ -79,18 +79,12 @@ static void update_terminal_width() {
 napsat::gui::observer::observer(napsat::options& options) : _options(options)
 {
   _display = new napsat::gui::display(this);
-  assert(options.interactive || options.observing || options.check_invariants || options.print_stats || options.print_live_stats);
+  assert(options.interactive || options.observing || options.check_invariants);
   if (options.interactive || options.observing) {
     notify(new napsat::gui::marker("Start"));
   }
-  else {
-    if (options.check_invariants) {
-      toggle_checking_only(true);
-    }
-    else {
-      assert(options.print_stats || options.print_live_stats);
-      toggle_stats_only(true);
-    }
+  else if (options.check_invariants) {
+    toggle_checking_only(true);
   }
   load_invariant_configuration();
   if (options.commands_file != "") {
@@ -112,8 +106,6 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
       LOG_ERROR("The folder \"" + options.save_folder + "\" could not be created.");
     }
   }
-
-  _creation_time = chrono::high_resolution_clock::now();
 }
 
 bool observer::notify(notification* notification)
@@ -122,11 +114,7 @@ bool observer::notify(notification* notification)
   auto level = notification->get_event_level(this);
 
   notification_count[notification->get_type()]++;
-  _n_notifications++;
-  if (_stats_only)
-    delete notification;
-  else
-    _notifications.push_back(notification);
+  _notifications.push_back(notification);
 
   // print the statistics
   if (_options.print_live_stats && level < 3) {
@@ -156,9 +144,6 @@ bool observer::notify(notification* notification)
     }
   }
 
-  if (_stats_only)
-    return true;
-
   _location++;
   assert(_location == _notifications.size());
   // cout << "notification " << _location << "/" << _notifications.size() << endl;
@@ -176,42 +161,21 @@ bool observer::notify(notification* notification)
   return apply_success;
 }
 
-std::string observer::get_statistics()
-{
-  string s = "";
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _creation_time);
-  s += "c Time: " + pretty_time(duration) + "\n";
-  s += "c Core Statistics:\n";
-  s += "c  - Notifications: " + pretty_integer(_n_notifications) + "\n";
-  if(!_stats_only) {
-    s += "c  - Variables: " + to_string(_variables.size()) + "\n";
-    unsigned n_clauses = 0;
-    for (clause* cl : _active_clauses)
-      if (cl && cl->active)
-        n_clauses++;
+std::string observer::get_statistics() const {
+  string s;
+  s += "c Observer Statistics:\n";
+  s += "c  - Variables: " + to_string(_variables.size()) + "\n";
+  unsigned n_clauses = 0;
+  for (clause *cl: _active_clauses)
+    if (cl && cl->active)
+      n_clauses++;
 
-    s += "c  - Clauses: " + to_string(n_clauses) + "\n";
-  }
-  vector<ENotifType> types;
-  for (auto pair : notification_count)
-    types.push_back(pair.first);
-  sort(types.begin(), types.end(), [](ENotifType a, ENotifType b) { return a < b; });
-  for (ENotifType type : types)
-    s += "c  - " + notification_type_to_string(type) + ": " + pretty_integer(notification_count.at(type)) + "\n";
-
-  if (stat_count.size() > 0) {
-    s += "c Additional Statistics:\n";
-    for (auto pair : stat_count) {
-      s += "c  - " + pair.first + ": " + pretty_integer(pair.second) + "\n";
-    }
-  }
+  s += "c  - Clauses: " + to_string(n_clauses) + "\n";
   return s;
 }
 
 unsigned observer::next()
 {
-  if (_stats_only)
-    LOG_WARNING("trying to navigate in statistics only mode");
   assert(_location < _notifications.size());
   _notifications[_location++]->apply(this);
   if (_breakpoints.find(_location) != _breakpoints.end()) {
