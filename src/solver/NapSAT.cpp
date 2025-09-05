@@ -87,7 +87,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     const unsigned size = clause_size(reason);
     ASSERT(lit == lits[0]);
     ASSERT(clause_implying(reason));
-    ASSERT(size < 2 || max_literal(lits[1], lits + 2, size - 2));
+    ASSERT(size < 2 || lit_is_max_literal(lits[1], lits + 2, size - 2));
 
     if (clause_size(reason) == 1) {
       svar.level = LEVEL_ROOT;
@@ -183,7 +183,7 @@ void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
   ASSERT(lit == clause.lits[0]);
   ASSERT(clause_implying(reason));
-  ASSERT(size < 2 || max_literal(clause.lits[1], clause.lits + 2, size - 2));
+  ASSERT(size < 2 || lit_is_max_literal(clause.lits[1], clause.lits + 2, size - 2));
 
   Tlevel reimplication_level = size == 1 ? 0 : lit_level(clause.lits[1]);
   if (lit_level(lit) <= reimplication_level)

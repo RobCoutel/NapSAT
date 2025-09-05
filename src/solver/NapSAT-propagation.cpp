@@ -391,7 +391,7 @@ void NapSAT::propagate_lit(Tlit lit)
       r = advanced_level_replacement(lits, clause.size);
     }
     ASSERT(lit_false(*r));
-    ASSERT(max_literal(*r, lits + 1, clause.size - 1));
+    ASSERT(lit_is_max_literal(*r, lits + 1, clause.size - 1));
     r_lvl = lit_level(*r);
     /**
      * ALL: ¬r ∈ π ∧ C \ {c₂}, π ⊧ ⊥
@@ -428,7 +428,7 @@ void NapSAT::propagate_lit(Tlit lit)
       i++;
     }
     ASSERT(c1 == lits[1]);
-    ASSERT(max_literal(c1, lits + 2, clause.size - 2));
+    ASSERT(lit_is_max_literal(c1, lits + 2, clause.size - 2));
 
     /**
      * We no longer need r since we replaced c₁ ← r (which might be equal)
@@ -510,7 +510,7 @@ void NapSAT::propagate_lit(Tlit lit)
     */
     ASSERT(_options.graph_backtracking || _options.chronological_backtracking);
     ASSERT(clause_implying(cl));
-    ASSERT(max_literal(c1, lits + 2, clause.size - 2));
+    ASSERT(lit_is_max_literal(c1, lits + 2, clause.size - 2));
 
     if (( _options.graph_backtracking || lit_level(c2) <= r_lvl)
      && (!_options.graph_backtracking || lit_chunks(c2) <= lit_chunks(c1))) {

@@ -242,3 +242,36 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   if(_proof)
     _proof->deactivate_clause(cl);
 }
+
+bitset napsat::NapSAT::clause_chunks(Tclause cl)
+{
+  bitset chunk(_n_allocated_chunks);
+  Tlit* lits = clause_lits(cl);
+  unsigned size = clause_size(cl);
+  for (unsigned i = 0; i < size; i++) {
+    const bitset& lit_chunk = lit_chunks(lits[i]);
+    chunk |= lit_chunk;
+  }
+  return chunk;
+}
+
+Tlevel napsat::NapSAT::clause_level(Tclause cl)
+{
+  ASSERT(cl != CLAUSE_UNDEF);
+  ASSERT(cl < _clauses.size());
+  ASSERT(clause_size(cl) > 0);
+  const Tlit* lits = clause_lits(cl);
+
+  if (!_options.graph_backtracking) {
+    ASSERT(lit_is_max_literal(lits[0], lits + 1, clause_size(cl) - 1));
+    return lit_level(lits[0]);
+  }
+
+  Tlevel level = lit_level(lits[0]);
+  for (unsigned i = 1; i < clause_size(cl); i++) {
+    Tlevel lit_lvl = lit_level(lits[i]);
+    if (lit_lvl > level)
+      level = lit_lvl;
+  }
+  return level;
+}

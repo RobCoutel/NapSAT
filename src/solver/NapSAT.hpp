@@ -348,7 +348,7 @@ public:
 #endif
 
     typedef unsigned Tchunk;
-    #define CHUNK_UNDEF (Tchunk)(0xFFFFFFFF)
+    const Tchunk CHUNK_UNDEF = 0xFFFFFFFF;
     /*************************************************************************/
     /*                            Data structures                            */
     /*************************************************************************/
@@ -907,7 +907,7 @@ public:
      */
     inline bool lit_decision(Tlit lit) const { return var_decision(lit_to_var(lit)); }
 
-        inline Tlevel solver_level() const { return _decision_index.size(); }
+    inline Tlevel solver_level() const { return _decision_index.size(); }
 
     /** MARKERS **/
     /**
@@ -981,7 +981,7 @@ public:
       ASSERT(lit_level(lit) > LEVEL_ROOT);
       ASSERT(clause_unit(l_reason));
       ASSERT(clause_size(l_reason) >= 1);
-      ASSERT(max_literal(lits[1], lits, clause_size(l_reason) - 1));
+      ASSERT(lit_is_max_literal(lits[1], lits, clause_size(l_reason) - 1));
       return lit_level(lits[1]);
     }
 
@@ -1003,11 +1003,11 @@ public:
     inline bitset& lit_chunks(Tlit lit) { return var_chunks(lit_to_var(lit)); }
 
     /**
-     * @brief Returns the chunks of a clause.
-     * @param cl clause to evaluate.
-     * @return chunk of the clause.
+     * @brief Returns the decision level of the decision starting a chunk
+     * @param chunk chunk to evaluate.
+     * @return level of the decision starting the chunk.
      */
-    bitset clause_chunks(Tclause cl);
+    Tlevel chunk_level(Tchunk chunk) { return var_level(_chunks[chunk].decision); }
 
     /**
      * @brief Returns the cross-chunk dependencies of a variable.
@@ -1108,6 +1108,20 @@ public:
      */
     Tclause internal_add_clause(const Tlit* lits, unsigned size,
                                 bool learned, bool external);
+
+    /**
+     * @brief Returns the chunks of a clause.
+     * @param cl clause to evaluate.
+     * @return chunk of the clause.
+     */
+    bitset clause_chunks(Tclause cl);
+
+    /**
+     * @brief Returns the level of a clause.
+     * @param cl clause to evaluate.
+     * @return the maximum level of the literals in the clause.
+     */
+    Tlevel clause_level(Tclause cl);
 
 
     /*************************************************************************/
@@ -1295,23 +1309,81 @@ public:
     /*************************************************************************/
     /*                           Conflict analysis                           */
     /*************************************************************************/
-    bool clause_will_learn(Tclause cl, bitset& undone_chunks);
+    void backtracked_chunks_subsumption(std::vector<bitset>& possibilities);
 
-    bool clause_will_learn(Tclause cl, Tlevel level);
+    void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, const bitset& current, bitset processed);
+
+    void enhance_backtrack_possibilities_with_lazy_merging(std::vector<bitset>& possibilities);
+
+    size_t split_learning_possibilities(std::vector<bitset>& possibilities);
+
+    /**
+     * @brief Returns true if the learned clause is redundant with any other confliting clauses in the set of conflicts.
+     * @details The clause is held in the _literal_buffer and its size in _next_literal_index.
+     * @details A learned clause is redundant if it is subsumed by any other conflicting clause
+     * @return true if the learned clause is redundant, false otherwise.
+     */
+    bool learned_clause_is_redundant();
+
+    /**
+     * @brief Returns true if there is a conflict at root level, complete the proof if needed, and set the status to UNSAT.
+     * @return true if there is a conflict at root level, false otherwise.
+     */
+    bool root_level_conflict();
+
+    typedef struct Tweight {
+      /**
+       * @brief The set of chunks being considered by the weight counter
+       */
+      bitset chunks;
+      /**
+       * @brief The level of the highest decision in the chunks being considered
+       */
+      Tlevel highest_level = LEVEL_ROOT;
+      /**
+       * @brief The level of the lowest decision in the chunks being considered
+       */
+      Tlevel lowest_level = LEVEL_UNDEF;
+      /**
+       * @brief Total weight measured until the give_up_point
+       */
+      double total_weight = 0;
+      /**
+       * @brief When the weight counter decided to stop counting
+       */
+      size_t give_up_point = 0;
+      /**
+       * @brief Whether the weight counter has finished counting
+       */
+      bool finished = false;
+      /**
+       * @brief true if the bitset does not lead to learning a new clause or assigning a literal at root level
+       */
+      bool maybe_learning = true;
+
+      bool operator<(const Tweight& other) const {
+        if (maybe_learning != other.maybe_learning)
+          return maybe_learning > other.maybe_learning;
+        if (finished && other.finished)
+          return total_weight < other.total_weight;
+        // then the lowest level
+        if (lowest_level != other.lowest_level)
+          return lowest_level > other.lowest_level;
+        return highest_level > other.highest_level;
+      }
+    } Tweight;
+
+    void calculate_bitset_weights(std::vector<Tweight>& weights);
+
+    size_t compute_backtrack_possibilities(const std::vector<Tclause>& conflicts,
+                                           std::vector<bitset>& possibilities);
+
 
     /**
      * @brief Given a learned clause, chooses the level to backtrack to
      * according to the options and the literals in the clause.
      */
     Tlevel choose_backtracked_level(Tlit* learned_lits, unsigned size);
-
-    /**
-     * @brief Computes the combinations of chunks that can be backtracked to solve the conflict of a given conflict clause
-     * @param cl the clause to analyze.
-     * @param combinations the vector to store the resulting combinations.
-     * @param current the current combination being built.
-     */
-    void compute_chunk_combination(Tclause cl, std::vector<bitset>& combinations, const bitset& current);
 
     /**
      * @brief Given a conflict clause, chooses the chunk in which the UIP will
@@ -1394,6 +1466,7 @@ public:
      */
     bool lit_is_required_in_learned_clause(Tlit lit);
 
+    void graph_repair();
     /**
      * @brief Returns true if a literal must be further analyzed in conflict analysis.
      * That is, depending on the options, check the level or chunk requirements.
@@ -1671,7 +1744,7 @@ public:
      * - or chunk lattice if in GB
      * @warning This function is meant to be used for debugging
      */
-    bool max_literal(Tlit lit, const Tlit* lits, size_t size) const;
+    bool lit_is_max_literal(Tlit lit, const Tlit* lits, size_t size) const;
 
     /**
      * @brief Returns true if there is at least one clause in the watch list of lit that

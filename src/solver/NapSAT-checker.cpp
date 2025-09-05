@@ -87,7 +87,7 @@ bool napsat::NapSAT::lit_needs_fixing(Tlit lit) const
 }
 
 
-bool napsat::NapSAT::max_literal(Tlit lit, const Tlit* lits, size_t size) const
+bool napsat::NapSAT::lit_is_max_literal(Tlit lit, const Tlit* lits, size_t size) const
 {
   if (_options.graph_backtracking) {
     const bitset& chunks = lit_chunks(lit);

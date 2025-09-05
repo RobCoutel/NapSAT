@@ -189,18 +189,6 @@ void napsat::NapSAT::bump_clause_activity(Tclause cl)
 
 static const char esc_char = 27; // the decimal code for escape character is 27
 
-bitset napsat::NapSAT::clause_chunks(Tclause cl)
-{
-  bitset chunk(_n_allocated_chunks);
-  Tlit* lits = clause_lits(cl);
-  unsigned size = clause_size(cl);
-  for (unsigned i = 0; i < size; i++) {
-    const bitset& lit_chunk = lit_chunks(lits[i]);
-    chunk |= lit_chunk;
-  }
-  return chunk;
-}
-
 void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
 {
   const Tlit* lits = clause_lits(cl);
