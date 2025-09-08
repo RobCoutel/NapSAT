@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <map>
 #include <list>
 #include <chrono>
 #include <utility>
@@ -41,10 +42,7 @@ namespace napsat::gui {
 
     explicit statistics(napsat::options &options);
 
-    stat* add_stat(std::string name, stat_type type = COUNT) {
-      stat s(std::move(name), type);
-      return &_stats.emplace_back(s);
-    }
+    stat* add_stat(std::string name, const std::string& category = "", stat_type type = COUNT);
 
     [[nodiscard]] std::string get_statistics() const;
 
@@ -59,6 +57,6 @@ namespace napsat::gui {
     /**
      * @brief List of all registered stats
      */
-    std::list<stat> _stats;
+    std::map<std::string, std::list<stat>> _stats;
   };
 }

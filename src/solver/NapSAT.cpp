@@ -1823,30 +1823,32 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 #if USE_STATISTICS
   if (options.print_stats || options.print_live_stats) {
     _statistics = new napsat::gui::statistics(options);
+    const std::string cat_core = "Core statistics";
+    const std::string cat_aux = "Auxiliary statistics";
 
-    stat.decision = _statistics->add_stat("Decisions");
-    stat.conflict = _statistics->add_stat("Conflicts");
-    stat.propagation = _statistics->add_stat("Propagation");
-    stat.implication = _statistics->add_stat("Implication");
-    stat.unassignment = _statistics->add_stat("Unassignment");
-    stat.remove_propagation = _statistics->add_stat("Remove propagation");
-    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication");
+    stat.decision = _statistics->add_stat("Decisions", cat_core);
+    stat.conflict = _statistics->add_stat("Conflicts", cat_core);
+    stat.propagation = _statistics->add_stat("Propagation", cat_core);
+    stat.implication = _statistics->add_stat("Implication", cat_core);
+    stat.unassignment = _statistics->add_stat("Unassignment", cat_core);
+    stat.remove_propagation = _statistics->add_stat("Remove propagation", cat_core);
+    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_core);
 
-    stat._n_purged_clauses = _statistics->add_stat("Purging clauses");
-    stat._n_binary_clause_simplified = _statistics->add_stat("Binary clause simplified");
-    stat._n_binary_clause_added = _statistics->add_stat("Binary clause added");
-    stat._n_clause_learned = _statistics->add_stat("Learned clause");
-    stat._n_unit_clause_simplified = _statistics->add_stat("Unit clause simplified");
-    stat._n_clause_deleted = _statistics->add_stat("Clause deleted");
-    stat._n_clause_set_simplified = _statistics->add_stat("Clause set simplified");
-    stat._n_allocated_chunks = _statistics->add_stat("Allocated Chunk");
-    stat._n_cross_implication_decisions = _statistics->add_stat("Cross implication for decision");
-    stat._n_lazy_reimplication_used = _statistics->add_stat("Lazy reimplication used");
-    stat._n_propagation_replayed = _statistics->add_stat("Replayed Propagation");
-    stat._n_skipped_propagation = _statistics->add_stat("Skipped Propagation");
-    stat._n_sync_assign = _statistics->add_stat("Sync assign");
-    stat._n_sync_unassign = _statistics->add_stat("Sync unassign");
-    stat._n_restart = _statistics->add_stat("Restart");
+    stat._n_purged_clauses = _statistics->add_stat("Purging clauses", cat_aux);
+    stat._n_binary_clause_simplified = _statistics->add_stat("Binary clause simplified", cat_aux);
+    stat._n_binary_clause_added = _statistics->add_stat("Binary clause added", cat_aux);
+    stat._n_clause_learned = _statistics->add_stat("Learned clause", cat_aux);
+    stat._n_unit_clause_simplified = _statistics->add_stat("Unit clause simplified", cat_aux);
+    stat._n_clause_deleted = _statistics->add_stat("Clause deleted", cat_aux);
+    stat._n_clause_set_simplified = _statistics->add_stat("Clause set simplified", cat_aux);
+    stat._n_allocated_chunks = _statistics->add_stat("Allocated Chunk", cat_aux);
+    stat._n_cross_implication_decisions = _statistics->add_stat("Cross implication for decision", cat_aux);
+    stat._n_lazy_reimplication_used = _statistics->add_stat("Lazy reimplication used", cat_aux);
+    stat._n_propagation_replayed = _statistics->add_stat("Replayed Propagation", cat_aux);
+    stat._n_skipped_propagation = _statistics->add_stat("Skipped Propagation", cat_aux);
+    stat._n_sync_assign = _statistics->add_stat("Sync assign", cat_aux);
+    stat._n_sync_unassign = _statistics->add_stat("Sync unassign", cat_aux);
+    stat._n_restart = _statistics->add_stat("Restart", cat_aux);
   }
 #else
   if (options.print_stats)
