@@ -162,16 +162,19 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
 
 void napsat::NapSAT::bump_var_activity(Tvar var)
 {
-  _vars.at(var).activity += _var_activity_increment;
-  if (_vars.at(var).activity > 1e100) {
+  assert(var < _vars.size());
+  TSvar& svar = _vars[var];
+  svar.activity += _var_activity_increment;
+  if (svar.activity > 1e100) {
     for (Tvar i = 1; i < _vars.size(); i++) {
-      _vars.at(i).activity *= 1e-100;
+      _vars[i].activity *= 1e-100;
     }
     _variable_heap.normalize(1e-100);
     _var_activity_increment *= 1e-100;
   }
-  if (_variable_heap.contains(var))
-    _variable_heap.increase_activity(var, _vars.at(var).activity);
+  if (_variable_heap.contains(var)) {
+    _variable_heap.increase_activity(var, svar.activity);
+  }
 }
 
 void napsat::NapSAT::bump_clause_activity(Tclause cl)
@@ -256,7 +259,7 @@ void napsat::NapSAT::var_allocate(Tvar var)
   }
 
   _watches.resize(2 * var + 2);
-  _binary_watch.resize(2 * var + 2);
+  _binary_watches.resize(2 * var + 2);
   // reallocate the literal buffer to make sure it is big enough
   // TODO replace with std::vector
   Tlit* new_literal_buffer = new Tlit[_vars.size() + 1];
@@ -399,6 +402,13 @@ void NapSAT::print_trail()
     }
     cout << "\n";
   }
+  for (Tclause conflict : _conflicts) {
+    cout << "conflict: ";
+    print_clause(conflict);
+    if (_options.graph_backtracking)
+      cout << " (" << clause_chunks(conflict).to_string() << ")";
+    cout << "\n";
+  }
   cout << endl;
 }
 
@@ -512,7 +522,7 @@ void napsat::NapSAT::print_watch_lists(Tlit lit)
     cout << ": ";
     // print the binary list
     cout << "binary: ";
-    for (TSwatch w : _binary_watch[i]) {
+    for (TSwatch w : _binary_watches[i]) {
       print_lit(w.block);
       cout << " <- " << w.cl << " ";
     }

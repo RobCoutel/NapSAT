@@ -281,13 +281,6 @@ namespace napsat
     double var_activity_decay = 0.95;
 
     /**
-     * @brief Decay factor applied in GB when a decision is taken
-     * @details This is used to prevent loops where the same decisions and conflicts are discovered again and again
-     * @requires 0 <= decay <= 1
-     */
-    double decision_activity_decay = 0.95;
-
-    /**
      * @brief Penalty applied to chunks that do not lead to learning a new clause
      * @details This is used such that the solver will prioritize undoing chunks that will result in progress through learning a new clause.
      * @requires 1 <= conflict_penalty, -gb on
@@ -320,7 +313,7 @@ namespace napsat
     /**
      * @brief Search all conflicts until the end of propagation before triggering conflict analysis.
      */
-    bool exhaustive_conflict_search = false;
+    bool exhaustive_conflict_search = true;
 
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.

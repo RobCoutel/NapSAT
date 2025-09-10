@@ -49,7 +49,9 @@ void napsat::NapSAT::backtrack(Tlevel level)
     Tvar var = lit_to_var(lit);
     if (lit_level(lit) > level) {
       ASSERT(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
-      if (!_options.graph_backtracking && lit_lazy_level(lit) <= level) {
+      cout << "Checking backtracked literal " << lit_to_string(lit) << " at level " << lit_level(lit) << endl;
+      cout << "Lazy reason: " << clause_to_string(lit_lazy_reason(lit)) << endl;
+      if (lit_lazy_level(lit) <= level) {
         // look if the literal can be reimplied at a lower level
         ASSERT(_options.lazy_strong_chronological_backtracking);
         Tclause lazy_reason = lit_lazy_reason(lit);
@@ -70,10 +72,14 @@ void napsat::NapSAT::backtrack(Tlevel level)
         at the end of the backtracking
       */
       _backtracked_variables.push_back(var);
-    }
-    else { // lit_level(lit) <= level
+    } else { // lit_level(lit) <= level
       _trail[j++] = lit;
       waiting_count += (i >= _n_propagated_lits);
+    }
+    if (lit_lazy_reason(lit) != CLAUSE_UNDEF && lit_lazy_level(lit) > level) {
+      // the lazy reason is not valid anymore
+      lit_lazy_reason(lit) = CLAUSE_UNDEF;
+      NOTIFY_OBSERVER(_observer, new napsat::gui::remove_lower_implication(var));
     }
   }
   // Here we unassign the literals as mentioned above
@@ -125,16 +131,20 @@ static Tvar last_backtracked_decision = 0;
 
 void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
 {
+  ASSERT(_options.graph_backtracking);
+  ASSERT(!backtracked_chunks.empty());
+  cout << "Backtracking chunks " << backtracked_chunks << endl;
   ASSERT(!backtracked_chunks.empty());
   ASSERT(_backtracked_variables.empty());
   // Mapping to the new level of literals after backtracking
   vector<Tlevel> level_transformation(solver_level() + 1);
   Tlevel real_level = 1;
-  Tlevel min_level = INT32_MAX;
+  Tlevel min_level = LEVEL_UNDEF;
   for (Tlevel lvl = 1; lvl <= solver_level(); lvl++) {
-    Tlit decision = _trail[_decision_index[lvl - 1]];
-    ASSERT(lit_decision(decision));
-    ASSERT(lit_level(decision) == lvl);
+    Tlit decision = decision_lit(lvl);
+    cout << "Level " << lvl << " with chunks " << lit_chunks(decision) << endl;
+    cout << "Intersection with backtracked chunks: " << lit_chunks(decision).has_intersection(backtracked_chunks) << endl;
+
     if (lit_chunks(decision).has_intersection(backtracked_chunks)) {
       min_level = min(min_level, lvl);
       level_transformation[lvl] = LEVEL_ERROR;
@@ -143,11 +153,10 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
     }
   }
 
-  size_t start_position = _decision_index[min_level - 1];
-  ASSERT(start_position < _trail.size());
-  Tlit* i = _trail.data() + start_position;
+  Tlit* i = decision_lit_ptr(min_level);
+  size_t start_position = i - _trail.data();
   Tlit* j = i;
-  Tlit* end = i + _trail.size() - start_position;
+  Tlit* end = _trail.data() + _trail.size();
   Tlevel decision_counter = min_level - 1;
   unsigned new_propagation_head = _n_propagated_lits;
   // print_trail();
@@ -213,7 +222,7 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
       Tvar var = lit_to_var(lit);
       _vars[var].propagated = false;
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Replayed Propagation"));
-      new_propagation_head = min(new_propagation_head, (unsigned)i);
+      new_propagation_head = min(new_propagation_head, (unsigned) i);
     }
   }
 

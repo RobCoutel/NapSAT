@@ -399,7 +399,7 @@ namespace napsat::gui
     napsat::Tclause var_lazy_reason(napsat::Tvar var);
 
     /**
-     * @brief Returns true if the variable was propagated.
+     * @brief Returns the lazy reason of a literal in the assignment.
      */
     napsat::Tclause lit_lazy_reason(napsat::Tvar var);
 

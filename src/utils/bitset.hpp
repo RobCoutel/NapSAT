@@ -96,6 +96,10 @@ public:
   bool operator>(const bitset& other) const;
 
   std::string to_string() const;
+  friend std::ostream& operator<<(std::ostream& os, const bitset& bs) {
+    os << bs.to_string();
+    return os;
+  }
   std::string bit_string() const;
   using bitstore = std::vector<uint64_t>;
 

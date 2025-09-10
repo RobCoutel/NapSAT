@@ -34,13 +34,14 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
                                                           bitset processed)
 {
   bitset diff = current - processed;
+  cout << " Enhancing combination " << current << " with lazy merging. Processed: " << processed << " Diff: " << diff << endl;
 
   for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
-    if (var_lazy_reason(_chunks[*i].decision)) {
+    if (var_lazy_reason(_chunks[*i].decision) == CLAUSE_UNDEF) {
       processed.set(*i, true);
-      diff.set(*i, false);
     }
   }
+  diff = current - processed;
 
   if (diff.empty()) {
     combinations.push_back(current);
@@ -50,16 +51,12 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
   for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
     Tclause missed_implication = var_lazy_reason(_chunks[*i].decision);
     ASSERT(missed_implication != CLAUSE_UNDEF);
-
-
+    bitset next_process = processed;
+    next_process.set(*i, true);
     bitset merged_chunks = clause_chunks(missed_implication);
     for (auto j = merged_chunks.cbegin(); j != merged_chunks.cend(); ++j) {
-      bitset next_process = processed;
       bitset next_current = current;
       next_current.set(*j, true);
-      if (var_lazy_reason(_chunks[*j].decision)) {
-        next_process.set(*j, true);
-      }
       compute_lazy_merge_chunk_combination(combinations, next_current, next_process);
     }
   }
@@ -81,25 +78,29 @@ void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(std::vect
 
 size_t napsat::NapSAT::split_learning_possibilities(std::vector<bitset>& possibilities)
 {
+  size_t maybe_learning = 0;
   size_t non_learning = 0;
-  for (size_t i = 0; i < possibilities.size(); i++) {
+  while (maybe_learning + non_learning < possibilities.size()) {
     bool learning_found = false;
     for (Tclause conflict : _conflicts) {
-      if (!conflict_is_UIP_cut(conflict, possibilities[i])) {
+      if (!conflict_is_UIP_cut(conflict, possibilities[maybe_learning])) {
         learning_found = true;
         break;
       }
     }
     if (!learning_found) {
       non_learning++;
-      bitset tmp = possibilities[i];
+      bitset tmp = possibilities[maybe_learning];
       size_t idx = possibilities.size() - non_learning;
-      possibilities[i] = possibilities[idx];
+      possibilities[maybe_learning] = possibilities[idx];
       possibilities[idx] = tmp;
-      i--;
+      non_learning++;
+    }
+    else {
+      maybe_learning++;
     }
   }
-  return non_learning;
+  return maybe_learning;
 }
 
 bool napsat::NapSAT::learned_clause_is_redundant()
@@ -183,38 +184,47 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
 
   backtracked_chunks_subsumption(possibilities);
 
+  cout << "Found " << possibilities.size() << " backtrack possibilities." << endl;
+  for (const bitset& p : possibilities) {
+    cout << " - " << p << endl;
+  }
+
   enhance_backtrack_possibilities_with_lazy_merging(possibilities);
+
+  cout << "Found " << possibilities.size() << " backtrack possibilities after lazy merging." << endl;
+  for (const bitset& p : possibilities) {
+    cout << " - " << p << endl;
+  }
 
   return split_learning_possibilities(possibilities);
 }
 
 void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
 {
+  cout << "Calculating weights for " << weights.size() << " chunk combinations." << endl;
+  cout << "  Weights: \n";
+  for (const Tweight& w : weights) {
+    cout << " - " << w.chunks << " (" << w.lowest_level << "-" << w.highest_level << (w.maybe_learning ? ", maybe learning" : ", no learning") << "): " << w.total_weight << (w.finished ? "" : (" (not finished : " + to_string(w.give_up_point) + ")")) << endl;
+  }
+
   // sort the weights by highest lowest level
   std::sort(weights.begin(), weights.end(),
             [](const Tweight& a, const Tweight& b) { return a < b; });
 
-  double lowest_weight = weights.back().total_weight;
-  double lowest_no_learning = lowest_weight;
+  double lowest_learning = std::numeric_limits<double>::max();
+  double lowest_no_learning = lowest_learning;
 
   for (Tweight& w : weights) {
-    if (w.finished) {
-      if (w.maybe_learning && w.total_weight < lowest_weight) {
-        lowest_no_learning = w.total_weight;
-      } else if (!w.maybe_learning && w.total_weight < lowest_no_learning) {
-        lowest_no_learning = w.total_weight;
-      }
-    }
-
     // we go right to left
-    size_t end = _decision_index[w.lowest_level - 1];
-    while (--w.give_up_point >= end) {
-      size_t i = w.give_up_point;
+    size_t end = decision_lit_ptr(w.highest_level) - _trail.data();
+    while (w.give_up_point > end) {
+      ASSERT(w.give_up_point <= _trail.size());
+      size_t i = --w.give_up_point;
       Tlit lit = _trail[i];
       if (lit_chunks(lit).has_intersection(w.chunks)) {
         w.total_weight += _backtrack_cost_estimator(lit);
 
-        if (w.maybe_learning && w.total_weight > lowest_weight) {
+        if (w.maybe_learning && w.total_weight > lowest_learning) {
           // stop early, we know that this is not the best
           break;
         } else if (!w.maybe_learning && w.total_weight > lowest_no_learning) {
@@ -223,13 +233,21 @@ void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
         }
       }
     }
+    w.finished = (w.give_up_point == end);
+    if (w.finished) {
+      if (w.maybe_learning && w.total_weight < lowest_learning) {
+        lowest_learning = w.total_weight;
+      } else if (!w.maybe_learning && w.total_weight < lowest_no_learning) {
+        lowest_no_learning = w.total_weight;
+      }
+    }
   }
   // sort again, such that the best candidate is first
   std::sort(weights.begin(), weights.end(),
             [](const Tweight& a, const Tweight& b) { return a < b; });
 }
 
-bool napsat::NapSAT::conflict_is_UIP_cut(Tclause conflict, bitset& chunks)
+bool napsat::NapSAT::conflict_is_UIP_cut(Tclause conflict, const bitset& chunks)
 {
   bool found = false;
   const Tlit* lits = clause_lits(conflict);
@@ -240,11 +258,11 @@ bool napsat::NapSAT::conflict_is_UIP_cut(Tclause conflict, bitset& chunks)
       found = true;
     }
   }
-  ASSERT(found);
+  ASSERT_MSG(found, "The conflict " + clause_to_string(conflict) + " does not contain any chunk from " + chunks.to_string());
   return found;
 }
 
-bool napsat::NapSAT::conflict_is_UIP_cut(Tclause conflict)
+bool napsat::NapSAT::conflict_is_UIP_cut(Tclause conflict, Tlevel level)
 {
   ASSERT(!_options.graph_backtracking);
   ASSERT(conflict != CLAUSE_UNDEF);
@@ -254,16 +272,14 @@ bool napsat::NapSAT::conflict_is_UIP_cut(Tclause conflict)
   unsigned count = 1;
   for (unsigned i = 1; i < clause_size(conflict); i++) {
     Tlevel lvl = lit_level(lits[i]);
-    if (lvl == high_lvl) {
+    if (lvl == high_lvl)
       count++;
-      if (count > 1)
-        return false;
-    } else if (lvl > high_lvl) {
+    if (lvl > high_lvl) {
       high_lvl = lvl;
       count = 1;
     }
   }
-  return true;
+  return count == 1;
 }
 
 bool napsat::NapSAT::lit_is_required_in_learned_clause(Tlit lit)
@@ -293,6 +309,11 @@ bool napsat::NapSAT::lit_analyzed(Tlit lit, const bitset& chunks)
 
 template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
+  cout << "  Analyzing";
+  for (size_t i = 0; i < _next_literal_index; i++) {
+    cout << lit_to_string(_literal_buffer[i]) << " ";
+  }
+  cout << endl;
 #ifndef NDEBUG
   // check that all variables are unmarked
   for (unsigned i = 0; i < _vars.size(); i++) {
@@ -419,26 +440,26 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
   if (_options.graph_backtracking) {
     // If could be that the undefined literal is not the first one
     // We need to find the undefined literal and put it at the first position
-    Tlit* undef_lit = nullptr;
+    Tlit* undef_or_sat_lit = nullptr;
     for (Tlit* i = lits; i < end; i++) {
-      if (lit_undef(*i)) {
-        undef_lit = i;
+      if (!lit_false(*i)) {
+        undef_or_sat_lit = i;
         break;
       }
     }
-    ASSERT(undef_lit != nullptr);
-    ASSERT(lit_undef(*undef_lit));
-    if (undef_lit == lits + 1) {
+    ASSERT(undef_or_sat_lit != nullptr);
+    ASSERT(!lit_false(*undef_or_sat_lit));
+    if (undef_or_sat_lit == lits + 1) {
       // just swap the first two literals
       Tlit tmp = lits[0];
       lits[0] = lits[1];
       lits[1] = tmp;
-    } else if (undef_lit > lits + 1) {
+    } else if (undef_or_sat_lit > lits + 1) {
       // the undefined literal is somewhere else in the clause. We need to change the watched literals
       stop_watch(lits[0], conflict);
       Tlit tmp = lits[0];
-      lits[0] = *undef_lit;
-      *undef_lit = tmp;
+      lits[0] = *undef_or_sat_lit;
+      *undef_or_sat_lit = tmp;
       watch_lit(lits[0], conflict);
     }
 
@@ -446,7 +467,12 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
     // This is similar to the highest level in chronological backtracking, but we use the chunk instead
     Tlit* high_lit = lits + 1;
     unsigned chunk_count = lit_chunks(*high_lit).count();
-    for (Tlit* i = lits + 2; i < end; i++) {
+    for (Tlit* i = lits + 1; i < end; i++) {
+      if (!lit_false(*i)) {
+        high_lit = i;
+        break;
+      }
+
       unsigned curr_chunk_count = lit_chunks(*i).count();
       if (curr_chunk_count > chunk_count) {
         chunk_count = curr_chunk_count;
@@ -509,6 +535,7 @@ void napsat::NapSAT::repair_unary_clause_conflict(Tclause conflict)
 
 void NapSAT::repair_conflicts()
 {
+  print_trail();
   /**
    * Precondition:
    * - The conflict clause C is conflicting with the current partial assignment π
@@ -519,7 +546,17 @@ void NapSAT::repair_conflicts()
    *    δ(c₁) = δ(C)
    */
   ASSERT(!_conflicts.empty());
-  ASSERT(!_options.exhaustive_conflict_search || _conflicts.size() == 1);
+  ASSERT(_options.exhaustive_conflict_search || _conflicts.size() == 1);
+
+  // in general, a conflict may appear twice in the list.
+  // clean up duplicates
+  std::sort(_conflicts.begin(), _conflicts.end());
+  _conflicts.erase(std::unique(_conflicts.begin(), _conflicts.end()), _conflicts.end());
+
+  cout << "Repairing " << _conflicts.size() << " conflicts." << endl;
+  for (Tclause conflict : _conflicts) {
+    cout << "  Conflict: " << clause_to_string(conflict) << endl;
+  }
 
   if (_status == SAT)
     _status = UNDEF;
@@ -536,71 +573,209 @@ void NapSAT::repair_conflicts()
   if (_options.graph_backtracking) {
     graph_repair();
   } else {
-    // chronological backtracking
-    Tlevel repair_level = compute_repair_level();
-
-    for (Tclause conflict : _conflicts) {
-      if (lit_level(clause_lits(conflict)[0]) > repair_level) {
-        continue;
-      }
-
-      ASSERT(lit_level(clause_lits(conflict)[0]) == repair_level);
-      vector<Tclause> implying_conflicts;
-      vector<vector<Tlit>> learned_clauses;
-      if (conflict_is_UIP_cut(conflict)) {
-        implying_conflicts.push_back(conflict);
-        continue;
-      }
-
-      // we try to learn a clause
-      // fill in the literal buffer
-      ASSERT(_next_literal_index == 0);
-      Tlit* lits = clause_lits(conflict);
-      for (unsigned j = 0; j < clause_size(conflict); j++) {
-        Tlit lit = lits[j];
-        ASSERT(lit_false(lit));
-        _literal_buffer[_next_literal_index++] = lit;
-      }
-
-      do {
-        analyze_conflict(repair_level);
-
-        Tlit uip = _literal_buffer[0];
-        Tclause lazy_reason = lit_lazy_reason(uip);
-        if (lazy_reason == CLAUSE_UNDEF) {
-          // we found the learned clause
-          if (_proof) {
-            _proof->finalize_resolution(_clauses.size() + learned_clauses.size(),
-              _literal_buffer, _next_literal_index);
-          }
-          learned_clauses.push_back(vector<Tlit>(_literal_buffer, _literal_buffer + _next_literal_index));
-          break;
-        }
-        Tlit* lazy_lits = clause_lits(lazy_reason);
-        for (unsigned j = 0; j < clause_size(lazy_reason); j++) {
-          Tlit lit = lazy_lits[j];
-          if (lit == lit_neg(uip))
-            continue;
-          _literal_buffer[_next_literal_index++] = lit;
-        }
-        // remove the UIP from the learned clause
-        _literal_buffer[0] = _literal_buffer[--_next_literal_index];
-        if (_proof) {
-          _proof->link_resolution(lit_neg(uip), lazy_reason);
-        }
-      } while(true);
-    }
-
+    level_repair();
   }
 
+  _conflicts.clear();
   _var_activity_increment /= _options.var_activity_decay;
+  print_trail();
+}
+
+bool napsat::NapSAT::propagating_after_analysis(Tclause conflict, const bitset& chunks)
+{
+  bitset conflict_chunks = clause_chunks(conflict);
+  conflict_chunks &= chunks;
+  if (!_options.lazy_chunk_merging) {
+    return conflict_chunks.count() == 1;
+  }
+  unsigned chunk_count = conflict_chunks.count();
+  for (auto it = conflict_chunks.cbegin(); it != conflict_chunks.cend(); ++it) {
+    Tchunk chunk = *it;
+    const bitset& reimplied_chunks = _chunks[chunk].missed_implication;
+    if (conflict_chunks.has_intersection(reimplied_chunks)) {
+      chunk_count--;
+    }
+  }
+  return chunk_count == 1;
+}
+
+bool napsat::NapSAT::propagating_after_analysis(Tclause conflict, Tlevel level)
+{
+  if (!_options.chronological_backtracking) {
+    return true;
+  }
+
+  const Tlit* lits = clause_lits(conflict);
+  Tlevel highest = lit_level(lits[0]);
+  Tlevel second_highest = LEVEL_ROOT;
+  for (unsigned i = 1; i < clause_size(conflict); i++) {
+    ASSERT(lit_level(lits[i]) <= highest);
+    Tlevel lvl = lit_level(lits[i]);
+    if (lvl > second_highest && lvl < highest) {
+      second_highest = lvl;
+    }
+  }
+
+  return level <= highest && second_highest <= level;
+}
+
+bool napsat::NapSAT::implication_active_after_backtrack(Tclause conflict, Tlevel level)
+{
+  return lit_level(clause_lits(conflict)[1]) <= level;
+}
+
+bool napsat::NapSAT::implication_active_after_backtrack(Tclause conflict, const bitset& chunks)
+{
+  Tlit* lits = clause_lits(conflict);
+  for (unsigned i = 1; i < clause_size(conflict); i++) {
+    if (chunks.has_intersection(lit_chunks(lits[i]))) {
+      return false;
+    }
+  }
+  return false;
+}
+
+template<typename T>
+void napsat::NapSAT::try_and_learn_impl(T& bt, vector<pair<Tclause, vector<Tlit>>>& learned_clauses)
+{
+  cout << "Trying to learn after backtrack to " << bt << endl;
+  vector<Tclause> implying_conflicts;
+
+  for (Tclause conflict : _conflicts) {
+    cout << "Considering conflict " << clause_to_string(conflict) << endl;
+    if (!propagating_after_analysis(conflict, bt)) {
+      cout << "  Not propagating after analysis" << endl;
+      continue;
+    }
+    if (conflict_is_UIP_cut(conflict, bt)) {
+      implying_conflicts.push_back(conflict);
+      cout << "  UIP cut, cannot learn." << endl;
+      continue;
+    }
+    cout << "  Propagating after analysis, attempting learning." << endl;
+
+    // we try to learn a clause
+    ASSERT(_next_literal_index == 0);
+    Tlit* lits = clause_lits(conflict);
+    for (unsigned j = 0; j < clause_size(conflict); j++) {
+      Tlit lit = lits[j];
+      ASSERT(lit_false(lit));
+      _literal_buffer[_next_literal_index++] = lit;
+    }
+    if (_proof) {
+      _proof->start_resolution_chain();
+      _proof->link_resolution(LIT_UNDEF, conflict);
+    }
+
+    do {
+      analyze_conflict(bt);
+
+      // check if the uip is a missed implication
+      Tlit uip = _literal_buffer[0];
+      Tclause lazy_reason = lit_lazy_reason(uip);
+      if (lazy_reason == CLAUSE_UNDEF) {
+        break;
+      }
+      // check if the missed implication is at a lower level
+      if (!implication_active_after_backtrack(lazy_reason, bt)) {
+        break;
+      }
+
+      // we need to continue the analysis with the missed implication
+      cout << "  The UIP " << lit_to_string(uip) << " is a missed implication, continuing analysis." << endl;
+      // fill in the literal buffer
+      if (_proof) {
+        _proof->link_resolution(lit_neg(uip), lazy_reason);
+      }
+      const Tlit* reason_lits = clause_lits(lazy_reason);
+      for (unsigned j = 1; j < clause_size(lazy_reason); j++) {
+        _literal_buffer[_next_literal_index++] = reason_lits[j];
+      }
+      // remove the uip from the learned clause
+      _literal_buffer[0] = _literal_buffer[--_next_literal_index];
+    } while (true);
+
+    cout << "  Learned clause candidate: ";
+    for (unsigned j = 0; j < _next_literal_index; j++) {
+      cout << lit_to_string(_literal_buffer[j]) << " ";
+    }
+    cout << endl;
+
+    // check if the clause is new
+    if (learned_clause_is_redundant()) {
+      cout << "  Clause is redundant." << endl;
+      if (_proof) {
+        _proof->cancel_resolution_chain();
+      }
+      _next_literal_index = 0;
+      continue;
+    }
+    // check if the clause is already learned
+    bool already_learned = false;
+    for (unsigned j = 0; j < _next_literal_index; j++) { lit_mark(_literal_buffer[j]); }
+
+    for (const pair<Tclause, vector<Tlit>>& id_clause : learned_clauses) {
+      const vector<Tlit>& clause = id_clause.second;
+      if (clause.size() != _next_literal_index)
+        continue;
+      bool all_found = true;
+      for (unsigned j = 0; j < clause.size() && all_found; j++) { all_found &= lit_marked(clause[j]); }
+      if (all_found) {
+        already_learned = true;
+        break;
+      }
+    }
+    for (unsigned j = 0; j < _next_literal_index; j++) { lit_unmark(_literal_buffer[j]); }
+    if (already_learned) {
+      if (_proof) {
+        _proof->cancel_resolution_chain();
+      }
+      _next_literal_index = 0;
+      continue;
+    }
+    // add the clause
+    vector<Tlit> learned_clause(_literal_buffer, _literal_buffer + _next_literal_index);
+    Tclause id = next_clause_id(_next_literal_index);
+    learned_clauses.push_back({id, learned_clause});
+    _next_literal_index = 0;
+    if (_proof) {
+      cout << "  Finalizing proof of learned clause " << id << endl;
+      _proof->finalize_resolution(id, learned_clause.data(), learned_clause.size());
+    }
+    cout << "  Learned clause: ";
+    for (Tlit l : learned_clause) {
+      cout << lit_to_string(l) << " ";
+    }
+    cout << endl;
+  }
+}
+
+void napsat::NapSAT::try_and_learn(const bitset& chunks, vector<pair<Tclause, vector<Tlit>>>& learned_clauses) {
+  // remove conflicts that will not propagate after backtrack
+  vector<Tclause> filtered_conflicts;
+  for (size_t i = 0; i < _conflicts.size(); i++) {
+    if (!propagating_after_analysis(_conflicts[i], chunks)) {
+      filtered_conflicts.push_back(_conflicts[i]);
+      _conflicts[i--] = _conflicts.back();
+      _conflicts.pop_back();
+    }
+  }
+
+  try_and_learn_impl(chunks, learned_clauses);
+
+  // restore the conflicts
+  for (Tclause c : filtered_conflicts) {
+    _conflicts.push_back(c);
+  }
+}
+void napsat::NapSAT::try_and_learn(Tlevel level, vector<pair<Tclause, vector<Tlit>>>& learned_clauses) {
+  try_and_learn_impl(level, learned_clauses);
 }
 
 void napsat::NapSAT::graph_repair()
 {
   vector<bitset> possibilities;
-  size_t non_learning = compute_backtrack_possibilities(_conflicts, possibilities);
-  size_t maybe_learning = possibilities.size() - non_learning;
+  size_t maybe_learning = compute_backtrack_possibilities(_conflicts, possibilities);
   ASSERT(!possibilities.empty());
 
   // Calculate the highest chunk involved in conflicts
@@ -624,138 +799,178 @@ void napsat::NapSAT::graph_repair()
     weights.push_back(w);
   }
 
-  // filter all the weights that cannot learn anything and are not at the highest level
-  // they will never be picked
-  for (size_t i = maybe_learning; i < weights.size(); i++) {
-    if (weights[i].highest_level < highest_level && !weights[i].maybe_learning) {
-      weights[i] = weights.back();
-      weights.pop_back();
-      i--;
-    }
-  }
+  vector<Tclause> implying_conflicts;
+  vector<pair<Tclause, vector<Tlit>>> learned_clauses;
+  bitset undone_chunks;
 
   do {
-    if (maybe_learning == 0) {
-      // we know that no conflict will lead to learning
-      // therefore, we need to backtrack the highest chunk in the trail
-      // filter out all possibilities that do not include the highest chunk
-      Tweight* i = weights.data();
-      Tweight* j = i + weights.size();
-      Tweight* end = i + weights.size();
-      while (i < end) {
-        if (i->highest_level < highest_level) {
-          i++;
-          continue;
-        }
-        *j++ = *i++;
+    implying_conflicts.clear();
+    learned_clauses.clear();
+
+    cout << "Weights before filtering: " << weights.size() << endl;
+    for (const Tweight& w : weights) {
+      cout << " - " << w.chunks << " (" << w.lowest_level << "-" << w.highest_level << (w.maybe_learning ? ", maybe learning" : ", no learning") << "): " << w.total_weight << (w.finished ? "" : (" (not finished : " + to_string(w.give_up_point) + ")")) << endl;
+    }
+
+    cout << "Number of maybe learning possibilities: " << maybe_learning << endl;
+
+    // filter out weights that cannot learn and are not at the highest level
+    for (size_t i = 0; i < weights.size(); i++) {
+      if (weights[i].highest_level < highest_level && !weights[i].maybe_learning) {
+        weights[i] = weights.back();
+        weights.pop_back();
+        i--;
       }
-      weights.resize(j - weights.data());
     }
 
     calculate_bitset_weights(weights);
+    ASSERT(maybe_learning <= weights.size());
 
-    // the top element is the best one
+    cout << "Calculated weights for " << weights.size() << " possibilities." << endl;
+    for (const Tweight& w : weights) {
+      cout << " - " << w.chunks << " (" << w.lowest_level << "-" << w.highest_level << (w.maybe_learning ? ", maybe learning" : ", no learning") << "): " << w.total_weight << (w.finished ? "" : (" (not finished : " + to_string(w.give_up_point) + ")")) << endl;
+    }
+    cout << "Number of maybe learning possibilities: " << maybe_learning << endl;
+
+    // the top element is the best one because it was sorted by the calculate_bitset_weights function
     ASSERT(!weights.empty());
     Tweight& best = weights[0];
-
-    bitset& undone_chunks = best.chunks;
-    bool* active_after_bt = new bool[_conflicts.size()];
-    for (Tclause conflict : _conflicts) {
-      bitset cl_chunks = clause_chunks(conflict);
-      cl_chunks &= undone_chunks;
-      // check if among the remaining chunks, some are lazily merged
-      unsigned chunk_count = cl_chunks.count();
-      for (auto it = cl_chunks.cbegin(); it != cl_chunks.cend(); ++it) {
-        Tchunk chunk = *it;
-        const bitset& reimplied_chunks = _chunks[chunk].missed_implication;
-        if (cl_chunks.has_intersection(reimplied_chunks)) {
-          chunk_count--;
-        }
-      }
-      active_after_bt[conflict] = chunk_count > 1;
-    }
-
-    vector<Tclause> implying_conflicts;
-    vector<vector<Tlit>> learned_clauses;
+    undone_chunks = best.chunks;
 
     if (best.maybe_learning) {
-      // attempt conflict analysis. Then, check if the learned clause is new
-      for (size_t i = 0; i < _conflicts.size(); i++) {
-        if (!active_after_bt[_conflicts[i]])
-          continue;
+      try_and_learn(undone_chunks, learned_clauses);
 
-        if (conflict_is_UIP_cut(_conflicts[i], undone_chunks))
-          continue;
+      if (!learned_clauses.empty() || best.highest_level == highest_level) {
+        break;
+      }
+      // learning was not possible
+      best.maybe_learning = false;
+      maybe_learning--;
+    }
+    if (maybe_learning == 0) {
+      // we have tried all the learning possibilities
+      break;
+    }
+  } while (true);
 
-        // we try to learn a clause
-        // fill in the literal buffer
-        ASSERT(_next_literal_index == 0);
-        Tlit* lits = clause_lits(_conflicts[i]);
-        for (unsigned j = 0; j < clause_size(_conflicts[i]); j++) {
-          Tlit lit = lits[j];
-          ASSERT(lit_false(lit));
-          _literal_buffer[_next_literal_index++] = lit;
-        }
-        if (_proof) {
-          _proof->start_resolution_chain();
-          _proof->link_resolution(LIT_UNDEF, _conflicts[i]);
-        }
-        analyze_conflict(undone_chunks);
+  cout << "Backtracking to chunks " << undone_chunks << endl;
+  backtrack(undone_chunks);
 
-        // check if the clause is new
-        if (learned_clause_is_redundant()) {
-          implying_conflicts.push_back(_conflicts[i]);
-          if (_proof) {
-            _proof->cancel_resolution_chain();
-          }
-        }
-        else {
-          vector<Tlit> learned_clause(_literal_buffer, _literal_buffer + _next_literal_index);
-          if (_proof) {
-            _proof->finalize_resolution(_clauses.size() + learned_clauses.size(),
-              learned_clause.data(), learned_clause.size());
-          }
-          learned_clauses.push_back(learned_clause);
+  vector<bool> subsumed(learned_clauses.size(), false);
+  // do a backward subsumption check on the learned clauses
+  for (size_t i = 0; i < learned_clauses.size(); i++) {
+    if (subsumed[i])
+      continue;
+    // check if the clause i is subsumed by any later clause
+    for (Tlit lit : learned_clauses[i].second) { lit_mark(lit); }
+
+    for (size_t j = i + 1; j < learned_clauses.size(); j++) {
+      if (subsumed[j])
+        continue;
+
+      bool all_found = true;
+      for (Tlit lit : learned_clauses[j].second) {
+        if (!lit_marked(lit)) {
+          all_found = false;
+          break;
         }
       }
-
-      if (!learned_clauses.empty()) {
-        // we found a learned clause
-        // we need to backtrack and add the clause
-        backtrack(undone_chunks);
-        ASSERT(!implying_conflicts.empty() || !_conflicts.empty());
-        for (Tclause conflict : implying_conflicts) {
-          fix_watched_literals(conflict);
-          imply_literal(clause_lits(conflict)[0], conflict);
-        }
-        for (const vector<Tlit>& lits : learned_clauses) {
-          internal_add_clause(lits.data(), lits.size(), true, false);
-        }
-        delete[] active_after_bt;
+      if (all_found) {
+        subsumed[i] = true;
         break;
       }
     }
+    for (Tlit lit : learned_clauses[i].second) { lit_unmark(lit); }
+  }
 
-    if (!best.highest_level) {
-      // remove the possibility
-      weights.erase(weights.begin());
-      maybe_learning--;
-      delete[] active_after_bt;
+  for (size_t i = 0; i < learned_clauses.size(); i++) {
+    // skip the subsumed clauses for now. Add them at the end, then delete them
+    // todo, make this better.
+    if (subsumed[i])
+      continue;
+    auto& id_clause = learned_clauses[i];
+    Tclause id = id_clause.first;
+    const vector<Tlit>& clause = id_clause.second;
+
+    internal_add_clause(clause.data(), clause.size(), true, false, id);
+    cout << "Adding learned clause " << clause_to_string(id) << endl;
+  }
+  for (size_t i = 0; i < learned_clauses.size(); i++) {
+    if (!subsumed[i])
+      continue;
+    auto& id_clause = learned_clauses[i];
+    Tclause id = id_clause.first;
+    const vector<Tlit>& clause = id_clause.second;
+
+    Tclause new_id = internal_add_clause(clause.data(), clause.size(), true, false, id);
+    if (new_id == CLAUSE_UNDEF) {
+      // the clause was not added because it was satisfied at level 0
       continue;
     }
-
-    // we backtrack without learning, but at the highest level
-    backtrack(best.highest_level);
-    for (size_t i = 0; i < _conflicts.size(); i++) {
-      if (!active_after_bt[_conflicts[i]])
-        continue;
-      fix_watched_literals(_conflicts[i]);
-      Tlit* lits = clause_lits(_conflicts[i]);
-      ASSERT(lit_undef(lits[0]));
-      if (lit_false(lits[1])) {
-        imply_literal(lits[0], _conflicts[i]);
-      }
+    cout << "Adding subsumed clause " << clause_to_string(id) << " to proof and removing it." << endl;
+    ASSERT(lit_reason(clause[0]) != id);
+    // the clause should be at the back of the watch lists
+    // we need to remove it from the watch lists
+    ASSERT(clause.size() > 1);
+    Tlit* lits = clause_lits(id);
+    if (clause.size() == 2) {
+      ASSERT(_binary_watches[lits[0]].back().cl == id);
+      _binary_watches[lits[0]].pop_back();
+      ASSERT(_binary_watches[lits[1]].back().cl == id);
+      _binary_watches[lits[1]].pop_back();
+    } else {
+      ASSERT(_watches[lits[0]].back().cl == id);
+      _watches[lits[0]].pop_back();
+      ASSERT(_watches[lits[1]].back().cl == id);
+      _watches[lits[1]].pop_back();
     }
-    break;
-  } while (true);
+    ASSERT(!is_protected(id));
+    delete_clause(id);
+  }
+
+  for (Tclause conflict : _conflicts) {
+    fix_watched_literals(conflict);
+    Tlit* lits = clause_lits(conflict);
+    if (lit_undef(lits[0]) && lit_false(lits[1])) {
+      cout << "  Re-propagating conflict literal " << lit_to_string(lits[0]) << " from conflict " << clause_to_string(conflict) << endl;
+      imply_literal(lits[0], conflict);
+    }
+  }
+}
+
+void napsat::NapSAT::level_repair()
+{
+  // chronological backtracking
+  Tlevel repair_level = compute_repair_level();
+  cout << "Repair level is " << repair_level << endl;
+
+  vector<pair<Tclause, vector<Tlit>>> learned_clauses;
+
+  try_and_learn(repair_level, learned_clauses);
+
+  Tlevel bt = LEVEL_UNDEF;
+  for (Tclause conflict : _conflicts) {
+    bt = min(choose_backtracked_level(clause_lits(conflict), clause_size(conflict)), bt);
+  }
+  for (pair<Tclause, vector<Tlit>>& id_clause : learned_clauses) {
+    vector<Tlit>& clause = id_clause.second;
+    bt = min(choose_backtracked_level(clause.data(), clause.size()), bt);
+  }
+
+  backtrack(bt);
+
+  for (const pair<Tclause, vector<Tlit>>& id_clause : learned_clauses) {
+    Tclause id = id_clause.first;
+    const vector<Tlit>& clause = id_clause.second;
+
+    internal_add_clause(clause.data(), clause.size(), true, false, id);
+  }
+
+  for (Tclause conflict : _conflicts) {
+    fix_watched_literals(conflict);
+    Tlit* lits = clause_lits(conflict);
+    if (lit_undef(lits[0]) && lit_false(lits[1])) {
+      imply_literal(lits[0], conflict);
+    }
+  }
 }

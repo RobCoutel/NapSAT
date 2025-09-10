@@ -191,8 +191,8 @@ void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
   if (lit_lazy_reason(lit) != CLAUSE_UNDEF
    && lit_level(clause_lits(lit_lazy_reason(lit))[1]) <= reimplication_level)
     return;
-
   lit_lazy_reason(lit) = reason;
+  NOTIFY_OBSERVER(_observer, new napsat::gui::missed_lower_implication(lit_to_var(lit), reason));
 }
 
 
@@ -393,18 +393,17 @@ bool NapSAT::propagate()
       _vars[lit_to_var(lit)].propagated = true;
       _n_propagated_lits++;
       NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
-      continue;
-    } else if (!_options.exhaustive_conflict_search || _n_propagated_lits == _trail.size()) {
-      if (!_conflicts.empty()) {
-        repair_conflicts();
-        if (_status == UNSAT)
-          return false;
-        if (!_options.no_restart && _luby_counter.increment()) {
-          restart();
-        }
+    }
+    if ((!_options.exhaustive_conflict_search || _n_propagated_lits == _trail.size()) && !_conflicts.empty()) {
+      repair_conflicts();
+      if (_status == UNSAT)
+        return false;
+      if (!_options.no_restart && _luby_counter.increment()) {
+        restart();
       }
     }
   }
+
   if (_trail.size() == _vars.size() - 1) {
     _status = SAT;
     return false;
@@ -488,11 +487,6 @@ bool NapSAT::decide()
     return false;
   }
   Tvar var = _variable_heap.top();
-
-  if (_options.graph_backtracking) {
-    // decay the variable activity
-    _vars[var].activity *= _options.decision_activity_decay;
-  }
 
   ASSERT(var_constrained(var));
   Tlit lit = literal(var, _vars[var].phase_cache);

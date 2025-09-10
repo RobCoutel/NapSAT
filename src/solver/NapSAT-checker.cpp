@@ -68,7 +68,7 @@ bool napsat::NapSAT::clause_falsified(Tclause cl) const
 bool napsat::NapSAT::lit_needs_fixing(Tlit lit) const
 {
   lit = lit_neg(lit);
-  for (const TSwatch& bw : _binary_watch[lit]) {
+  for (const TSwatch& bw : _binary_watches[lit]) {
     if (!lit_true(bw.block))
       return true;
   }
@@ -98,8 +98,9 @@ bool napsat::NapSAT::lit_is_max_literal(Tlit lit, const Tlit* lits, size_t size)
     }
   } else {
     for (size_t i = 0; i < size; i++) {
-      if (lit_level(lit) < lit_level(lits[i]))
+      if (lit_level(lit) < lit_level(lits[i])) {
         return false;
+      }
     }
   }
   return true;
@@ -137,7 +138,7 @@ bool napsat::NapSAT::is_watched(Tlit lit, Tclause cl)
 {
   if (_clauses[cl].size == 2) {
     // check the binary clause list
-    for (TSwatch &w : _binary_watch[lit])
+    for (TSwatch &w : _binary_watches[lit])
       if (w.cl == cl)
         return true;
     return false;

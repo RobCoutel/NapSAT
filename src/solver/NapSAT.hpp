@@ -598,11 +598,11 @@ public:
      */
     std::vector<std::vector<TSwatch>> _watches;
     /**
-     * @brief _binary_watch[l] is the contains the pairs <lit, cl> where lit
+     * @brief _binary_watches[l] is the contains the pairs <lit, cl> where lit
      * is a literal to be propagated if l is falsified, and <cl> is the clause
      * that propagates lit.
     */
-    std::vector<std::vector<TSwatch>> _binary_watch;
+    std::vector<std::vector<TSwatch>> _binary_watches;
     /**
      * @brief _decision_index[i] is the index of the decision made after level i.
      * @remark _decision_index[0] is the index of the first decision.
@@ -907,6 +907,31 @@ public:
      */
     inline bool lit_decision(Tlit lit) const { return var_decision(lit_to_var(lit)); }
 
+    /**
+     * @brief Returns the decision literal at the given level.
+     * @param level decision level to evaluate.
+     * @return decision literal at the given level.
+     * @pre 1 <= level <= solver_level()
+     */
+    inline Tlit decision_lit(Tlevel level) const {
+      ASSERT(level >= 1);
+      ASSERT(level <= solver_level());
+      ASSERT(lit_decision(_trail[_decision_index[level - 1]]));
+      ASSERT(lit_level(_trail[_decision_index[level - 1]]) == level);
+      return _trail[_decision_index[level - 1]];
+    }
+    inline Tlit* decision_lit_ptr(Tlevel level) {
+      ASSERT(level >= 1);
+      ASSERT(level <= solver_level());
+      ASSERT(lit_decision(_trail[_decision_index[level - 1]]));
+      ASSERT(lit_level(_trail[_decision_index[level - 1]]) == level);
+      return &_trail[_decision_index[level - 1]];
+    }
+
+    /**
+     * @brief Returns the current decision level of the solver.
+     * @return current decision level of the solver.
+     */
     inline Tlevel solver_level() const { return _decision_index.size(); }
 
     /** MARKERS **/
@@ -976,12 +1001,12 @@ public:
       Tclause l_reason = lit_lazy_reason(lit);
       if (l_reason == CLAUSE_UNDEF)
         return LEVEL_UNDEF;
-      Tlit* lits = _clauses[l_reason].lits;
+      Tlit* lits = clause_lits(l_reason);
       ASSERT(lit == lits[0]);
       ASSERT(lit_level(lit) > LEVEL_ROOT);
-      ASSERT(clause_unit(l_reason));
-      ASSERT(clause_size(l_reason) >= 1);
-      ASSERT(lit_is_max_literal(lits[1], lits, clause_size(l_reason) - 1));
+      ASSERT(clause_implying(l_reason));
+      ASSERT(clause_size(l_reason) > 1);
+      ASSERT(lit_is_max_literal(lits[1], lits + 1, clause_size(l_reason) - 1));
       return lit_level(lits[1]);
     }
 
@@ -1090,6 +1115,16 @@ public:
     void allocate_chunks(size_t n_chunks);
 
     /**
+     * @brief Returns the next clause identifier.
+     * @details If there are deleted clauses, returns the identifier of a
+     * deleted clause. Otherwise, returns the next identifier.
+     * Ensures that the clause has enough memory allocated to store size
+     * literals.
+     * @return the identifier of a new clause.
+     */
+    Tclause next_clause_id(size_t size);
+
+    /**
      * @brief allocates a new chunk of memory for a clause, and adds to the
      * clause set. The clause is added to the watch lists if needed (size >= 2).
      * If the clause is satisfied at level 0, the clause is not added.
@@ -1107,7 +1142,8 @@ public:
      * CLAUSE_UNDEF.
      */
     Tclause internal_add_clause(const Tlit* lits, unsigned size,
-                                bool learned, bool external);
+                                bool learned, bool external,
+                                Tclause id = CLAUSE_UNDEF);
 
     /**
      * @brief Returns the chunks of a clause.
@@ -1406,14 +1442,14 @@ public:
      * @param chunks the chunks to check against.
      * @return true if the conflict clause has exactly one literal in the chunks, false otherwise.
      */
-    bool conflict_is_UIP_cut(Tclause conflict, bitset& chunks);
+    bool conflict_is_UIP_cut(Tclause conflict, const bitset& chunks);
 
     /**
      * @brief Checks if a conflict clause has exactly one literal at the highest level.
      * @param conflict the conflict clause to check.
      * @return true if the conflict clause has exactly one literal at the highest level, false otherwise.
      */
-    bool conflict_is_UIP_cut(Tclause conflict);
+    bool conflict_is_UIP_cut(Tclause conflict, Tlevel level);
 
     /**
      * @brief Based on the conflicting clauses, compute the highest level that will fix all conflicts at once
@@ -1466,7 +1502,23 @@ public:
      */
     bool lit_is_required_in_learned_clause(Tlit lit);
 
+    bool propagating_after_analysis(Tclause conflict, const bitset& chunks);
+
+    bool propagating_after_analysis(Tclause conflict, Tlevel level);
+
+    bool implication_active_after_backtrack(Tclause conflict, Tlevel level);
+    bool implication_active_after_backtrack(Tclause conflict, const bitset& chunks);
+
+    template<typename T>
+    void try_and_learn_impl(T& bt, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
+
+    void try_and_learn(const bitset& chunks, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
+
+    void try_and_learn(Tlevel level, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
+
     void graph_repair();
+
+    void level_repair();
     /**
      * @brief Returns true if a literal must be further analyzed in conflict analysis.
      * That is, depending on the options, check the level or chunk requirements.

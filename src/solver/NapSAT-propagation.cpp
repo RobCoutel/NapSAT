@@ -117,7 +117,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
   c1 = lit_neg(c1);
   ASSERT(lit_false(c1));
 
-  for (TSwatch& w : _binary_watch[c1]) {
+  for (TSwatch& w : _binary_watches[c1]) {
     Tlit c2 = w.block;
     Tclause cl = w.cl;
     ASSERT(clause_size(cl) == 2);
@@ -466,7 +466,8 @@ void NapSAT::propagate_lit(Tlit lit)
       }
       watch_list.resize(end - watch_list.data());
       _conflicts.push_back(cl);
-      if (!_options.graph_backtracking) {
+      cout << "conflict found " << clause_to_string(cl) << endl;
+      if (!_options.exhaustive_conflict_search) {
         return;
       } else {
         continue;

@@ -489,7 +489,7 @@ std::string napsat::gui::observer::variable_to_string(napsat::Tvar var)
     if (_variables[var].value == VAR_UNDEF)
       s += "\033[0;33mundef\033[0m";
     else if (_variables[var].value == VAR_TRUE)
-      s += "\033[0;32mtrue\033[0m";
+      s += "\033[0;32mtrue \033[0m";
     else if (_variables[var].value == VAR_FALSE)
       s += "\033[0;31mfalse\033[0m";
     else
@@ -653,7 +653,7 @@ void napsat::gui::observer::print_clause_set()
     // print the clauses
     for (unsigned i = 0; i < n_lines; i++) {
       for (unsigned j = 0; j < n_columns; j++) {
-        unsigned k = i + j * n_lines;
+        unsigned k = i * n_columns + j;
         if (k >= clauses_str.size())
           break;
         cout << clauses_str[k];

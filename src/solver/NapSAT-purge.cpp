@@ -26,12 +26,12 @@ void napsat::NapSAT::repair_watch_lists()
 {
   /** REPAIR BINARY WATCH LIST **/
   for (Tlit lit = 2; lit < _watches.size(); lit++) {
-    for (unsigned j = 0; j < _binary_watch[lit].size(); j++) {
-      Tclause cl = _binary_watch[lit][j].cl;
+    for (unsigned j = 0; j < _binary_watches[lit].size(); j++) {
+      Tclause cl = _binary_watches[lit][j].cl;
       ASSERT_MSG(cl != CLAUSE_UNDEF,
-        "Error: binary clause " << lit_to_string(lit) << " <- " << lit_to_string(_binary_watch[lit][j].block) << " is undefined");
+        "Error: binary clause " << lit_to_string(lit) << " <- " << lit_to_string(_binary_watches[lit][j].block) << " is undefined");
       if (_clauses[cl].deleted) {
-        _binary_watch[lit].erase(_binary_watch[lit].begin() + j);
+        _binary_watches[lit].erase(_binary_watches[lit].begin() + j);
         j--;
       }
     }
@@ -223,8 +223,8 @@ void napsat::NapSAT::purge_clauses()
     }
 
     if (clause.size == 2) {
-      _binary_watch[lits[0]].push_back(TSwatch(cl, lits[1]));
-      _binary_watch[lits[1]].push_back(TSwatch(cl, lits[0]));
+      _binary_watches[lits[0]].push_back(TSwatch(cl, lits[1]));
+      _binary_watches[lits[1]].push_back(TSwatch(cl, lits[0]));
     }
     if (clause.size == 1) {
       clause.watched = false;

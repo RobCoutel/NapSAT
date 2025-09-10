@@ -51,16 +51,55 @@ void napsat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
   lits[second_index] = tmp;
 }
 
-Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsigned input_size, bool learned, bool external)
+Tclause napsat::NapSAT::next_clause_id(size_t size)
 {
-  ASSERT(lits_input != nullptr);
+  if (_deleted_clauses.empty()) {
+    Tlit* lits = new Tlit[size];
+    TSclause added(lits, size, false, false);
+    _clauses.push_back(added);
+    _clauses_sizes.push_back(size);
+    _activities.push_back(_max_clause_activity);
+
+    return _clauses.size() - 1;
+  }
+  Tclause cl = _deleted_clauses.back();
+  ASSERT(cl < _clauses.size());
+  _deleted_clauses.pop_back();
+  TSclause& clause = _clauses[cl];
+  ASSERT(clause.deleted);
+  ASSERT(!clause.watched);
+  if (_clauses_sizes[cl] < size) {
+    delete[] clause.lits;
+    clause.lits = new Tlit[size];
+    _clauses_sizes[cl] = size;
+  }
+  clause.deleted = false;
+  clause.learned = true;
+  clause.watched = true;
+  clause.external = false;
+  // fill the end of the clause with LIT_UNDEF for printing purposes
+  // Note that this is not necessary for the solver
+  for (unsigned i = size; i < _clauses_sizes[cl]; i++)
+    clause.lits[i] = LIT_UNDEF;
+
+  return cl;
+}
+
+Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsigned input_size, bool learned, bool external, Tclause id)
+{
+  cout << "Adding clause: ";
   for (unsigned i = 0; i < input_size; i++)
-    bump_var_activity(lit_to_var(lits_input[i]));
-  Tlit* lits;
-  Tclause cl;
-  TSclause* clause;
+    cout << lit_to_string(lits_input[i]) << " ";
+  cout << endl;
+
+  ASSERT(lits_input != nullptr);
+  if (external) {
+    for (unsigned i = 0; i < input_size; i++)
+      bump_var_activity(lit_to_var(lits_input[i]));
+  }
+
   if (learned)
-    _n_learned_clauses++;
+  _n_learned_clauses++;
   if (external)
     _next_clause_elimination++;
 
@@ -70,7 +109,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   for (unsigned i = 0; !satisfied_at_root && i < input_size; i++) {
     if (lit_level(lits_input[i]) == LEVEL_ROOT) {
       // The solver should not generate redundant literals and clauses
-      ASSERT(external);
+      // ASSERT(external);
       satisfied_at_root |= lit_true(lits_input[i]);
       n_removed++;
     }
@@ -83,35 +122,17 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
 
   unsigned clause_size = input_size - n_removed;
 
-  if (_deleted_clauses.empty()) {
-    lits = new Tlit[clause_size];
-    TSclause added(lits, clause_size, learned, external);
-    _clauses.push_back(added);
-    _clauses_sizes.push_back(clause_size);
-    _activities.push_back(_max_clause_activity);
-    clause = &_clauses.back();
-    cl = _clauses.size() - 1;
+  if (id == CLAUSE_UNDEF) {
+    id = next_clause_id(clause_size);
   }
-  else {
-    cl = _deleted_clauses.back();
-    ASSERT(cl < _clauses.size());
-    _deleted_clauses.pop_back();
-    clause = &_clauses[cl];
-    ASSERT(clause->deleted);
-    ASSERT(!clause->watched);
-    if (_clauses_sizes[cl] < clause_size) {
-      delete[] clause->lits;
-      clause->lits = new Tlit[clause_size];
-      _clauses_sizes[cl] = clause_size;
-    }
-    // fill the end of the clause with LIT_UNDEF for printing purposes
-    // Note that this is not necessary for the solver
-    for (unsigned i = clause_size; i < _clauses_sizes[cl]; i++)
-      clause->lits[i] = LIT_UNDEF;
 
-    lits = clause->lits;
-    *clause = TSclause(lits, clause_size, learned, external);
-  }
+  TSclause& clause = _clauses[id];
+  ASSERT(!clause.deleted);
+  clause.learned = learned;
+  clause.external = external;
+  clause.watched = clause_size >= 2;
+  clause.size = clause_size;
+  Tlit* lits = clause.lits;
 
 
   // copy the literals to the clause
@@ -124,37 +145,37 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
         continue;
       lits[j++] = lits_input[i];
     }
-    clause->size = input_size - n_removed;
+    clause.size = input_size - n_removed;
   }
 
   // Remove duplicate literals
+  cout << "Before cleanup: " << clause_to_string(id) << endl;
   if (input_size > 1) {
-    clause->size = cleanup_duplicate_literals(lits, clause->size);
+    clause.size = cleanup_duplicate_literals(lits, clause.size);
   }
-  clause_size = clause->size;
+  cout << "After cleanup: " << clause_to_string(id) << endl;
+  clause_size = clause.size;
 
   if (_proof && external) {
-    _proof->input_clause(cl, lits_input, input_size);
+    _proof->input_clause(id, lits_input, input_size);
     // Remove the literals falsified at level 0 in the proof
     if (n_removed > 0) {
-      _proof->remove_root_literals(cl);
+      _proof->remove_root_literals(id);
     }
   }
 
-  _activities[cl] = _max_clause_activity;
   #if USE_OBSERVER
   if (_observer) {
     vector<Tlit> lits_vector;
     for (unsigned i = 0; i < clause_size; i++)
       lits_vector.push_back(lits[i]);
-    _observer->notify(new napsat::gui::new_clause(cl, lits_vector, learned, external));
+    _observer->notify(new napsat::gui::new_clause(id, lits_vector, learned, external));
   }
   #endif
 
   if (clause_size == 0) {
-    clause->watched = false;
     _status = UNSAT;
-    return cl;
+    return id;
   }
 
   if (external && _options.ignore_unused_variables) {
@@ -164,27 +185,26 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   }
 
   if (clause_size == 1) {
-    clause->watched = false;
     if (lit_undef(lits[0]))
-      imply_literal(lits[0], cl);
+      imply_literal(lits[0], id);
     if (lit_true(lits[0])) {
       if (_options.lazy_strong_chronological_backtracking)
-        reimply_literal(lits[0], cl);
-      return cl;
+        reimply_literal(lits[0], id);
+      return id;
     }
     if (lit_false(lits[0])) {
-      _conflicts.push_back(cl);
+      _conflicts.push_back(id);
       repair_conflicts();
     }
-    return cl;
+    return id;
   }
   else if (clause_size == 2) { // TODO simplify this
     // clause->watched = false;
-    _binary_watch[lits[0]].push_back(TSwatch(cl, lits[1]));
-    _binary_watch[lits[1]].push_back(TSwatch(cl, lits[0]));
+    _binary_watches[lits[0]].push_back(TSwatch(id, lits[1]));
+    _binary_watches[lits[1]].push_back(TSwatch(id, lits[0]));
 #if NOTIFY_WATCH_CHANGES
-    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[0]));
-    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lits[1]));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(id, lits[0]));
+    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(id, lits[1]));
 #endif
     if (lit_false(lits[0]) && !lit_false(lits[1])) {
       // swap the literals so that the false literal is at the second position
@@ -195,37 +215,38 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     }
     if (lit_false(lits[1])) {
       if (lit_undef(lits[0]))
-        imply_literal(lits[0], cl);
+        imply_literal(lits[0], id);
       else if (lit_false(lits[0])) {
-        _conflicts.push_back(cl);
+        _conflicts.push_back(id);
         repair_conflicts();
       }
       else if (_options.lazy_strong_chronological_backtracking) {
         ASSERT(lit_true(lits[0]));
-        if (lit_lazy_reason(lits[0]) == CLAUSE_UNDEF || lit_level(clause_lits(lit_lazy_reason(lits[0]))[1]) > lit_level(lits[0]))
-          lit_lazy_reason(lits[1]) = cl;
+        reimply_literal(lits[0], id);
       }
     }
   }
   else {
+    cout << "Before selecting watched literals: " << clause_to_string(id) << endl;
     select_watched_literals(lits, clause_size);
-    watch_lit(lits[0], cl);
-    watch_lit(lits[1], cl);
+    cout << "After selecting watched literals: " << clause_to_string(id) << endl;
+    watch_lit(lits[0], id);
+    watch_lit(lits[1], id);
     if (lit_false(lits[0])) {
-      _conflicts.push_back(cl);
-        repair_conflicts();
+      _conflicts.push_back(id);
+      repair_conflicts();
     }
     else if (lit_false(lits[1]) && lit_undef(lits[0]))
-      imply_literal(lits[0], cl);
+      imply_literal(lits[0], id);
     else if (lit_false(lits[1]) && lit_true(lits[0]) && _options.lazy_strong_chronological_backtracking)
-      reimply_literal(lits[0], cl);
+      reimply_literal(lits[0], id);
   }
   if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
     simplify_clause_set();
     // The clause we just added should not be deleted
-    ASSERT(!_clauses[cl].deleted);
+    ASSERT(!_clauses[id].deleted);
   }
-  return cl;
+  return id;
 }
 
 void napsat::NapSAT::delete_clause(Tclause cl)
