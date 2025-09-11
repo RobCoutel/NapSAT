@@ -1509,8 +1509,11 @@ public:
     bool implication_active_after_backtrack(Tclause conflict, Tlevel level);
     bool implication_active_after_backtrack(Tclause conflict, const bitset& chunks);
 
+    const bitset& update_bt_after_analysis(const bitset& chunks);
+    Tlevel update_bt_after_analysis(Tlevel level);
+
     template<typename T>
-    void try_and_learn_impl(T& bt, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
+    void try_and_learn_impl(T bt, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
 
     void try_and_learn(const bitset& chunks, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
 

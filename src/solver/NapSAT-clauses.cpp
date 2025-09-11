@@ -59,7 +59,7 @@ Tclause napsat::NapSAT::next_clause_id(size_t size)
     _clauses.push_back(added);
     _clauses_sizes.push_back(size);
     _activities.push_back(_max_clause_activity);
-
+    cout << "New clause id: " << _clauses.size() - 1 << endl;
     return _clauses.size() - 1;
   }
   Tclause cl = _deleted_clauses.back();
@@ -117,8 +117,18 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   // If the clause is satisfied at level 0, we do not need to add it
   // No need to justify it in the proof since clauses satisfied at level 0 and not propagating are not necessary for the proof
   // If it is satisfied already here, it means another clauses propagates the literal at level 0
-  if (satisfied_at_root)
+  if (satisfied_at_root) {
+    if (id != CLAUSE_UNDEF) {
+      NOTIFY_OBSERVER(_observer, new napsat::gui::new_clause(id, vector<Tlit>(lits_input, lits_input + input_size), learned, external));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(id));
+      _clauses[id].deleted = true;
+      _clauses[id].watched = false;
+      if (_proof)
+        _proof->deactivate_clause(id);
+      _deleted_clauses.push_back(id);
+    }
     return CLAUSE_UNDEF;
+  }
 
   unsigned clause_size = input_size - n_removed;
 

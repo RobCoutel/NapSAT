@@ -635,8 +635,23 @@ bool napsat::NapSAT::implication_active_after_backtrack(Tclause conflict, const 
   return false;
 }
 
+const bitset& napsat::NapSAT::update_bt_after_analysis(const bitset& chunks)
+{
+  return chunks;
+}
+
+Tlevel napsat::NapSAT::update_bt_after_analysis(Tlevel level)
+{
+  Tlevel new_level = LEVEL_ROOT;
+  for (unsigned j = 0; j < _next_literal_index; j++) {
+    new_level = std::max(new_level, lit_level(_literal_buffer[j]));
+  }
+  ASSERT(new_level < level);
+  return new_level;
+}
+
 template<typename T>
-void napsat::NapSAT::try_and_learn_impl(T& bt, vector<pair<Tclause, vector<Tlit>>>& learned_clauses)
+void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learned_clauses)
 {
   cout << "Trying to learn after backtrack to " << bt << endl;
   vector<Tclause> implying_conflicts;
@@ -667,6 +682,7 @@ void napsat::NapSAT::try_and_learn_impl(T& bt, vector<pair<Tclause, vector<Tlit>
       _proof->link_resolution(LIT_UNDEF, conflict);
     }
 
+    T bt_save = bt;
     do {
       analyze_conflict(bt);
 
@@ -693,7 +709,10 @@ void napsat::NapSAT::try_and_learn_impl(T& bt, vector<pair<Tclause, vector<Tlit>
       }
       // remove the uip from the learned clause
       _literal_buffer[0] = _literal_buffer[--_next_literal_index];
+
+      bt = update_bt_after_analysis(bt);
     } while (true);
+    bt = bt_save;
 
     cout << "  Learned clause candidate: ";
     for (unsigned j = 0; j < _next_literal_index; j++) {
@@ -733,6 +752,7 @@ void napsat::NapSAT::try_and_learn_impl(T& bt, vector<pair<Tclause, vector<Tlit>
       _next_literal_index = 0;
       continue;
     }
+
     // add the clause
     vector<Tlit> learned_clause(_literal_buffer, _literal_buffer + _next_literal_index);
     Tclause id = next_clause_id(_next_literal_index);
@@ -839,6 +859,7 @@ void napsat::NapSAT::graph_repair()
 
     if (best.maybe_learning) {
       try_and_learn(undone_chunks, learned_clauses);
+      cout << "Tried learning with chunks " << undone_chunks << ", learned " << learned_clauses.size() << " clauses." << endl;
 
       if (!learned_clauses.empty() || best.highest_level == highest_level) {
         break;
@@ -853,8 +874,9 @@ void napsat::NapSAT::graph_repair()
     }
   } while (true);
 
-  cout << "Backtracking to chunks " << undone_chunks << endl;
+  cout << "Backtracking chunks " << undone_chunks << endl;
   backtrack(undone_chunks);
+  print_trail();
 
   vector<bool> subsumed(learned_clauses.size(), false);
   // do a backward subsumption check on the learned clauses
@@ -877,6 +899,7 @@ void napsat::NapSAT::graph_repair()
       }
       if (all_found) {
         subsumed[i] = true;
+        cout << "Learned clause " << i << " is subsumed by learned clause " << j << endl;
         break;
       }
     }
@@ -886,8 +909,14 @@ void napsat::NapSAT::graph_repair()
   for (size_t i = 0; i < learned_clauses.size(); i++) {
     // skip the subsumed clauses for now. Add them at the end, then delete them
     // todo, make this better.
-    if (subsumed[i])
+    cout << "Looking at learned clause " << i << (subsumed[i] ? " (subsumed)" : "");
+    for (Tlit lit : learned_clauses[i].second) {
+      cout << "  " << lit_to_string(lit) << " ";
+    }
+    cout << endl;
+    if (subsumed[i]) {
       continue;
+    }
     auto& id_clause = learned_clauses[i];
     Tclause id = id_clause.first;
     const vector<Tlit>& clause = id_clause.second;

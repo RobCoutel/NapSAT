@@ -97,6 +97,8 @@ bool napsat::gui::observer::check_trail_sanity()
   bool success = true;
   for (Tclause cl = 0; cl < _active_clauses.size(); cl++) {
     clause *c = _active_clauses[cl];
+    if (c == nullptr)
+      cerr << "Error: clause " << cl << " is a null pointer." << endl;
     assert (c != nullptr);
     if (!c->active)
       continue;
