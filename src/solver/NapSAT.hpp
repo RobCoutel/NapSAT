@@ -1239,7 +1239,7 @@ namespace napsat
      * the learned clause, making it not propagating anymore.
      * @param conflict clause that caused the conflict.
      */
-    bitset choose_analyzed_chunk(Tclause conflict);
+    bitset choose_analyzed_chunk(Tclause conflict, const std::vector<bitset>& combinations);
 
     bool conflict_has_one_literal_in_chunks(Tclause conflict, bitset& chunks);
 
@@ -1592,6 +1592,13 @@ namespace napsat
      * @pre The proof must be enabled.
     */
     bool check_proof();
+
+    /**
+     * @brief Returns the assignment satisfies all clauses
+     * @param assignment vector of literals representing the assignment.
+     * @return true if the assignment satisfies all clauses, false otherwise.
+     */
+    bool check_model(const std::vector<Tlit>& assignment) const;
 
     /*************************************************************************/
     /*                        Printing the state                             */

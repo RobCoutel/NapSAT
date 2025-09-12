@@ -117,6 +117,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
 
   if (svar.level == LEVEL_ROOT) {
     _n_root_lvl_lits++;
+    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Root level literal"));
     if (_proof)
       _proof->root_assign(lit, reason);
   }
@@ -1086,32 +1087,30 @@ static unsigned estimate_backtrack_cost(Tlit lits) {
   return 1;
 }
 
-bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
+bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict, const vector<bitset>& possible_set_of_chunks) {
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(_options.graph_backtracking);
   ASSERT(_clauses[conflict].size > 0);
 
-  vector<bitset> possible_set_of_chunks;
+  vector<bitset> possible_set_of_chunks_copy = possible_set_of_chunks;
 
-  compute_chunk_combination(conflict, possible_set_of_chunks, bitset(_n_allocated_chunks));
-
-  if (possible_set_of_chunks.empty()) {
+  if (possible_set_of_chunks_copy.empty()) {
     // all literals must either be at root level, or the decision is reimplied at level 0
     ASSERT(lit_level(_clauses[conflict].lits[0]) == LEVEL_ROOT);
     return bitset(_n_allocated_chunks);
   }
 
-  vector<double> weights(possible_set_of_chunks.size());
-  vector<Tlevel> chunks_level(possible_set_of_chunks.size());
-  vector<double> penalty(possible_set_of_chunks.size());
-  for (size_t i = 0; i < possible_set_of_chunks.size(); i++) {
+  vector<double> weights(possible_set_of_chunks_copy.size());
+  vector<Tlevel> chunks_level(possible_set_of_chunks_copy.size());
+  vector<double> penalty(possible_set_of_chunks_copy.size());
+  for (size_t i = 0; i < possible_set_of_chunks_copy.size(); i++) {
     Tlevel level = LEVEL_UNDEF;
-    for (auto j = possible_set_of_chunks[i].cbegin(); j != possible_set_of_chunks[i].cend(); ++j) {
+    for (auto j = possible_set_of_chunks_copy[i].cbegin(); j != possible_set_of_chunks_copy[i].cend(); ++j) {
       level = std::min(level, var_level(_chunks[*j].decision));
     }
     chunks_level[i] = level;
 
-    if (conflict_has_one_literal_in_chunks(conflict, possible_set_of_chunks[i])) {
+    if (conflict_has_one_literal_in_chunks(conflict, possible_set_of_chunks_copy[i])) {
       penalty[i] = _options.conflict_penalty;
     } else {
       penalty[i] = 1.0;
@@ -1122,7 +1121,7 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
   bitset lightest_chunk_set;
 
   for (size_t i = _trail.size(); i-- > 0;) {
-    if (possible_set_of_chunks.size() == 0) {
+    if (possible_set_of_chunks_copy.size() == 0) {
       break;
     }
 
@@ -1130,21 +1129,21 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     // if it is a decision, check if we have finished calculating some sets
     if (lit_decision(lit)) {
       Tlevel level = lit_level(lit);
-      for (size_t j = 0; j < possible_set_of_chunks.size(); j++) {
+      for (size_t j = 0; j < possible_set_of_chunks_copy.size(); j++) {
         if (chunks_level[j] == level) {
           weights[j] += estimate_backtrack_cost(lit) * penalty[j];
           // we have finished calculating the weight of this set
           if (weights[j] < min_weight) {
             min_weight = weights[j];
-            lightest_chunk_set = possible_set_of_chunks[j];
+            lightest_chunk_set = possible_set_of_chunks_copy[j];
           }
           if (weights[j] == min_weight) {
             NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Weight tie"));
           }
-          possible_set_of_chunks[j] = possible_set_of_chunks.back();
+          possible_set_of_chunks_copy[j] = possible_set_of_chunks_copy.back();
           chunks_level[j] = chunks_level.back();
           weights[j] = weights.back();
-          possible_set_of_chunks.pop_back();
+          possible_set_of_chunks_copy.pop_back();
           chunks_level.pop_back();
           weights.pop_back();
           j--;
@@ -1155,17 +1154,17 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     // update the calculated weights of the right chunks
     bitset& chunks = lit_chunks(lit);
     unsigned lit_weight = _backtrack_cost_estimator(lit);
-    for (size_t j = 0; j < possible_set_of_chunks.size(); j++) {
-      if (!possible_set_of_chunks[j].has_intersection(chunks)) {
+    for (size_t j = 0; j < possible_set_of_chunks_copy.size(); j++) {
+      if (!possible_set_of_chunks_copy[j].has_intersection(chunks)) {
         continue;
       }
       weights[j] += lit_weight * penalty[j];
       if (weights[j] > min_weight) {
         // remove the chunks
-        possible_set_of_chunks[j] = possible_set_of_chunks.back();
+        possible_set_of_chunks_copy[j] = possible_set_of_chunks_copy.back();
         chunks_level[j] = chunks_level.back();
         weights[j] = weights.back();
-        possible_set_of_chunks.pop_back();
+        possible_set_of_chunks_copy.pop_back();
         chunks_level.pop_back();
         weights.pop_back();
         j--;
@@ -1173,7 +1172,7 @@ bitset napsat::NapSAT::choose_analyzed_chunk(Tclause conflict) {
     }
   }
 
-  ASSERT(possible_set_of_chunks.empty());
+  ASSERT(possible_set_of_chunks_copy.empty());
 
   return lightest_chunk_set;
 }
@@ -1483,7 +1482,9 @@ void napsat::NapSAT::repair_unary_clause_conflict(Tclause conflict)
   Tlevel backtrack_level = LEVEL_ROOT;
   Tlit lit = _clauses[conflict].lits[0];
   if (_options.graph_backtracking) {
-    bitset undone_chunks = choose_analyzed_chunk(conflict);
+    vector<bitset> possible_set_of_chunks;
+    compute_chunk_combination(conflict, possible_set_of_chunks, bitset(_n_allocated_chunks));
+    bitset undone_chunks = choose_analyzed_chunk(conflict, possible_set_of_chunks);
     if (undone_chunks.empty()) {
       // The literal does not belong to any chunk, therefore, it does not depend on a decision and the conflict cannot be repaired
       _status = UNSAT;
@@ -1572,12 +1573,15 @@ void NapSAT::repair_conflict(Tclause conflict)
   }
 
   bitset analyzed_chunks;
+  Tclause identical_clause = CLAUSE_ERROR;
 
   bool identical = false;
   if (_options.graph_backtracking) {
-    analyzed_chunks = choose_analyzed_chunk(conflict);
-    if (analyzed_chunks.empty()) {
-      // The conflict does not have a literal that belongs to a chunk, therefore, it cannot be repaired
+    vector<bitset> possible_set_of_chunks;
+    compute_chunk_combination(conflict, possible_set_of_chunks, bitset(_n_allocated_chunks));
+    if (possible_set_of_chunks.empty()) {
+      // all literals must either be at root level, or the decision is reimplied at level 0
+      ASSERT(lit_level(_clauses[conflict].lits[0]) == LEVEL_ROOT);
       _status = UNSAT;
       if (_proof) {
         prove_root_literal_removal(_literal_buffer, _next_literal_index);
@@ -1585,34 +1589,68 @@ void NapSAT::repair_conflict(Tclause conflict)
       }
       return;
     }
-    if (!(identical = conflict_has_one_literal_in_chunks(conflict, analyzed_chunks))) {
-      analyze_conflict(LEVEL_ROOT, analyzed_chunks);
-      _next_literal_index = cleanup_duplicate_literals(_literal_buffer, _next_literal_index);
 
-      // check if the clause already exists
-      for (size_t i = 0; i < _next_literal_index; i++) { lit_mark(_literal_buffer[i]); }
+    // compute the highest chunk level
+    Tlevel highest_chunk_level = LEVEL_ROOT;
+    for (const auto& chunks : possible_set_of_chunks) {
+      for (auto i = chunks.cbegin(); i != chunks.cend(); ++i) {
+        highest_chunk_level = std::max(highest_chunk_level, var_level(_chunks[*i].decision));
+      }
+    }
 
-      // go thought the watch lists of the literals. If we find a clause that subsumes the learned clause, we do not need to add it
-      for (size_t i = 0; i < _next_literal_index; i++) {
-        Tlit lit = _literal_buffer[i];
-        for (const TSwatch & watch : _watches[lit]) {
-          if (!lit_false(watch.block) || !lit_marked(watch.block)) // all literals should be falsified
-            continue;
-          bool different = false;
-          Tlit* other = _clauses[watch.cl].lits;
-          for (size_t j = 0; j < _clauses[watch.cl].size && !different; j++) {
-            different = !lit_marked(other[j]) || !lit_false(other[j]);
-          }
-          if (!different) {
-            identical = true;
-            conflict = watch.cl;
-            break;
-          }
-        }
+    do {
+      analyzed_chunks = choose_analyzed_chunk(conflict, possible_set_of_chunks);
+      possible_set_of_chunks.erase(find(possible_set_of_chunks.begin(), possible_set_of_chunks.end(), analyzed_chunks));
+      identical_clause = CLAUSE_ERROR;
+      // compute the highest level of the chosen chunks
+      Tlevel chunk_level = LEVEL_ROOT;
+      for (auto i = analyzed_chunks.cbegin(); i != analyzed_chunks.cend(); ++i) {
+        chunk_level = std::max(chunk_level, var_level(_chunks[*i].decision));
       }
 
-      for (size_t i = 0; i < _next_literal_index; i++) { lit_unmark(_literal_buffer[i]); }
-    }
+      if (analyzed_chunks.empty()) {
+        // The conflict does not have a literal that belongs to a chunk, therefore, it cannot be repaired
+        _status = UNSAT;
+        if (_proof) {
+          prove_root_literal_removal(_literal_buffer, _next_literal_index);
+          _proof->finalize_resolution(_clauses.size(), nullptr, 0);
+        }
+        return;
+      }
+      if (!(identical = conflict_has_one_literal_in_chunks(conflict, analyzed_chunks))) {
+        analyze_conflict(LEVEL_ROOT, analyzed_chunks);
+        _next_literal_index = cleanup_duplicate_literals(_literal_buffer, _next_literal_index);
+
+        // check if the clause already exists
+        for (size_t i = 0; i < _next_literal_index; i++) { lit_mark(_literal_buffer[i]); }
+
+        // go thought the watch lists of the literals. If we find a clause that subsumes the learned clause, we do not need to add it
+        for (size_t i = 0; i < _next_literal_index && !identical; i++) {
+          Tlit lit = _literal_buffer[i];
+          for (const TSwatch & watch : _watches[lit]) {
+            if (!lit_false(watch.block) || !lit_marked(watch.block)) // all literals should be falsified
+              continue;
+            bool different = false;
+            Tlit* other = _clauses[watch.cl].lits;
+            for (size_t j = 0; j < _clauses[watch.cl].size && !different; j++) {
+              different = !lit_marked(other[j]) || !lit_false(other[j]);
+            }
+            if (!different) {
+              identical = true;
+              identical_clause = watch.cl;
+              NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Identical clause found"));
+              break;
+            }
+          }
+        }
+
+        for (size_t i = 0; i < _next_literal_index; i++) { lit_unmark(_literal_buffer[i]); }
+      }
+      if (chunk_level == highest_chunk_level) {
+        // we have analyzed the chunks at the highest level, we stop here
+        break;
+      }
+    } while (identical);
   } else if (!(identical = conflict_has_one_literal_at_highest_level(conflict))) {
     do {
       Tlevel conflict_level = lit_level(_literal_buffer[0]);
@@ -1633,9 +1671,6 @@ void NapSAT::repair_conflict(Tclause conflict)
         // The UIP is not a missed lower implication, we can stop the analysis
         break;
       }
-
-      // this should not be necessary. The duplicates cannot touch the UIP
-      // _next_literal_index = cleanup_duplicate_literals(_literal_buffer, _next_literal_index);
 
       if (_proof)
         _proof->link_resolution(_literal_buffer[0], lazy_reason);
@@ -1705,9 +1740,15 @@ void NapSAT::repair_conflict(Tclause conflict)
     if (clause_falsified(conflict)) {
       repair_conflict(conflict);
     } else {
-      fix_watched_literals(conflict);
-      // we need to imply the literal
-      imply_literal(_clauses[conflict].lits[0], conflict);
+      if (identical_clause == CLAUSE_ERROR) {
+        // the clause itself is a UIP
+        fix_watched_literals(conflict);
+        imply_literal(_clauses[conflict].lits[0], conflict);
+      } else {
+        // the clause reduces to another known clause after conflict analysis. This other clause is then the UIP cut
+        fix_watched_literals(identical_clause);
+        imply_literal(_clauses[identical_clause].lits[0], identical_clause);
+      }
     }
 
   } else {
@@ -2360,4 +2401,28 @@ bool napsat::NapSAT::check_proof()
   ASSERT(_proof);
   ASSERT(_status == UNSAT);
   return _proof->check_proof();
+}
+
+bool napsat::NapSAT::check_model(const vector<Tlit>& assignment) const
+{
+  vector<bool> assigned(2* _vars.size() + 2, false);
+  for (const auto& lit : assignment) {
+    ASSERT(!assigned[lit]);
+    ASSERT(!assigned[lit_neg(lit)]);
+    assigned[lit] = true;
+  }
+  // check that all variables are assigned
+  for (Tvar var = 1; var < _vars.size(); var++) {
+    if (!var_constrained(var))
+      continue;
+    ASSERT(assigned[literal(var, false)] || assigned[literal(var, true)]);
+  }
+  for (const auto& cl : _clauses) {
+    bool satisfied = false;
+    for (unsigned i = 0; i < cl.size && !satisfied; i++) {
+      satisfied |= assigned[cl.lits[i]];
+    }
+    if (!satisfied) return false;
+  }
+  return true;
 }

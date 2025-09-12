@@ -106,6 +106,23 @@ int main(int argc, char** argv)
   if (options.check_proof && get_status(solver) == napsat::UNSAT && !check_proof(solver)) {
     LOG_ERROR("The proof is invalid.");
   }
+  if (options.check_proof && get_status(solver) == napsat::SAT) {
+    vector<Tlit> assignment = get_partial_assignment(solver);
+    // spawn another solver to check the assignment
+    napsat::options check_options;
+    check_options.delete_clauses = false;
+    NapSAT* check_solver = create_solver(0, 0, check_options);
+    if (!parse_dimacs(check_solver, argv[1])) {
+      LOG_ERROR("The input file could not be parsed.");
+      delete_solver(check_solver);
+      delete_solver(solver);
+      return 1;
+    }
+    if (!check_model(check_solver, assignment)) {
+      LOG_ERROR("The model is invalid.");
+    }
+    delete_solver(check_solver);
+  }
   if (options.print_proof && get_status(solver) == napsat::UNSAT) {
     print_proof(solver);
   }

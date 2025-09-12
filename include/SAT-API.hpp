@@ -163,4 +163,6 @@ namespace napsat
    * @pre the status of the solver is UNSAT
   */
   bool check_proof(NapSAT* solver);
+
+  bool check_model(NapSAT* solver, const std::vector<Tlit>& assignment);
 }

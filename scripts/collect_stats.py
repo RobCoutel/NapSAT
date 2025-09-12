@@ -8,7 +8,8 @@ import pandas as pd
 # Path to the executable
 SAT_exec = "./build/NapSAT"
 additional_options: list[str] = [
-    # "--no-restart"
+    # "--no-restart",
+    # "-del off"
 ]
 
 N_THREADS = 20
@@ -65,7 +66,7 @@ def run_one_job(filename : str, option: str, df: pd.DataFrame):
         stats["option"] = option
         stats["file"] = filename.split("/")[-1]
     # run the problem a second time, without the -stat option, to get the time
-    args = [SAT_exec, filename] + [option]# + ["--no-restart"]
+    args = [SAT_exec, filename] + [option] + additional_options
     output = Popen(args, shell=False, stdout=PIPE, stderr=PIPE)
     out, error = output.communicate()
     out_dec = out.decode("utf-8")
@@ -99,8 +100,8 @@ if __name__ == "__main__":
     directory = sys.argv[1]
     out_file = sys.argv[2]
     SAT_options = [""] + sys.argv[3:]
-    # if "-gb" in SAT_options:
-    #     SAT_options.append("-gb -lmi")
+    if "-gb" in SAT_options:
+        SAT_options.append("-gb -lcm")
 
     print(f"Collecting stats for {directory} with options {SAT_options}")
 
@@ -144,7 +145,7 @@ if __name__ == "__main__":
         mutex.release()
 
         # sleep for avg_time / 100 (expressed in seconds, but the stat is in milliseconds)
-        time.sleep(avg_time / 10**4 if avg_time > 0 else 0.00001)
+        time.sleep(avg_time / 10**5 if avg_time > 0 else 0.00001)
 
     # drop the unnecessary columns from the dataframe
     df = df.drop(columns=["Variable added", "Backtracking started", "Invariants checked", "Allocated Chunk", "Purging clauses", "Binary clause simplified", "Literal removed from clause"], errors="ignore")

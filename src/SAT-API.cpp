@@ -122,3 +122,9 @@ bool napsat::check_proof(NapSAT* solver)
   assert(solver != nullptr);
   return solver->check_proof();
 }
+
+bool napsat::check_model(NapSAT* solver, const std::vector<Tlit>& assignment)
+{
+  assert(solver != nullptr);
+  return solver->check_model(assignment);
+}
