@@ -130,6 +130,21 @@
 #else
 #define NOTIFY_OBSERVER(observer, notification)  ((void)0)
 #endif
+
+template<>
+struct std::hash<std::vector<uint32_t>> {
+  std::size_t operator()(std::vector<uint32_t> const &vec) const noexcept {
+    std::size_t seed = vec.size();
+    for (auto x : vec) {
+      x = ((x >> 16) ^ x) * 0x45d9f3b;
+      x = ((x >> 16) ^ x) * 0x45d9f3b;
+      x = (x >> 16) ^ x;
+      seed ^= x + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+    return seed;
+  }
+};
+
 namespace napsat
 {
   typedef unsigned Tchunk;
@@ -536,6 +551,8 @@ namespace napsat
      * observer in the proper order (right to left)
      */
     std::vector<Tvar> _backtracked_variables;
+
+    std::unordered_set<std::vector<Tvar>> _backtracked_chks;
 
     /**
      * @brief Reorder the trail by decision level.

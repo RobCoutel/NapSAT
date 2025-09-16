@@ -882,11 +882,24 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
     "Decision counter: " + to_string(decision_counter) + "\nDecision index size: " + to_string(_decision_index.size()));
   _decision_index.resize(decision_counter);
 
-  while(!_backtracked_variables.empty()) {
-    Tvar var = _backtracked_variables.back();
-    _backtracked_variables.pop_back();
-    var_unassign(var);
+  for (const auto v : _backtracked_variables) {
+    var_unassign(v);
   }
+
+  // find the decision (is the first one)
+  assert(!_backtracked_variables.empty());
+  assert(_backtracked_variables[0] == chunk_decision);
+  // sort everything but the decision
+  sort(_backtracked_variables.begin() + 1, _backtracked_variables.end());
+  auto r = _backtracked_chks.insert(_backtracked_variables);
+  if (!r.second) {
+    // we found a cycle
+    cerr << "Cycle Found" << endl;
+    assert(false);
+    exit(1337);
+  }
+  // don't forget to clear the variables
+  _backtracked_variables.clear();
 
   _trail.resize(j - _trail.data());
   // The _trail should not be reallocated, so we should be able to use the pointers
