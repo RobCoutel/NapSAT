@@ -1187,6 +1187,8 @@ namespace napsat
      */
     void backtrack(Tlevel level);
 
+    std::vector<unsigned> sort_trail() const;
+
     /**
      * @brief Unassigns all the variables in the chunk.
      * @param chunk chunk to undo.

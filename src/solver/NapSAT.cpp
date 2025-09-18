@@ -845,6 +845,24 @@ void napsat::NapSAT::backtrack(Tlevel level)
   }
 }
 
+// sorts all propagations of a decision, stores decisions as negative values
+vector<unsigned> napsat::NapSAT::sort_trail() const {
+  vector<unsigned> result = _trail;
+  auto a = result.begin();
+  auto b = result.begin();
+  for (const unsigned i : _decision_index) {
+    b = result.begin() + i;
+    assert(a <= b);
+    sort(a, b);
+    *b *= -1;
+    a = b + 1;
+  }
+  sort(a, result.end());
+  return result;
+}
+
+#define CHECK_TRAIL
+
 void napsat::NapSAT::undo_chunk(Tchunk chunk)
 {
   ASSERT(chunk < _n_allocated_chunks);
@@ -886,6 +904,7 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
     var_unassign(v);
   }
 
+#ifndef CHECK_TRAIL
   // find the decision (is the first one)
   assert(!_backtracked_variables.empty());
   assert(_backtracked_variables[0] == chunk_decision);
@@ -898,6 +917,8 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
     assert(false);
     exit(1337);
   }
+#endif
+
   // don't forget to clear the variables
   _backtracked_variables.clear();
 
@@ -933,6 +954,16 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
       ASSERT(_propagated_literals <= _trail.size());
     }
   }
+#ifdef CHECK_TRAIL
+  auto t = sort_trail();
+  auto r = _backtracked_chks.insert(t);
+  if (!r.second) {
+    // we found a cycle
+    cerr << "Cycle Found" << endl;
+    assert(false);
+    exit(1337);
+  }
+#endif
 }
 
 Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size)
