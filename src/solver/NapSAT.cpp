@@ -868,7 +868,9 @@ void napsat::NapSAT::snapshot_history() {
   if (found != _history.end()) {
     // we found a cycle
     cerr << "Cycle Found" << endl;
-    ASSERT_MSG(false, "First occured at " + std::to_string(found->second) + "\n");
+    const string error = "First occured at " + std::to_string(found->second) + "\n";
+    NOTIFY_OBSERVER(_observer, new napsat::gui::marker(error));
+    ASSERT(false);
     //exit(1337);
   }
   _history[t] = _observer ? _observer->_notifications.size() : 0;
@@ -2075,16 +2077,13 @@ status NapSAT::get_status()
 
 bool NapSAT::decide()
 {
-  ASSERT(!_variable_heap.contains(0));
-  while (!_variable_heap.empty() && !var_undef(_variable_heap.top()))
-    _variable_heap.pop();
-  if (_variable_heap.empty()) {
+  Tvar var;
+  for (var = 1; var < _vars.size() && _vars[var].state != VAR_UNDEF; var++) {}
+  if (var >= _vars.size()) {
     _status = SAT;
     return false;
   }
-  Tvar var = _variable_heap.top();
-  ASSERT(var_constrained(var));
-  Tlit lit = literal(var, _vars[var].phase_cache);
+  Tlit lit = literal(var, false);
   imply_literal(lit, CLAUSE_UNDEF);
   return true;
 }
