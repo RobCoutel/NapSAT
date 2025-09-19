@@ -729,7 +729,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     } else {
       if (lit_reason(lits[1]) == CLAUSE_UNDEF) {
         NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
-        NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Cross implication for " + lit_to_string(lits[1]) + " in " + clause_to_string(cl)));
+        //NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Cross implication for " + lit_to_string(lits[1]) + " in " + clause_to_string(cl)));
       }
       // We are in graph backtracking, so we do not need to reimply the literal
       // but we will need to repropagate the literal if one of the other literals in the clause are backtracked
@@ -861,7 +861,18 @@ vector<unsigned> napsat::NapSAT::sort_trail() const {
   return result;
 }
 
-#define CHECK_TRAIL
+void napsat::NapSAT::snapshot_history() {
+  auto t = sort_trail();
+  t.insert(t.begin(), _clauses.size() - _deleted_clauses.size());
+  auto found = _history.find(t);
+  if (found != _history.end()) {
+    // we found a cycle
+    cerr << "Cycle Found" << endl;
+    ASSERT_MSG(false, "First occured at " + std::to_string(found->second) + "\n");
+    //exit(1337);
+  }
+  _history[t] = _observer ? _observer->_notifications.size() : 0;
+}
 
 void napsat::NapSAT::undo_chunk(Tchunk chunk)
 {
@@ -904,13 +915,13 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
     var_unassign(v);
   }
 
-#ifndef CHECK_TRAIL
+#if 0
   // find the decision (is the first one)
   assert(!_backtracked_variables.empty());
   assert(_backtracked_variables[0] == chunk_decision);
   // sort everything but the decision
   sort(_backtracked_variables.begin() + 1, _backtracked_variables.end());
-  auto r = _backtracked_chks.insert(_backtracked_variables);
+  auto r = _history.insert(_backtracked_variables);
   if (!r.second) {
     // we found a cycle
     cerr << "Cycle Found" << endl;
@@ -954,16 +965,6 @@ void napsat::NapSAT::undo_chunk(Tchunk chunk)
       ASSERT(_propagated_literals <= _trail.size());
     }
   }
-#ifdef CHECK_TRAIL
-  auto t = sort_trail();
-  auto r = _backtracked_chks.insert(t);
-  if (!r.second) {
-    // we found a cycle
-    cerr << "Cycle Found" << endl;
-    assert(false);
-    exit(1337);
-  }
-#endif
 }
 
 Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size)
@@ -1589,6 +1590,7 @@ void NapSAT::repair_conflict(Tclause conflict)
 void NapSAT::restart()
 {
   // cout << "RESTART" << endl;
+  _history.clear();
   NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
   if (_options.graph_backtracking) {
     unsigned tmp = _propagated_literals;
@@ -2048,9 +2050,13 @@ status NapSAT::solve()
 #if USE_OBSERVER
     if (_observer && _options.interactive)
       _observer->notify(new napsat::gui::checkpoint());
-    else
+    else {
 #endif
+      snapshot_history();
       decide();
+#if USE_OBSERVER
+    }
+#endif
     ASSERT(_status != UNSAT);
     if (_status == SAT)
       break;

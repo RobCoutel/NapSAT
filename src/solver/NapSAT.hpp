@@ -552,7 +552,7 @@ namespace napsat
      */
     std::vector<Tvar> _backtracked_variables;
 
-    std::unordered_set<std::vector<Tvar>> _backtracked_chks;
+    std::unordered_map<std::vector<Tvar>, unsigned> _history;
 
     /**
      * @brief Reorder the trail by decision level.
@@ -1188,6 +1188,8 @@ namespace napsat
     void backtrack(Tlevel level);
 
     std::vector<unsigned> sort_trail() const;
+
+    void snapshot_history();
 
     /**
      * @brief Unassigns all the variables in the chunk.

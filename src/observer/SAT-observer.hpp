@@ -110,8 +110,9 @@ namespace napsat::gui
     };
 
     napsat::options _options;
-
+  public:
     std::vector<notification*> _notifications;
+  private:
 
     long long _n_notifications = 0;
 
