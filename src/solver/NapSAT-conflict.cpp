@@ -34,7 +34,7 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
                                                           bitset processed)
 {
   bitset diff = current - processed;
-  cout << " Enhancing combination " << current << " with lazy merging. Processed: " << processed << " Diff: " << diff << endl;
+  // cout << " Enhancing combination " << current << " with lazy merging. Processed: " << processed << " Diff: " << diff << endl;
 
   for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
     if (var_lazy_reason(_chunks[*i].decision) == CLAUSE_UNDEF) {
@@ -88,17 +88,16 @@ size_t napsat::NapSAT::split_learning_possibilities(std::vector<bitset>& possibi
         break;
       }
     }
-    if (!learning_found) {
-      non_learning++;
-      bitset tmp = possibilities[maybe_learning];
-      size_t idx = possibilities.size() - non_learning;
-      possibilities[maybe_learning] = possibilities[idx];
-      possibilities[idx] = tmp;
-      non_learning++;
-    }
-    else {
+    if (learning_found) {
       maybe_learning++;
+      continue;
     }
+
+    non_learning++;
+    bitset tmp = possibilities[maybe_learning];
+    size_t idx = possibilities.size() - non_learning;
+    possibilities[maybe_learning] = possibilities[idx];
+    possibilities[idx] = tmp;
   }
   return maybe_learning;
 }
@@ -184,11 +183,6 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
 
   backtracked_chunks_subsumption(possibilities);
 
-  cout << "Found " << possibilities.size() << " backtrack possibilities." << endl;
-  for (const bitset& p : possibilities) {
-    cout << " - " << p << endl;
-  }
-
   enhance_backtrack_possibilities_with_lazy_merging(possibilities);
 
   cout << "Found " << possibilities.size() << " backtrack possibilities after lazy merging." << endl;
@@ -201,11 +195,11 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
 
 void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
 {
-  cout << "Calculating weights for " << weights.size() << " chunk combinations." << endl;
-  cout << "  Weights: \n";
-  for (const Tweight& w : weights) {
-    cout << " - " << w.chunks << " (" << w.lowest_level << "-" << w.highest_level << (w.maybe_learning ? ", maybe learning" : ", no learning") << "): " << w.total_weight << (w.finished ? "" : (" (not finished : " + to_string(w.give_up_point) + ")")) << endl;
-  }
+  // cout << "Calculating weights for " << weights.size() << " chunk combinations." << endl;
+  // cout << "  Weights: \n";
+  // for (const Tweight& w : weights) {
+  //   cout << " - " << w.chunks << " (" << w.lowest_level << "-" << w.highest_level << (w.maybe_learning ? ", maybe learning" : ", no learning") << "): " << w.total_weight << (w.finished ? "" : (" (not finished : " + to_string(w.give_up_point) + ")")) << endl;
+  // }
 
   // sort the weights by highest lowest level
   std::sort(weights.begin(), weights.end(),
@@ -309,11 +303,10 @@ bool napsat::NapSAT::lit_analyzed(Tlit lit, const bitset& chunks)
 
 template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
-  cout << "  Analyzing";
+  cout << "  Analyzing ";
   for (size_t i = 0; i < _next_literal_index; i++) {
     cout << lit_to_string(_literal_buffer[i]) << " ";
-  }
-  cout << endl;
+  } cout << " at level " << level << " " << endl;
 #ifndef NDEBUG
   // check that all variables are unmarked
   for (unsigned i = 0; i < _vars.size(); i++) {
@@ -437,32 +430,32 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
   // We need to ensure that it becomes the second watched literal
   Tlit* end = lits + _clauses[conflict].size;
 
-  if (_options.graph_backtracking) {
-    // If could be that the undefined literal is not the first one
-    // We need to find the undefined literal and put it at the first position
-    Tlit* undef_or_sat_lit = nullptr;
-    for (Tlit* i = lits; i < end; i++) {
-      if (!lit_false(*i)) {
-        undef_or_sat_lit = i;
-        break;
-      }
+  // If could be that the undefined literal is not the first one
+  // We need to find the undefined literal and put it at the first position
+  Tlit* undef_or_sat_lit = nullptr;
+  for (Tlit* i = lits; i < end; i++) {
+    if (!lit_false(*i)) {
+      undef_or_sat_lit = i;
+      break;
     }
-    ASSERT(undef_or_sat_lit != nullptr);
-    ASSERT(!lit_false(*undef_or_sat_lit));
-    if (undef_or_sat_lit == lits + 1) {
-      // just swap the first two literals
-      Tlit tmp = lits[0];
-      lits[0] = lits[1];
-      lits[1] = tmp;
-    } else if (undef_or_sat_lit > lits + 1) {
-      // the undefined literal is somewhere else in the clause. We need to change the watched literals
-      stop_watch(lits[0], conflict);
-      Tlit tmp = lits[0];
-      lits[0] = *undef_or_sat_lit;
-      *undef_or_sat_lit = tmp;
-      watch_lit(lits[0], conflict);
-    }
+  }
+  ASSERT(undef_or_sat_lit != nullptr);
+  ASSERT(!lit_false(*undef_or_sat_lit));
+  if (undef_or_sat_lit == lits + 1) {
+    // just swap the first two literals
+    Tlit tmp = lits[0];
+    lits[0] = lits[1];
+    lits[1] = tmp;
+  } else if (undef_or_sat_lit > lits + 1) {
+    // the undefined literal is somewhere else in the clause. We need to change the watched literals
+    stop_watch(lits[0], conflict);
+    Tlit tmp = lits[0];
+    lits[0] = *undef_or_sat_lit;
+    *undef_or_sat_lit = tmp;
+    watch_lit(lits[0], conflict);
+  }
 
+  if (_options.graph_backtracking) {
     // Now, we bring a literal that is at the top of the chunk lattice to the second position
     // This is similar to the highest level in chronological backtracking, but we use the chunk instead
     Tlit* high_lit = lits + 1;
@@ -487,13 +480,16 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
       *high_lit = tmp;
       watch_lit(lits[1], conflict);
     }
-
   } else { // graph backtracking
     // Now, we bring a literal that is at the top of the chunk lattice to the second position
     // This is similar to the highest level in chronological backtracking, but we use the chunk instead
     Tlit* high_lit = lits + 1;
     Tlevel high_lvl = lit_level(*high_lit);
     for (Tlit* i = lits + 2; i < end; i++) {
+      if (!lit_false(*i)) {
+        high_lit = i;
+        break;
+      }
       if (lit_level(*i) > high_lvl) {
         high_lvl = lit_level(*i);
         high_lit = i;
@@ -578,6 +574,7 @@ void NapSAT::repair_conflicts()
 
   _conflicts.clear();
   _var_activity_increment /= _options.var_activity_decay;
+  cout << " HERE" << endl;
   print_trail();
 }
 
@@ -606,17 +603,12 @@ bool napsat::NapSAT::propagating_after_analysis(Tclause conflict, Tlevel level)
   }
 
   const Tlit* lits = clause_lits(conflict);
-  Tlevel highest = lit_level(lits[0]);
-  Tlevel second_highest = LEVEL_ROOT;
   for (unsigned i = 1; i < clause_size(conflict); i++) {
-    ASSERT(lit_level(lits[i]) <= highest);
-    Tlevel lvl = lit_level(lits[i]);
-    if (lvl > second_highest && lvl < highest) {
-      second_highest = lvl;
+    if (lit_level(lits[i]) > level) {
+      return false;
     }
   }
-
-  return level <= highest && second_highest <= level;
+  return true;
 }
 
 bool napsat::NapSAT::implication_active_after_backtrack(Tclause conflict, Tlevel level)
@@ -633,6 +625,68 @@ bool napsat::NapSAT::implication_active_after_backtrack(Tclause conflict, const 
     }
   }
   return false;
+}
+
+void napsat::NapSAT::add_and_delete_clause(Tclause cl, const std::vector<Tlit>& clause)
+{
+  cout << "Adding and deleting clause with literals: ";
+  for (Tlit l : clause) {
+    cout << lit_to_string(l) << " ";
+  }
+  cout << endl;
+  Tclause new_id = internal_add_clause(clause.data(), clause.size(), true, false, cl);
+    if (new_id == CLAUSE_UNDEF) {
+      // the clause was not added because it was satisfied at level 0
+      return;
+    }
+    // the clause should be at the back of the watch lists
+    // we need to remove it from the watch lists
+    Tlit* lits = clause_lits(new_id);
+    ASSERT(clause.size() > 1);
+    if (clause.size() == 2) {
+      ASSERT(_binary_watches[lits[0]].back().cl == new_id);
+      _binary_watches[lits[0]].pop_back();
+      ASSERT(_binary_watches[lits[1]].back().cl == new_id);
+      _binary_watches[lits[1]].pop_back();
+    } else {
+      ASSERT(_watches[lits[0]].back().cl == new_id);
+      _watches[lits[0]].pop_back();
+      ASSERT(_watches[lits[1]].back().cl == new_id);
+      _watches[lits[1]].pop_back();
+    }
+    ASSERT(!is_protected(new_id));
+    delete_clause(new_id);
+}
+
+void napsat::NapSAT::compute_subsumed_clauses(const vector<pair<Tclause, vector<Tlit>>>& clauses, std::vector<bool>& subsumed)
+{
+  ASSERT(clauses.size() == subsumed.size());
+  // do a backward subsumption check on the learned clauses
+  for (size_t i = 0; i < clauses.size(); i++) {
+    if (subsumed[i])
+      continue;
+    // check if the clause i is subsumed by any later clause
+    for (Tlit lit : clauses[i].second) { lit_mark(lit); }
+
+    for (size_t j = i + 1; j < clauses.size(); j++) {
+      if (subsumed[j])
+        continue;
+
+      bool all_found = true;
+      for (Tlit lit : clauses[j].second) {
+        if (!lit_marked(lit)) {
+          all_found = false;
+          break;
+        }
+      }
+      if (all_found) {
+        subsumed[i] = true;
+        cout << "Learned clause " << i << " is subsumed by learned clause " << j << endl;
+        break;
+      }
+    }
+    for (Tlit lit : clauses[i].second) { lit_unmark(lit); }
+  }
 }
 
 const bitset& napsat::NapSAT::update_bt_after_analysis(const bitset& chunks)
@@ -878,37 +932,14 @@ void napsat::NapSAT::graph_repair()
   backtrack(undone_chunks);
   print_trail();
 
+  // check which clauses are subsumed by others. We do not want to add them to the set.
+  // however, to make the proofs correct, we need to add them and then delete them. Otherwise the proof will not be correct.
   vector<bool> subsumed(learned_clauses.size(), false);
-  // do a backward subsumption check on the learned clauses
-  for (size_t i = 0; i < learned_clauses.size(); i++) {
-    if (subsumed[i])
-      continue;
-    // check if the clause i is subsumed by any later clause
-    for (Tlit lit : learned_clauses[i].second) { lit_mark(lit); }
+  compute_subsumed_clauses(learned_clauses, subsumed);
 
-    for (size_t j = i + 1; j < learned_clauses.size(); j++) {
-      if (subsumed[j])
-        continue;
-
-      bool all_found = true;
-      for (Tlit lit : learned_clauses[j].second) {
-        if (!lit_marked(lit)) {
-          all_found = false;
-          break;
-        }
-      }
-      if (all_found) {
-        subsumed[i] = true;
-        cout << "Learned clause " << i << " is subsumed by learned clause " << j << endl;
-        break;
-      }
-    }
-    for (Tlit lit : learned_clauses[i].second) { lit_unmark(lit); }
-  }
 
   for (size_t i = 0; i < learned_clauses.size(); i++) {
     // skip the subsumed clauses for now. Add them at the end, then delete them
-    // todo, make this better.
     cout << "Looking at learned clause " << i << (subsumed[i] ? " (subsumed)" : "");
     for (Tlit lit : learned_clauses[i].second) {
       cout << "  " << lit_to_string(lit) << " ";
@@ -931,35 +962,16 @@ void napsat::NapSAT::graph_repair()
     Tclause id = id_clause.first;
     const vector<Tlit>& clause = id_clause.second;
 
-    Tclause new_id = internal_add_clause(clause.data(), clause.size(), true, false, id);
-    if (new_id == CLAUSE_UNDEF) {
-      // the clause was not added because it was satisfied at level 0
-      continue;
-    }
-    cout << "Adding subsumed clause " << clause_to_string(id) << " to proof and removing it." << endl;
-    ASSERT(lit_reason(clause[0]) != id);
-    // the clause should be at the back of the watch lists
-    // we need to remove it from the watch lists
-    ASSERT(clause.size() > 1);
-    Tlit* lits = clause_lits(id);
-    if (clause.size() == 2) {
-      ASSERT(_binary_watches[lits[0]].back().cl == id);
-      _binary_watches[lits[0]].pop_back();
-      ASSERT(_binary_watches[lits[1]].back().cl == id);
-      _binary_watches[lits[1]].pop_back();
-    } else {
-      ASSERT(_watches[lits[0]].back().cl == id);
-      _watches[lits[0]].pop_back();
-      ASSERT(_watches[lits[1]].back().cl == id);
-      _watches[lits[1]].pop_back();
-    }
-    ASSERT(!is_protected(id));
-    delete_clause(id);
+    add_and_delete_clause(id, clause);
   }
 
   for (Tclause conflict : _conflicts) {
     fix_watched_literals(conflict);
     Tlit* lits = clause_lits(conflict);
+    if (lit_true(lits[0]) && lit_false(lits[1])) {
+      // we need to update the cross_chunks
+      lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
+    }
     if (lit_undef(lits[0]) && lit_false(lits[1])) {
       cout << "  Re-propagating conflict literal " << lit_to_string(lits[0]) << " from conflict " << clause_to_string(conflict) << endl;
       imply_literal(lits[0], conflict);
@@ -988,15 +1000,37 @@ void napsat::NapSAT::level_repair()
 
   backtrack(bt);
 
-  for (const pair<Tclause, vector<Tlit>>& id_clause : learned_clauses) {
+  // check which clauses are subsumed by others. We do not want to add them to the set.
+  // however, to make the proofs correct, we need to add them and then delete them. Otherwise the proof will not be correct.
+  vector<bool> subsumed(learned_clauses.size(), false);
+  compute_subsumed_clauses(learned_clauses, subsumed);
+
+  for (size_t i = 0; i < learned_clauses.size(); i++) {
+    auto & id_clause = learned_clauses[i];
+    if (subsumed[i]) {
+      continue;
+    }
     Tclause id = id_clause.first;
     const vector<Tlit>& clause = id_clause.second;
 
     internal_add_clause(clause.data(), clause.size(), true, false, id);
+    cout << "Adding learned clause " << clause_to_string(id) << endl;
+  }
+
+  // fix the proof by adding the subsumed clauses and then deleting them
+  for (size_t i = 0; i < learned_clauses.size(); i++) {
+    if (!subsumed[i])
+      continue;
+    auto& id_clause = learned_clauses[i];
+    Tclause id = id_clause.first;
+    const vector<Tlit>& clause = id_clause.second;
+
+    add_and_delete_clause(id, clause);
   }
 
   for (Tclause conflict : _conflicts) {
     fix_watched_literals(conflict);
+    cout << "Fixed watched literals of conflict " << clause_to_string(conflict) << endl;
     Tlit* lits = clause_lits(conflict);
     if (lit_undef(lits[0]) && lit_false(lits[1])) {
       imply_literal(lits[0], conflict);

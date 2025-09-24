@@ -142,6 +142,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   clause.external = external;
   clause.watched = clause_size >= 2;
   clause.size = clause_size;
+  clause.last_looked = 1;
   Tlit* lits = clause.lits;
 
 
@@ -205,6 +206,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     if (lit_false(lits[0])) {
       _conflicts.push_back(id);
       repair_conflicts();
+      cout << "HERE 1" << endl;
     }
     return id;
   }
@@ -223,33 +225,27 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       lits[1] = lits[0] ^ lits[1];
       // no need to update the watch list
     }
-    if (lit_false(lits[1])) {
-      if (lit_undef(lits[0]))
-        imply_literal(lits[0], id);
-      else if (lit_false(lits[0])) {
-        _conflicts.push_back(id);
-        repair_conflicts();
-      }
-      else if (_options.lazy_strong_chronological_backtracking) {
-        ASSERT(lit_true(lits[0]));
-        reimply_literal(lits[0], id);
-      }
-    }
-  }
-  else {
+  } else {
     cout << "Before selecting watched literals: " << clause_to_string(id) << endl;
     select_watched_literals(lits, clause_size);
     cout << "After selecting watched literals: " << clause_to_string(id) << endl;
     watch_lit(lits[0], id);
     watch_lit(lits[1], id);
-    if (lit_false(lits[0])) {
+  }
+  if (lit_false(lits[1])) {
+    if (lit_undef(lits[0])) {
+      imply_literal(lits[0], id);
+    } else if (lit_false(lits[0])) {
       _conflicts.push_back(id);
       repair_conflicts();
-    }
-    else if (lit_false(lits[1]) && lit_undef(lits[0]))
-      imply_literal(lits[0], id);
-    else if (lit_false(lits[1]) && lit_true(lits[0]) && _options.lazy_strong_chronological_backtracking)
+      cout << "HERE 2" << endl;
+    } else if (_options.lazy_strong_chronological_backtracking) {
+      ASSERT(lit_true(lits[0]));
       reimply_literal(lits[0], id);
+    }  else if (_options.graph_backtracking) {
+      lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
+      cout << "Updating cross chunks of " << lit_to_string(lits[1]) << " to " << lit_cross_chunks(lits[1]) << endl;
+    }
   }
   if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
     simplify_clause_set();

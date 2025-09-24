@@ -399,6 +399,7 @@ bool NapSAT::propagate()
       if (_status == UNSAT)
         return false;
       if (!_options.no_restart && _luby_counter.increment()) {
+        cout << "RESTART" << endl;
         restart();
       }
     }

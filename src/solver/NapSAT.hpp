@@ -1509,6 +1509,10 @@ public:
     bool implication_active_after_backtrack(Tclause conflict, Tlevel level);
     bool implication_active_after_backtrack(Tclause conflict, const bitset& chunks);
 
+    void add_and_delete_clause(Tclause cl, const std::vector<Tlit>& lits);
+
+    void compute_subsumed_clauses(const std::vector<std::pair<Tclause, std::vector<Tlit>>> &clauses, std::vector<bool> &subsumed);
+
     const bitset& update_bt_after_analysis(const bitset& chunks);
     Tlevel update_bt_after_analysis(Tlevel level);
 

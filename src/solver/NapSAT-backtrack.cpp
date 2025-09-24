@@ -49,8 +49,6 @@ void napsat::NapSAT::backtrack(Tlevel level)
     Tvar var = lit_to_var(lit);
     if (lit_level(lit) > level) {
       ASSERT(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
-      cout << "Checking backtracked literal " << lit_to_string(lit) << " at level " << lit_level(lit) << endl;
-      cout << "Lazy reason: " << clause_to_string(lit_lazy_reason(lit)) << endl;
       if (lit_lazy_level(lit) <= level) {
         // look if the literal can be reimplied at a lower level
         ASSERT(_options.lazy_strong_chronological_backtracking);
@@ -142,8 +140,8 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
   Tlevel min_level = LEVEL_UNDEF;
   for (Tlevel lvl = 1; lvl <= solver_level(); lvl++) {
     Tlit decision = decision_lit(lvl);
-    cout << "Level " << lvl << " with chunks " << lit_chunks(decision) << endl;
-    cout << "Intersection with backtracked chunks: " << lit_chunks(decision).has_intersection(backtracked_chunks) << endl;
+    // cout << "Level " << lvl << " with chunks " << lit_chunks(decision) << endl;
+    // cout << "Intersection with backtracked chunks: " << lit_chunks(decision).has_intersection(backtracked_chunks) << endl;
 
     if (lit_chunks(decision).has_intersection(backtracked_chunks)) {
       min_level = min(min_level, lvl);
