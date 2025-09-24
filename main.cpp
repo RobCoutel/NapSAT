@@ -90,10 +90,6 @@ int main(int argc, char** argv)
 
   if (get_status(solver) == napsat::SAT) {
     cout << "s SATISFIABLE" << endl;
-    // cout << "v ";
-    // for (Tlit lit : get_partial_assignment(solver))
-    //   cout << (lit_pol(lit) ? "" : "-") << lit_to_var(lit) << " ";
-    // cout << endl;
   }
   else if (get_status(solver) == napsat::UNSAT)
   cout << "s UNSATISFIABLE" << endl;

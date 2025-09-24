@@ -97,6 +97,10 @@ public:
 
   std::string to_string() const;
   std::string bit_string() const;
+  friend std::ostream& operator<<(std::ostream& os, const bitset& bs) {
+    os << bs.to_string();
+    return os;
+  }
   using bitstore = std::vector<uint64_t>;
 
   struct iterator {

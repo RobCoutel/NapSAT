@@ -973,7 +973,8 @@ void napsat::NapSAT::undo_chunks(const bitset& backtracked_chunks)
 
 #ifndef NDEBUG
   for (Tlit lit : _trail) {
-    ASSERT(!lit_chunks(lit).has_intersection(backtracked_chunks));
+    ASSERT_MSG(!lit_chunks(lit).has_intersection(backtracked_chunks), "Literal: " + lit_to_string(lit) + " at level " + to_string(lit_level(lit)) +
+      " with chunks " + backtracked_chunks.to_string() + " was not supposed to be in the trail after backtracking."   );
     ASSERT(!lit_propagated(lit) || !lit_cross_chunks(lit).has_intersection(backtracked_chunks));
   }
 #endif
@@ -1576,6 +1577,7 @@ void NapSAT::repair_conflict(Tclause conflict)
   Tclause identical_clause = CLAUSE_ERROR;
 
   bool identical = false;
+  bitset best_chunks(_options.graph_backtracking? _n_allocated_chunks : 1);
   if (_options.graph_backtracking) {
     vector<bitset> possible_set_of_chunks;
     compute_chunk_combination(conflict, possible_set_of_chunks, bitset(_n_allocated_chunks));
@@ -1600,6 +1602,9 @@ void NapSAT::repair_conflict(Tclause conflict)
 
     do {
       analyzed_chunks = choose_analyzed_chunk(conflict, possible_set_of_chunks);
+      if (best_chunks.empty()) {
+        best_chunks = analyzed_chunks;
+      }
       possible_set_of_chunks.erase(find(possible_set_of_chunks.begin(), possible_set_of_chunks.end(), analyzed_chunks));
       identical_clause = CLAUSE_ERROR;
       // compute the highest level of the chosen chunks
@@ -1638,6 +1643,7 @@ void NapSAT::repair_conflict(Tclause conflict)
             if (!different) {
               identical = true;
               identical_clause = watch.cl;
+              ASSERT(identical_clause < _clauses.size());
               NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Identical clause found"));
               break;
             }
@@ -1697,7 +1703,17 @@ void NapSAT::repair_conflict(Tclause conflict)
   // Later, if the clause is identical, we do not add it to the clause set.
 
   if (_options.graph_backtracking) {
-    undo_chunks(analyzed_chunks);
+    if (identical) {
+      lit_cross_chunks(_clauses[conflict].lits[0]) |= analyzed_chunks; // ensure that the cross chunks are set
+      lit_cross_chunks(_clauses[conflict].lits[1]) |= analyzed_chunks; // ensure that the second literal is also set
+      undo_chunks(analyzed_chunks);
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("No learned clause"));
+    } else {
+      lit_cross_chunks(_clauses[conflict].lits[0]) |= best_chunks; // ensure that the cross chunks are set
+      lit_cross_chunks(_clauses[conflict].lits[1]) |= best_chunks; // ensure that the second literal is also set
+      undo_chunks(best_chunks);
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Learned clause"));
+    }
   } else {
     // make sure that the second literal is at the second highest level
     for (unsigned i = 2; i < _next_literal_index; i++) {
@@ -1752,15 +1768,23 @@ void NapSAT::repair_conflict(Tclause conflict)
     }
 
   } else {
-    ASSERT(lit_undef(_literal_buffer[0]));
-    ASSERT(_next_literal_index == 1 || !lit_undef(_literal_buffer[1]));
+    ASSERT(best_chunks != analyzed_chunks || lit_undef(_literal_buffer[0]));
+    ASSERT(best_chunks != analyzed_chunks || _next_literal_index == 1 || !lit_undef(_literal_buffer[1]));
     NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Learned clause: "));
+    if (clause_unit(conflict)) {
+      // it could be that the learned clause is actually not unit after backtracking since we backtrack a different chunk than the one we analyzed.
+      // we have to do this before adding the clause, to protect it from clause deletion
+      fix_watched_literals(conflict);
+      imply_literal(_clauses[conflict].lits[0], conflict);
+    }
+
     Tclause learned = internal_add_clause(_literal_buffer, _next_literal_index, true, false);
     if (_proof)
       _proof->finalize_resolution(learned, _literal_buffer, _next_literal_index);
 
     _writing_clause = false;
     _next_literal_index = 0;
+
     // finalizing the clause will also imply the first literal of the clause
   }
 
@@ -1989,7 +2013,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     }
     return cl;
   }
-  else if (clause_size == 2) {
+
+  if (clause_size == 2) {
     // clause->watched = false;
     _binary_watch[lits[0]].push_back(TSwatch(cl, lits[1]));
     _binary_watch[lits[1]].push_back(TSwatch(cl, lits[0]));
@@ -2015,8 +2040,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
           lit_set_lazy_reason(lits[1], cl);
       }
     }
-  }
-  else {
+  } else {
     select_watched_literals(lits, clause_size);
     watch_lit(lits[0], cl);
     watch_lit(lits[1], cl);
@@ -2027,6 +2051,11 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     else if (lit_false(lits[1]) && lit_true(lits[0]) && _options.lazy_strong_chronological_backtracking)
       reimply_literal(lits[0], cl);
   }
+  if (_options.graph_backtracking && lit_true(lits[0]) && lit_false(lits[1])) {
+    // ensure that the cross chunks are set
+    lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
+  }
+
   if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
     simplify_clause_set();
     // The clause we just added should not be deleted

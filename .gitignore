@@ -25,3 +25,5 @@ executables/*
 
 .idea
 scripts/dataset/
+src/solver/NapSAT.cpp
+scripts/tmp.md

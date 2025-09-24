@@ -616,11 +616,38 @@ void napsat::gui::observer::print_clause_set()
     // generate and store the clauses' strings
     vector<string> clauses_str;
     unsigned max_clause_str_length = 0;
+    unsigned ellipsed_clauses = 0;
     for (Tclause cl = start; cl < end; cl++) {
       if (_active_clauses[cl] == nullptr || !_active_clauses[cl]->active) {
         end = min(end + 1, _active_clauses.size());
         continue;
       }
+      if (_active_clauses.size() > 300) {
+        // check if the clause is relevant: only keep clauses that are unit, conflicting, or marked
+        bool relevant = false;
+        unsigned n_false = 0;
+        for (Tlit lit : _active_clauses[cl]->literals) {
+          if (lit_value(lit) == VAR_FALSE)
+            n_false++;
+        }
+        if (n_false + 1 >= _active_clauses[cl]->literals.size()) {
+          relevant = true;
+        }
+        if (is_clause_marked(cl)) {
+          relevant = true;
+        }
+        if (!relevant) {
+          ellipsed_clauses++;
+          end = min(end + 1, _active_clauses.size());
+          continue;
+        }
+      }
+      if (ellipsed_clauses > 0) {
+        clauses_str.push_back("... " + to_string(ellipsed_clauses) + " clauses ellipsed ...");
+        max_clause_str_length = max(max_clause_str_length, string_length_escaped(clauses_str.back()));
+        ellipsed_clauses = 0;
+      }
+
       sort_clause(cl);
       string clause_str = clause_to_string(cl);
       max_clause_str_length = max(max_clause_str_length, string_length_escaped(clause_str));
