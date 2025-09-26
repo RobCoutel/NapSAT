@@ -817,7 +817,7 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
       // we need to continue the analysis with the missed implication
       // fill in the literal buffer
       if (_proof) {
-        _proof->link_resolution(lit_neg(uip), lazy_reason);
+        _proof->link_resolution(uip, lazy_reason);
       }
       const Tlit* reason_lits = clause_lits(lazy_reason);
       for (unsigned j = 1; j < clause_size(lazy_reason); j++) {
@@ -866,10 +866,14 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
     vector<Tlit> learned_clause(_literal_buffer, _literal_buffer + _next_literal_index);
     Tclause id = next_clause_id(_next_literal_index);
     learned_clauses.push_back({id, learned_clause});
-    _next_literal_index = 0;
     if (_proof) {
       _proof->finalize_resolution(id, learned_clause.data(), learned_clause.size());
     }
+    if (_next_literal_index == 0) {
+      _status = UNSAT;
+      return;
+    }
+    _next_literal_index = 0;
   }
 }
 
@@ -950,6 +954,10 @@ void napsat::NapSAT::graph_repair()
     if (best.maybe_learning) {
       try_and_learn(undone_chunks, learned_clauses);
 
+      if(_status == UNSAT) {
+        return;
+      }
+
       if (!learned_clauses.empty() || best.highest_level == highest_level) {
         break;
       }
@@ -977,6 +985,10 @@ void napsat::NapSAT::level_repair()
   vector<pair<Tclause, vector<Tlit>>> learned_clauses;
 
   try_and_learn(repair_level, learned_clauses);
+
+  if(_status == UNSAT) {
+    return;
+  }
 
   Tlevel bt = LEVEL_UNDEF;
   for (Tclause conflict : _conflicts) {

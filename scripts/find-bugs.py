@@ -83,8 +83,6 @@ def search_output(root_directory, pattern):
             if directory in tasks:
                 progress.update(tasks[directory], advance=1)
 
-#%%
-
 # the first argument is the directory to search in
 # the second argument is binary to execute
 if __name__ == "__main__":
@@ -105,4 +103,4 @@ if __name__ == "__main__":
         search_output(directoryUnSat, "s SATISFIABLE")
         search_output(directorySat, "s UNSATISFIABLE")
     else:
-        search_output(directory, "s UNSATISFIABLE")
+        search_output(directory, "ERROR")
