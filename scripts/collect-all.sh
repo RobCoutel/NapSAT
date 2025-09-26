@@ -1,17 +1,17 @@
-python3 scripts/collect_stats.py $CNF/sat/uf20-91 scripts/dataset/dataset-uf20-91.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/sat/uf50-218 scripts/dataset/dataset-uf50-218.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/unsat/uuf50-218 scripts/dataset/dataset-uuf50-218.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/sat/uf75-325 scripts/dataset/dataset-uf75-325.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/unsat/uuf75-325 scripts/dataset/dataset-uuf75-325.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/sat/uf100-430 scripts/dataset/dataset-uf100-430.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/unsat/uuf100-430 scripts/dataset/dataset-uuf100-430.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/sat/uf150-645 scripts/dataset/dataset-uf150-645.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/unsat/uuf150-645 scripts/dataset/dataset-uuf150-645.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/sat/uf175-753 scripts/dataset/dataset-uf175-753.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/unsat/uuf175-753 scripts/dataset/dataset-uuf175-753.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/sat/uf200-860 scripts/dataset/dataset-uf200-860.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/unsat/uuf200-860 scripts/dataset/dataset-uuf200-860.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/sat/uf225-960 scripts/dataset/dataset-uf225-960.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/unsat/uuf225-960 scripts/dataset/dataset-uuf225-960.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/sat/uf250-1065 scripts/dataset/dataset-uf250-1065.csv -gb -lscb -wcb -rscb
-python3 scripts/collect_stats.py $CNF/unsat/uuf250-1065 scripts/dataset/dataset-uuf250-1065.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/sat/uf20-91 scripts/dataset/dataset-uf20-91.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/sat/uf50-218 scripts/dataset/dataset-uf50-218.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/unsat/uuf50-218 scripts/dataset/dataset-uuf50-218.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/sat/uf75-325 scripts/dataset/dataset-uf75-325.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/unsat/uuf75-325 scripts/dataset/dataset-uuf75-325.csv -gb -lscb -wcb -rscb
+python3 scripts/collect_stats.py $CNF/sat/uf100-430 scripts/dataset/dataset-uf100-430.csv -gb #-lscb -wcb -rscb
+python3 scripts/collect_stats.py $CNF/unsat/uuf100-430 scripts/dataset/dataset-uuf100-430.csv -gb #-lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/sat/uf150-645 scripts/dataset/dataset-uf150-645.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/unsat/uuf150-645 scripts/dataset/dataset-uuf150-645.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/sat/uf175-753 scripts/dataset/dataset-uf175-753.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/unsat/uuf175-753 scripts/dataset/dataset-uuf175-753.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/sat/uf200-860 scripts/dataset/dataset-uf200-860.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/unsat/uuf200-860 scripts/dataset/dataset-uuf200-860.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/sat/uf225-960 scripts/dataset/dataset-uf225-960.csv -gb -lscb -wcb -rscb
+# python3 scripts/collect_stats.py $CNF/unsat/uuf225-960 scripts/dataset/dataset-uuf225-960.csv -gb -lscb -wcb -rscb
+python3 scripts/collect_stats.py $CNF/sat/uf250-1065 scripts/dataset/dataset-uf250-1065.csv -gb # -lscb -wcb -rscb
+python3 scripts/collect_stats.py $CNF/unsat/uuf250-1065 scripts/dataset/dataset-uuf250-1065.csv -gb # -lscb -wcb -rscb
