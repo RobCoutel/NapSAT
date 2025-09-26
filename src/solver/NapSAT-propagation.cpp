@@ -114,12 +114,10 @@ bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& re
 
 void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
 {
-  // print_trail();
   c1 = lit_neg(c1);
   ASSERT(lit_false(c1));
 
   for (TSwatch& w : _binary_watches[c1]) {
-    cout << "  Propagating binary clause " << clause_to_string(w.cl) << endl;
     Tlit c2 = w.block;
     Tclause cl = w.cl;
     ASSERT(clause_size(cl) == 2);
@@ -161,7 +159,11 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
       lits[1] = c1;
       // we do not need to update the next watched clause because the clause is binary
     }
-    ASSERT(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]));
+    if (lit_level(lits[0]) < lit_level(lits[1])) {
+      std::swap(lits[0], lits[1]);
+    }
+    ASSERT_MSG(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]),
+               "Clause " + clause_to_string(cl) + " is not correctly ordered after propagation of " + lit_to_string(c1));
     _conflicts.push_back(cl);
     if (!_options.exhaustive_conflict_search) {
       return;
@@ -235,7 +237,6 @@ void NapSAT::propagate_lit(Tlit lit)
     TSwatch& w = *i;
     Tclause cl = w.cl;
     TSclause& clause = _clauses[cl];
-    cout << "Propagating literal: " << lit_to_string(c1) << " on clause " << clause_to_string(cl) << endl;
     ASSERT(clause.watched);
     ASSERT(clause.size >= 2);
 
@@ -311,7 +312,7 @@ void NapSAT::propagate_lit(Tlit lit)
     */
     ASSERT(r != nullptr);
     // in debug mode, we still run the propagation, but it should not change anything
-    ASSERT_MSG(!lit_propagated(c1), lit_to_string(c1) + " requires changes on clause " + clause_to_string(cl));
+    ASSERT_MSG(!lit_propagated(c1) || find(_conflicts.begin(), _conflicts.end(), cl) != _conflicts.end(), lit_to_string(c1) + " requires changes on clause " + clause_to_string(cl));
 
     Tlevel r_lvl = lit_level(*r);
 
@@ -470,7 +471,6 @@ void NapSAT::propagate_lit(Tlit lit)
       }
       watch_list.resize(end - watch_list.data());
       _conflicts.push_back(cl);
-      cout << "conflict found " << clause_to_string(cl) << endl;
       if (!_options.exhaustive_conflict_search) {
         return;
       } else {

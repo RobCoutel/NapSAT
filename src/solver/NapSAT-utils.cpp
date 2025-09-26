@@ -297,13 +297,20 @@ unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
   // In graph backtracking, we cannot use a utility function anymore, because the literals are
   // now in a lattice, where all literals are not necessarily comparable.
   // We can however approximate the utility with the number of non-zero chunks of the literal.
-  unsigned level_weight = lit_level(lit);
+  unsigned level_weight;
   if (_options.graph_backtracking) {
     level_weight = lit_chunks(lit).count();
+  } else {
+    level_weight = lit_level(lit);
   }
-  return (lit_true(lit) * (2 * solver_level() - level_weight + 1))
-       + (lit_undef(lit) * (solver_level() + 1))
-       + (lit_false(lit) * level_weight);
+  return (lit_true(lit)  * (2 * solver_level() - level_weight + 3))
+       + (lit_undef(lit) * (solver_level() + 2))
+       + (lit_false(lit) * level_weight + 1);
+}
+
+unsigned napsat::NapSAT::max_utility_heuristic()
+{
+  return (2 * solver_level() + 3);
 }
 
 void napsat::NapSAT::print_lit(Tlit lit)

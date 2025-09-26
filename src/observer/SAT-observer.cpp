@@ -625,6 +625,22 @@ void napsat::gui::observer::print_clause_set()
       clauses_str.push_back(clause_str);
     }
 
+    // check if we can push more clauses that are smaller than the current max length
+    while (end < _active_clauses.size()) {
+      if (_active_clauses[end] == nullptr || !_active_clauses[end]->active) {
+        end++;
+        continue;
+      }
+      sort_clause(end);
+      string clause_str = clause_to_string(end);
+      unsigned clause_str_length = string_length_escaped(clause_str);
+      if (clause_str_length > max_clause_str_length)
+        break;
+      max_clause_str_length = max(max_clause_str_length, clause_str_length);
+      clauses_str.push_back(clause_str);
+      end++;
+    }
+
     if (clauses_str.empty()) {
       cout << "No clauses to print" << endl;
       return;

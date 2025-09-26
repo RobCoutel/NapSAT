@@ -131,7 +131,6 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
 {
   ASSERT(_options.graph_backtracking);
   ASSERT(!backtracked_chunks.empty());
-  cout << "Backtracking chunks " << backtracked_chunks << endl;
   ASSERT(!backtracked_chunks.empty());
   ASSERT(_backtracked_variables.empty());
   // Mapping to the new level of literals after backtracking
@@ -140,8 +139,6 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
   Tlevel min_level = LEVEL_UNDEF;
   for (Tlevel lvl = 1; lvl <= solver_level(); lvl++) {
     Tlit decision = decision_lit(lvl);
-    // cout << "Level " << lvl << " with chunks " << lit_chunks(decision) << endl;
-    // cout << "Intersection with backtracked chunks: " << lit_chunks(decision).has_intersection(backtracked_chunks) << endl;
 
     if (lit_chunks(decision).has_intersection(backtracked_chunks)) {
       min_level = min(min_level, lvl);

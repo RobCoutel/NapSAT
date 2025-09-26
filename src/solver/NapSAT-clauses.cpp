@@ -14,6 +14,8 @@ void napsat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
   unsigned second_index = 1;
   unsigned hight_utility = utility_heuristic(lits[0]);
   unsigned second_utility = utility_heuristic(lits[1]);
+  unsigned max_utility = max_utility_heuristic();
+
   if (hight_utility < second_utility) {
     high_index = 1;
     second_index = 0;
@@ -35,6 +37,10 @@ void napsat::NapSAT::select_watched_literals(Tlit* lits, unsigned size)
     else if (lit_utility > second_utility) {
       second_index = i;
       second_utility = lit_utility;
+    }
+    if (second_utility == max_utility) {
+      // we cannot do better
+      break;
     }
   }
   Tlit tmp = lits[0];
@@ -59,7 +65,6 @@ Tclause napsat::NapSAT::next_clause_id(size_t size)
     _clauses.push_back(added);
     _clauses_sizes.push_back(size);
     _activities.push_back(_max_clause_activity);
-    cout << "New clause id: " << _clauses.size() - 1 << endl;
     return _clauses.size() - 1;
   }
   Tclause cl = _deleted_clauses.back();
@@ -73,9 +78,9 @@ Tclause napsat::NapSAT::next_clause_id(size_t size)
     clause.lits = new Tlit[size];
     _clauses_sizes[cl] = size;
   }
-  clause.deleted = false;
+  clause.deleted = true;
   clause.learned = true;
-  clause.watched = true;
+  clause.watched = false;
   clause.external = false;
   // fill the end of the clause with LIT_UNDEF for printing purposes
   // Note that this is not necessary for the solver
@@ -87,11 +92,6 @@ Tclause napsat::NapSAT::next_clause_id(size_t size)
 
 Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsigned input_size, bool learned, bool external, Tclause id)
 {
-  cout << "Adding clause: ";
-  for (unsigned i = 0; i < input_size; i++)
-    cout << lit_to_string(lits_input[i]) << " ";
-  cout << endl;
-
   ASSERT(lits_input != nullptr);
   if (external) {
     for (unsigned i = 0; i < input_size; i++)
@@ -137,7 +137,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   }
 
   TSclause& clause = _clauses[id];
-  ASSERT(!clause.deleted);
+  ASSERT(clause.deleted);
+  clause.deleted = false;
   clause.learned = learned;
   clause.external = external;
   clause.watched = clause_size >= 2;
@@ -160,11 +161,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   }
 
   // Remove duplicate literals
-  cout << "Before cleanup: " << clause_to_string(id) << endl;
   if (input_size > 1) {
     clause.size = cleanup_duplicate_literals(lits, clause.size);
   }
-  cout << "After cleanup: " << clause_to_string(id) << endl;
   clause_size = clause.size;
 
   if (_proof && external) {
@@ -206,7 +205,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     if (lit_false(lits[0])) {
       _conflicts.push_back(id);
       repair_conflicts();
-      cout << "HERE 1" << endl;
     }
     return id;
   }
@@ -226,9 +224,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       // no need to update the watch list
     }
   } else {
-    cout << "Before selecting watched literals: " << clause_to_string(id) << endl;
     select_watched_literals(lits, clause_size);
-    cout << "After selecting watched literals: " << clause_to_string(id) << endl;
     watch_lit(lits[0], id);
     watch_lit(lits[1], id);
   }
@@ -238,19 +234,12 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     } else if (lit_false(lits[0])) {
       _conflicts.push_back(id);
       repair_conflicts();
-      cout << "HERE 2" << endl;
     } else if (_options.lazy_strong_chronological_backtracking) {
       ASSERT(lit_true(lits[0]));
       reimply_literal(lits[0], id);
     }  else if (_options.graph_backtracking) {
       lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
-      cout << "Updating cross chunks of " << lit_to_string(lits[1]) << " to " << lit_cross_chunks(lits[1]) << endl;
     }
-  }
-  if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
-    simplify_clause_set();
-    // The clause we just added should not be deleted
-    ASSERT(!_clauses[id].deleted);
   }
   return id;
 }

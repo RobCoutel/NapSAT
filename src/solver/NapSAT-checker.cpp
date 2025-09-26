@@ -136,6 +136,8 @@ bool napsat::NapSAT::trail_variable_consistency()
 
 bool napsat::NapSAT::is_watched(Tlit lit, Tclause cl)
 {
+  ASSERT(cl != CLAUSE_UNDEF);
+  ASSERT_MSG(lit != LIT_UNDEF, "is_watched(" << lit_to_string(lit) << ", " << clause_to_string(cl) << ")");
   if (_clauses[cl].size == 2) {
     // check the binary clause list
     for (TSwatch &w : _binary_watches[lit])
@@ -159,12 +161,15 @@ bool napsat::NapSAT::watch_lists_complete()
     TSclause clause = _clauses[cl];
     if (clause.size < 2 || !clause.watched || clause.deleted)
       continue;
-    for (unsigned i = 0; i < 2; i++) {
-      Tlit lit = clause.lits[i];
-      if (!is_watched(lit, cl)) {
-        success = false;
-        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is not in the watch list of its watched literal " << lit_to_string(lit));
-      }
+    Tlit lit = clause.lits[0];
+    if (!is_watched(lit, cl)) {
+      success = false;
+      LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is not in the watch list of its watched literal " << lit_to_string(lit));
+    }
+    lit = clause.lits[1];
+    if (!is_watched(lit, cl)) {
+      success = false;
+      LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is not in the watch list of its watched literal " << lit_to_string(lit));
     }
   }
   return success;

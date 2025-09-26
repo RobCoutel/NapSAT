@@ -475,9 +475,9 @@ public:
       */
       TSclause(Tlit* lits, unsigned size, bool learned, bool external) :
         lits(lits),
-        deleted(false),
+        deleted(true),
         learned(learned),
-        watched(true),
+        watched(false),
         external(external),
         size(size)
       {
@@ -1196,6 +1196,12 @@ public:
     unsigned utility_heuristic(Tlit lit);
 
     /**
+     * @brief Returns that maximal utility heuristic value for a literal at the current state of the solver.
+     * @return maximal utility heuristic value.
+     */
+    unsigned max_utility_heuristic();
+
+    /**
      * @brief After conflict learning and backtracking, this function ensures that the two watched literals are correct. That is, the first literal is unassigned and the second is the highest in the clause.
      */
     void fix_watched_literals(Tclause conflict);
@@ -1352,6 +1358,9 @@ public:
     void enhance_backtrack_possibilities_with_lazy_merging(std::vector<bitset>& possibilities);
 
     size_t split_learning_possibilities(std::vector<bitset>& possibilities);
+
+    void fix_conflicts_and_learned_in_order(const std::vector<Tclause>& conflicts,
+                                            const std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned);
 
     /**
      * @brief Returns true if the learned clause is redundant with any other confliting clauses in the set of conflicts.

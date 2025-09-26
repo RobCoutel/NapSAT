@@ -396,10 +396,14 @@ bool NapSAT::propagate()
     }
     if ((!_options.exhaustive_conflict_search || _n_propagated_lits == _trail.size()) && !_conflicts.empty()) {
       repair_conflicts();
-      if (_status == UNSAT)
+
+      if (_status == UNSAT) {
         return false;
+      }
+      if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
+        simplify_clause_set();
+      }
       if (!_options.no_restart && _luby_counter.increment()) {
-        cout << "RESTART" << endl;
         restart();
       }
     }
