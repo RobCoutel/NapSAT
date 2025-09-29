@@ -196,6 +196,7 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   _n_learned_clauses -= _clauses[cl].learned;
   clause.deleted = true;
   clause.watched = false;
+  clause.last_looked = 1;
   _deleted_clauses.push_back(cl);
   NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
   if(_proof)

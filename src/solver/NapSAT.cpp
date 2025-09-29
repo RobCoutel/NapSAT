@@ -1230,7 +1230,7 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
       break;
     }
   }
-  ASSERT(undef_lit != nullptr);
+  ASSERT_MSG(undef_lit != nullptr, "Undefined literal not found in clause: " + clause_to_string(conflict));
   ASSERT(lit_undef(*undef_lit));
   if (undef_lit == lits + 1) {
     // just swap the first two literals
@@ -1643,9 +1643,17 @@ void NapSAT::repair_conflict(Tclause conflict)
             if (!different) {
               identical = true;
               identical_clause = watch.cl;
+
+              for (size_t j = 0; j < _next_literal_index; j++) { lit_unmark(_literal_buffer[j]); }
+              _next_literal_index = 0;
+              _writing_clause = false;
+              if (_proof) {
+                _proof->cancel_resolution_chain();
+              }
               ASSERT(identical_clause < _clauses.size());
               NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Identical clause found"));
-              break;
+              repair_conflict(identical_clause);
+              return;
             }
           }
         }
@@ -1756,15 +1764,9 @@ void NapSAT::repair_conflict(Tclause conflict)
     if (clause_falsified(conflict)) {
       repair_conflict(conflict);
     } else {
-      if (identical_clause == CLAUSE_ERROR) {
-        // the clause itself is a UIP
-        fix_watched_literals(conflict);
-        imply_literal(_clauses[conflict].lits[0], conflict);
-      } else {
-        // the clause reduces to another known clause after conflict analysis. This other clause is then the UIP cut
-        fix_watched_literals(identical_clause);
-        imply_literal(_clauses[identical_clause].lits[0], identical_clause);
-      }
+      // the clause itself is a UIP
+      fix_watched_literals(conflict);
+      imply_literal(_clauses[conflict].lits[0], conflict);
     }
 
   } else {

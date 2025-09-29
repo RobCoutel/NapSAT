@@ -252,6 +252,11 @@ namespace napsat::proof
     void print_resolution_chain(unsigned index);
 
     /**
+     * Prints the current resolution chain being built.
+     */
+    void print_current_resolution_chain(void);
+
+    /**
      * @brief Print the proof in a top-down format. Only the clauses relevant
      * to reaching the empty clause are printed.
      * @pre The proof must be correct.

@@ -330,6 +330,53 @@ void napsat::proof::resolution_proof::print_resolution_chain(unsigned index) {
   }
 }
 
+void napsat::proof::resolution_proof::print_current_resolution_chain(void)
+{
+  if (current_resolution_chain.size() == 0) {
+    cout << "Empty current resolution chain\n";
+    return;
+  }
+  vector<Tlit> base;
+  // first clause in the resolution chain
+  unsigned first_index = current_resolution_chain[0].second;
+  clause cl = clauses[first_index];
+
+  for (unsigned i = 0; i < cl.size; i++)
+    base.push_back(cl.lits[i]);
+
+  cout << "C0: (";
+  for (unsigned i = 0; i < base.size(); i++) {
+    cout << lit_to_int(base[i]);
+    if (i != base.size() - 1)
+      cout << " ";
+  } cout << ") [input " << first_index << "]\n";
+  string last_clause_number = to_string(first_index);
+  for (unsigned i = 1; i < current_resolution_chain.size(); i++) {
+    pair<Tlit, unsigned> link = current_resolution_chain[i];
+    cout << "Pivot: " << lit_to_int(link.first) << "\n";
+    cout << "Resolvent clause: " << link.second <<" ";
+    for (unsigned j = 0; j < clauses[link.second].size; j++)
+      cout << lit_to_int(clauses[link.second].lits[j]) << " ";
+    cout << "\n";
+
+    apply_resolution(base, link.second, link.first);
+    cl = clauses[link.second];
+
+    if (i != current_resolution_chain.size() - 1)
+      cout << "C" << i-1 << ": (";
+    else
+      cout << "C*: (";
+
+    for (unsigned i = 0; i < base.size(); i++) {
+      cout << lit_to_int(base[i]);
+      if (i != base.size() - 1)
+        cout << " ";
+    }
+    cout << ") [resolution " << last_clause_number << ", " << link.second << "]\n";
+    last_clause_number = "C" + to_string(i-1);
+  }
+}
+
 void napsat::proof::resolution_proof::print_proof(void)
 {
   assert(empty_clause_id != CLAUSE_UNDEF);
