@@ -292,7 +292,7 @@ namespace napsat
      * @brief Multiplier of the number of clauses before elimination. When the simplifying procedure is called to eliminate clauses, the new threshold for deletion is multiplied by this multiplier.
      * @requires multiplier > 1
      */
-    double clause_elimination_multiplier = 1.5;
+    double clause_elimination_multiplier = 2.0;
 
     /**
      * @brief Multiplier for the activity increment of clauses. The higher the multiplier, faster the clauses are considered irrelevant.
@@ -306,14 +306,28 @@ namespace napsat
     double clause_activity_threshold_decay = 0.85;
 
     /**
-     * @brief Disables restarts of the solver.
+     * @brief Enables luby restarts of the solver.
      */
-    bool no_restart = false;
+    bool restarts = true;
 
     /**
      * @brief Search all conflicts until the end of propagation before triggering conflict analysis.
+     * @alias -ecs
      */
-    bool exhaustive_conflict_search = true;
+    bool exhaustive_conflict_repair = false;
+
+    /**
+     * @brief Enables partial conflict repair.
+     * @alias -pcs
+     */
+    bool partial_conflict_repair = false;
+
+    /**
+     * @brief If this option is true, the solver will backtrack the chunks that were analyzed to learn clauses. Otherwise, the solver will always backtrack the smallest set of chunks, if possible.
+     * @alias -bl
+     * @requires -gb
+     */
+    bool backtrack_learned = true;
 
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.

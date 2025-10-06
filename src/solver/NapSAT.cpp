@@ -258,8 +258,11 @@ void NapSAT::restart()
   }
 }
 
-static unsigned estimate_backtrack_cost(Tlit lits) {
-  return 1;
+double napsat::NapSAT::default_cost(Tlit lit) {
+  if (_vars[lit_to_var(lit)].synced == 0) {
+    return 1;
+  }
+  return 0.1;
 }
 
 /*****************************************************************************/
@@ -320,7 +323,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     allocate_chunks(4032);
   }
 
-  _backtrack_cost_estimator = estimate_backtrack_cost;
+  // _backtrack_cost_estimator = default_cost;
 }
 
 NapSAT::~NapSAT()
@@ -366,6 +369,7 @@ bool NapSAT::propagate()
   // ASSERT(watch_lists_minimal());
   if (_status != UNDEF)
     return false;
+  size_t stop_location = UINT64_MAX;
   while (_n_propagated_lits < _trail.size()) {
     Tlit lit = _trail[_n_propagated_lits];
 #ifdef NDEBUG
@@ -386,16 +390,29 @@ bool NapSAT::propagate()
     lit_cross_chunks(lit) |= lit_chunks(lit);
 
     propagate_binary_clauses(lit);
-    if (_options.exhaustive_conflict_search || _conflicts.empty()) {
+    if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
       propagate_lit(lit);
     }
-    if (_options.exhaustive_conflict_search || _conflicts.empty()) {
+    if (_options.partial_conflict_repair && stop_location == UINT64_MAX && !_conflicts.empty()) {
+      stop_location = _trail.size();
+    }
+
+    if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
       _vars[lit_to_var(lit)].propagated = true;
       _n_propagated_lits++;
       NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
     }
-    if ((!_options.exhaustive_conflict_search || _n_propagated_lits == _trail.size()) && !_conflicts.empty()) {
+
+    ASSERT(_conflicts.empty() || !_options.partial_conflict_repair || _n_propagated_lits < _trail.size() || _n_propagated_lits == _trail.size());
+    ASSERT(!_options.partial_conflict_repair || _conflicts.empty() || stop_location != UINT64_MAX);
+    ASSERT(stop_location == UINT64_MAX || !_conflicts.empty());
+    ASSERT(stop_location == UINT64_MAX || (stop_location <= _trail.size() && stop_location >= _n_propagated_lits));
+    if (!_conflicts.empty()
+    && (!_options.exhaustive_conflict_repair || _n_propagated_lits == _trail.size())
+    && (!_options.partial_conflict_repair || _n_propagated_lits == stop_location)) {
       repair_conflicts();
+
+      stop_location = UINT64_MAX;
 
       if (_status == UNSAT) {
         return false;
@@ -403,7 +420,7 @@ bool NapSAT::propagate()
       if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
         simplify_clause_set();
       }
-      if (!_options.no_restart && _luby_counter.increment()) {
+      if (_options.restarts && _luby_counter.increment()) {
         restart();
       }
     }
@@ -582,7 +599,7 @@ void NapSAT::synchronize()
     {
     case 0:
     case 1:
-      // do nothing
+      // do nothing, already synchronized
       break;
     case 2:
       NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync unassign"));

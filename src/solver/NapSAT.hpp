@@ -783,6 +783,11 @@ public:
     std::function<unsigned(Tlit)> _backtrack_cost_estimator;
 
     /**
+     * @brief Default cost function
+     */
+    double default_cost(Tlit lit);
+
+    /**
      * @brief Number of allocated chunks.
      * @details This is the number of chunks that variables are able to use.
      * i.e., the size of the bitset of each variable.
@@ -1351,6 +1356,7 @@ public:
     /*************************************************************************/
     /*                           Conflict analysis                           */
     /*************************************************************************/
+
     void backtracked_chunks_subsumption(std::vector<bitset>& possibilities);
 
     void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, const bitset& current, bitset processed);
@@ -1369,6 +1375,12 @@ public:
      * @return true if the learned clause is redundant, false otherwise.
      */
     bool learned_clause_is_redundant();
+
+    /**
+     * @brief Returns true if the clause already exists in the clause set.
+     * @pre The literals are marked
+     */
+    Tclause clause_already_exists(const Tlit* lits, size_t size) const;
 
     /**
      * @brief Returns true if there is a conflict at root level, complete the proof if needed, and set the status to UNSAT.

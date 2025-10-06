@@ -123,6 +123,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     ASSERT(clause_size(cl) == 2);
 
     if (lit_true(c2)) {
+      cout << "Binary clause " << clause_to_string(cl) << " is already satisfied by " << lit_to_string(c2) << endl;
       if (_options.lazy_strong_chronological_backtracking && lit_level(c2) > lit_level(c1)) {
         // missed lower implication
         Tlit* lits = clause_lits(cl);
@@ -165,10 +166,9 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     ASSERT_MSG(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]),
                "Clause " + clause_to_string(cl) + " is not correctly ordered after propagation of " + lit_to_string(c1));
     _conflicts.push_back(cl);
-    if (!_options.exhaustive_conflict_search) {
+    NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(cl));
+    if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
       return;
-    } else {
-      continue;
     }
   }
 }
@@ -471,7 +471,8 @@ void NapSAT::propagate_lit(Tlit lit)
       }
       watch_list.resize(end - watch_list.data());
       _conflicts.push_back(cl);
-      if (!_options.exhaustive_conflict_search) {
+      NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(cl));
+      if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
         return;
       } else {
         continue;

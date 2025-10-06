@@ -211,9 +211,62 @@ void napsat::NapSAT::fix_conflicts_and_learned_in_order(const std::vector<Tclaus
   }
 }
 
+Tclause napsat::NapSAT::clause_already_exists(const Tlit* lits, size_t size) const
+{
+#ifndef NDEBUG
+  for (unsigned i = 0; i < size; i++) { ASSERT(lit_marked(lits[i])); }
+#endif
+  // go through the watch lists of all literals and check if the clause is there
+  // since clauses are watched by two literals, we can skip the last one
+  Tclause found = CLAUSE_UNDEF;
+  for (unsigned i = 0; i < size - 1 && found == CLAUSE_UNDEF; i++) {
+    Tlit lit = lits[i];
+    // check the binary clauses
+    for (const TSwatch& watch : _binary_watches[lit]) {
+      Tlit b = watch.block;
+      if (lit_false(b) && lit_marked(b)) {
+        found = watch.cl;
+        break;
+      }
+    }
+    if (found != CLAUSE_UNDEF) {
+      break;
+    }
+
+    const auto& watch_list = _watches[lit];
+    for (const TSwatch& watch : watch_list) {
+      Tclause cl = watch.cl;
+      Tlit b = watch.block;
+      if (!lit_false(b) && !lit_marked(b)) {
+        continue;
+      }
+      const Tlit* cls = clause_lits(cl);
+      bool all_found = true;
+      for (unsigned j = 0; j < _clauses[cl].size && all_found; j++) {
+        all_found = lit_false(cls[j]) && lit_marked(cls[j]);
+      }
+      if (all_found) {
+        found = cl;
+        break;
+      }
+    }
+  }
+
+  return found;
+}
+
 bool napsat::NapSAT::learned_clause_is_redundant()
 {
   for (unsigned j = 0; j < _next_literal_index; j++) { lit_mark(_literal_buffer[j]); }
+
+  if (!_options.exhaustive_conflict_repair && _options.graph_backtracking) {
+    Tclause redundant = clause_already_exists(_literal_buffer, _next_literal_index);
+    if (redundant != CLAUSE_UNDEF) {
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Redundant clause"));
+      for (unsigned j = 0; j < _next_literal_index; j++) { lit_unmark(_literal_buffer[j]); }
+      return true;
+    }
+  }
 
   for (size_t k = 0; k < _conflicts.size(); k++) {
     Tlit* lits = clause_lits(_conflicts[k]);
@@ -255,6 +308,7 @@ bool napsat::NapSAT::root_level_conflict()
 size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause>& conflicts,
                                                        std::vector<bitset>& possibilities)
 {
+  // print_trail();
   ASSERT(possibilities.empty());
   vector<bitset> conflict_chunks;
 
@@ -265,10 +319,23 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
 
   vector<bitset> prefixes;
   prefixes.push_back(bitset(_n_allocated_chunks));
-
+  unsigned limit = 100000;
   while (!prefixes.empty()) {
+    // check if the prefix is subsumed by an existing possibility
+    if (limit-- == 0) {
+      cerr << "  Stopping early, too many possibilities." << endl;
+      exit(1);
+    }
+    // cout << "Prefix stack: " << prefixes.size() << " elements." << endl;
+    // for (const bitset& p : prefixes) {
+    //   cout << "  " << p.to_string() << endl;
+    // }
+    // cout << endl;
+
     bitset prefix = prefixes.back();
     prefixes.pop_back();
+    // cout << "  Prefix: " << prefix.to_string() << endl;
+
     bitset remaining(_n_allocated_chunks);
 
     // Calculate which chunks can still be required
@@ -286,7 +353,16 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
     for (auto it = remaining.cbegin(); it != remaining.cend(); ++it) {
       bitset next = prefix;
       next.set(*it, true);
-      prefixes.push_back(next);
+      bool subsumed = false;
+      for (const bitset& p : possibilities) {
+        if (p >= next) {
+          // the prefix is subsumed, we can skip it
+          subsumed = true;
+          break;
+        }
+      }
+      if (!subsumed)
+        prefixes.push_back(next);
     }
   }
 
@@ -314,7 +390,11 @@ void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
       size_t i = --w.give_up_point;
       Tlit lit = _trail[i];
       if (lit_chunks(lit).has_intersection(w.chunks)) {
-        w.total_weight += _backtrack_cost_estimator(lit);
+        if (_backtrack_cost_estimator) {
+          w.total_weight += _backtrack_cost_estimator(lit);
+        } else {
+          w.total_weight += default_cost(lit);
+        }
 
         if (w.maybe_learning && w.total_weight > lowest_learning) {
           // stop early, we know that this is not the best
@@ -613,6 +693,7 @@ void napsat::NapSAT::repair_unary_clause_conflict(Tclause conflict)
 
 void NapSAT::repair_conflicts()
 {
+  NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Repairing conflicts"));
   /**
    * Precondition:
    * - The conflict clause C is conflicting with the current partial assignment π
@@ -623,7 +704,7 @@ void NapSAT::repair_conflicts()
    *    δ(c₁) = δ(C)
    */
   ASSERT(!_conflicts.empty());
-  ASSERT(_options.exhaustive_conflict_search || _conflicts.size() == 1);
+  ASSERT(_options.exhaustive_conflict_repair || _options.partial_conflict_repair || _conflicts.size() == 1);
 
   // in general, a conflict may appear twice in the list.
   // clean up duplicates
@@ -634,7 +715,6 @@ void NapSAT::repair_conflicts()
     _status = UNDEF;
 
   for (Tclause conflict : _conflicts) {
-    NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(conflict));
     bump_clause_activity(conflict);
   }
 
@@ -749,6 +829,7 @@ void napsat::NapSAT::compute_subsumed_clauses(const vector<pair<Tclause, vector<
         }
       }
       if (all_found) {
+        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Backward Subsumption"));
         subsumed[i] = true;
         break;
       }
@@ -832,6 +913,8 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
 
     // check if the clause is new
     if (learned_clause_is_redundant()) {
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Forward Subsumption"));
+
       if (_proof) {
         _proof->cancel_resolution_chain();
       }
@@ -849,6 +932,8 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
       bool all_found = true;
       for (unsigned j = 0; j < clause.size() && all_found; j++) { all_found &= lit_marked(clause[j]); }
       if (all_found) {
+        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Forward Subsumption (learned)"));
+
         already_learned = true;
         break;
       }
@@ -929,10 +1014,12 @@ void napsat::NapSAT::graph_repair()
   vector<Tclause> implying_conflicts;
   vector<pair<Tclause, vector<Tlit>>> learned_clauses;
   bitset undone_chunks;
+  bitset best_chunks(_n_allocated_chunks);
+  bitset analyzed_chunks(_n_allocated_chunks);
 
   do {
+    ASSERT(learned_clauses.empty());
     implying_conflicts.clear();
-    learned_clauses.clear();
 
     // filter out weights that cannot learn and are not at the highest level
     for (size_t i = 0; i < weights.size(); i++) {
@@ -948,30 +1035,49 @@ void napsat::NapSAT::graph_repair()
 
     // the top element is the best one because it was sorted by the calculate_bitset_weights function
     ASSERT(!weights.empty());
-    Tweight& best = weights[0];
-    undone_chunks = best.chunks;
+    Tweight& analyzed = weights[0];
+    ASSERT(analyzed.maybe_learning || maybe_learning == 0);
 
-    if (best.maybe_learning) {
-      try_and_learn(undone_chunks, learned_clauses);
+    analyzed_chunks = analyzed.chunks;
+
+    if(best_chunks.empty()) {
+      best_chunks = analyzed.chunks;
+    }
+
+    if (analyzed.maybe_learning) {
+      try_and_learn(analyzed.chunks, learned_clauses);
 
       if(_status == UNSAT) {
         return;
       }
 
-      if (!learned_clauses.empty() || best.highest_level == highest_level) {
+      // if we manage to learn something, we stop
+      if (!learned_clauses.empty()) {
         break;
       }
+      // if the chunk is at the highest level, stop
+      if (analyzed.highest_level == highest_level) {
+        best_chunks = analyzed.chunks;
+        break;
+      }
+
       // learning was not possible
-      best.maybe_learning = false;
+      analyzed.maybe_learning = false;
       maybe_learning--;
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Failed learning"));
     }
+
     if (maybe_learning == 0) {
       // we have tried all the learning possibilities
       break;
     }
   } while (true);
 
-  backtrack(undone_chunks);
+  if (_options.backtrack_learned) {
+    backtrack(analyzed_chunks);
+  } else {
+    backtrack(best_chunks);
+  }
 
   fix_conflicts_and_learned_in_order(_conflicts, learned_clauses);
 

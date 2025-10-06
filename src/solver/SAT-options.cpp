@@ -169,7 +169,13 @@ napsat::options::options(vector<string>& tokens)
     {"--check-proof",                            &check_proof},
     {"--ignore-unused_variables",                &ignore_unused_variables},
     {"-iuv",                                     &ignore_unused_variables},
-    {"--no-restart",                             &no_restart}
+    {"--restarts",                               &restarts},
+    {"--exhaustive-conflict-repair",             &exhaustive_conflict_repair},
+    {"-ecr",                                     &exhaustive_conflict_repair},
+    {"--partial-conflict-repair",                &partial_conflict_repair},
+    {"-pcr",                                     &partial_conflict_repair},
+    {"--backtrack-learned",                      &backtrack_learned},
+    {"-bl",                                      &backtrack_learned}
   };
 
   /**
@@ -281,6 +287,18 @@ napsat::options::options(vector<string>& tokens)
 
   chronological_backtracking = weak_chronological_backtracking || restoring_strong_chronological_backtracking || lazy_strong_chronological_backtracking;
 
+  if (backtrack_learned && !graph_backtracking) {
+    LOG_WARNING("backtrack learned requires graph backtracking.");
+    LOG_WARNING("The solver will ignore this option.");
+    backtrack_learned = false;
+  }
+
+  if (partial_conflict_repair && exhaustive_conflict_repair) {
+    LOG_WARNING("partial conflict repair is incompatible with exhaustive conflict repair.");
+    LOG_WARNING("The solver will run with exhaustive conflict repair.");
+    partial_conflict_repair = false;
+  }
+
   interactive |= commands_file != "";
 
   if (graph_backtracking && chronological_backtracking) {
@@ -313,6 +331,4 @@ napsat::options::options(vector<string>& tokens)
   }
 
   build_proof = build_proof || print_proof || check_proof;
-
-  exhaustive_conflict_search |= graph_backtracking;
 }

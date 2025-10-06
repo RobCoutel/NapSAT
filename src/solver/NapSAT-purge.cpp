@@ -224,7 +224,9 @@ void napsat::NapSAT::purge_clauses()
 
     if (clause.size == 2) {
       _binary_watches[lits[0]].push_back(TSwatch(cl, lits[1]));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lits[1], lits[0]));
       _binary_watches[lits[1]].push_back(TSwatch(cl, lits[0]));
+      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lits[1], lits[0]));
     }
     if (clause.size == 1) {
       clause.watched = false;
