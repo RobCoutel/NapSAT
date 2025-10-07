@@ -329,6 +329,11 @@ namespace napsat
      */
     bool backtrack_learned = false;
 
+    /**
+     * @brief Limit on the number of backtrack possibilities to consider when using graph backtracking. If the number of possibilities is greater than the limit, the solver will heuristically cutoff.
+     */
+    double backtrack_possibilities_limit = 1000;
+
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.
 

@@ -213,8 +213,14 @@ std::string observer::get_statistics()
 
   if (stat_count.size() > 0) {
     s += "c Additional Statistics:\n";
-    for (auto pair : stat_count) {
-      s += "c  - " + pair.first + ": " + pretty_integer(pair.second) + "\n";
+    // print the statistics in alphabetical order
+    vector<string> stat_names;
+    for (auto pair : stat_count)
+      stat_names.push_back(pair.first);
+    sort(stat_names.begin(), stat_names.end());
+    // print the statistics
+    for (string name : stat_names) {
+      s += "c  - " + name + ": " + pretty_integer(stat_count.at(name)) + "\n";
     }
   }
   return s;

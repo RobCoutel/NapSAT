@@ -4,6 +4,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <queue>
 
 using namespace std;
 using namespace napsat;
@@ -313,10 +314,15 @@ bool napsat::NapSAT::root_level_conflict()
   return false;
 }
 
+struct compare_bitset_size {
+  bool operator()(const pair<unsigned, bitset>& a, const pair<unsigned, bitset>& b) const {
+    return a.first < b.first;
+  }
+};
+
 size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause>& conflicts,
                                                        std::vector<bitset>& possibilities)
 {
-  // print_trail();
   ASSERT(possibilities.empty());
   vector<bitset> conflict_chunks;
 
@@ -324,19 +330,21 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
     bitset cl_chunks = clause_chunks(conflict);
     conflict_chunks.push_back(cl_chunks);
   }
+  // print_trail();
+  priority_queue<pair<unsigned, bitset>, vector<pair<unsigned, bitset>>, compare_bitset_size> prefixes;
+  // cout << "  There are " << conflicts.size() << " conflicts to fix." << endl;
 
-  vector<bitset> prefixes;
-  prefixes.push_back(bitset(_n_allocated_chunks));
-  unsigned limit = 100000;
+  prefixes.push(make_pair(0, bitset(_n_allocated_chunks)));
   while (!prefixes.empty()) {
     // check if the prefix is subsumed by an existing possibility
-    if (limit-- == 0) {
-      cerr << "  Stopping early, too many possibilities." << endl;
-      exit(1);
+    if (possibilities.size() > _options.backtrack_possibilities_limit) {
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Backtrack possibilities limit reached"));
+      break;
     }
 
-    bitset prefix = prefixes.back();
-    prefixes.pop_back();
+    bitset prefix = prefixes.top().second;
+    prefixes.pop();
+    // cout << "  Considering prefix " << prefix.to_string() << endl;
 
     bitset remaining(_n_allocated_chunks);
 
@@ -363,8 +371,15 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
           break;
         }
       }
-      if (!subsumed)
-        prefixes.push_back(next);
+      if (!subsumed) {
+        unsigned number_of_solved_conflicts = 0;
+        for (const bitset& cl_chunks : conflict_chunks) {
+          if (next.has_intersection(cl_chunks))
+            number_of_solved_conflicts++;
+        }
+        // cout << "  Prefix " << next.to_string() << " solves " << number_of_solved_conflicts << " / " << conflicts.size() << " conflicts." << endl;
+        prefixes.push(make_pair(number_of_solved_conflicts, next));
+      }
     }
   }
 
