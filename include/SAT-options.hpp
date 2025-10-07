@@ -327,7 +327,7 @@ namespace napsat
      * @alias -bl
      * @requires -gb
      */
-    bool backtrack_learned = true;
+    bool backtrack_learned = false;
 
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.

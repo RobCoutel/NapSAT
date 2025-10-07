@@ -377,6 +377,18 @@ string NapSAT::clause_to_string(Tclause cl) const
   return s;
 }
 
+std::string napsat::NapSAT::clause_to_string(const Tlit* lits, size_t size) const
+{
+  string s = "";
+  s += "{ ";
+  for (const Tlit* i = lits; i < lits + size; i++) {
+    s += lit_to_string(*i);
+    s += " ";
+  }
+  s += "}";
+  return s;
+}
+
 void NapSAT::print_clause(Tclause cl)
 {
   cout << clause_to_string(cl);

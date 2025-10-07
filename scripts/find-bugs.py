@@ -14,7 +14,14 @@ directoryUnSat = "/home/robin/OneDrive/University/Library/SAT.CNF/unsat/"
 # Path to the executable
 SAT_exec = "/home/robin/programs/NapSAT-dev/build/NapSAT"
 
-SAT_options = ["", "-rscb", "-lscb", "-gb", "-gb", "-gb -lcm"]
+SAT_options = ["", "-rscb", "-lscb", "-gb", "-gb -lcm", "-gb -bl", "-gb -lcm -bl"]
+opts = []
+for option in SAT_options:
+    opts.append(option)
+    opts.append(option + " -ecr")
+    opts.append(option + " -pcr")
+SAT_options = opts
+
 additional_options = "-c -sw -cp"
 
 N_THREADS = 20
@@ -88,6 +95,7 @@ def search_output(root_directory, pattern):
 if __name__ == "__main__":
     # check if we have the arguments
     import sys
+    print("Testing", len(SAT_options), "configurations")
     directory = ""
     if len(sys.argv) > 1:
         directory = sys.argv[1]
@@ -100,7 +108,7 @@ if __name__ == "__main__":
         additional_options = " ".join(additional_options_bis)
 
     if directory == "":
-        search_output(directoryUnSat, "s SATISFIABLE")
         search_output(directorySat, "s UNSATISFIABLE")
+        search_output(directoryUnSat, "s SATISFIABLE")
     else:
         search_output(directory, "ERROR")

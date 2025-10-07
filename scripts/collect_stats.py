@@ -8,8 +8,7 @@ import pandas as pd
 # Path to the executable
 SAT_exec = "./build/NapSAT"
 additional_options: list[str] = [
-    # "--no-restart",
-    # "-del off"
+    "-del off"
 ]
 
 N_THREADS = 20
@@ -99,19 +98,23 @@ if __name__ == "__main__":
         sys.exit(1)
     directory = sys.argv[1]
     out_file = sys.argv[2]
-    SAT_options = [""] + sys.argv[3:]
+    SAT_options = ["-ncb"] + sys.argv[3:]
     if "-gb" in SAT_options:
         SAT_options.append("-gb -lcm")
+        SAT_options.append("-gb -bl")
+        SAT_options.append("-gb -lcm -bl")
 
-    # add the variants with and without restarts
-    # add the variants with and without clause deletion
-    SAT_options_cross = []
-    for opts in SAT_options:
-        for opts2 in ["", "-del off"]:
-            for opts3 in ["", "--no-restart"]:
-                SAT_options_cross.append(opts + " " + opts2 + " " + opts3)
+    opts = []
+    for option in SAT_options:
+        opts.append(option)
+        opts.append(option + " -ecr")
+        opts.append(option + " -pcr")
+        opts.append(option + " --restarts off")
+        opts.append(option + " -ecr --restarts off")
+        opts.append(option + " -pcr --restarts off")
+    SAT_options = opts
 
-    SAT_options = SAT_options_cross
+    # SAT_options = SAT_options_cross
 
     print(f"Collecting stats for {directory} with options {SAT_options}")
 

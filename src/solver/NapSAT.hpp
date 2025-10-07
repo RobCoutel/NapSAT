@@ -1365,8 +1365,7 @@ public:
 
     size_t split_learning_possibilities(std::vector<bitset>& possibilities);
 
-    void fix_conflicts_and_learned_in_order(const std::vector<Tclause>& conflicts,
-                                            const std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned);
+    void fix_conflicts_and_learned_in_order(const std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned);
 
     /**
      * @brief Returns true if the learned clause is redundant with any other confliting clauses in the set of conflicts.
@@ -1404,7 +1403,7 @@ public:
       /**
        * @brief Total weight measured until the give_up_point
        */
-      double total_weight = 0;
+      double total_weight = 0.0;
       /**
        * @brief When the weight counter decided to stop counting
        */
@@ -1419,14 +1418,45 @@ public:
       bool maybe_learning = true;
 
       bool operator<(const Tweight& other) const {
-        if (maybe_learning != other.maybe_learning)
-          return maybe_learning > other.maybe_learning;
-        if (finished && other.finished)
+        if (finished ^ other.finished)
+          return finished;
+
+        if (finished) {
+          if (total_weight == other.total_weight) {
+            if (maybe_learning != other.maybe_learning)
+              return maybe_learning;
+            if (lowest_level != other.lowest_level)
+              return lowest_level < other.lowest_level;
+            if (highest_level != other.highest_level)
+              return highest_level < other.highest_level;
+            // if everything is identical, go thought the chunks to have a deterministic order
+            auto it1 = chunks.cbegin();
+            auto it2 = other.chunks.cbegin();
+            while (it1 != chunks.cend() && it2 != other.chunks.cend()) {
+              if (*it1 != *it2)
+                return *it1 < *it2;
+              ++it1;
+              ++it2;
+            }
+            assert(false); // should never happen
+          }
           return total_weight < other.total_weight;
-        // then the lowest level
+        }
+
         if (lowest_level != other.lowest_level)
-          return lowest_level > other.lowest_level;
-        return highest_level > other.highest_level;
+          return lowest_level < other.lowest_level;
+        return highest_level < other.highest_level;
+      }
+
+      std::string to_string() const {
+        std::string res = "chunks: " + chunks.to_string();
+        res += "(" + std::to_string(lowest_level) + "-" + std::to_string(highest_level) + ")";
+        res += " = " + std::to_string(total_weight);
+        if (finished)
+          res += " (finished)";
+        if (maybe_learning)
+          res += " (maybe learning)";
+        return res;
       }
     } Tweight;
 
@@ -1729,6 +1759,14 @@ public:
      * @return string of the clause.
      */
     std::string clause_to_string(Tclause cl) const;
+
+    /**
+     * @brief Returns a string of a clause. The clause is printed in the form
+     * "{lit1 lit2 ... litm}"
+     * @param lits array of literals to print.
+     * @param size size of the array.
+     */
+    std::string clause_to_string(const Tlit* lits, size_t size) const;
 
     /**
      * @brief Prints the current assignment of the solver on the standard

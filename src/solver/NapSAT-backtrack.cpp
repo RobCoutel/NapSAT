@@ -14,7 +14,7 @@ Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned siz
 #ifndef NDEBUG
   // The first literal of the clause is at the highest level
   for (unsigned i = 1; i < size; i++) {
-    ASSERT(lit_level(learned_lits[i]) <= lit_level(learned_lits[0]));
+    ASSERT_MSG(lit_level(learned_lits[i]) <= lit_level(learned_lits[0]), "Inconsistent literal levels for learned clause " + clause_to_string(learned_lits, size));
   }
 #endif
   if (size == 0) {
