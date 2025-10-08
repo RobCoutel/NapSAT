@@ -553,18 +553,25 @@ void NapSAT::propagate_lit(Tlit lit)
     } else if (_options.lazy_chunk_merging && lit_decision(c2) && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
       Tlit reimp_lit = lits[0];
       // compute the chunk set of the clause, excluding the lits[1]
-      bitset chunks = clause_chunks(cl);
+      bitset chunks(_n_allocated_chunks);
+      ASSERT(lits[0] == c2);
+      for (size_t j = 1; j < clause.size; j++) {
+        ASSERT(lits[j] != c2);
+        chunks |= lit_chunks(lits[j]);
+      }
+      // cout << "Missed chunk implication for " << lit_to_string(c2) << " in " << lit_chunks(c2) << " by clause " << clause_to_string(cl) << " chunks " << chunks << endl;
+
 
       auto it = lit_chunks(reimp_lit).cbegin();
       Tchunk decision_chunk = *it;
       ASSERT(++it == lit_chunks(reimp_lit).cend());
-
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
       if (!reimplication_cycle(decision_chunk, chunks)) {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
-
         lit_lazy_reason(c2) = cl;
-        NOTIFY_OBSERVER(_observer, new napsat::gui::missed_lower_implication(lit_to_var(c2), cl));
         _chunks[decision_chunk].missed_implication = chunks;
+        NOTIFY_OBSERVER(_observer, new napsat::gui::missed_lower_implication(lit_to_var(c2), cl));
+      } else {
+        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Merge cycle"));
       }
     }
 

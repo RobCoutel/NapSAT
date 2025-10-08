@@ -31,7 +31,7 @@ void napsat::NapSAT::backtracked_chunks_subsumption(std::vector<bitset>& possibi
 }
 
 void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combinations,
-                                                          const bitset& current,
+                                                          bitset current,
                                                           bitset processed)
 {
   bitset diff = current - processed;
@@ -49,11 +49,19 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
   }
 
   for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
-    Tclause missed_implication = var_lazy_reason(_chunks[*i].decision);
+    Tvar decision = _chunks[*i].decision;
+    Tclause missed_implication = var_lazy_reason(decision);
     ASSERT(missed_implication != CLAUSE_UNDEF);
     bitset next_process = processed;
     next_process.set(*i, true);
-    bitset merged_chunks = clause_chunks(missed_implication);
+    bitset merged_chunks = _chunks[*i].missed_implication;
+
+    // if they itersect, then all the other possibilities will be subsumed
+    if (current.has_intersection(merged_chunks)) {
+      combinations.push_back(current);
+      continue;
+    }
+
     for (auto j = merged_chunks.cbegin(); j != merged_chunks.cend(); ++j) {
       bitset next_current = current;
       next_current.set(*j, true);
@@ -64,6 +72,11 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
 
 void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(std::vector<bitset>& possibilities)
 {
+  // print_trail();
+  // cout << "Enhancing " << possibilities.size() << " possibilities with lazy merging" << endl;
+  // for (size_t i = 0; i < possibilities.size(); i++) {
+  //   cout << "Possibility " << i << ": " << possibilities[i] << endl;
+  // }
   size_t original_size = possibilities.size();
   while(original_size > 0) {
     compute_lazy_merge_chunk_combination(possibilities, possibilities[original_size - 1], bitset(_n_allocated_chunks));
@@ -73,7 +86,17 @@ void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(std::vect
     original_size--;
   }
 
+  // cout << "Before subsumption, we have " << possibilities.size() << " possibilities" << endl;
+  // for (size_t i = 0; i < possibilities.size(); i++) {
+  //   cout << "Possibility " << i << ": " << possibilities[i] << endl;
+  // }
+
   backtracked_chunks_subsumption(possibilities);
+
+  // cout << "After enhancement, we have " << possibilities.size() << " possibilities" << endl;
+  // for (size_t i = 0; i < possibilities.size(); i++) {
+  //   cout << "Possibility " << i << ": " << possibilities[i] << endl;
+  // }
 }
 
 size_t napsat::NapSAT::split_learning_possibilities(std::vector<bitset>& possibilities)
@@ -491,7 +514,47 @@ bool napsat::NapSAT::lit_analyzed(Tlit lit, const bitset& chunks)
 }
 
 template <typename T>
+bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
+  // cout << "  Marking relevant literals for " << lit_to_string(lit) << " at level/chunks " << level << endl;
+  Tclause reason = lit_reason(lit);
+  bool reset_head = false;
+  if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+    reason = lit_lazy_reason(lit);
+    // if we use the lazy reason, we need to ensure that we will look at all the literals in the clause
+    // since the missed lower implication does not satisfy the trail invariant, we need to push the reading head to the back
+    // note that this may lead to duplicate literals in the learned clause, but this will be cleaned up in the "internal_add_clause" function
+    reset_head = true;
+  }
+
+  ASSERT(reason != CLAUSE_UNDEF);
+  if (_proof)
+    _proof->link_resolution(lit_neg(lit), reason);
+
+  const Tlit* reason_lits = clause_lits(reason);
+  for (unsigned j = 1; j < clause_size(reason); j++) {
+    Tlit reason_lit = reason_lits[j];
+    // if the reason lit is a decision that is reimplied, we need to do it now
+
+    if (lit_marked(reason_lit))
+      continue;
+    lit_mark(reason_lit);
+    if (lit_analyzed(reason_lit, level))
+      count++;
+  }
+  count--;
+  lit_unmark(lit);
+  return reset_head;
+}
+
+template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
+  // print_trail();
+  // cout << "Analyzing conflict at level " << level << endl;
+  // cout << " conflict : ";
+  // for (unsigned i = 0; i < _next_literal_index; i++) {
+  //   cout << lit_to_string(_literal_buffer[i]) << " ";
+  // }
+  // cout << endl;
 #ifndef NDEBUG
   // check that all variables are unmarked
   for (unsigned i = 0; i < _vars.size(); i++) {
@@ -505,8 +568,6 @@ void NapSAT::analyze_conflict_impl(T level) {
     Tlit lit = _literal_buffer[i];
     ASSERT(lit_false(lit));
     if (!lit_marked(lit) && lit_analyzed(lit, level)) {
-      // it could be that the literal is duplicated in the buffer
-      // in this case, we do not want to count it twice
       count++;
     }
     lit_mark(lit);
@@ -522,6 +583,8 @@ void NapSAT::analyze_conflict_impl(T level) {
     Tlit lit = _trail[--i];
     if (!lit_marked(lit))
       continue;
+    // print_trail();
+    // cout << "Count: " << count << ", analyzing " << lit_to_string(lit) << " at level " << level << endl;
     if (!lit_analyzed(lit, level))
       continue;
     lit_unmark(lit);
@@ -534,28 +597,16 @@ void NapSAT::analyze_conflict_impl(T level) {
       break;
     }
     // mark the literals of the reason
-    Tclause reason = lit_reason(lit);
-    if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
-      reason = lit_lazy_reason(lit);
-      // if we use the lazy reason, we need to ensure that we will look at all the literals in the clause
-      // since the missed lower implication does not satisfy the trail invariant, we need to push the reading head to the back
-      // note that this may lead to duplicate literals in the learned clause, but this will be cleaned up in the "internal_add_clause" function
+    if (lit_reason(lit) == CLAUSE_UNDEF && lit_lazy_reason(lit) == CLAUSE_UNDEF) {
+      // we unmarked it, but we need it for later
+      lit_mark(lit);
+      // this is a decision literal, we cannot go further
+      // we are guaranteed that there is a merge later, that will reset the index i. We will need this literal again
+      continue;
+    }
+    if (mark_relevant_literals(lit, level, count)) {
       i = _trail.size();
     }
-    ASSERT(reason != CLAUSE_UNDEF);
-    if (_proof)
-      _proof->link_resolution(lit_neg(lit), reason);
-
-    const Tlit* reason_lits = clause_lits(reason);
-    for (unsigned j = 1; j < clause_size(reason); j++) {
-      Tlit reason_lit = reason_lits[j];
-      if (lit_marked(reason_lit))
-        continue;
-      lit_mark(reason_lit);
-      if (lit_analyzed(reason_lit, level))
-        count++;
-    }
-    count--;
   }
   ASSERT(count == 1);
 
@@ -743,19 +794,29 @@ void NapSAT::repair_conflicts()
   _var_activity_increment /= _options.var_activity_decay;
 }
 
-bool napsat::NapSAT::propagating_after_analysis(Tclause conflict, const bitset& chunks)
+bool napsat::NapSAT::propagating_after_analysis(Tclause conflict, const bitset& bt)
 {
   bitset conflict_chunks = clause_chunks(conflict);
-  conflict_chunks &= chunks;
+  conflict_chunks &= bt;
   if (!_options.lazy_chunk_merging) {
     return conflict_chunks.count() == 1;
   }
   unsigned chunk_count = conflict_chunks.count();
-  for (auto it = conflict_chunks.cbegin(); it != conflict_chunks.cend(); ++it) {
-    Tchunk chunk = *it;
-    const bitset& reimplied_chunks = _chunks[chunk].missed_implication;
-    if (conflict_chunks.has_intersection(reimplied_chunks)) {
-      chunk_count--;
+  bool changed = false;
+  while (changed && chunk_count > 1) {
+    for (auto it = conflict_chunks.cbegin(); it != conflict_chunks.cend(); ++it) {
+      Tchunk chunk = *it;
+      const bitset& reimplied_chunks = _chunks[chunk].missed_implication;
+      if (conflict_chunks.has_intersection(reimplied_chunks)) {
+        cout << "  Chunk " << chunk << " has reimplied chunks " << reimplied_chunks.to_string() << endl;
+        conflict_chunks |= reimplied_chunks;
+        conflict_chunks.set(chunk, false);
+
+        conflict_chunks &= bt;
+        chunk_count = conflict_chunks.count();
+        changed = true;
+        break;
+      }
     }
   }
   return chunk_count == 1;

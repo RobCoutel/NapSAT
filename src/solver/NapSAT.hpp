@@ -1359,7 +1359,7 @@ public:
 
     void backtracked_chunks_subsumption(std::vector<bitset>& possibilities);
 
-    void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, const bitset& current, bitset processed);
+    void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, bitset current, bitset processed);
 
     void enhance_backtrack_possibilities_with_lazy_merging(std::vector<bitset>& possibilities);
 
@@ -1588,6 +1588,9 @@ public:
      * That is, depending on the options, check the level or chunk requirements.
      */
     bool lit_analyzed(Tlit lit, const bitset& chunks);
+
+    template<typename T>
+    bool mark_relevant_literals(Tlit lit, T level, unsigned& count);
 
     /**
      * @brief Helper to implement both the level and chunk conflict analysis together

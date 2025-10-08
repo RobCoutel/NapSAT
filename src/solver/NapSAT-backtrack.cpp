@@ -51,7 +51,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
       ASSERT(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
       if (lit_lazy_level(lit) <= level) {
         // look if the literal can be reimplied at a lower level
-        ASSERT(_options.lazy_strong_chronological_backtracking);
+        ASSERT(_options.lazy_strong_chronological_backtracking || _options.lazy_chunk_merging);
         Tclause lazy_reason = lit_lazy_reason(lit);
         ASSERT(lazy_reason != CLAUSE_UNDEF);
         ASSERT(clause_lits(lazy_reason)[0] == lit);
@@ -107,7 +107,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
     }
   }
   if (_reimplication_backtrack_buffer.size() > 0) {
-    ASSERT(_options.lazy_strong_chronological_backtracking);
+    ASSERT(_options.lazy_strong_chronological_backtracking || _options.lazy_chunk_merging);
     // adds the literals on the lazy reimplication buffer to the trail by order of increasing level
     // Sort the literals by increasing level. It is not necessary, but it probably is more effective
     // TODO evaluate the performance of this. Is sorting useful?
