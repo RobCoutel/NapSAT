@@ -50,8 +50,6 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
 
   for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
     Tvar decision = _chunks[*i].decision;
-    Tclause missed_implication = var_lazy_reason(decision);
-    ASSERT(missed_implication != CLAUSE_UNDEF);
     bitset next_process = processed;
     next_process.set(*i, true);
     bitset merged_chunks = _chunks[*i].missed_implication;
@@ -72,11 +70,6 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
 
 void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(std::vector<bitset>& possibilities)
 {
-  // print_trail();
-  // cout << "Enhancing " << possibilities.size() << " possibilities with lazy merging" << endl;
-  // for (size_t i = 0; i < possibilities.size(); i++) {
-  //   cout << "Possibility " << i << ": " << possibilities[i] << endl;
-  // }
   size_t original_size = possibilities.size();
   while(original_size > 0) {
     compute_lazy_merge_chunk_combination(possibilities, possibilities[original_size - 1], bitset(_n_allocated_chunks));
@@ -86,17 +79,7 @@ void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(std::vect
     original_size--;
   }
 
-  // cout << "Before subsumption, we have " << possibilities.size() << " possibilities" << endl;
-  // for (size_t i = 0; i < possibilities.size(); i++) {
-  //   cout << "Possibility " << i << ": " << possibilities[i] << endl;
-  // }
-
   backtracked_chunks_subsumption(possibilities);
-
-  // cout << "After enhancement, we have " << possibilities.size() << " possibilities" << endl;
-  // for (size_t i = 0; i < possibilities.size(); i++) {
-  //   cout << "Possibility " << i << ": " << possibilities[i] << endl;
-  // }
 }
 
 size_t napsat::NapSAT::split_learning_possibilities(std::vector<bitset>& possibilities)
@@ -353,9 +336,7 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
     bitset cl_chunks = clause_chunks(conflict);
     conflict_chunks.push_back(cl_chunks);
   }
-  // print_trail();
   priority_queue<pair<unsigned, bitset>, vector<pair<unsigned, bitset>>, compare_bitset_size> prefixes;
-  // cout << "  There are " << conflicts.size() << " conflicts to fix." << endl;
 
   prefixes.push(make_pair(0, bitset(_n_allocated_chunks)));
   while (!prefixes.empty()) {
@@ -367,7 +348,6 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
 
     bitset prefix = prefixes.top().second;
     prefixes.pop();
-    // cout << "  Considering prefix " << prefix.to_string() << endl;
 
     bitset remaining(_n_allocated_chunks);
 
@@ -400,7 +380,6 @@ size_t napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause
           if (next.has_intersection(cl_chunks))
             number_of_solved_conflicts++;
         }
-        // cout << "  Prefix " << next.to_string() << " solves " << number_of_solved_conflicts << " / " << conflicts.size() << " conflicts." << endl;
         prefixes.push(make_pair(number_of_solved_conflicts, next));
       }
     }
@@ -515,7 +494,6 @@ bool napsat::NapSAT::lit_analyzed(Tlit lit, const bitset& chunks)
 
 template <typename T>
 bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
-  // cout << "  Marking relevant literals for " << lit_to_string(lit) << " at level/chunks " << level << endl;
   Tclause reason = lit_reason(lit);
   bool reset_head = false;
   if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
@@ -548,13 +526,6 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
 
 template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
-  // print_trail();
-  // cout << "Analyzing conflict at level " << level << endl;
-  // cout << " conflict : ";
-  // for (unsigned i = 0; i < _next_literal_index; i++) {
-  //   cout << lit_to_string(_literal_buffer[i]) << " ";
-  // }
-  // cout << endl;
 #ifndef NDEBUG
   // check that all variables are unmarked
   for (unsigned i = 0; i < _vars.size(); i++) {
@@ -583,8 +554,6 @@ void NapSAT::analyze_conflict_impl(T level) {
     Tlit lit = _trail[--i];
     if (!lit_marked(lit))
       continue;
-    // print_trail();
-    // cout << "Count: " << count << ", analyzing " << lit_to_string(lit) << " at level " << level << endl;
     if (!lit_analyzed(lit, level))
       continue;
     lit_unmark(lit);
@@ -808,7 +777,6 @@ bool napsat::NapSAT::propagating_after_analysis(Tclause conflict, const bitset& 
       Tchunk chunk = *it;
       const bitset& reimplied_chunks = _chunks[chunk].missed_implication;
       if (conflict_chunks.has_intersection(reimplied_chunks)) {
-        cout << "  Chunk " << chunk << " has reimplied chunks " << reimplied_chunks.to_string() << endl;
         conflict_chunks |= reimplied_chunks;
         conflict_chunks.set(chunk, false);
 

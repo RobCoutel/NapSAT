@@ -559,8 +559,6 @@ void NapSAT::propagate_lit(Tlit lit)
         ASSERT(lits[j] != c2);
         chunks |= lit_chunks(lits[j]);
       }
-      // cout << "Missed chunk implication for " << lit_to_string(c2) << " in " << lit_chunks(c2) << " by clause " << clause_to_string(cl) << " chunks " << chunks << endl;
-
 
       auto it = lit_chunks(reimp_lit).cbegin();
       Tchunk decision_chunk = *it;
