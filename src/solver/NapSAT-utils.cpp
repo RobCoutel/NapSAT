@@ -263,11 +263,11 @@ void napsat::NapSAT::var_allocate(Tvar var)
   // reallocate the literal buffer to make sure it is big enough
   // TODO replace with std::vector
   Tlit* new_literal_buffer = new Tlit[_vars.size() + 1];
-  assert(_literal_buffer);
-  std::memcpy(new_literal_buffer, _literal_buffer,
-              _next_literal_index * sizeof(Tlit));
-  delete[] _literal_buffer;
-  _literal_buffer = new_literal_buffer;
+  assert(_lit_buffer);
+  std::memcpy(new_literal_buffer, _lit_buffer,
+              _lit_buffer_size * sizeof(Tlit));
+  delete[] _lit_buffer;
+  _lit_buffer = new_literal_buffer;
 }
 
 void napsat::NapSAT::allocate_chunks(size_t n_chunks)

@@ -310,8 +310,8 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _activities.reserve(n_clauses);
 
   // TODO replace this with an std::vector
-  _literal_buffer = new Tlit[2*n_var+1];
-  _next_literal_index = 0;
+  _lit_buffer = new Tlit[2*n_var+1];
+  _lit_buffer_size = 0;
   var_allocate(n_var + 1);
 
   if (options.build_proof)
@@ -336,7 +336,7 @@ NapSAT::~NapSAT()
 #endif
   if (_proof)
     delete _proof;
-  delete[] _literal_buffer;
+  delete[] _lit_buffer;
 }
 
 
@@ -527,7 +527,7 @@ void NapSAT::start_clause()
 {
   ASSERT(!_writing_clause);
   _writing_clause = true;
-  _next_literal_index = 0;
+  _lit_buffer_size = 0;
 }
 
 void NapSAT::add_literal(Tlit lit)
@@ -535,16 +535,16 @@ void NapSAT::add_literal(Tlit lit)
   ASSERT(_writing_clause);
   Tvar var = lit_to_var(lit);
   var_allocate(var);
-  ASSERT(_next_literal_index < _vars.size());
-  _literal_buffer[_next_literal_index++] = lit;
+  ASSERT(_lit_buffer_size < _vars.size());
+  _lit_buffer[_lit_buffer_size++] = lit;
 }
 
 napsat::Tclause NapSAT::finalize_clause()
 {
   ASSERT(_writing_clause);
-  Tclause cl = internal_add_clause(_literal_buffer, _next_literal_index, false, true);
+  Tclause cl = internal_add_clause(_lit_buffer, _lit_buffer_size, false, true);
   _writing_clause = false;
-  _next_literal_index = 0;
+  _lit_buffer_size = 0;
   return cl;
 }
 

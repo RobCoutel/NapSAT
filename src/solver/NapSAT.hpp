@@ -623,12 +623,12 @@ public:
      * @brief When in clause input mode, contains a pointer to the first
      * literal of the clause being written.
      */
-    Tlit* _literal_buffer = nullptr;
+    Tlit* _lit_buffer = nullptr;
     /**
      * @brief When in clause input mode, contains the index of the next literal
      * to write.
      */
-    unsigned _next_literal_index = 0;
+    unsigned _lit_buffer_size = 0;
 
     /**  ACTIVITY HEAP  **/
     /**
@@ -1369,7 +1369,7 @@ public:
 
     /**
      * @brief Returns true if the learned clause is redundant with any other confliting clauses in the set of conflicts.
-     * @details The clause is held in the _literal_buffer and its size in _next_literal_index.
+     * @details The clause is held in the _lit_buffer and its size in _lit_buffer_size.
      * @details A learned clause is redundant if it is subsumed by any other conflicting clause
      * @return true if the learned clause is redundant, false otherwise.
      */
@@ -1379,7 +1379,7 @@ public:
      * @brief Returns true if the clause already exists in the clause set.
      * @pre The literals are marked
      */
-    Tclause clause_already_exists(const Tlit* lits, size_t size) const;
+    Tclause clause_subsumed_in_formula(const Tlit* lits, size_t size) const;
 
     /**
      * @brief Returns true if there is a conflict at root level, complete the proof if needed, and set the status to UNSAT.
@@ -1553,9 +1553,9 @@ public:
      */
     bool lit_is_required_in_learned_clause(Tlit lit);
 
-    bool propagating_after_analysis(Tclause conflict, const bitset& chunks);
+    bool conflict_can_generate_learned_clause(Tclause conflict, const bitset& chunks);
 
-    bool propagating_after_analysis(Tclause conflict, Tlevel level);
+    bool conflict_can_generate_learned_clause(Tclause conflict, Tlevel level);
 
     bool implication_active_after_backtrack(Tclause conflict, Tlevel level);
     bool implication_active_after_backtrack(Tclause conflict, const bitset& chunks);
@@ -1573,6 +1573,8 @@ public:
     void try_and_learn(const bitset& chunks, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
 
     void try_and_learn(Tlevel level, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
+
+    void learn_negation_of_decisions(std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
 
     void graph_repair();
 
@@ -1621,13 +1623,13 @@ public:
      *    C', π ⊧ ⊥
      * The clause has one unique literal at the highest decision level
      *    |{ℓ ∈ C' : δ(ℓ) = δ(C')}| = 1
-     * @details Sets the clause in the literal_buffer and _next_literal_index variables.
+     * @details Sets the clause in the literal_buffer and _lit_buffer_size variables.
      * @post The literal_buffer is set such that the first literal is the UIP
      */
     void analyze_conflict(Tlevel level);
 
     /**
-     * @details Sets the clause in the literal_buffer and _next_literal_index variables.
+     * @details Sets the clause in the literal_buffer and _lit_buffer_size variables.
      * @post The literal_buffer is set such that the first literal is the UIP
      */
     void analyze_conflict(const bitset& chunks);
