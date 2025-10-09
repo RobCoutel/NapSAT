@@ -4,6 +4,7 @@ import threading
 import sys
 import time
 import pandas as pd
+from rich.progress import Progress
 
 # Path to the executable
 SAT_exec = "./build/NapSAT"
@@ -101,17 +102,17 @@ if __name__ == "__main__":
     SAT_options = ["-ncb"] + sys.argv[3:]
     if "-gb" in SAT_options:
         SAT_options.append("-gb -lcm")
-        SAT_options.append("-gb -bl")
-        SAT_options.append("-gb -lcm -bl")
+        # SAT_options.append("-gb -bl")
+        # SAT_options.append("-gb -lcm -bl")
 
     opts = []
     for option in SAT_options:
-        opts.append(option)
-        opts.append(option + " -ecr")
-        opts.append(option + " -pcr")
+        # opts.append(option)
+        # opts.append(option + " -ecr")
+        # opts.append(option + " -pcr")
         opts.append(option + " --restarts off")
         opts.append(option + " -ecr --restarts off")
-        opts.append(option + " -pcr --restarts off")
+        # opts.append(option + " -pcr --restarts off")
     SAT_options = opts
 
     # SAT_options = SAT_options_cross
@@ -136,29 +137,34 @@ if __name__ == "__main__":
     # create a thread for each job, but limit the number of threads to N_THREADS
     n_completed = 0
     start = time.time()
-    while len(jobs) > 0 or len(thread_pool) > 0:
-        for thread in thread_pool:
-            if not thread.is_alive():
-                thread_pool.remove(thread)
-                n_completed += 1
+    total_jobs = len(jobs)
+    instances_solved = 0
+    with Progress() as progress:
+        task = progress.add_task(f"Collecting stats | 0/{total_jobs}", total=total_jobs)
+        while len(jobs) > 0 or len(thread_pool) > 0:
+            for thread in thread_pool:
+                if not thread.is_alive():
+                    thread_pool.remove(thread)
+                    n_completed += 1
+                    instances_solved += 1
+                    progress.advance(task)
+                    progress.update(task, description=f"Collecting stats | {instances_solved}/{total_jobs}")
 
-        print(f"Progress: {n_completed} + ({len(thread_pool)})/{len(jobs) + n_completed + len(thread_pool)}", end="       \r")
+            if len(thread_pool) < N_THREADS and len(jobs) > 0:
+                filename, option = jobs.pop(0)
+                thread = threading.Thread(target=run_one_job, args=(filename, option, df))
+                thread.start()
+                thread_pool.append(thread)
 
-        if len(thread_pool) < N_THREADS and len(jobs) > 0:
-            filename, option = jobs.pop(0)
-            thread = threading.Thread(target=run_one_job, args=(filename, option, df))
-            thread.start()
-            thread_pool.append(thread)
+            mutex.acquire()
+            # compute the average time of the completed jobs
+            avg_time = 0
+            if n_completed > 0:
+                avg_time = df["Time (ms)"].mean()
+            mutex.release()
 
-        mutex.acquire()
-        # compute the average time of the completed jobs
-        avg_time = 0
-        if n_completed > 0:
-            avg_time = df["Time (ms)"].mean()
-        mutex.release()
-
-        # sleep for avg_time / 100 (expressed in seconds, but the stat is in milliseconds)
-        time.sleep(avg_time / 10**5 if avg_time > 0 else 0.00001)
+            # sleep for avg_time / 100 (expressed in seconds, but the stat is in milliseconds)
+            time.sleep(avg_time / 10**5 if avg_time > 0 else 0.00001)
 
     # drop the unnecessary columns from the dataframe
     df = df.drop(columns=["Variable added", "Backtracking started", "Invariants checked", "Allocated Chunk", "Purging clauses", "Binary clause simplified", "Literal removed from clause"], errors="ignore")
@@ -170,3 +176,4 @@ if __name__ == "__main__":
 
     end = time.time()
     print(f"\nFinished collecting stats in {end - start:.2f} seconds.")
+    print(f"Instances solved: {instances_solved}")
