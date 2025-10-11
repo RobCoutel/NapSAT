@@ -130,8 +130,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   // If it is satisfied already here, it means another clauses propagates the literal at level 0
   if (satisfied_at_root) {
     if (id != CLAUSE_UNDEF) {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::new_clause(id, vector<Tlit>(lits_input, lits_input + input_size), learned, external));
-      NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(id));
+      NOTIFY_OBSERVER(new_clause, id, vector<Tlit>(lits_input, lits_input + input_size), learned, external);
+      NOTIFY_OBSERVER(delete_clause, id);
       _clauses[id].deleted = true;
       _clauses[id].watched = false;
       if (_proof)
@@ -224,8 +224,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     _binary_watches[lits[0]].push_back(TSwatch(id, lits[1]));
     _binary_watches[lits[1]].push_back(TSwatch(id, lits[0]));
 #if NOTIFY_WATCH_CHANGES
-    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(id, lits[0]));
-    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(id, lits[1]));
+    NOTIFY_OBSERVER(watch, id, lits[0]);
+    NOTIFY_OBSERVER(watch, id, lits[1]);
 #endif
     if (lit_false(lits[0]) && !lit_false(lits[1])) {
       // swap the literals so that the false literal is at the second position
@@ -265,7 +265,7 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   clause.deleted = true;
   clause.watched = false;
   _deleted_clauses.push_back(cl);
-  NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
+  NOTIFY_OBSERVER(delete_clause, cl);
   if(_proof)
     _proof->deactivate_clause(cl);
 }

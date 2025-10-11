@@ -35,7 +35,7 @@ namespace napsat::gui
   class observer;
   class observer
   {
-    // The notification have to be able to access private members of the observer to make the code more readable
+    // The notifications have to be able to access private members of the observer to make the code more readable
     friend class notification;
     friend class new_variable;
     friend class delete_variable;
@@ -89,14 +89,14 @@ namespace napsat::gui
       bool active = false;
       bool propagated = false;
       bool constrained = false;
-      std::string alias = "";
+      std::string alias;
     };
 
     struct clause
     {
-      clause() = default;
       clause(const std::vector<napsat::Tlit>& literals, napsat::Tclause cl, bool learnt, bool external) : literals(literals), cl(cl), learnt(learnt), external(external) {}
-      clause(const clause& other) : literals(std::move(other.literals)), cl(other.cl), active(other.active), learnt(other.learnt), external(other.external) {}
+      clause(const clause& other) : literals(other.literals), cl(other.cl), active(other.active), learnt(other.learnt), external(other.external) {}
+      clause(clause&& other) noexcept : literals(std::move(other.literals)), cl(other.cl), active(other.active), learnt(other.learnt), external(other.external) {}
       std::vector<napsat::Tlit> literals;
       unsigned n_deleted_literals = 0;
       napsat::Tclause cl;
@@ -113,11 +113,7 @@ namespace napsat::gui
 
     std::vector<notification*> _notifications;
 
-    long long _n_notifications = 0;
-
     unsigned _location = 0;
-
-    bool _stopped = true;
 
     /**
      * Set of clauses that were added to the solver from the beginning.
@@ -192,11 +188,6 @@ namespace napsat::gui
     bool _check_invariants_only = false;
 
     /**
-     * @brief If true, the observer will only display the statistics and not simulate the execution.
-     */
-    bool _stats_only = false;
-
-    /**
      * @brief Hash map to count the number of notifications of each type.
      */
     std::unordered_map<napsat::gui::ENotifType, unsigned> notification_count;
@@ -212,23 +203,13 @@ namespace napsat::gui
      */
     unsigned file_number = 1;
 
-    /**
-     * @brief The time when the observer was created.
-     */
-    std::chrono::time_point<std::chrono::high_resolution_clock> _creation_time;
-
   public:
     /**
      * @brief Construct a new observer object
      */
-    observer(napsat::options& options);
+    explicit observer(napsat::options& options);
 
-    /**
-     * @brief Clone an observer object
-     * @details The clone is a deep copy of the observer.
-     * @details The clone advances to the same location as the original observer.
-     */
-    observer(const observer& other);
+    observer(const observer& other) = delete;
 
     /**
      * @brief Send a notification to the observer and update its state.
@@ -239,7 +220,7 @@ namespace napsat::gui
     /**
      * @brief Formats a string that contains the statistics of the run. That is, the number of notifications of each type.
      */
-    std::string get_statistics();
+    std::string get_statistics() const;
 
     /**  OBSERVING EXECUTION  **/
 
@@ -260,7 +241,7 @@ namespace napsat::gui
      */
     std::string last_message();
 
-    unsigned notification_number() { return _location; }
+    unsigned notification_number() const { return _location; }
 
     /**
      * @brief Returns true if the state of the observer corresponds to the last notification it received. In other words, returns true if the observer is in real time.
@@ -270,7 +251,7 @@ namespace napsat::gui
     /**
      * @brief Returns true if the state of the observer corresponds to before the first notification it received. In other words, returns true if the observer is at the beginning of the execution.
      */
-    bool is_back_to_origin() { return _location == 0; }
+    bool is_back_to_origin() const { return _location == 0; }
 
     /**
      * @brief Marks a variable. When this variable is involved in a notification, level of that notification becomes 0.
@@ -535,7 +516,7 @@ namespace napsat::gui
     /*                        Invariant Checkers                             */
     /*************************************************************************/
   private:
-    std::string _error_message = "";
+    std::string _error_message;
 
     bool _check_trail_sanity = false;
     bool _check_level_ordering = false;
@@ -580,14 +561,9 @@ namespace napsat::gui
     void toggle_checking_only(bool on) { _check_invariants_only = on; }
 
     /**
-     * @brief If this feature is on, the observer will only display the statistics and not simulate the execution.
-     */
-    void toggle_stats_only(bool on) { _stats_only = on; }
-
-    /**
      * @brief Returns true if the observer is only checking the invariants.
      */
-    bool is_checking_only() { return _check_invariants_only; }
+    bool is_checking_only() const { return _check_invariants_only; }
 
     /**
      * @brief Checks the enabled invariants of the observer which may be affected by the notification.

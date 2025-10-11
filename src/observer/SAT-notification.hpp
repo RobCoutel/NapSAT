@@ -34,10 +34,6 @@
 namespace napsat::gui
 {
   const unsigned MAX_UNSIGNED = 0xFFFFFFFF;
-  /**
-   * @brief The level of marker events.
-  */
-  const unsigned MARKED_LEVEL = 1;
 
   class observer;
 
@@ -64,8 +60,7 @@ namespace napsat::gui
     BLOCKER,
     CHECK_INVARIANTS,
     MISSED_LOWER_IMPLICATION_LOGGED,
-    REMOVE_LOWER_IMPLICATION_REMOVED,
-    STAT
+    REMOVE_LOWER_IMPLICATION_REMOVED
   };
   std::string notification_type_to_string(ENotifType type);
 
@@ -74,17 +69,13 @@ namespace napsat::gui
    */
   class notification
   {
-  private:
+  protected:
     /**
-     * @brief The level of the event. The lower the level, the more important the event.
+     * @brief return an event_level of 0 if set to true
      */
-    unsigned event_level;
+    bool muted = false;
 
   public:
-    /**
-     * @brief Returns a copy of the notification.
-     */
-    virtual notification* clone() const = 0;
     /**
      * @brief Get the level of the event.
      * - 0: reserved for checkpoints.
@@ -96,18 +87,18 @@ namespace napsat::gui
      * - 6: reserved for propagations.
      * - 9: watch list changes.
      */
-    virtual unsigned get_event_level(observer* observer) { return event_level; }
+    virtual unsigned get_event_level(observer* observer) const noexcept = 0;
 
     /**
      * @brief Returns the type of the notification.
      */
-    virtual const ENotifType get_type() = 0;
+    virtual ENotifType get_type() const noexcept = 0;
 
     /**
      * @brief Returns a short string describing the event.
      * @return const std::string A short string describing the event.
      */
-    virtual const std::string get_message() = 0;
+    virtual const std::string get_message() const noexcept = 0;
 
     /**
      * @brief Applies the notification to the observer.
@@ -135,18 +126,20 @@ namespace napsat::gui
   class checkpoint : public notification
   {
   private:
-    unsigned event_level = 0;
     bool applied = false;
 
   public:
-    checkpoint() {}
-    checkpoint* clone() const override { return new checkpoint(); }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return CHECKPOINT; }
-    const std::string get_message() override { return "Checkpoint"; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override { return true; }
-    ~checkpoint() override = default;
+    static const unsigned DEFAULT_LEVEL = 0;
+    static const ENotifType NTYPE = CHECKPOINT;
+
+    unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Checkpoint"; }
+
+    explicit checkpoint() = default;
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override { return true; }
   };
 
   /**
@@ -155,19 +148,20 @@ namespace napsat::gui
   class done : public notification
   {
   private:
-    unsigned event_level = 0;
-
     bool sat;
 
   public:
-    done(bool sat) : sat(sat) {}
-    done* clone() const override { return new done(sat); }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return DONE; }
-    const std::string get_message() override { return "Done: " + std::to_string(sat); }
-    virtual bool apply(observer* observer) override { return true; }
-    virtual bool rollback(observer* observer) override { return true; }
-    ~done() override = default;
+    static const unsigned DEFAULT_LEVEL = 0;
+    static const ENotifType NTYPE = DONE;
+
+    unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Done: " + std::to_string(sat); }
+
+    explicit done(bool sat) : sat(sat) {}
+
+    bool apply(observer* observer) override { return true; }
+    bool rollback(observer* observer) override { return true; }
   };
 
   /**
@@ -178,22 +172,24 @@ namespace napsat::gui
   class marker : public notification
   {
   private:
-    unsigned event_level = 1;
     /**
      * @brief Additional information about the marker.
      */
     std::string description;
 
   public:
-    marker() {}
-    marker(std::string description) : description(description) {}
-    marker* clone() const override { return new marker(); }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return MARKER; }
-    const std::string get_message() override { return "Marker : " + description; }
-    virtual bool apply(observer* observer) override { return true; }
-    virtual bool rollback(observer* observer) override { return true; }
-    ~marker() override = default;
+    static const unsigned DEFAULT_LEVEL = 1;
+    static const ENotifType NTYPE = MARKER;
+
+    unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Marker : " + description; }
+
+    explicit marker() = default;
+    explicit marker(std::string description) : description(std::move(description)) {}
+
+    bool apply(observer* observer) override { return true; }
+    bool rollback(observer* observer) override { return true; }
   };
 
   /**
@@ -202,22 +198,23 @@ namespace napsat::gui
   class new_variable : public notification
   {
   private:
-    unsigned event_level = 4;
-
     /**
      * @brief The variable that was added.
      */
     napsat::Tvar var;
 
   public:
-    new_variable(napsat::Tvar var) : var(var) {}
-    new_variable* clone() const override { return new new_variable(var); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return VARIABLE_ADDED; }
-    const std::string get_message() override { return "New variable " + std::to_string(var) + " added"; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~new_variable() override = default;
+    static const unsigned DEFAULT_LEVEL = 4;
+    static const ENotifType NTYPE = VARIABLE_ADDED;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "New variable " + std::to_string(var) + " added"; }
+
+    explicit new_variable(napsat::Tvar var) : var(var) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -227,22 +224,23 @@ namespace napsat::gui
   class delete_variable : public notification
   {
   private:
-    unsigned event_level = 3;
-
     /**
      * @brief The variable that was deleted.
      */
     napsat::Tvar var;
 
   public:
-    delete_variable(napsat::Tvar var) : var(var) {}
-    delete_variable* clone() const override { return new delete_variable(var); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return VARIABLE_DELETED; }
-    const std::string get_message() override { return "Variable " + std::to_string(var) + " deleted"; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~delete_variable() override = default;
+    static const unsigned DEFAULT_LEVEL = 3;
+    static const ENotifType NTYPE = VARIABLE_DELETED;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Variable " + std::to_string(var) + " deleted"; }
+
+    explicit delete_variable(napsat::Tvar var) : var(var) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -252,22 +250,23 @@ namespace napsat::gui
   class decision : public notification
   {
   private:
-    unsigned event_level = 2;
-
     /**
      * @brief The literal that was decided.
      */
     napsat::Tlit lit;
 
   public:
-    decision(napsat::Tlit lit) : lit(lit) {}
-    decision* clone() const override { return new decision(lit); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return DECISION; }
-    const std::string get_message() override { return "Decision literal : " + std::to_string(napsat::lit_to_int(lit)); }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~decision() override = default;
+    static const unsigned DEFAULT_LEVEL = 2;
+    static const ENotifType NTYPE = DECISION;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Decision literal : " + std::to_string(napsat::lit_to_int(lit)); }
+
+    explicit decision(napsat::Tlit lit) : lit(lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -280,8 +279,6 @@ namespace napsat::gui
   class implication : public notification
   {
   private:
-    unsigned event_level = 5;
-
     /**
      * @brief The literal that was propagated.
      */
@@ -298,21 +295,22 @@ namespace napsat::gui
     napsat::Tlevel level = LEVEL_UNDEF;
 
   public:
-    implication(napsat::Tlit lit, napsat::Tclause cl, napsat::Tlevel level) : lit(lit), reason(cl), level(level) {}
-    implication* clone() const override { return new implication(lit, reason, level); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return IMPLICATION; }
-    const std::string get_message() override { return "Implication : " + std::to_string(napsat::lit_to_int(lit)) + " implied by clause " + std::to_string(reason); }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~implication() override = default;
+    static const unsigned DEFAULT_LEVEL = 5;
+    static const ENotifType NTYPE = IMPLICATION;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Implication : " + std::to_string(napsat::lit_to_int(lit)) + " implied by clause " + std::to_string(reason); }
+
+    explicit implication(napsat::Tlit lit, napsat::Tclause cl, napsat::Tlevel level) : lit(lit), reason(cl), level(level) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   class update_level : public notification
   {
   private:
-    unsigned event_level = 5;
-
     /**
      * @brief The literal that was updated.
      */
@@ -322,18 +320,20 @@ namespace napsat::gui
      * @brief The new level of the literal.
      */
     napsat::Tlevel level = LEVEL_UNDEF;
-
     napsat::Tlevel old_level = LEVEL_UNDEF;
 
   public:
-    update_level(napsat::Tlit lit, napsat::Tlevel level) : lit(lit), level(level) {}
-    update_level* clone() const override { return new update_level(lit, level); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return IMPLICATION; }
-    const std::string get_message() override { return "Update level : " + std::to_string(napsat::lit_to_int(lit)) + " updated to level " + std::to_string(level); }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~update_level() override = default;
+    static const unsigned DEFAULT_LEVEL = 5;
+    static const ENotifType NTYPE = IMPLICATION;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Update level : " + std::to_string(napsat::lit_to_int(lit)) + " updated to level " + std::to_string(level); }
+
+    explicit update_level(napsat::Tlit lit, napsat::Tlevel level) : lit(lit), level(level) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -342,22 +342,23 @@ namespace napsat::gui
   class propagation : public notification
   {
   private:
-    unsigned event_level = 6;
-
     /**
      * @brief The literal that was propagated.
      */
     napsat::Tlit lit;
 
   public:
-    propagation(napsat::Tlit lit) : lit(lit) {}
-    propagation* clone() const override { return new propagation(lit); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return PROPAGATION_ADDED; }
-    const std::string get_message() override { return "Propagation : " + std::to_string(napsat::lit_to_int(lit)) + " propagated"; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~propagation() override = default;
+    static const unsigned DEFAULT_LEVEL = 6;
+    static const ENotifType NTYPE = PROPAGATION_ADDED;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Propagation : " + std::to_string(napsat::lit_to_int(lit)) + " propagated"; }
+
+    explicit propagation(napsat::Tlit lit) : lit(lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -366,22 +367,23 @@ namespace napsat::gui
   class remove_propagation : public notification
   {
   private:
-    unsigned event_level = 6;
-
     /**
      * @brief The literal that was propagated.
      */
     napsat::Tlit lit;
 
   public:
-    remove_propagation(napsat::Tlit lit) : lit(lit) {}
-    remove_propagation* clone() const override { return new remove_propagation(lit); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return PROPAGATION_ADDED; }
-    const std::string get_message() override { return "Propagation removed : " + std::to_string(napsat::lit_to_int(lit)); }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~remove_propagation() override = default;
+    static const unsigned DEFAULT_LEVEL = 6;
+    static const ENotifType NTYPE = PROPAGATION_REMOVED;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Propagation removed : " + std::to_string(napsat::lit_to_int(lit)); }
+
+    explicit remove_propagation(napsat::Tlit lit) : lit(lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -391,22 +393,23 @@ namespace napsat::gui
   class conflict : public marker
   {
   private:
-    unsigned event_level = 4;
-
     /**
      * @brief The clause that was used to detect the conflict.
      */
     napsat::Tclause cl;
 
   public:
-    conflict(napsat::Tclause cl) : cl(cl) {}
-    conflict* clone() const override { return new conflict(cl); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return CONFLICT; }
-    const std::string get_message() override { return "Conflict : clause " + std::to_string(cl) + " detected"; }
-    virtual bool apply(observer* observer) override { return true; }
-    virtual bool rollback(observer* observer) override { return true; }
-    ~conflict() override = default;
+    static const unsigned DEFAULT_LEVEL = 4;
+    static const ENotifType NTYPE = CONFLICT;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Conflict : clause " + std::to_string(cl) + " detected"; }
+
+    explicit conflict(napsat::Tclause cl) : cl(cl) {}
+
+    bool apply(observer* observer) override { return true; }
+    bool rollback(observer* observer) override { return true; }
   };
 
   /**
@@ -416,19 +419,20 @@ namespace napsat::gui
   class backtracking_started : public marker
   {
   private:
-    unsigned event_level = 4;
-
     napsat::Tlevel level = LEVEL_UNDEF;
 
   public:
-    backtracking_started(napsat::Tlevel level) : level(level) {}
-    backtracking_started* clone() const override { return new backtracking_started(level); }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return BACKTRACKING_STARTED; }
-    const std::string get_message() override { return "Backtracking started at level " + std::to_string(level); }
-    virtual bool apply(observer* observer) override { return true; }
-    virtual bool rollback(observer* observer) override { return true; }
-    ~backtracking_started() override = default;
+    static const unsigned DEFAULT_LEVEL = 4;
+    static const ENotifType NTYPE = BACKTRACKING_STARTED;
+
+    unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Backtracking started at level " + std::to_string(level); }
+
+    explicit backtracking_started(napsat::Tlevel level) : level(level) {}
+
+    bool apply(observer* observer) override { return true; }
+    bool rollback(observer* observer) override { return true; }
   };
 
   /**
@@ -436,18 +440,18 @@ namespace napsat::gui
    */
   class backtracking_done : public marker
   {
-  private:
-    unsigned event_level = 4;
-
   public:
-    backtracking_done() {}
-    backtracking_done* clone() const override { return new backtracking_done(); }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return BACKTRACKING_DONE; }
-    const std::string get_message() override { return "Backtracking done"; }
-    virtual bool apply(observer* observer) override { return true; };
-    virtual bool rollback(observer* observer) override { return true; };
-    ~backtracking_done() override = default;
+    static const unsigned DEFAULT_LEVEL = 4;
+    static const ENotifType NTYPE = BACKTRACKING_DONE;
+
+    unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Backtracking done"; }
+
+    backtracking_done() = default;
+
+    bool apply(observer* observer) override { return true; };
+    bool rollback(observer* observer) override { return true; };
   };
 
   /**
@@ -456,8 +460,6 @@ namespace napsat::gui
   class unassignment : public notification
   {
   private:
-    unsigned event_level = 5;
-
     /**
      * @brief The literal that was unassigned.
      */
@@ -487,14 +489,17 @@ namespace napsat::gui
     napsat::Tclause reason = CLAUSE_UNDEF;
 
   public:
-    unassignment(napsat::Tlit lit) : lit(lit) {}
-    unassignment* clone() const override { return new unassignment(lit); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return UNASSIGNMENT; }
-    const std::string get_message() override { return "Unassignment : " + std::to_string(napsat::lit_to_int(lit)) + " unassigned"; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~unassignment() override = default;
+    static const unsigned DEFAULT_LEVEL = 4;
+    static const ENotifType NTYPE = UNASSIGNMENT;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Unassignment : " + std::to_string(napsat::lit_to_int(lit)) + " unassigned"; }
+
+    explicit unassignment(napsat::Tlit lit) : lit(lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -503,8 +508,6 @@ namespace napsat::gui
   class new_clause : public notification
   {
   private:
-    unsigned event_level = 3;
-
     /**
      * @brief The clause id that was added.
      */
@@ -532,21 +535,17 @@ namespace napsat::gui
     long unsigned hash = 0;
 
   public:
-    new_clause(napsat::Tclause cl, std::vector<napsat::Tlit> lits, bool learnt, bool external) : cl(cl), lits(lits), learnt(learnt), external(external) {}
-    new_clause* clone() const override { return new new_clause(cl, lits, learnt, external); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return CLAUSE_NEW; }
-    const std::string get_message() override
-    {
-      std::string s = "New clause : " + std::to_string(cl) + ": ";
-      for (auto l : lits) {
-        s += " " + std::to_string(napsat::lit_to_int(l));
-      }
-      return s;
-    }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~new_clause() override = default;
+    static const unsigned DEFAULT_LEVEL = 3;
+    static const ENotifType NTYPE = CLAUSE_NEW;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override;
+
+    explicit new_clause(napsat::Tclause cl, std::vector<napsat::Tlit> lits, bool learnt, bool external) : cl(cl), lits(std::move(lits)), learnt(learnt), external(external) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -555,8 +554,6 @@ namespace napsat::gui
   class delete_clause : public notification
   {
   private:
-    unsigned event_level = 3;
-
     /**
      * @brief The clause id that was deleted.
      */
@@ -565,24 +562,25 @@ namespace napsat::gui
     /**
      * Id computed by the observer to identify the clause.
      */
-    unsigned long hash;
+    unsigned long hash = 0;
 
   public:
-    delete_clause(napsat::Tclause cl) : cl(cl) {}
-    delete_clause* clone() const override { return new delete_clause(cl); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return CLAUSE_DELETED; }
-    const std::string get_message() override { return "Delete clause : " + std::to_string(cl); }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
-    ~delete_clause() override = default;
+    static const unsigned DEFAULT_LEVEL = 3;
+    static const ENotifType NTYPE = CLAUSE_DELETED;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Delete clause : " + std::to_string(cl); }
+
+    explicit delete_clause(napsat::Tclause cl) : cl(cl) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   class watch : public notification
   {
   private:
-    unsigned event_level = 9;
-
     /**
      * @brief The clause id that was deleted.
      */
@@ -594,20 +592,22 @@ namespace napsat::gui
     napsat::Tlit lit;
 
   public:
-    watch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
-    watch* clone() const override { return new watch(cl, lit); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return WATCH; }
-    const std::string get_message() override { return "Watch literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
+    static const unsigned DEFAULT_LEVEL = 9;
+    static const ENotifType NTYPE = WATCH;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Watch literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+
+    explicit watch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   class unwatch : public notification
   {
   private:
-    unsigned event_level = 9;
-
     /**
      * @brief The clause id that was deleted.
      */
@@ -621,13 +621,17 @@ namespace napsat::gui
     napsat::Tlit previous_blocker = LIT_UNDEF;
 
   public:
-    unwatch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
-    unwatch* clone() const override { return new unwatch(cl, lit); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return UNWATCH; }
-    const std::string get_message() override { return "Unwatch literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
+    static const unsigned DEFAULT_LEVEL = 9;
+    static const ENotifType NTYPE = UNWATCH;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Unwatch literal : " + std::to_string(napsat::lit_to_int(lit)) + " in clause " + std::to_string(cl); }
+
+    explicit unwatch(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -636,8 +640,6 @@ namespace napsat::gui
   class block : public notification
   {
   private:
-    unsigned event_level = 9;
-
     /**
      * @brief The clause id that was deleted.
      */
@@ -652,19 +654,24 @@ namespace napsat::gui
      * @brief The literal that is blocked in the watch list.
      */
     napsat::Tlit blocked_lit;
+
     /**
      * @brief The previous blocker of the clause (for rollback)
     */
-    napsat::Tlit previous_blocker;
+    napsat::Tlit previous_blocker = LIT_UNDEF;
 
   public:
-    block(napsat::Tclause cl, napsat::Tlit blocker, napsat::Tlit blocked_lit) : cl(cl), blocker(blocker), blocked_lit(blocked_lit) {}
-    block* clone() const override { return new block(cl, blocker, previous_blocker); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return BLOCKER; }
-    const std::string get_message() override { return "Block literal : " + std::to_string(napsat::lit_to_int(blocker)) + " in clause " + std::to_string(cl); }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
+    static const unsigned DEFAULT_LEVEL = 9;
+    static const ENotifType NTYPE = BLOCKER;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Block literal : " + std::to_string(napsat::lit_to_int(blocker)) + " in clause " + std::to_string(cl); }
+
+    explicit block(napsat::Tclause cl, napsat::Tlit blocker, napsat::Tlit blocked_lit) : cl(cl), blocker(blocker), blocked_lit(blocked_lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   /**
@@ -674,8 +681,6 @@ namespace napsat::gui
   class remove_literal : public notification
   {
   private:
-    unsigned event_level = 9;
-
     /**
      * @brief The clause id that was deleted.
      */
@@ -687,89 +692,73 @@ namespace napsat::gui
     napsat::Tlit lit;
 
   public:
-    remove_literal(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
-    remove_literal* clone() const override { return new remove_literal(cl, lit); }
-    const std::string get_message() override { return "Remove literal : " + std::to_string(napsat::lit_to_int(lit)) + " from clause " + std::to_string(cl); }
-    unsigned get_event_level(observer* observer) override;
-    const ENotifType get_type() override { return REMOVE_LITERAL; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
+    static const unsigned DEFAULT_LEVEL = 9;
+    static const ENotifType NTYPE = REMOVE_LITERAL;
+
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Remove literal : " + std::to_string(napsat::lit_to_int(lit)) + " from clause " + std::to_string(cl); }
+
+    explicit remove_literal(napsat::Tclause cl, napsat::Tlit lit) : cl(cl), lit(lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   class check_invariants : public notification
   {
-  private:
-    unsigned event_level = 0xFFFFFFFF;
-
   public:
-    check_invariants() {}
-    check_invariants* clone() const override { return new check_invariants(); }
-    const std::string get_message() override { return "Check invariants"; }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return CHECK_INVARIANTS; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
+    static const unsigned DEFAULT_LEVEL = -1;
+    static const ENotifType NTYPE = CHECK_INVARIANTS;
+
+    unsigned get_event_level(observer* observer) const noexcept override { return muted ? 0 : DEFAULT_LEVEL; }
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Check invariants"; }
+
+    explicit check_invariants() = default;
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   class missed_lower_implication : public notification
   {
   private:
-    unsigned event_level = 5;
-
     Tvar var;
     Tclause cl;
-    Tclause last_cl;
+    Tclause last_cl = CLAUSE_UNDEF;
 
   public:
-    missed_lower_implication(Tvar var, Tclause cl) : var(var), cl(cl) {}
-    missed_lower_implication* clone() const override { return new missed_lower_implication(var, cl); }
-    const std::string get_message() override { return "Missed lower implication: " + std::to_string(var) + " in clause " + std::to_string(cl); }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return MISSED_LOWER_IMPLICATION_LOGGED; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
+    static const unsigned DEFAULT_LEVEL = 5;
+    static const ENotifType NTYPE = MISSED_LOWER_IMPLICATION_LOGGED;
+
+    unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Missed lower implication: " + std::to_string(var) + " in clause " + std::to_string(cl); }
+
+    explicit missed_lower_implication(Tvar var, Tclause cl) : var(var), cl(cl) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
 
   class remove_lower_implication : public notification
   {
   private:
-    unsigned event_level = 5;
-
     Tvar var;
-    Tclause last_cl;
+    Tclause last_cl = CLAUSE_UNDEF;
 
   public:
-    remove_lower_implication(Tvar var) : var(var) {}
-    remove_lower_implication* clone() const override { return new remove_lower_implication(var); }
-    const std::string get_message() override { return "Remove lower implication: " + std::to_string(var) + " in clause " + std::to_string(last_cl); }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return REMOVE_LOWER_IMPLICATION_REMOVED; }
-    virtual bool apply(observer* observer) override;
-    virtual bool rollback(observer* observer) override;
+    static const unsigned DEFAULT_LEVEL = 5;
+    static const ENotifType NTYPE = REMOVE_LOWER_IMPLICATION_REMOVED;
+
+    unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Remove lower implication: " + std::to_string(var) + " in clause " + std::to_string(last_cl); }
+
+    explicit remove_lower_implication(Tvar var) : var(var) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
   };
-
-
-
-
-  class stat : public notification
-  {
-  private:
-    unsigned event_level = 0xFFFFFFFF;
-    /**
-     * @brief The variable that was measured.
-     * @details The variable should be a string that can be used as a key in a map.
-     * @details This is what will be displayed at the end of the execution if the observer computes stats
-    */
-    std::string measured_variable;
-
-  public:
-    stat(std::string measured_variable) : measured_variable(measured_variable) {}
-    stat* clone() const override { return new stat(measured_variable); }
-    const std::string get_message() override { return "Stat : " + measured_variable; }
-    unsigned get_event_level(observer* observer) override { return event_level; }
-    const ENotifType get_type() override { return STAT; }
-    virtual bool apply(observer* observer) override { return true; }
-    virtual bool rollback(observer* observer) override { return true; }
-  };
-
 }

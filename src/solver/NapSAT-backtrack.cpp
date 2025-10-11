@@ -49,7 +49,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
   ASSERT(level <= solver_level());
   if (level == solver_level())
     return;
-  NOTIFY_OBSERVER(_observer, new napsat::gui::backtracking_started(level));
+  NOTIFY_OBSERVER(backtracking_started, level);
   unsigned waiting_count = 0;
 
   size_t restore_point = _decision_index[level];
@@ -91,7 +91,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
     if (lit_lazy_reason(lit) != CLAUSE_UNDEF && lit_lazy_level(lit) > level) {
       // the lazy reason is not valid anymore
       lit_lazy_reason(lit) = CLAUSE_UNDEF;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::remove_lower_implication(var));
+      NOTIFY_OBSERVER(remove_lower_implication, var);
     }
   }
   // Here we unassign the literals as mentioned above
@@ -117,7 +117,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
       ASSERT(var_propagated(var));
       _vars[var].propagated = false;
       _n_propagated_lits--;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
+      NOTIFY_OBSERVER(remove_propagation, lit);
     }
   }
   if (_reimplication_backtrack_buffer.size() > 0) {
@@ -133,7 +133,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
       Tlit reimpl_lit = clause_lits(lazy_clause)[0];
       ASSERT(lit_undef(reimpl_lit));
       imply_literal(reimpl_lit, lazy_clause);
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Lazy reimplication used"));
+      NOTIFY_STAT(_n_lazy_reimplication_used);
     }
     _reimplication_backtrack_buffer.clear();
   }
@@ -210,12 +210,12 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
       // We need to fix the level of the literal
       var_level(var) = level_transformation[var_level(var)];
       ASSERT(var_level(var) != LEVEL_ERROR);
-      NOTIFY_OBSERVER(_observer, new napsat::gui::update_level(lit, var_level(var)));
+      NOTIFY_OBSERVER(update_level, lit, var_level(var));
     }
     if (lit_propagated(lit) && lit_cross_chunks(lit).has_intersection(backtracked_chunks)) {
       unsigned loc = j - _trail.data();
       _vars[var].propagated = false;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Replayed Propagation"));
+      NOTIFY_STAT(_n_propagation_replayed);
       new_propagation_head = min(new_propagation_head, loc);
     }
     *(j++) = *(i++);
@@ -231,7 +231,7 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
     if (lit_propagated(lit) && lit_cross_chunks(lit).has_intersection(backtracked_chunks)) {
       Tvar var = lit_to_var(lit);
       _vars[var].propagated = false;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Replayed Propagation"));
+      NOTIFY_STAT(_n_propagation_replayed);
       new_propagation_head = min(new_propagation_head, (unsigned) i);
     }
   }
@@ -241,7 +241,7 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
   ASSERT(_n_propagated_lits <= _trail.size());
   while(new_propagation_head < _n_propagated_lits) {
     _n_propagated_lits--;
-    NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(_trail[_n_propagated_lits]));
+    NOTIFY_OBSERVER(remove_propagation, _trail[_n_propagated_lits]);
   }
 
   // We need to kill the invalidated missed_implications

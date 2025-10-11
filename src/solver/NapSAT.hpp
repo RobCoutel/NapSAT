@@ -115,21 +115,35 @@
 #include <cassert>
 #include <algorithm>
 
+#include "../observer/SAT-stat.hpp"
+
 #if USE_OBSERVER
-#define NOTIFY_OBSERVER(observer, notification) \
-  do {                                          \
-    if (observer) {                             \
-      if(!observer->notify(notification)) {     \
+#define NOTIFY_OBSERVER(NAME,...)             \
+  do {                                        \
+    if (_observer) {                          \
+      if(!_observer->notify(new napsat::gui::NAME(__VA_ARGS__))) { \
         LOG_ERROR("The notification returned an error when executed by the observer"); \
-        if(observer)                            \
-          observer->notify(new napsat::gui::marker("Notification failed")); \
-        assert(false);                          \
-      }                                         \
-    }                                           \
+        if(_observer)                         \
+          _observer->notify(new napsat::gui::marker("Notification failed")); \
+        assert(false);                        \
+      }                                       \
+    }                                         \
   } while(0)
 #else
-#define NOTIFY_OBSERVER(observer, notification)  ((void)0)
+#define NOTIFY_OBSERVER(NAME,...)  ((void)0)
 #endif
+
+#if USE_STATISTICS
+#define NOTIFY_STAT(type)                     \
+  do {                                        \
+    if (_statistics) {                        \
+      stat.type->inc();                       \
+    }                                         \
+  } while(0)
+#else
+#define NOTIFY_STAT(type)  ((void)0)
+#endif
+
 namespace napsat
 {
   class NapSAT
@@ -144,7 +158,7 @@ namespace napsat
      * @param n_clauses initial number of clauses. Can be increased later by
      * adding clauses.
      */
-    NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options);
+    NapSAT(unsigned n_var, unsigned n_clauses, options& options);
 
     /**
      * @brief Parse a DIMACS file and add the clauses to the clause set.
@@ -167,6 +181,11 @@ namespace napsat
     bool is_observing() const;
 
     /**
+     * @brief Returns true if the solver has statistics.
+     */
+    bool has_statistics() const;
+
+    /**
      * @brief Returns a pointer to the observer of the solver.
      * @return pointer to the observer of the solver.
      * @note The pointer is nullptr if the solver is not observing.
@@ -176,7 +195,14 @@ namespace napsat
      * @warning This method is just a convenience for the main. It is not meant
      * to be used in a library.
      */
-    napsat::gui::observer* get_observer() const;
+    gui::observer* get_observer() const;
+
+    /**
+     * @brief Returns a pointer to the statistics of the solver;
+     * @return pointer to the statistics of the solver.
+     * @note The pointer is nullptr if the solver does not do statistics.
+     */
+    statistics* get_statistics() const;
 
     /**
      * @brief Propagate literals in the queue and resolve conflicts if needed.
@@ -540,7 +566,7 @@ public:
     /**
      * @brief Options of the solver.
     */
-    napsat::options _options;
+    options _options;
     /**
      * @brief Status of the solver.
      */
@@ -638,7 +664,7 @@ public:
      * @brief Priority queue of variables. The variables are ordered by their
      * activity.
      */
-    napsat::utils::heap _variable_heap;
+    utils::heap _variable_heap;
 
     /**  CLAUSE DELETION  **/
     /**
@@ -789,14 +815,14 @@ public:
      * @brief Proof builder of the solver. If _proof is not nullptr, the solver
      * builds a resolution proof for unsatisfiability.
     */
-    napsat::proof::resolution_proof* _proof = nullptr;
+    proof::resolution_proof* _proof = nullptr;
 
     /**  SMT SYNCHRONIZATION  **/
     /**
      * @brief Position of the last literal on the trail that was left unchanged
      * since the last synchronization.
      */
-    size_t _sync_validity_index;
+    size_t _sync_validity_index = 0;
 
     /**  INTERACTIVE SOLVER  **/
 #if USE_OBSERVER
@@ -804,7 +830,7 @@ public:
      * @brief Observer of the solver. If _observer is not nullptr, the solver
      * notifies the observer of its progress.
      */
-    napsat::gui::observer* _observer = nullptr;
+    gui::observer* _observer = nullptr;
 #endif
     /**
      * @brief True if the solver is interactive.
@@ -812,6 +838,46 @@ public:
      * the user make a decision, hint or learn a clause.
      */
     bool _interactive = false;
+
+#if USE_STATISTICS
+    statistics* _statistics = nullptr;
+
+    /** STATISTICS **/
+    struct {
+      // stats from observable events
+      statistics::stat *decision = nullptr; // "Decisions"
+      statistics::stat *conflict = nullptr; // "Conflicts"
+      statistics::stat *propagation = nullptr; // "Propagation"
+      statistics::stat *implication = nullptr; // "Implication"
+      statistics::stat *unassignment = nullptr; // "Unassignment"
+      statistics::stat *remove_lower_implication = nullptr; // "Remove lower implication"
+      statistics::stat *remove_propagation = nullptr; // "Remove propagation"
+
+      // auxilary stats
+      statistics::stat *_n_purged_clauses = nullptr; // "Purging clauses"
+      statistics::stat *_n_binary_clause_simplified = nullptr; // "Binary clause simplified"
+      statistics::stat *_n_binary_clause_added = nullptr; // "Binary clause added"
+      statistics::stat *_n_clause_learned = nullptr; // "Learned clause"
+      statistics::stat *_n_unit_clause_simplified = nullptr; // "Unit clause simplified"
+      statistics::stat *_n_clause_deleted = nullptr; // "Clause deleted"
+      statistics::stat *_n_clause_set_simplified = nullptr; // "Clause set simplified"
+      statistics::stat *_n_allocated_chunks = nullptr; // "Allocated Chunk"
+      statistics::stat *_n_cross_implication_decisions = nullptr; // "Cross implication for decision"
+      statistics::stat *_n_lazy_reimplication_used = nullptr; // "Lazy reimplication used"
+      statistics::stat *_n_propagation_replayed = nullptr; // "Replayed Propagation"
+      statistics::stat *_n_skipped_propagation = nullptr; // "Skipped Propagation"
+      statistics::stat *_n_sync = nullptr; // "Sync assign"
+      statistics::stat *_n_restart = nullptr; // "Restart"
+      statistics::stat *_n_fw_subsumption_in_set = nullptr; // "Forward subsumption in set"
+      statistics::stat *_n_fw_subsumption = nullptr; // "Forward subsumption"
+      statistics::stat *_n_bw_subsumption = nullptr; // "Backward subsumption"
+      statistics::stat *_n_backtrack_limit_reached = nullptr; // "Backtrack limit reached"
+      statistics::stat *_n_conflict_repair = nullptr; // "Conflict repair"
+      statistics::stat *_n_failed_learning = nullptr; // "Failed learning"
+      statistics::stat *_n_backtrack_forced_chunks = nullptr; // "Forced chunk backtrack"
+      statistics::stat *_n_backtrack_better_chunks = nullptr; // "Cross implication back
+    } stat;
+#endif
 
     /*************************************************************************/
     /*                       Quality of life functions                       */

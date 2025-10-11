@@ -178,7 +178,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     ASSERT_MSG(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]),
                "Clause " + clause_to_string(cl) + " is not correctly ordered after propagation of " + lit_to_string(c1));
     _conflicts.push_back(cl);
-    NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(cl));
+    NOTIFY_OBSERVER(conflict, cl);
     if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
       return;
     }
@@ -297,7 +297,7 @@ void NapSAT::propagate_lit(Tlit lit)
        */
       w.block = c2;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, c2, c1));
+      NOTIFY_OBSERVER(block, cl, c2, c1);
 #endif
       i++;
       continue;
@@ -342,7 +342,7 @@ void NapSAT::propagate_lit(Tlit lit)
       */
       w.block = *r;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, *r, c1));
+      NOTIFY_OBSERVER(block, cl, *r, c1);
 #endif
       i++;
       continue;
@@ -366,7 +366,7 @@ void NapSAT::propagate_lit(Tlit lit)
       lits[1] = *r;
       *r = c1;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, c1));
+      NOTIFY_OBSERVER(unwatch, cl, c1);
 #endif
       // remove the clause from the watch list
       // bring the last watched clause to the current position
@@ -429,7 +429,7 @@ void NapSAT::propagate_lit(Tlit lit)
       lits[1] = *r;
       *r = c1;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, c1));
+      NOTIFY_OBSERVER(unwatch, cl, c1);
 #endif
       c1 = lits[1]; // update c1 with the replacement literal
       // remove the clause from the watch list
@@ -483,7 +483,7 @@ void NapSAT::propagate_lit(Tlit lit)
       }
       watch_list.resize(end - watch_list.data());
       _conflicts.push_back(cl);
-      NOTIFY_OBSERVER(_observer, new napsat::gui::conflict(cl));
+      NOTIFY_OBSERVER(conflict, cl);
       if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
         return;
       } else {
@@ -576,13 +576,11 @@ void NapSAT::propagate_lit(Tlit lit)
       auto it = lit_chunks(reimp_lit).cbegin();
       Tchunk decision_chunk = *it;
       ASSERT(++it == lit_chunks(reimp_lit).cend());
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Cross implication for decision"));
+      NOTIFY_STAT(_n_cross_implication_decisions);
       if (!reimplication_cycle(decision_chunk, chunks)) {
         lit_lazy_reason(c2) = cl;
         _chunks[decision_chunk].missed_implication = chunks;
-        NOTIFY_OBSERVER(_observer, new napsat::gui::missed_lower_implication(lit_to_var(c2), cl));
-      } else {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Merge cycle"));
+        NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), cl);
       }
     }
 

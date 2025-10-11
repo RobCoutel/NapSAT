@@ -79,18 +79,12 @@ static void update_terminal_width() {
 napsat::gui::observer::observer(napsat::options& options) : _options(options)
 {
   _display = new napsat::gui::display(this);
-  assert(options.interactive || options.observing || options.check_invariants || options.print_stats || options.print_live_stats);
+  assert(options.interactive || options.observing || options.check_invariants);
   if (options.interactive || options.observing) {
     notify(new napsat::gui::marker("Start"));
   }
-  else {
-    if (options.check_invariants) {
-      toggle_checking_only(true);
-    }
-    else {
-      assert(options.print_stats || options.print_live_stats);
-      toggle_stats_only(true);
-    }
+  else if (options.check_invariants) {
+    toggle_checking_only(true);
   }
   if (options.check_invariants) {
     load_invariant_configuration();
@@ -114,33 +108,15 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
       LOG_ERROR("The folder \"" + options.save_folder + "\" could not be created.");
     }
   }
-
-  _creation_time = chrono::high_resolution_clock::now();
-}
-
-napsat::gui::observer::observer(const observer& other) : _options(other._options)
-{
-  for (auto notification : other._notifications)
-    _notifications.push_back(notification->clone());
 }
 
 bool observer::notify(notification* notification)
 {
   auto type = notification->get_type();
   auto level = notification->get_event_level(this);
-  if (type == STAT) {
-    stat_count[notification->get_message()]++;
-    delete notification;
-    return true;
-  }
-  else {
-    notification_count[notification->get_type()]++;
-    _n_notifications++;
-    if (_stats_only)
-      delete notification;
-    else
-      _notifications.push_back(notification);
-  }
+
+  notification_count[notification->get_type()]++;
+  _notifications.push_back(notification);
 
   // print the statistics
   if (_options.print_live_stats && level < 3) {
@@ -170,9 +146,6 @@ bool observer::notify(notification* notification)
     }
   }
 
-  if (_stats_only)
-    return true;
-
   _location++;
   assert(_location == _notifications.size());
   bool apply_success = notification->apply(this);
@@ -188,48 +161,21 @@ bool observer::notify(notification* notification)
   return apply_success;
 }
 
-std::string observer::get_statistics()
-{
-  string s = "";
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _creation_time);
-  s += "c Time: " + pretty_time(duration) + "\n";
-  s += "c Core Statistics:\n";
-  s += "c  - Notifications: " + pretty_integer(_n_notifications) + "\n";
-  if(!_stats_only) {
-    s += "c  - Variables: " + to_string(_variables.size()) + "\n";
-    unsigned n_clauses = 0;
-    for (clause* cl : _active_clauses)
-      if (cl && cl->active)
-        n_clauses++;
+std::string observer::get_statistics() const {
+  string s;
+  s += "c Observer Statistics:\n";
+  s += "c  - Variables: " + to_string(_variables.size()) + "\n";
+  unsigned n_clauses = 0;
+  for (clause *cl: _active_clauses)
+    if (cl && cl->active)
+      n_clauses++;
 
-    s += "c  - Clauses: " + to_string(n_clauses) + "\n";
-  }
-  vector<ENotifType> types;
-  for (auto pair : notification_count)
-    types.push_back(pair.first);
-  sort(types.begin(), types.end(), [](ENotifType a, ENotifType b) { return a < b; });
-  for (ENotifType type : types)
-    s += "c  - " + notification_type_to_string(type) + ": " + pretty_integer(notification_count.at(type)) + "\n";
-
-  if (stat_count.size() > 0) {
-    s += "c Additional Statistics:\n";
-    // print the statistics in alphabetical order
-    vector<string> stat_names;
-    for (auto pair : stat_count)
-      stat_names.push_back(pair.first);
-    sort(stat_names.begin(), stat_names.end());
-    // print the statistics
-    for (string name : stat_names) {
-      s += "c  - " + name + ": " + pretty_integer(stat_count.at(name)) + "\n";
-    }
-  }
+  s += "c  - Clauses: " + to_string(n_clauses) + "\n";
   return s;
 }
 
 unsigned observer::next()
 {
-  if (_stats_only)
-    LOG_WARNING("trying to navigate in statistics only mode");
   assert(_location < _notifications.size());
   _notifications[_location++]->apply(this);
   if (_breakpoints.find(_location) != _breakpoints.end()) {

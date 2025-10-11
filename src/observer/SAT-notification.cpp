@@ -89,10 +89,9 @@ std::string napsat::gui::notification_type_to_string(ENotifType type)
   }
 }
 
-unsigned napsat::gui::new_variable::get_event_level(observer* obs)
-{
+unsigned napsat::gui::new_variable::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(var) ? 0 : event_level;
+  return obs->is_variable_marked(var) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::new_variable::apply(observer* obs)
@@ -117,10 +116,9 @@ bool napsat::gui::new_variable::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::delete_variable::get_event_level(observer* obs)
-{
+unsigned napsat::gui::delete_variable::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(var) ? 0 : event_level;
+  return obs->is_variable_marked(var) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::delete_variable::apply(observer* obs)
@@ -141,10 +139,9 @@ bool napsat::gui::delete_variable::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::decision::get_event_level(observer* obs)
-{
+unsigned napsat::gui::decision::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::decision::apply(observer* obs)
@@ -177,10 +174,9 @@ bool napsat::gui::decision::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::update_level::get_event_level(observer* obs)
-{
+unsigned napsat::gui::update_level::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : DEFAULT_LEVEL;
 }
 bool napsat::gui::update_level::apply(observer* obs)
 {
@@ -218,10 +214,9 @@ bool napsat::gui::update_level::rollback(observer* obs)
 }
 
 
-unsigned napsat::gui::implication::get_event_level(observer* obs)
-{
+unsigned napsat::gui::implication::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(reason) ? 0 : event_level;
+  return muted || obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(reason) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::implication::apply(observer* obs)
@@ -265,7 +260,7 @@ bool napsat::gui::implication::apply(observer* obs)
       success = false;
     }
     if (!success) {
-      event_level = 0;
+      muted = true;
       obs->_assignment_stack.push_back(lit);
       LOG_ERROR("The notification \"" + get_message() + "\" will not be applied, as it is inconsistent with the current state of the observer.");
       return false;
@@ -293,10 +288,9 @@ bool napsat::gui::implication::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::propagation::get_event_level(observer* obs)
-{
+unsigned napsat::gui::propagation::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::propagation::apply(observer* obs)
@@ -325,10 +319,9 @@ bool napsat::gui::propagation::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::remove_propagation::get_event_level(observer* obs)
-{
+unsigned napsat::gui::remove_propagation::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::remove_propagation::apply(observer* obs)
@@ -357,10 +350,9 @@ bool napsat::gui::remove_propagation::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::unassignment::get_event_level(observer* obs)
-{
+unsigned napsat::gui::unassignment::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::unassignment::apply(observer* obs)
@@ -429,10 +421,9 @@ bool napsat::gui::unassignment::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::new_clause::get_event_level(observer* obs)
-{
+unsigned napsat::gui::new_clause::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_clause_marked(cl) ? 0 : event_level;
+  return muted || obs->is_clause_marked(cl) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::new_clause::apply(observer* obs)
@@ -446,7 +437,7 @@ bool napsat::gui::new_clause::apply(observer* obs)
       { return lit_to_var(l1) < lit_to_var(l2); });
     hash = obs->hash_clause(lits);
     while (obs->_clauses_dict.find(hash) != obs->_clauses_dict.end()) {
-      // if the clause are identical, send a warning message
+      // if the clauses are identical, send a warning message
       if (!env::get_suppress_warning() && obs->_clauses_dict[hash]->literals == lits) {
         if (!obs->_clauses_dict[hash]->active) {
           // The clause was deleted. This is not a big problem.
@@ -454,7 +445,7 @@ bool napsat::gui::new_clause::apply(observer* obs)
         }
         else {
           LOG_WARNING("(at notification number " << obs->_notifications.size() << "): The clause " << cl << " is identical to the clause " << obs->_clauses_dict[hash]->cl);
-          event_level = 0;
+          muted = true;
         }
       }
       hash = (hash * lits.size() + 1);
@@ -482,6 +473,14 @@ bool napsat::gui::new_clause::apply(observer* obs)
   return true;
 }
 
+const std::string napsat::gui::new_clause::get_message() const noexcept {
+  std::string s = "New clause : " + std::to_string(cl) + ": ";
+  for (auto l : lits) {
+    s += " " + std::to_string(napsat::lit_to_int(l));
+  }
+  return s;
+}
+
 bool napsat::gui::new_clause::rollback(observer* obs)
 {
   ASSERT_OBS(this, obs);
@@ -491,10 +490,9 @@ bool napsat::gui::new_clause::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::delete_clause::get_event_level(observer* obs)
-{
+unsigned napsat::gui::delete_clause::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_clause_marked(cl) ? 0 : event_level;
+  return obs->is_clause_marked(cl) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::delete_clause::apply(observer* obs)
@@ -533,16 +531,14 @@ bool napsat::gui::checkpoint::apply(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::conflict::get_event_level(observer* obs)
-{
+unsigned napsat::gui::conflict::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_clause_marked(cl) ? 0 : event_level;
+  return obs->is_clause_marked(cl) ? 0 : DEFAULT_LEVEL;
 }
 
-unsigned napsat::gui::watch::get_event_level(observer* obs)
-{
+unsigned napsat::gui::watch::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::watch::apply(observer* obs)
@@ -570,10 +566,9 @@ bool napsat::gui::watch::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::unwatch::get_event_level(observer* obs)
-{
+unsigned napsat::gui::unwatch::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::unwatch::apply(observer* obs)
@@ -600,10 +595,9 @@ bool napsat::gui::unwatch::rollback(observer* obs)
   return true;
 }
 
-unsigned napsat::gui::remove_literal::get_event_level(observer* obs)
-{
+unsigned napsat::gui::remove_literal::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(lit)) || obs->is_clause_marked(cl) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::remove_literal::apply(observer* obs)
@@ -643,8 +637,7 @@ bool napsat::gui::check_invariants::apply(observer* obs)
   if (!obs->check_invariants()) {
     LOG_ERROR("Invariants are not satisfied");
     cerr << obs->get_error_message() << endl;
-    event_level = 0;
-    return false;
+    muted = true;
   }
   return true;
 }
@@ -655,15 +648,14 @@ bool napsat::gui::check_invariants::rollback(observer* obs)
   if (!obs->check_invariants()) {
     LOG_ERROR("Invariants are not satisfied");
     cerr << obs->get_error_message() << endl;
-    event_level = 0;
+    muted = true;
   }
   return true;
 }
 
-unsigned napsat::gui::block::get_event_level(observer* obs)
-{
+unsigned napsat::gui::block::get_event_level(observer* obs) const noexcept {
   ASSERT_OBS(this, obs);
-  return obs->is_variable_marked(lit_to_var(blocker)) || obs->is_clause_marked(cl) ? 0 : event_level;
+  return obs->is_variable_marked(lit_to_var(blocker)) || obs->is_clause_marked(cl) ? 0 : DEFAULT_LEVEL;
 }
 
 bool napsat::gui::block::apply(observer* obs)

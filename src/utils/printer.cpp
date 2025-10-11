@@ -53,6 +53,7 @@ string pad(unsigned n, unsigned max_int)
 string pretty_integer(long long n)
 {
   string s = "";
+  if (n == 0) return "0";
   while (n > 0) {
     s = to_string(n % 1000) + "," + s;
     n /= 1000;
@@ -61,6 +62,18 @@ string pretty_integer(long long n)
   }
   if (s.size() > 0)
     s = s.substr(0, s.size() - 1);
+  return s;
+}
+
+string pretty_float(double f, unsigned n)
+{
+  string s = pretty_integer((long long)f);
+  if (n)
+    s += ".";
+  while (n--) {
+    f *= 10;
+    s += to_string((long long)f % 10);
+  }
   return s;
 }
 

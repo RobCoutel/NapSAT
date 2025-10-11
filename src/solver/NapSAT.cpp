@@ -57,7 +57,8 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     // Decision
     _decision_index.push_back(_trail.size() - 1);
     svar.level = solver_level();
-    NOTIFY_OBSERVER(_observer, new napsat::gui::decision(lit));
+    NOTIFY_OBSERVER(decision, lit);
+    NOTIFY_STAT(decision);
     if (_options.graph_backtracking) {
       if (_free_chunks.empty()) {
         allocate_chunks(2 * _n_allocated_chunks);
@@ -108,7 +109,8 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         svar.level = lit_level(lits[1]);
       }
     }
-    NOTIFY_OBSERVER(_observer, new napsat::gui::implication(lit, reason, svar.level));
+    NOTIFY_OBSERVER(implication, lit, reason, svar.level);
+    NOTIFY_STAT(implication);
   }
 
   if (svar.level == LEVEL_ROOT) {
@@ -125,9 +127,11 @@ void NapSAT::var_unassign(Tvar var)
   ASSERT(!var_undef(var));
 
   TSvar& v = _vars[var];
-  NOTIFY_OBSERVER(_observer, new napsat::gui::unassignment(literal(var, v.state)));
+  NOTIFY_OBSERVER(unassignment, literal(var, v.state));
+  NOTIFY_STAT(unassignment);
   if (v.missed_lower_implication != CLAUSE_UNDEF) {
-    NOTIFY_OBSERVER(_observer, new napsat::gui::remove_lower_implication(var));
+    NOTIFY_OBSERVER(remove_lower_implication, var);
+    NOTIFY_STAT(remove_lower_implication);
     v.missed_lower_implication = CLAUSE_UNDEF;
   }
   if (!_variable_heap.contains(var))
@@ -176,9 +180,8 @@ void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
    && lit_level(clause_lits(lit_lazy_reason(lit))[1]) <= reimplication_level)
     return;
   lit_lazy_reason(lit) = reason;
-  NOTIFY_OBSERVER(_observer, new napsat::gui::missed_lower_implication(lit_to_var(lit), reason));
+  NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(lit), reason);
 }
-
 
 void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
 {
@@ -222,7 +225,7 @@ void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
 
 void NapSAT::restart()
 {
-  NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Restart"));
+  NOTIFY_STAT(_n_restart);
   if (_options.graph_backtracking) {
     unsigned tmp = _n_propagated_lits;
     backtrack(LEVEL_ROOT);
@@ -233,7 +236,7 @@ void NapSAT::restart()
       Tlit lit = _trail[i];
       _vars[lit_to_var(lit)].propagated = false;
       if (i < _n_propagated_lits) {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::remove_propagation(lit));
+        NOTIFY_OBSERVER(remove_propagation, lit);
       }
     }
     _n_propagated_lits = 0;
@@ -256,9 +259,51 @@ double napsat::NapSAT::default_cost(Tlit lit) {
 napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options) :
   _options(options)
 {
-  // We have to create the observer before allocating the variables. Otherwise the notifications will not be sent
+#if USE_STATISTICS
+  if (options.print_stats || options.print_live_stats) {
+    _statistics = new napsat::statistics(options);
+    const std::string cat_core = "Core statistics";
+    const std::string cat_aux = "Auxiliary statistics";
+
+    stat.decision = _statistics->add_stat("Decisions", cat_core);
+    stat.conflict = _statistics->add_stat("Conflicts", cat_core);
+    stat.propagation = _statistics->add_stat("Propagation", cat_core);
+    stat.implication = _statistics->add_stat("Implication", cat_core);
+    stat.unassignment = _statistics->add_stat("Unassignment", cat_core);
+    stat.remove_propagation = _statistics->add_stat("Remove propagation", cat_core);
+    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_core);
+
+    stat._n_purged_clauses = _statistics->add_stat("Purging clauses", cat_aux);
+    stat._n_binary_clause_simplified = _statistics->add_stat("Binary clause simplified", cat_aux);
+    stat._n_binary_clause_added = _statistics->add_stat("Binary clause added", cat_aux);
+    stat._n_clause_learned = _statistics->add_stat("Learned clause", cat_aux);
+    stat._n_unit_clause_simplified = _statistics->add_stat("Unit clause simplified", cat_aux);
+    stat._n_clause_deleted = _statistics->add_stat("Clause deleted", cat_aux);
+    stat._n_clause_set_simplified = _statistics->add_stat("Clause set simplified", cat_aux);
+    stat._n_allocated_chunks = _statistics->add_stat("Allocated Chunk", cat_aux);
+    stat._n_cross_implication_decisions = _statistics->add_stat("Cross implication for decision", cat_aux);
+    stat._n_lazy_reimplication_used = _statistics->add_stat("Lazy reimplication used", cat_aux);
+    stat._n_propagation_replayed = _statistics->add_stat("Replayed Propagation", cat_aux);
+    stat._n_skipped_propagation = _statistics->add_stat("Skipped Propagation", cat_aux);
+    stat._n_sync = _statistics->add_stat("Sync", cat_aux);
+    stat._n_restart = _statistics->add_stat("Restart", cat_aux);
+    stat._n_fw_subsumption_in_set = _statistics->add_stat("Forward subsumption in set", cat_aux);
+    stat._n_fw_subsumption = _statistics->add_stat("Forward subsumption", cat_aux);
+    stat._n_bw_subsumption = _statistics->add_stat("Backward subsumption", cat_aux);
+    stat._n_backtrack_limit_reached = _statistics->add_stat("Backtrack limit reached", cat_aux);
+    stat._n_conflict_repair = _statistics->add_stat("Conflict repair", cat_aux);
+    stat._n_failed_learning = _statistics->add_stat("Failed learning", cat_aux);
+    stat._n_backtrack_forced_chunks = _statistics->add_stat("Backtrack forced chunks", cat_aux);
+    stat._n_backtrack_better_chunks = _statistics->add_stat("Backtrack better chunks", cat_aux);
+  }
+#else
+  if (options.print_stats)
+    LOG_WARNING("The option --print-stats is not available in this build");
+#endif
+
+  // We have to create the observer before allocating the variables. Otherwise, the notifications will not be sent
 #if USE_OBSERVER
-  if (options.interactive || options.observing || options.check_invariants || options.print_stats || options.print_live_stats) {
+  if (options.interactive || options.observing || options.check_invariants) {
     _observer = new napsat::gui::observer(options);
     // make a functional object that will parse the command
     if (options.interactive) {
@@ -268,10 +313,8 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
       _observer->set_command_parser(command_parser);
     }
   }
-  else
-    _observer = nullptr;
 #else
-  if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
+  if (options.interactive || options.observing || options.check_invariants) {
     LOG_WARNING("Observer not available in this build");
     if (options.interactive)
       LOG_WARNING("The option --interactive is not available in this build");
@@ -279,8 +322,6 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
       LOG_WARNING("The option --observing is not available in this build");
     if (options.check_invariants)
       LOG_WARNING("The option --check-invariants is not available in this build");
-    if (options.print_stats)
-      LOG_WARNING("The option --print-stats is not available in this build");
   }
 #endif
 
@@ -306,7 +347,6 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   if (_options.graph_backtracking) {
     allocate_chunks(4032);
   }
-
   // _backtrack_cost_estimator = default_cost;
 }
 
@@ -329,10 +369,28 @@ bool napsat::NapSAT::is_interactive() const
   return _options.interactive;
 }
 
+napsat::statistics* napsat::NapSAT::get_statistics() const
+{
+#if USE_STATISTICS
+  return _statistics;
+#else
+  return nullptr;
+#endif
+}
+
 bool napsat::NapSAT::is_observing() const
 {
 #if USE_OBSERVER
   return _observer != nullptr;
+#else
+  return false;
+#endif
+}
+
+bool napsat::NapSAT::has_statistics() const
+{
+#if USE_STATISTICS
+  return _statistics != nullptr;
 #else
   return false;
 #endif
@@ -357,9 +415,9 @@ bool NapSAT::propagate()
     Tlit lit = _trail[_n_propagated_lits];
 #ifdef NDEBUG
     if (lit_propagated(lit)) {
-      _n_propagated_lits++;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Skipped Propagation"));
-      NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
+      _propagated_literals++;
+      NOTIFY_STAT(_n_skipped_propagation);
+      NOTIFY_OBSERVER(propagation, lit);
       continue;
     }
     if (!lit_propagated(lit)) {
@@ -380,7 +438,7 @@ bool NapSAT::propagate()
     if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
       _vars[lit_to_var(lit)].propagated = true;
       _n_propagated_lits++;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::propagation(lit));
+      NOTIFY_OBSERVER(propagation, lit);
     }
 
     ASSERT(_conflicts.empty() || !_options.partial_conflict_repair || _n_propagated_lits < _trail.size() || _n_propagated_lits == _trail.size());
@@ -445,14 +503,14 @@ status NapSAT::solve()
     return _status;
   print_bt_option(_options);
   while (true) {
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
+    NOTIFY_OBSERVER(check_invariants);
     if (!propagate()) {
       if (_status == UNSAT || !_options.interactive)
         break;
-      NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
+      NOTIFY_OBSERVER(done, _status == SAT);
     }
     ASSERT(_n_propagated_lits == _trail.size());
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
+    NOTIFY_OBSERVER(check_invariants);
     if (_n_root_lvl_lits >= _purge_threshold
     && ((!_options.weak_chronological_backtracking && !_options.restoring_strong_chronological_backtracking && !_options.graph_backtracking)
        || solver_level() == LEVEL_ROOT)) {
@@ -466,7 +524,7 @@ status NapSAT::solve()
       // therefore we cannot take a decision before we propagate
       continue;
     }
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
+    NOTIFY_OBSERVER(check_invariants);
     synchronize();
 #if USE_OBSERVER
     if (_observer && _options.interactive)
@@ -480,8 +538,8 @@ status NapSAT::solve()
   }
   synchronize();
   if (_status == SAT)
-    NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
-  NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
+    NOTIFY_OBSERVER(check_invariants);
+  NOTIFY_OBSERVER(done, _status == SAT);
   return _status;
 }
 
@@ -589,7 +647,7 @@ void NapSAT::synchronize()
     Tvar var = lit_to_var(lit);
     TSvar& v = _vars[var];
     if (!v.synced) {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync"));
+      NOTIFY_STAT(_n_sync);
       v.synced = 1;
     }
   }

@@ -28,7 +28,7 @@ INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 LINK_FLAGS := -llzma -lbz2
 TEST_LINK_FLAGS := -lCatch2Main -lCatch2
 
-CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
+CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++20 -Wall --pedantic
 REL_FLAGS ?= -O3 -DNDEBUG
 DBG_FLAGS ?= -O0 -g -g3 -gdwarf-2 -ftrapv
 

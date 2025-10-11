@@ -66,7 +66,7 @@ def run_one_job(filename : str, option: str, df: pd.DataFrame):
         stats["option"] = option
         stats["file"] = filename.split("/")[-1]
     # run the problem a second time, without the -stat option, to get the time
-    args = [SAT_exec, filename] + [option] + additional_options
+    args = [SAT_exec, filename] + option.split(" ") + additional_options
     output = Popen(args, shell=False, stdout=PIPE, stderr=PIPE)
     out, error = output.communicate()
     out_dec = out.decode("utf-8")

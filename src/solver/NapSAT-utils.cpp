@@ -201,15 +201,15 @@ void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
   ASSERT(lit == lits[0] || lit == lits[1]);
   _watches[lit].push_back(TSwatch(cl, lits[0] ^ lits[1] ^ lit));
   #if NOTIFY_WATCH_CHANGES
-    NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
-    NOTIFY_OBSERVER(_observer, new napsat::gui::block(cl, lits[0] ^ lits[1] ^ lit, lit));
+    NOTIFY_OBSERVER(watch, cl, lit);
+    NOTIFY_OBSERVER(block, cl, lits[0] ^ lits[1] ^ lit, lit);
   #endif
 }
 
 void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
 {
 #if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
+  NOTIFY_OBSERVER(unwatch, cl, lit);
 #endif
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(clause_lits(cl)[0] == lit || clause_lits(cl)[1] == lit);
@@ -255,7 +255,7 @@ void napsat::NapSAT::var_allocate(Tvar var)
       var_mark_constrained(i);
     _vars[i].chunks.resize(_n_allocated_chunks);
     _vars[i].cross_chunks.resize(_n_allocated_chunks);
-    NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(i));
+    NOTIFY_OBSERVER(new_variable, i);
   }
 
   _watches.resize(2 * var + 2);
@@ -278,7 +278,7 @@ void napsat::NapSAT::allocate_chunks(size_t n_chunks)
 
   for (Tchunk i = 1; i <= n_chunks; i++) {
     _free_chunks.push_back(_n_allocated_chunks + n_chunks - i);
-    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Allocated Chunk"));
+    NOTIFY_STAT(_n_allocated_chunks);
   }
   _n_allocated_chunks = n_chunks;
   // resize the chunk sets of the variables

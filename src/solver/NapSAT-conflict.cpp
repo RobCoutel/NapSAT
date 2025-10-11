@@ -265,7 +265,7 @@ bool napsat::NapSAT::learned_clause_is_redundant()
   if (!_options.exhaustive_conflict_repair && _options.graph_backtracking) {
     Tclause redundant = clause_subsumed_in_formula(_lit_buffer, _lit_buffer_size);
     if (redundant != CLAUSE_UNDEF) {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Redundant clause"));
+      NOTIFY_STAT(_n_fw_subsumption_in_set);
       to_return = true;
     }
   } else {
@@ -332,7 +332,7 @@ void napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause>&
   while (!prefixes.empty()) {
     // check if the prefix is subsumed by an existing possibility
     if (possibilities.size() > _options.backtrack_possibilities_limit) {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Backtrack possibilities limit reached"));
+      NOTIFY_STAT(_n_backtrack_limit_reached);
       break;
     }
 
@@ -713,7 +713,7 @@ void napsat::NapSAT::repair_unary_clause_conflict(Tclause conflict)
 
 void NapSAT::repair_conflicts()
 {
-  NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Repairing conflicts"));
+  NOTIFY_STAT(_n_conflict_repair);
   /**
    * Precondition:
    * - The conflict clause C is conflicting with the current partial assignment π
@@ -869,7 +869,7 @@ void napsat::NapSAT::compute_subsumed_clauses(const vector<pair<Tclause, vector<
         }
       }
       if (all_found) {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Backward Subsumption"));
+        NOTIFY_STAT(_n_bw_subsumption);
         subsumed[i] = true;
         break;
       }
@@ -950,7 +950,7 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
 
     // check if the clause is new
     if (learned_clause_is_redundant()) { // todo use the marking already for the next check
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Forward Subsumption"));
+      NOTIFY_STAT(_n_fw_subsumption_in_set);
 
       if (_proof) {
         _proof->cancel_resolution_chain();
@@ -969,7 +969,7 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
       bool all_found = true;
       for (unsigned j = 0; j < clause.size() && all_found; j++) { all_found &= lit_marked(clause[j]); }
       if (all_found) {
-        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Forward Subsumption (learned)"));
+        NOTIFY_STAT(_n_fw_subsumption);
 
         already_learned = true;
         break;
@@ -1095,9 +1095,7 @@ void napsat::NapSAT::graph_repair()
         break;
       }
 
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Failed learning"));
-    } else {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("No learning attempt"));
+      NOTIFY_STAT(_n_failed_learning);
     }
 
     if (analyzed.highest_level == highest_level) {
@@ -1113,15 +1111,13 @@ void napsat::NapSAT::graph_repair()
     backtrack(analyzed.chunks);
     // add assertion to make sure we are indeed at the highest level
     if (!_options.backtrack_learned) {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Backtracked Forced Chunks") );
+      NOTIFY_STAT(_n_backtrack_forced_chunks);
     }
   } else {
     // we did learn, so we backtrack whatever we want (i.e. the smalles chunk)
     backtrack(best.chunks);
     if (best.chunks != analyzed.chunks) {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Backtracked Better Chunks") );
-    } else {
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Backtracked Same Chunks") );
+      NOTIFY_STAT(_n_backtrack_better_chunks);
     }
   }
 

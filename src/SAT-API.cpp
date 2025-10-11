@@ -97,17 +97,17 @@ bool napsat::is_decided(NapSAT* solver, Tlit lit)
   return solver->is_decided(lit);
 }
 
-void napsat::print_statistics(NapSAT* solver)
+void napsat::print_statistics(const NapSAT* solver)
 {
+#if USE_STATISTICS
   assert(solver != nullptr);
-  assert(USE_OBSERVER);
-#if USE_OBSERVER
-  napsat::gui::observer* obs = solver->get_observer();
-  if (obs == nullptr) {
+  assert(USE_STATISTICS);
+  napsat::statistics* stat = solver->get_statistics();
+  if (stat == nullptr) {
     std::cout << "No statistic collected. Use -stat in the options to collect them." << std::endl;
     return;
   }
-  std::cout << obs->get_statistics();
+  std::cout << stat->get_statistics();
 #endif
 }
 
