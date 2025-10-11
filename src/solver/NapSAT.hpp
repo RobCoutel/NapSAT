@@ -806,7 +806,7 @@ public:
      * @brief Position of the last literal on the trail that was left unchanged
      * since the last synchronization.
      */
-    unsigned _sync_validity_index;
+    size_t _sync_validity_index;
 
     /**  INTERACTIVE SOLVER  **/
 #if USE_OBSERVER
@@ -1357,13 +1357,11 @@ public:
     /*                           Conflict analysis                           */
     /*************************************************************************/
 
-    void backtracked_chunks_subsumption(std::vector<bitset>& possibilities);
+    void subsumption_filter_chunks(std::vector<bitset>& possibilities);
 
     void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, bitset current, bitset processed);
 
     void enhance_backtrack_possibilities_with_lazy_merging(std::vector<bitset>& possibilities);
-
-    size_t split_learning_possibilities(std::vector<bitset>& possibilities);
 
     void fix_conflicts_and_learned_in_order(const std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned);
 
@@ -1460,32 +1458,27 @@ public:
       }
     } Tweight;
 
+    /**
+     * @brief Given a set of bitsets, calculate their weights according to the current state of the solver.
+     * @details This functions stop as soon as it can determine which chunks are the lightest. It does not fully compute the weight of all bitsets. After removing the best bitset and calling the function again, the computation will resume from where it stopped.
+     * @param weights vector of bitsets to evaluate. After the call, the weights are updated and sorted such that the lightest bitset is at the beginning of the vector.
+     */
     void calculate_bitset_weights(std::vector<Tweight>& weights);
 
-    size_t compute_backtrack_possibilities(const std::vector<Tclause>& conflicts,
+    /**
+     * @brief Given a set of conflicting clauses, computes the set of chunk sets, that, if backtracked, will resolve all conflicts at once.
+     * @details The chunk sets are stored in the vector possibilities. A possibility Γ is a set of chunks such that ∀ C ∈ κ. γ(C) ∩ Γ ≠ ∅
+     * @param conflicts set of conflicting clauses.
+     * @param possibilities vector to store the resulting chunk sets.
+     */
+    void compute_backtrack_possibilities(const std::vector<Tclause>& conflicts,
                                            std::vector<bitset>& possibilities);
-
 
     /**
      * @brief Given a learned clause, chooses the level to backtrack to
      * according to the options and the literals in the clause.
      */
     Tlevel choose_backtracked_level(Tlit* learned_lits, unsigned size);
-
-    /**
-     * @brief Given a conflict clause, chooses the chunk in which the UIP will
-     * be searched.
-     * @details The chunk c is chosen given total order on the chunks.
-     * The total order must be such that for all chunks c' and literal ℓ,
-     *   c' < c' U {ℓ}
-     * TODO: check if this is really necessary.
-     * This is because we need to ensure that the clause will be propagating after
-     * undoing the chunk.
-     * If it were not the case, undoing c could also unassign other literals in
-     * the learned clause, making it not propagating anymore.
-     * @param conflict clause that caused the conflict.
-     */
-    bitset choose_analyzed_chunk(Tclause conflict);
 
     /**
      * @brief Checks if a conflict clause has exactly one literal in the given chunks.
@@ -1508,23 +1501,6 @@ public:
     Tlevel compute_repair_level();
 
     /**
-     * @brief Computes the chunks that will be repaired.
-     */
-    bitset compute_repair_chunks();
-
-    /**
-     * @brief Provided the set of chunks that will be undone, this function removes conflicts that will be resolved
-     * and cannot create a unit clause after conflict analysis
-     * @example If a clause C = a v b v b v d such that a in ck1 and b in ck2, if both ck1 and ck2 are undone
-     * and there is no lazy chunk merging between the two, then C must be removed from the set of conflicts
-     * since it will become irrelevant
-     * @theorem There will always be a clause remaining after filtering deactivated conflicts
-     */
-    void filter_deactivated_conflicts(bitset& undone_chunks);
-
-    void filter_deactivated_conflicts(Tlevel backtrack_level);
-
-        /**
      * @brief Repairs the conflict caused by clauses with one literal at the highest level.
      * @details This procedure does not require to learn a new clause. Only to backtrack to the appropriate level.
      */
@@ -1553,32 +1529,104 @@ public:
      */
     bool lit_is_required_in_learned_clause(Tlit lit);
 
-    bool conflict_can_generate_learned_clause(Tclause conflict, const bitset& chunks);
+    /**
+     * @brief Checks if a conflict clause can generate a learned clause when analyzed on the chunks bt.
+     * @details A conflict clause can generate a learned clause if it intersects with exactly one chunk in bt, after considering the lazy reimplications.
+     * @param conflict the conflict clause to check.
+     * @param bt the chunks to check against.
+     * @return true if the conflict clause can generate a learned clause, false otherwise.
+     */
+    bool conflict_can_generate_learned_clause(Tclause conflict, const bitset& bt);
 
-    bool conflict_can_generate_learned_clause(Tclause conflict, Tlevel level);
+    /**
+     * @brief Checks if a conflict clause can generate a learned clause when analyzed at level bt.
+     * @details A conflict clause can generate a learned clause if it does not have literals above level bt.
+     * @param conflict the conflict clause to check.
+     * @param bt the level to check against.
+     * @return true if the conflict clause can generate a learned clause, false otherwise.
+     */
+    bool conflict_can_generate_learned_clause(Tclause conflict, Tlevel bt);
 
-    bool implication_active_after_backtrack(Tclause conflict, Tlevel level);
+    /**
+     * @brief Checks if a learned clause will be able to produce a propagating learned clause after backtracking.
+     * @param conflict the conflict clause to check.
+     * @param chunks the chunks to check against.
+     * @return true if the learned clause will be propagating after backtracking, false otherwise.
+     */
     bool implication_active_after_backtrack(Tclause conflict, const bitset& chunks);
 
+    /**
+     * @brief Checks if a conflict clause will be able to produce a propagating learned clause after backtracking.
+     * @param conflict the conflict clause to check.
+     * @param level the level to check against.
+     * @return true if the learned clause will be propagating after backtracking, false otherwise.
+     */
+    bool implication_active_after_backtrack(Tclause conflict, Tlevel level);
+
+    /**
+     * @brief Adds a learned clause to the clause set and removes it right away.
+     * @details This method is employed when a clause is discovered to be backward subsumed by another clause. When the clause is generated, it is materialized in the proof before being added to the solver. However, since it is subsumed, we do not wish to add it to the solver. So, we add it and delete it right away to ensure the proof is correct.
+     * @param cl the clause number that will be added and deleted.
+     * @param lits the literals of the clause to add and delete.
+     */
     void add_and_delete_clause(Tclause cl, const std::vector<Tlit>& lits);
 
+    /**
+     * @brief Given a set of clauses, computes which clauses are backward subsumed by other clauses in the set of learned clauses.
+     * @details Let S be the set of learned clauses {Cᵢ} A clause Cᵢ ∈ S is backward subsumed by a clause Cⱼ ∈ S, j > i if Cⱼ ⊆ Cᵢ.
+     */
     void compute_subsumed_clauses(const std::vector<std::pair<Tclause, std::vector<Tlit>>> &clauses, std::vector<bool> &subsumed);
 
-    const bitset& update_bt_after_analysis(const bitset& chunks);
-    Tlevel update_bt_after_analysis(Tlevel level);
+    /**
+     * @brief This function does nothing, but it is used by the template function @a try_and_learn_impl. The variant with levels is usefull (see below)
+     */
+    const bitset& update_bt_after_analysis_of_reimplication(const bitset& chunks);
 
+    /**
+     * @brief Computes the maximum level in the _lit_buffer
+     * @details After using lazy reimplication on the UIP, the next conflict analysis level is lower
+     * @param level this parameter is useless, it's just used in the bitset variants to return it
+     */
+    Tlevel update_bt_after_analysis_of_reimplication(Tlevel level);
+
+    /**
+     * @brief Given a set of conflicts in @p _conflicts, attempt to learn new clauses using the 1UIP algorithm on the level or bitset specified by bt.
+     * @details This is a template function meant to be instantiated only with @c T = @c Tlevel or @c T = @c const bitset&
+     * @details The clauses must have a provided clause index because the proofs need to be aware of such index before the clauses are actually inserted in the formula.
+     * @param bt the level or bitset on which that conflicts should be analyzed
+     * @param learned_clauses a buffer in which the literals of the learned clauses will be store. The clauses are accompanied by a clause index that will be used for the insertion in the clause set.
+     */
     template<typename T>
     void try_and_learn_impl(T bt, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
 
+    /**
+     * @brief Given a set of conflicts in @p _conflicts, and a set of @p chunks, pushes in @p learned_clause
+     * @details This function is a wrapper around the template function @a try_and_learn_impl, providing a convenient interface for the user.
+     * @param chunks the chunks on which that conflicts should be analyzed
+     * @param learned_clauses a buffer in which the literals of the learned clauses will be store. The clauses are accompanied by a clause index that will be used for the insertion in the clause set.
+     */
     void try_and_learn(const bitset& chunks, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
 
+    /**
+     * @brief Given a set of conflicts in @p _conflicts, and a level, pushes in @p learned_clause
+     * @details This function is a wrapper around the template function @a try_and_learn_impl, providing a convenient interface for the user.
+     * @param level the level on which that conflicts should be analyzed
+     * @param learned_clauses a buffer in which the literals of the learned clauses will be store. The clauses are accompanied by a clause index that will be used for the insertion in the clause set.
+     */
     void try_and_learn(Tlevel level, std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
 
-    void learn_negation_of_decisions(std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned_clauses);
-
+    /**
+     * @brief Perform conflict repair using the graph-based criteria.
+     * @details This function repairs the conflicts in the set of conflicts. That is, it decides the best chunks to undo, analyzes the conflicts, (possibly) learns new clauses, backtracks the chosen chunks, and implies literals using the conflicting and learned clauses.
+     */
     void graph_repair();
 
+    /**
+     * @brief Perform conflict repair using the level-based criteria.
+     * @details This function repairs the conflicts in the set of conflicts. That is, it chooses the appropriate backtrack level (based on CB, or NCB), analyzes the conflicts, (possibly) learns new clauses, backtracks to the chosen level, and implies literals using the conflicting and learned clauses.
+     */
     void level_repair();
+
     /**
      * @brief Returns true if a literal must be further analyzed in conflict analysis.
      * That is, depending on the options, check the level or chunk requirements.
@@ -1602,7 +1650,7 @@ public:
 
     /**
      * Analyze a conflict and learn a new clause.
-     * @param conflict clause that caused the conflict.
+     * @param level level to analyze the conflict on.
      * @pre The solver is not in Strong Chronological Backtracking mode
      * @pre The conflict clause C is conflicting with the current partial assig-
      * nment

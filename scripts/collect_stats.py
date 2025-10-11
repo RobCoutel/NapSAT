@@ -12,7 +12,7 @@ additional_options: list[str] = [
     "-del off"
 ]
 
-N_THREADS = 20
+N_THREADS = os.cpu_count() - 1
 
 def parse_output(output:str) -> dict[str, int|str]:
     """
@@ -102,17 +102,17 @@ if __name__ == "__main__":
     SAT_options = ["-ncb"] + sys.argv[3:]
     if "-gb" in SAT_options:
         SAT_options.append("-gb -lcm")
-        # SAT_options.append("-gb -bl")
-        # SAT_options.append("-gb -lcm -bl")
+        SAT_options.append("-gb -bl")
+        SAT_options.append("-gb -lcm -bl")
 
     opts = []
     for option in SAT_options:
-        # opts.append(option)
-        # opts.append(option + " -ecr")
-        # opts.append(option + " -pcr")
+        opts.append(option)
+        opts.append(option + " -ecr")
+        opts.append(option + " -pcr")
         opts.append(option + " --restarts off")
         opts.append(option + " -ecr --restarts off")
-        # opts.append(option + " -pcr --restarts off")
+        opts.append(option + " -pcr --restarts off")
     SAT_options = opts
 
     # SAT_options = SAT_options_cross

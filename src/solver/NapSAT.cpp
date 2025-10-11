@@ -8,8 +8,7 @@
  * @file src/solver/NapSAT.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the NapSAT solver. It implements the core functions of the
- * solver such as the CDCL loop, BCP, conflict analysis, and backtracking.
+ * @brief This file is part of the NapSAT solver. It implements the CDCL algorithm and .
  */
 #include "NapSAT.hpp"
 
@@ -162,6 +161,7 @@ void NapSAT::var_unassign(Tvar var)
   switch (v.synced)
   {
   case 0:
+    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync unassign"));
   case 2:
     v.synced = 2;
     break;
@@ -369,7 +369,6 @@ bool NapSAT::propagate()
   // ASSERT(watch_lists_minimal());
   if (_status != UNDEF)
     return false;
-  size_t stop_location = UINT64_MAX;
   while (_n_propagated_lits < _trail.size()) {
     Tlit lit = _trail[_n_propagated_lits];
 #ifdef NDEBUG
@@ -393,9 +392,6 @@ bool NapSAT::propagate()
     if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
       propagate_lit(lit);
     }
-    if (_options.partial_conflict_repair && stop_location == UINT64_MAX && !_conflicts.empty()) {
-      stop_location = _trail.size();
-    }
 
     if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
       _vars[lit_to_var(lit)].propagated = true;
@@ -404,15 +400,26 @@ bool NapSAT::propagate()
     }
 
     ASSERT(_conflicts.empty() || !_options.partial_conflict_repair || _n_propagated_lits < _trail.size() || _n_propagated_lits == _trail.size());
-    ASSERT(!_options.partial_conflict_repair || _conflicts.empty() || stop_location != UINT64_MAX);
-    ASSERT(stop_location == UINT64_MAX || !_conflicts.empty());
-    ASSERT(stop_location == UINT64_MAX || (stop_location <= _trail.size() && stop_location >= _n_propagated_lits));
+
+    bool stop_propagation = false;
+    if (_options.partial_conflict_repair && !_conflicts.empty()) {
+      // if all literals in the first conflict are propagated, we can stop
+      const Tclause& first_conflict = _conflicts.front();
+      const Tlit* lits = clause_lits(first_conflict);
+      unsigned size = clause_size(first_conflict);
+      stop_propagation = true;
+      for (unsigned i = 0; i < size; i++) {
+        if (!lit_propagated(lits[i])) {
+          stop_propagation = false;
+          break;
+        }
+      }
+    }
+
     if (!_conflicts.empty()
     && (!_options.exhaustive_conflict_repair || _n_propagated_lits == _trail.size())
-    && (!_options.partial_conflict_repair || _n_propagated_lits == stop_location)) {
+    && (!_options.partial_conflict_repair || stop_propagation)) {
       repair_conflicts();
-
-      stop_location = UINT64_MAX;
 
       if (_status == UNSAT) {
         return false;
@@ -593,16 +600,16 @@ void NapSAT::synchronize()
 {
   if(!_options.print_stats && !_options.print_live_stats)
     return;
-  for (Tvar var = 1; var < _vars.size(); var++) {
+  for (size_t i = _sync_validity_index; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    Tvar var = lit_to_var(lit);
     TSvar& v = _vars[var];
-    switch (v.synced)
-    {
+    switch (v.synced) {
     case 0:
     case 1:
       // do nothing, already synchronized
       break;
     case 2:
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync unassign"));
       if (v.state == VAR_UNDEF)
         v.synced = 1;
       else {

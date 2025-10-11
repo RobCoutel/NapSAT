@@ -14,7 +14,7 @@ directoryUnSat = "/home/robin/OneDrive/University/Library/SAT.CNF/unsat/"
 # Path to the executable
 SAT_exec = "/home/robin/programs/NapSAT-dev/build/NapSAT"
 
-SAT_options = ["", "-rscb", "-lscb", "-gb", "-gb -lcm", "-gb -bl", "-gb -lcm -bl"]
+SAT_options = ["", "-rscb", "-lscb", "-gb", "-gb -lcm", "-gb -bl", "-gb -bl -lcm"]
 opts = []
 for option in SAT_options:
     opts.append(option)
@@ -24,7 +24,7 @@ SAT_options = opts
 
 additional_options = "-c -sw -cp"
 
-N_THREADS = 20
+N_THREADS = os.cpu_count() - 1
 
 def search_pattern(filename: str, pattern: str):
     '''
@@ -35,8 +35,8 @@ def search_pattern(filename: str, pattern: str):
     for option in SAT_options:
         args = [SAT_exec, filename] + option.split() + additional_options.split()
         output = Popen(args, shell=False, stdout=PIPE, stderr=PIPE)
-        out, error = output.communicate()
-        out = out.decode("utf-8")
+        o, error = output.communicate()
+        out = o.decode("utf-8")
         err = error.decode("utf-8")
         if out.find(pattern) != -1:
             print("\n" + filename + " : " + option + " : Pattern found: " + pattern)

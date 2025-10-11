@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/solver/NapSAT-backtrack.cpp
+ * @author Robin Coutelier
+ *
+ * @brief This file is part of the NapSAT solver. It implements the backtracking
+ * procedures.
+ */
 #include "NapSAT.hpp"
 
 #include "custom-assert.hpp"
@@ -39,8 +52,9 @@ void napsat::NapSAT::backtrack(Tlevel level)
   NOTIFY_OBSERVER(_observer, new napsat::gui::backtracking_started(level));
   unsigned waiting_count = 0;
 
-  unsigned restore_point = _decision_index[level];
-  unsigned j = restore_point;
+  size_t restore_point = _decision_index[level];
+  size_t j = restore_point;
+  _sync_validity_index = min(_sync_validity_index, restore_point);
 
   ASSERT(_backtracked_variables.empty());
 
@@ -167,6 +181,7 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
       }
       // we need to unassign the variable
       var_unassign(lit_to_var(lit));
+      _sync_validity_index = min(_sync_validity_index, (size_t) (j - _trail.data()));
       unsigned loc = j - _trail.data();
       _n_propagated_lits   -= loc < _n_propagated_lits;
       new_propagation_head -= loc < new_propagation_head;
