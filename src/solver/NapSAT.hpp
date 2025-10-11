@@ -365,7 +365,7 @@ public:
         propagated(false),
         state(VAR_UNDEF),
         phase_cache(0),
-        synced(1),
+        synced(0),
         constrained(0)
       {}
       /**
@@ -408,19 +408,9 @@ public:
       unsigned phase_cache : 1;
 
       /**
-       * @brief Last value assigned to the variable before the last
-       * synchronization.
-       * 0 means that the variable is synchronized assigned
-       * 1 means that the variable is synchronized unassigned
-       * 2 means that the variable is not synchronized and was assigned
-       * 3 means that the variable is not synchronized and was unassigned
-       *
-       * 0  -- backtrack --> 2
-       * 1  --  assign   --> 3
-       * 2  --  assign   --> 2
-       * 3  -- backtrack --> 1
+       * @brief Boolean indicating the synchronization state of the variable.
        */
-      unsigned synced : 2;
+      unsigned synced : 1;
 
       /**
        * @brief True if at least one clause constraints this variable.

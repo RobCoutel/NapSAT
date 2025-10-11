@@ -52,9 +52,6 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   svar.phase_cache = lit_pol(lit);
 
   // for the logic, look at the comment in NapSAT.hpp
-  ASSERT(svar.synced != 0);
-  if (svar.synced == 1)
-    svar.synced = 3;
 
   if (reason == CLAUSE_UNDEF) {
     // Decision
@@ -157,20 +154,7 @@ void NapSAT::var_unassign(Tvar var)
   v.level = LEVEL_UNDEF;
   v.propagated = false;
 
-  // for the logic, look at the comment in NapSAT.hpp
-  switch (v.synced)
-  {
-  case 0:
-    NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync unassign"));
-  case 2:
-    v.synced = 2;
-    break;
-  case 3:
-    v.synced = 1;
-    break;
-  default:
-    ASSERT(false);
-  }
+  v.synced = 0;
 }
 
 void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
@@ -259,7 +243,7 @@ void NapSAT::restart()
 }
 
 double napsat::NapSAT::default_cost(Tlit lit) {
-  if (_vars[lit_to_var(lit)].synced == 0) {
+  if (_vars[lit_to_var(lit)].synced) {
     return 1;
   }
   return 0.1;
@@ -604,25 +588,9 @@ void NapSAT::synchronize()
     Tlit lit = _trail[i];
     Tvar var = lit_to_var(lit);
     TSvar& v = _vars[var];
-    switch (v.synced) {
-    case 0:
-    case 1:
-      // do nothing, already synchronized
-      break;
-    case 2:
-      if (v.state == VAR_UNDEF)
-        v.synced = 1;
-      else {
-        v.synced = 0;
-        NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync assign"));
-      }
-      break;
-    case 3:
-      ASSERT (v.state != VAR_UNDEF);
-      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync assign"));
-      v.synced = 0;
-    default:
-      break;
+    if (!v.synced) {
+      NOTIFY_OBSERVER(_observer, new napsat::gui::stat("Sync"));
+      v.synced = 1;
     }
   }
   _sync_validity_index = _trail.size();
