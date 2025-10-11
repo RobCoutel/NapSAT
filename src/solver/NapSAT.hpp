@@ -117,6 +117,17 @@
 
 #include "../observer/SAT-stat.hpp"
 
+#if USE_STATISTICS
+#define NOTIFY_STAT(type)                     \
+  do {                                        \
+    if (_statistics) {                        \
+      stat.type->inc();                       \
+    }                                         \
+  } while(0)
+#else
+#define NOTIFY_STAT(type)  ((void)0)
+#endif
+
 #if USE_OBSERVER
 #define NOTIFY_OBSERVER(NAME,...)             \
   do {                                        \
@@ -128,23 +139,10 @@
         assert(false);                        \
       }                                       \
     }                                         \
-    if (_statistics) {                        \
-      stat.NAME->inc();                       \
-    }                                         \
+    NOTIFY_STAT(NAME);                        \
   } while(0)
 #else
-#define NOTIFY_OBSERVER(NAME,...)  ((void)0)
-#endif
-
-#if USE_STATISTICS
-#define NOTIFY_STAT(type)                     \
-  do {                                        \
-    if (_statistics) {                        \
-      stat.type->inc();                       \
-    }                                         \
-  } while(0)
-#else
-#define NOTIFY_STAT(type)  ((void)0)
+#define NOTIFY_OBSERVER(NAME,...)  NOTIFY_STAT(NAME)
 #endif
 
 namespace napsat
