@@ -864,6 +864,9 @@ public:
       statistics::stat *new_clause = nullptr; // "Add clause"
       statistics::stat *new_variable = nullptr; // "Add variable"
       statistics::stat *delete_clause = nullptr; // "Delete clause"
+      statistics::stat *marker = nullptr; // "Marker"
+      statistics::stat *watch = nullptr; // "Unwatch"
+      statistics::stat *unwatch = nullptr; // "Unwatch"
       statistics::stat *done = nullptr; // "Done"
 
       // auxilary stats
@@ -888,7 +891,7 @@ public:
       statistics::stat *_n_conflict_repair = nullptr; // "Conflict repair"
       statistics::stat *_n_failed_learning = nullptr; // "Failed learning"
       statistics::stat *_n_backtrack_forced_chunks = nullptr; // "Forced chunk backtrack"
-      statistics::stat *_n_backtrack_better_chunks = nullptr; // "Cross implication back
+      statistics::stat *_n_backtrack_better_chunks = nullptr; // "Cross implication back"
     } stat;
 #endif
 

@@ -276,6 +276,9 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat.new_clause = _statistics->add_stat("Add clause", cat_core);
     stat.new_variable = _statistics->add_stat("Add variable", cat_core);
     stat.delete_clause = _statistics->add_stat("Delete clause", cat_core);
+    stat.marker = _statistics->add_stat("Marker", cat_core);
+    stat.watch = _statistics->add_stat("Watch", cat_core);
+    stat.unwatch = _statistics->add_stat("Unwatch", cat_core);
     stat.done = _statistics->add_stat("Done", cat_core);
 
     stat._n_purged_clauses = _statistics->add_stat("Purging clauses", cat_aux);
