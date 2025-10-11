@@ -415,7 +415,7 @@ bool NapSAT::propagate()
     Tlit lit = _trail[_n_propagated_lits];
 #ifdef NDEBUG
     if (lit_propagated(lit)) {
-      _propagated_literals++;
+      _n_propagated_lits++;
       NOTIFY_STAT(_n_skipped_propagation);
       NOTIFY_OBSERVER(propagation, lit);
       continue;
