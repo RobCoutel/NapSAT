@@ -128,6 +128,9 @@
         assert(false);                        \
       }                                       \
     }                                         \
+    if (_statistics) {                        \
+      stat.NAME->inc();                       \
+    }                                         \
   } while(0)
 #else
 #define NOTIFY_OBSERVER(NAME,...)  ((void)0)
@@ -852,6 +855,16 @@ public:
       statistics::stat *unassignment = nullptr; // "Unassignment"
       statistics::stat *remove_lower_implication = nullptr; // "Remove lower implication"
       statistics::stat *remove_propagation = nullptr; // "Remove propagation"
+      statistics::stat *remove_literal = nullptr; // "Remove literal"
+      statistics::stat *block = nullptr; // "Block"
+      statistics::stat *check_invariants = nullptr; // "Check invariants"
+      statistics::stat *missed_lower_implication = nullptr; // "Missed lower implication"
+      statistics::stat *backtracking_started = nullptr; // "Backtracking started"
+      statistics::stat *update_level = nullptr; // "Update level"
+      statistics::stat *new_clause = nullptr; // "Add clause"
+      statistics::stat *new_variable = nullptr; // "Add variable"
+      statistics::stat *delete_clause = nullptr; // "Delete clause"
+      statistics::stat *done = nullptr; // "Done"
 
       // auxilary stats
       statistics::stat *_n_purged_clauses = nullptr; // "Purging clauses"

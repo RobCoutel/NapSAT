@@ -58,7 +58,6 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     _decision_index.push_back(_trail.size() - 1);
     svar.level = solver_level();
     NOTIFY_OBSERVER(decision, lit);
-    NOTIFY_STAT(decision);
     if (_options.graph_backtracking) {
       if (_free_chunks.empty()) {
         allocate_chunks(2 * _n_allocated_chunks);
@@ -110,7 +109,6 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
       }
     }
     NOTIFY_OBSERVER(implication, lit, reason, svar.level);
-    NOTIFY_STAT(implication);
   }
 
   if (svar.level == LEVEL_ROOT) {
@@ -128,10 +126,8 @@ void NapSAT::var_unassign(Tvar var)
 
   TSvar& v = _vars[var];
   NOTIFY_OBSERVER(unassignment, literal(var, v.state));
-  NOTIFY_STAT(unassignment);
   if (v.missed_lower_implication != CLAUSE_UNDEF) {
     NOTIFY_OBSERVER(remove_lower_implication, var);
-    NOTIFY_STAT(remove_lower_implication);
     v.missed_lower_implication = CLAUSE_UNDEF;
   }
   if (!_variable_heap.contains(var))
@@ -255,7 +251,6 @@ double napsat::NapSAT::default_cost(Tlit lit) {
 /*****************************************************************************/
 /*                            Public interface                               */
 /*****************************************************************************/
-
 napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options) :
   _options(options)
 {
@@ -272,6 +267,16 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat.unassignment = _statistics->add_stat("Unassignment", cat_core);
     stat.remove_propagation = _statistics->add_stat("Remove propagation", cat_core);
     stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_core);
+    stat.remove_literal = _statistics->add_stat("Remove literal", cat_core);
+    stat.block = _statistics->add_stat("Block", cat_core);
+    stat.check_invariants = _statistics->add_stat("Check invariants", cat_core);
+    stat.missed_lower_implication = _statistics->add_stat("Missed lower implication", cat_core);
+    stat.backtracking_started = _statistics->add_stat("Backtracking started", cat_core);
+    stat.update_level = _statistics->add_stat("Update level", cat_core);
+    stat.new_clause = _statistics->add_stat("Add clause", cat_core);
+    stat.new_variable = _statistics->add_stat("Add variable", cat_core);
+    stat.delete_clause = _statistics->add_stat("Delete clause", cat_core);
+    stat.done = _statistics->add_stat("Done", cat_core);
 
     stat._n_purged_clauses = _statistics->add_stat("Purging clauses", cat_aux);
     stat._n_binary_clause_simplified = _statistics->add_stat("Binary clause simplified", cat_aux);

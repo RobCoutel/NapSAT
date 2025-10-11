@@ -190,7 +190,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     vector<Tlit> lits_vector;
     for (unsigned i = 0; i < clause_size; i++)
       lits_vector.push_back(lits[i]);
-    _observer->notify(new napsat::gui::new_clause(id, lits_vector, learned, external));
+
+    NOTIFY_OBSERVER(new_clause, id, lits_vector, learned, external);
   }
   #endif
 
