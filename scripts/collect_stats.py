@@ -9,7 +9,8 @@ from rich.progress import Progress
 # Path to the executable
 SAT_exec = "./build/NapSAT"
 additional_options: list[str] = [
-    "-del off"
+    "-del off",
+    "--restarts off"
 ]
 
 N_THREADS = os.cpu_count() - 1
@@ -101,19 +102,13 @@ if __name__ == "__main__":
     out_file = sys.argv[2]
     SAT_options = ["-ncb"] + sys.argv[3:]
     if "-gb" in SAT_options:
-        SAT_options.append("-gb -lcm")
-        SAT_options.append("-gb -bl")
-        SAT_options.append("-gb -lcm -bl")
+        for i in range(1, 32):
+            SAT_options.append(f"-gb --sync-weight {i}")
+            SAT_options.append(f"-gb --sync-weight {i + 0.5}")
 
-    opts = []
-    for option in SAT_options:
-        opts.append(option)
-        opts.append(option + " -ecr")
-        opts.append(option + " -pcr")
-        opts.append(option + " --restarts off")
-        opts.append(option + " -ecr --restarts off")
-        opts.append(option + " -pcr --restarts off")
-    SAT_options = opts
+    # opts_copy = SAT_options.copy()
+    # for option in opts_copy:
+    #     SAT_options.append(option + " -ecr")
 
     # SAT_options = SAT_options_cross
 

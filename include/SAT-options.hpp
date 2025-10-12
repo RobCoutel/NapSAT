@@ -334,6 +334,16 @@ namespace napsat
      */
     double backtrack_possibilities_limit = 1000;
 
+    /**
+     * @brief Weight of synced variables in the utility heuristic.
+     * @requires -gb
+     * @details The utility heuristic is used to choose which chunk to backtrack when using graph backtracking.
+     * The utility of a literal is defined as follows:
+     * - If the variable is synced, the utility is sync_weight.
+     * - Otherwise, the utility is 1.
+     */
+    double sync_weight = 8;
+
     /** Stop Documentation **/
     // The tag above is used to generate the documentation of the options.
 

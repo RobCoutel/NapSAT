@@ -243,7 +243,7 @@ void NapSAT::restart()
 
 double napsat::NapSAT::default_cost(Tlit lit) {
   if (_vars[lit_to_var(lit)].synced) {
-    return 10;
+    return _options.sync_weight;
   }
   return 1;
 }
