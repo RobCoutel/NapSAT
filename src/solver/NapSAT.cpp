@@ -243,9 +243,9 @@ void NapSAT::restart()
 
 double napsat::NapSAT::default_cost(Tlit lit) {
   if (_vars[lit_to_var(lit)].synced) {
-    return 1;
+    return 10;
   }
-  return 0.1;
+  return 1;
 }
 
 /*****************************************************************************/
@@ -648,8 +648,6 @@ void NapSAT::hint(Tlit lit, unsigned int level)
 
 void NapSAT::synchronize()
 {
-  if(!_options.print_stats && !_options.print_live_stats)
-    return;
   for (size_t i = _sync_validity_index; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     Tvar var = lit_to_var(lit);
