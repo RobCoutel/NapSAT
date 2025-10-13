@@ -66,21 +66,6 @@ def run_one_job(filename : str, option: str, df: pd.DataFrame):
         stats = parse_output(out_dec)
         stats["option"] = option
         stats["file"] = filename.split("/")[-1]
-    # run the problem a second time, without the -stat option, to get the time
-    args = [SAT_exec, filename] + option.split(" ") + additional_options
-    output = Popen(args, shell=False, stdout=PIPE, stderr=PIPE)
-    out, error = output.communicate()
-    out_dec = out.decode("utf-8")
-    err = error.decode("utf-8")
-    if err:
-        print(f"Error in {filename} (without -stat): {err.strip()}")
-    if out:
-        # parse the time from the output
-        for line in out_dec.split("\n"):
-            if line.startswith("c  - Time (ms):"):
-                time = line.split(":")[1].strip()
-                stats["Time"] = time
-                break
 
     mutex.acquire()
     # check if the stats already exist in the dataframe

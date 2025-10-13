@@ -1580,12 +1580,6 @@ public:
     Tlevel compute_repair_level();
 
     /**
-     * @brief Repairs the conflict caused by clauses with one literal at the highest level.
-     * @details This procedure does not require to learn a new clause. Only to backtrack to the appropriate level.
-     */
-    void repair_unary_clause_conflict(Tclause conflict);
-
-    /**
      * @brief Repairs the conflict by analyzing it if needed and backtracking
      * to the appropriate level.
      * @param conflict clause that caused the conflict.

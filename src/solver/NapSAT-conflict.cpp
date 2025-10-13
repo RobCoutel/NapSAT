@@ -704,29 +704,6 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
   }
 }
 
-void napsat::NapSAT::repair_unary_clause_conflict(Tclause conflict)
-{
-  ASSERT(conflict != CLAUSE_UNDEF);
-  ASSERT(_clauses[conflict].external);
-  ASSERT(clause_size(conflict) == 1);
-  Tlit lit = clause_lits(conflict)[0];
-  if (lit_level(lit) == LEVEL_ROOT) {
-    // the clause is empty under the current assignment
-    _status = UNSAT;
-    return;
-  }
-  if (_options.graph_backtracking) {
-    // TODO use chunk weights here
-    bitset undone_chunks = lit_chunks(lit);
-    backtrack(undone_chunks);
-    ASSERT(lit_undef(lit));
-  } else {
-    Tlevel backtrack_level = choose_backtracked_level(clause_lits(conflict), 1);
-    backtrack(backtrack_level);
-  }
-  imply_literal(lit, conflict);
-}
-
 void NapSAT::repair_conflicts()
 {
   NOTIFY_STAT(_n_conflict_repair);
