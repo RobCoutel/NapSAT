@@ -1044,6 +1044,13 @@ public:
      */
     inline void lit_unmark(Tlit lit) { var_unmark(lit_to_var(lit)); }
 
+    inline bool var_synced(Tvar var) const { return _vars[var].synced; }
+    inline bool lit_synced(Tlit lit) const { return var_synced(lit_to_var(lit)); }
+    inline void var_sync(Tvar var) { _vars[var].synced = true; }
+    inline void lit_sync(Tlit lit) { var_sync(lit_to_var(lit)); }
+    inline void var_unsync(Tvar var) { _vars[var].synced = false; }
+    inline void lit_unsync(Tlit lit) { var_unsync(lit_to_var(lit)); }
+
     /**  LAZY REIMPLICATION  **/
     /**
      * @brief Returns an alternative reason for propagating the variable at a
@@ -1534,6 +1541,8 @@ public:
      * @param weights vector of bitsets to evaluate. After the call, the weights are updated and sorted such that the lightest bitset is at the beginning of the vector.
      */
     void calculate_bitset_weights(std::vector<Tweight>& weights);
+
+    double calculate_weight(const bitset& chunks);
 
     /**
      * @brief Given a set of conflicting clauses, computes the set of chunk sets, that, if backtracked, will resolve all conflicts at once.

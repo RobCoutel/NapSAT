@@ -242,7 +242,7 @@ void NapSAT::restart()
 }
 
 double napsat::NapSAT::default_cost(Tlit lit) {
-  if (_vars[lit_to_var(lit)].synced) {
+  if (lit_synced(lit)) {
     return _options.sync_weight;
   }
   return 1;
@@ -648,6 +648,9 @@ void NapSAT::hint(Tlit lit, unsigned int level)
 
 void NapSAT::synchronize()
 {
+#ifndef NDEBUG
+  for (size_t i = 0; i < _sync_validity_index; i++) { ASSERT(lit_synced(_trail[i])); }
+#endif
   for (size_t i = _sync_validity_index; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     Tvar var = lit_to_var(lit);

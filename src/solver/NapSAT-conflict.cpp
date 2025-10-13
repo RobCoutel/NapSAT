@@ -392,7 +392,7 @@ void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
 
   for (Tweight& w : weights) {
     // we go right to left to estimate the cost of backtracking to this level
-    size_t end = decision_lit_ptr(w.highest_level) - _trail.data();
+    size_t end = decision_lit_ptr(w.lowest_level) - _trail.data();
     while (w.give_up_point > end && w.total_weight < lowest_weight) {
       ASSERT(w.give_up_point <= _trail.size());
       size_t i = --w.give_up_point;
@@ -415,6 +415,22 @@ void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
   // sort again, such that the best candidate is first
   std::sort(weights.begin(), weights.end(),
             [](const Tweight& a, const Tweight& b) { return b < a; });
+}
+
+double napsat::NapSAT::calculate_weight(const bitset& chunks)
+{
+  double total_weight = 0.0;
+  for (size_t i = 0; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    if (lit_chunks(lit).has_intersection(chunks)) {
+      if (_backtrack_cost_estimator) {
+        total_weight += _backtrack_cost_estimator(lit);
+      } else {
+        total_weight += default_cost(lit);
+      }
+    }
+  }
+  return total_weight;
 }
 
 bool napsat::NapSAT::conflict_is_UIP_cut(Tclause conflict, const bitset& chunks)
@@ -1068,14 +1084,22 @@ void napsat::NapSAT::graph_repair()
     std::sort(weights.begin(), weights.end(),
               [](const Tweight& a, const Tweight& b) { return a.lowest_level > b.lowest_level; });
 
-    calculate_bitset_weights(weights); // TODO try to unoptimize to search for bugs
-    // todo add some assertions to check the result
+    calculate_bitset_weights(weights);
 
     // the top element is the best one because it was sorted by the calculate_bitset_weights function
     ASSERT(!weights.empty());
     analyzed = weights.back();
     ASSERT(analyzed.finished);
     weights.pop_back();
+
+    ASSERT_MSG(analyzed.total_weight <= calculate_weight(analyzed.chunks) + 1e-6,
+               "Calculated weight: " + std::to_string(calculate_weight(analyzed.chunks)) +
+               " Cached weight: " + std::to_string(analyzed.total_weight) +
+               " Chunks: " + analyzed.chunks.to_string());
+    ASSERT_MSG(analyzed.total_weight >= calculate_weight(analyzed.chunks) - 1e-6,
+               "Calculated weight: " + std::to_string(calculate_weight(analyzed.chunks)) +
+               " Cached weight: " + std::to_string(analyzed.total_weight) +
+               " Chunks: " + analyzed.chunks.to_string());
 
     if(best.chunks.empty()) {
       best.chunks = analyzed.chunks;

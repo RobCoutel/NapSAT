@@ -317,6 +317,8 @@ void napsat::NapSAT::print_lit(Tlit lit)
 {
   if (lit_marked(lit))
     cout << "M";
+  if (lit_synced(lit))
+    cout << "S";
   if (lit_undef(lit))
     cout << ORANGE;
   else if (lit_true(lit))
