@@ -102,15 +102,15 @@ if __name__ == "__main__":
     out_file = sys.argv[2]
     SAT_options = ["-ncb"] + sys.argv[3:]
     if "-gb" in SAT_options:
-        for i in range(1, 32):
-            SAT_options.append(f"-gb --sync-weight {i}")
-            SAT_options.append(f"-gb --sync-weight {i + 0.5}")
+        SAT_options.append("-gb -lcm")
+        SAT_options.append("-gb -bl")
+        SAT_options.append("-gb -lcm -bl")
 
-    # opts_copy = SAT_options.copy()
-    # for option in opts_copy:
-    #     SAT_options.append(option + " -ecr")
+    opts_copy = SAT_options.copy()
+    for option in opts_copy:
+        SAT_options.append(option + " -pcr")
+        SAT_options.append(option + " -ecr")
 
-    # SAT_options = SAT_options_cross
 
     print(f"Collecting stats for {directory} with options {SAT_options}")
 
@@ -124,7 +124,7 @@ if __name__ == "__main__":
                     jobs.append((f"{root}/{file}", option))
 
     # sort the jobs by the number of variables in the file, and by file name
-    jobs.sort(key=lambda x: (int(x[0].split("uf")[1].split("-")[0]), x[0]))
+    jobs.sort(key=lambda x: (int(x[0].split("-")[-1].split(".")[0]), x[0]))
 
     df = pd.DataFrame(columns=["file", "option", "Time (ms)"])  # Adjust the number of stats as needed
 
