@@ -14,6 +14,7 @@
 #include "SAT-observer.hpp"
 
 #include "SAT-config.hpp"
+#include "SAT-stat.hpp"
 #include "../utils/printer.hpp"
 
 #include <iostream>
@@ -80,19 +81,14 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
 {
   _display = new napsat::gui::display(this);
   assert(options.interactive || options.observing || options.check_invariants);
-  if (options.interactive || options.observing) {
-    notify(new napsat::gui::marker("Start"));
-  }
-  else if (options.check_invariants) {
-    toggle_checking_only(true);
-  }
+  toggle_checking_only(options.check_invariants && !options.interactive && !options.observing);
   if (options.check_invariants) {
     load_invariant_configuration();
   }
-  if (options.commands_file != "") {
+  if (!options.commands_file.empty()) {
     load_commands(options.commands_file);
   }
-  if (options.save_folder != "") {
+  if (!options.save_folder.empty()) {
     if (options.save_folder[options.save_folder.size() - 1] != '/') {
       options.save_folder += "/";
     }
@@ -110,40 +106,44 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
   }
 }
 
+void observer::print_live_stats(bool clear) const
+{
+  update_terminal_width();
+  const string s = get_statistics();
+  vector<string> lines;
+  unsigned last_line_end = 0;
+  for (unsigned i = 0; i < s.size(); i++) {
+    if (s[i] == '\n') {
+      string line = s.substr(last_line_end, i - last_line_end);
+      lines.push_back(line);
+      last_line_end = i + 1;
+    }
+  }
+  // print the lines and pad them with spaces
+  for (unsigned i = 0; i < lines.size(); i++) {
+    cout << std::setw (TERMINAL_WIDTH) << left << lines[i] << endl;
+  }
+  // bring the cursor up to the beginning of the statistics
+  if (clear) {
+    for (unsigned i = 0; i < lines.size(); i++)
+      cout << "\033[A";
+  } else {
+    for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
+      cout << "*";
+    cout << endl;
+  }
+}
+
 bool observer::notify(notification* notification)
 {
-  auto type = notification->get_type();
-  auto level = notification->get_event_level(this);
+  const auto type = notification->get_type();
+  const auto level = notification->get_event_level(this);
 
-  notification_count[notification->get_type()]++;
   _notifications.push_back(notification);
 
   // print the statistics
   if (_options.print_live_stats && level < 3) {
-    update_terminal_width();
-    string s = get_statistics();
-    vector<string> lines;
-    unsigned last_line_end = 0;
-    for (unsigned i = 0; i < s.size(); i++) {
-      if (s[i] == '\n') {
-        string line = s.substr(last_line_end, i - last_line_end);
-        lines.push_back(line);
-        last_line_end = i + 1;
-      }
-    }
-    // print the lines and pad them with spaces
-    for (unsigned i = 0; i < lines.size(); i++) {
-      cout << std::setw (TERMINAL_WIDTH) << left << lines[i] << endl;
-    }
-    // bring the cursor up to the beginning of the statistics
-    if (type != DONE)
-      for (unsigned i = 0; i < lines.size(); i++)
-        cout << "\033[A";
-    else {
-      for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
-        cout << "*";
-      cout << endl;
-    }
+    print_live_stats(type != DONE);
   }
 
   _location++;
@@ -163,6 +163,9 @@ bool observer::notify(notification* notification)
 
 std::string observer::get_statistics() const {
   string s;
+  if (_statistics != nullptr) {
+    s += _statistics->get_statistics();
+  }
   s += "c Observer Statistics:\n";
   s += "c  - Variables: " + to_string(_variables.size()) + "\n";
   unsigned n_clauses = 0;
@@ -288,6 +291,11 @@ void napsat::gui::observer::load_commands(const std::string& filename)
 void napsat::gui::observer::set_command_parser(const command_parser &parser)
 {
   _command_parser = parser;
+}
+
+void napsat::gui::observer::set_statistics(const statistics *statistics)
+{
+  _statistics = statistics;
 }
 
 bool napsat::gui::observer::transmit_command(const std::string &command)

@@ -28,9 +28,12 @@
 #include <unordered_map>
 #include <chrono>
 
+namespace napsat {
+  class statistics;
+}
+
 namespace napsat::gui
 {
-  class notification;
   class display;
   class observer;
   class observer
@@ -158,6 +161,11 @@ namespace napsat::gui
     static long unsigned hash_clause(const std::vector<napsat::Tlit>& literals);
 
     /**
+     * Print the statistics and resets the cursor if needed.
+     */
+    void print_live_stats(bool clear = true) const;
+
+    /**
      * @brief List of commands to be executed when the observer receives a checkpoint.
      */
     std::vector<std::string> _commands;
@@ -166,6 +174,11 @@ namespace napsat::gui
      * @brief Function of the solver used to parse commands
      */
     command_parser _command_parser = nullptr;
+
+    /**
+     * @brief The statistics of the solver.
+     */
+    const statistics *_statistics = nullptr;
 
     /**
      * @brief Set of variables that are marked.
@@ -188,18 +201,8 @@ namespace napsat::gui
     bool _check_invariants_only = false;
 
     /**
-     * @brief Hash map to count the number of notifications of each type.
-     */
-    std::unordered_map<napsat::gui::ENotifType, unsigned> notification_count;
-
-    /**
-     * @brief Hash map to count the number of pure statistics notifications of each label.
-    */
-    std::unordered_map<std::string, unsigned> stat_count;
-
-    /**
      * @brief Number of the next file to be written
-     * @note We start at one such that is is simpler for the calling LaTeX code to use loops (sync with \only<i>)
+     * @note We start at one such that is simpler for the calling LaTeX code to use loops (sync with \only<i>)
      */
     unsigned file_number = 1;
 
@@ -327,6 +330,11 @@ namespace napsat::gui
      * @details if no checkpoint is sent, the command parser is not called and does not need to be set.
      */
     void set_command_parser(const command_parser &parser);
+
+    /**
+     * @brief Set the statistics object for printing statistics.
+     */
+    void set_statistics(const statistics *statistics);
 
     /**
      * @brief Send a command to the solver through the command parser.

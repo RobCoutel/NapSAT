@@ -317,9 +317,13 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     if (options.interactive) {
       std::function<bool(const std::string&)> command_parser = [this](const std::string& command) {
         return this->parse_command(command);
-        };
+      };
       _observer->set_command_parser(command_parser);
     }
+    NOTIFY_OBSERVER(marker, "Start");
+#if USE_STATISTICS
+    _observer->set_statistics(_statistics);
+#endif
   }
 #else
   if (options.interactive || options.observing || options.check_invariants) {
