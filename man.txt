@@ -68,6 +68,12 @@ The options are the following:
     the highest level in the conflict clause.
     Requires: -cb, -wcb, -rscb and -lscb are false
 
+  -lcm or --lazy-chunk-merging <bool = off>
+    Enables the solver to log missed implications  for decisions.  When a decision is detected to be
+    implied  by a clause, if the chunk of that decision  is backtracked,  then, one of the chunks of
+    the lazy reason clause needs to be backtracked as well.
+    Requires: -gb is true
+
   -bsc or --backtrack-smallest-chunk <bool = off>
     Enables the solver to search the smallest UIP and choose the backtracked chunk accordingly.
     Requires: -gb is true, -bfc is false
@@ -136,8 +142,12 @@ The options are the following:
     Decay factor of the _var_activity_increment.
     Requires: 0 < decay < 1
 
+  --conflict-penalty <double = 1.25>
+    Penalty applied to chunks that do not lead to learning a new clause
+    Requires: 1 <= conflict_penalty, -gb on
+
 ***************************************** CLAUSE DELETION *****************************************
-  --clause-elimination-multiplier <double = 1.5>
+  --clause-elimination-multiplier <double = 2.0>
     Multiplier  of the number  of clauses  before  elimination.  When the simplifying  procedure  is
     called to eliminate clauses, the new threshold for deletion is multiplied by this multiplier.
     Requires: multiplier > 1
@@ -153,7 +163,26 @@ The options are the following:
     factor upon each clause deletion. This hyper parameter must be set to a value lower than 1.
     Requires: 0 < decay < 1
 
-  --restarts <bool = off>
-    Enables or disables restarts of the solver.
+  --restarts <bool = on>
+    Enables luby restarts of the solver.
+
+  -ecr or --exhaustive-conflict-repair <bool = off>
+    Search all conflicts until the end of propagation before triggering conflict analysis.
+
+  -pcr or --partial-conflict-repair <bool = off>
+    Enables partial conflict repair.
+
+  -bl or --backtrack-learned <bool = off>
+    If this  option  is true,  the solver  will  backtrack  the chunks  that were analyzed  to learn
+    clauses. Otherwise, the solver will always backtrack the smallest set of chunks, if possible.
+    Requires: -gb
+
+  --backtrack-possibilities-limit <double = 1000>
+    Limit on the number of backtrack  possibilities  to consider  when using graph backtracking.  If
+    the number of possibilities is greater than the limit, the solver will heuristically cutoff.
+
+  --sync-weight <double = 8>
+    Weight of synced variables in the utility heuristic.
+    Requires: -gb
 
 ****************************************************************************************************

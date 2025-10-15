@@ -312,13 +312,13 @@ namespace napsat
 
     /**
      * @brief Search all conflicts until the end of propagation before triggering conflict analysis.
-     * @alias -ecs
+     * @alias -ecr
      */
     bool exhaustive_conflict_repair = false;
 
     /**
      * @brief Enables partial conflict repair.
-     * @alias -pcs
+     * @alias -pcr
      */
     bool partial_conflict_repair = false;
 
