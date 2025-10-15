@@ -365,62 +365,62 @@ namespace napsat::gui
     /**
      * @brief Returns the truth value of a variable in the assignment.
      */
-    napsat::Tval var_value(napsat::Tvar var);
+    napsat::Tval var_value(napsat::Tvar var) const;
 
     /**
      * @brief Returns the truth value of a literal in the assignment.
      */
-    napsat::Tval lit_value(napsat::Tlit lit);
+    napsat::Tval lit_value(napsat::Tlit lit) const;
 
     /**
      * @brief Returns the decision level of a variable in the assignment.
      */
-    napsat::Tlevel var_level(napsat::Tvar var);
+    napsat::Tlevel var_level(napsat::Tvar var) const;
 
     /**
      * @brief Returns the reason of a variable in the assignment.
      */
-    napsat::Tclause var_reason(napsat::Tvar var);
+    napsat::Tclause var_reason(napsat::Tvar var) const;
 
     /**
      * @brief Returns the lazy reason of a variable in the assignment.
      */
-    napsat::Tclause var_lazy_reason(napsat::Tvar var);
+    napsat::Tclause var_lazy_reason(napsat::Tvar var) const;
 
     /**
      * @brief Returns the lazy reason of a literal in the assignment.
      */
-    napsat::Tclause lit_lazy_reason(napsat::Tvar var);
+    napsat::Tclause lit_lazy_reason(napsat::Tvar var) const;
 
     /**
      * @brief Returns true if the variable was propagated.
      */
-    bool var_propagated(napsat::Tvar var);
+    bool var_propagated(napsat::Tvar var) const;
 
     /**
      * @brief Returns the decision level of a literal in the assignment.
      */
-    napsat::Tlevel lit_level(napsat::Tlit lit);
+    napsat::Tlevel lit_level(napsat::Tlit lit) const;
 
     /**
      * @brief Returns the maximum decision level of the literals in a clause.
      */
-    napsat::Tlevel clause_level(napsat::Tclause cl);
+    napsat::Tlevel clause_level(napsat::Tclause cl) const;
 
     /**
      * @brief Returns the reason of a literal in the assignment.
      */
-    napsat::Tclause lit_reason(napsat::Tlit lit);
+    napsat::Tclause lit_reason(napsat::Tlit lit) const;
 
     /**
      * @brief Returns true if the literal was propagated.
      */
-    bool lit_propagated(napsat::Tlit lit);
+    bool lit_propagated(napsat::Tlit lit) const;
 
     /**
      * @returns true if the literal is watched in the clause.
      */
-    bool is_watching(napsat::Tclause cl, napsat::Tlit lit);
+    bool is_watching(napsat::Tclause cl, napsat::Tlit lit) const;
 
     /**
      * @brief Returns a reference to the assignment stack.
@@ -430,19 +430,19 @@ namespace napsat::gui
     /**
      * @brief Returns the list of clauses that are currently active.
      */
-    std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> get_clauses();
+    std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> get_clauses() const;
 
     /**  PRINTING  **/
 
-    std::string lit_to_string(napsat::Tlit lit);
+    std::string lit_to_string(napsat::Tlit lit) const;
 
-    std::string variable_to_string(napsat::Tvar var);
+    std::string variable_to_string(napsat::Tvar var) const;
 
     static bool enable_sorting;
 
-    void sort_clause(napsat::Tclause cl);
+    void sort_clause(napsat::Tclause cl) const;
 
-    std::string clause_to_string(napsat::Tclause cl);
+    std::string clause_to_string(napsat::Tclause cl) const;
 
     /**
      * @brief Prints the clauses to the standard output of the terminal

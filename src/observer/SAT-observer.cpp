@@ -264,7 +264,7 @@ std::string napsat::gui::observer::get_alias(napsat::Tvar var)
 
 void napsat::gui::observer::notify_checkpoint()
 {
-  while (_commands.size() != 0) {
+  while (!_commands.empty()) {
     string command = _commands[0];
     _commands.erase(_commands.begin());
     cout << "Executing command: " << command << endl;
@@ -304,7 +304,7 @@ bool napsat::gui::observer::transmit_command(const std::string &command)
   return _command_parser(command);
 }
 
-napsat::Tval observer::var_value(napsat::Tvar var)
+napsat::Tval observer::var_value(napsat::Tvar var) const
 {
   if (var >= _variables.size())
     return VAR_ERROR;
@@ -313,7 +313,7 @@ napsat::Tval observer::var_value(napsat::Tvar var)
   return _variables[var].value;
 }
 
-napsat::Tval observer::lit_value(napsat::Tlit lit)
+napsat::Tval observer::lit_value(napsat::Tlit lit) const
 {
   napsat::Tval value = var_value(lit_to_var(lit));
   assert(value == VAR_TRUE || value == VAR_FALSE || value == VAR_UNDEF || value == VAR_ERROR);
@@ -324,7 +324,7 @@ napsat::Tval observer::lit_value(napsat::Tlit lit)
   return lit_pol(lit) == value;
 }
 
-napsat::Tlevel observer::var_level(napsat::Tvar var)
+napsat::Tlevel observer::var_level(napsat::Tvar var) const
 {
   if (var >= _variables.size())
     return LEVEL_ERROR;
@@ -333,7 +333,7 @@ napsat::Tlevel observer::var_level(napsat::Tvar var)
   return _variables[var].level;
 }
 
-napsat::Tclause napsat::gui::observer::var_reason(napsat::Tvar var)
+napsat::Tclause napsat::gui::observer::var_reason(napsat::Tvar var) const
 {
   if (var >= _variables.size())
     return CLAUSE_ERROR;
@@ -342,7 +342,7 @@ napsat::Tclause napsat::gui::observer::var_reason(napsat::Tvar var)
   return _variables[var].reason;
 }
 
-napsat::Tclause napsat::gui::observer::var_lazy_reason(napsat::Tvar var)
+napsat::Tclause napsat::gui::observer::var_lazy_reason(napsat::Tvar var) const
 {
   if (var >= _variables.size())
     return CLAUSE_ERROR;
@@ -351,22 +351,22 @@ napsat::Tclause napsat::gui::observer::var_lazy_reason(napsat::Tvar var)
   return _variables[var].lazy_reason;
 }
 
-napsat::Tclause napsat::gui::observer::lit_lazy_reason(napsat::Tvar var)
+napsat::Tclause napsat::gui::observer::lit_lazy_reason(napsat::Tvar var) const
 {
   return var_lazy_reason(lit_to_var(var));
 }
 
-bool napsat::gui::observer::var_propagated(napsat::Tvar var)
+bool napsat::gui::observer::var_propagated(napsat::Tvar var) const
 {
   return _variables[var].propagated;
 }
 
-napsat::Tlevel observer::lit_level(napsat::Tlit lit)
+napsat::Tlevel observer::lit_level(napsat::Tlit lit) const
 {
   return var_level(lit_to_var(lit));
 }
 
-napsat::Tlevel napsat::gui::observer::clause_level(napsat::Tclause cl)
+napsat::Tlevel napsat::gui::observer::clause_level(napsat::Tclause cl) const
 {
   if (cl == CLAUSE_UNDEF)
     return LEVEL_UNDEF;
@@ -376,17 +376,17 @@ napsat::Tlevel napsat::gui::observer::clause_level(napsat::Tclause cl)
   return level;
 }
 
-napsat::Tclause napsat::gui::observer::lit_reason(napsat::Tlit lit)
+napsat::Tclause napsat::gui::observer::lit_reason(napsat::Tlit lit) const
 {
   return var_reason(lit_to_var(lit));
 }
 
-bool napsat::gui::observer::lit_propagated(napsat::Tlit lit)
+bool napsat::gui::observer::lit_propagated(napsat::Tlit lit) const
 {
   return var_propagated(lit_to_var(lit));
 }
 
-bool napsat::gui::observer::is_watching(napsat::Tclause cl, napsat::Tlit lit)
+bool napsat::gui::observer::is_watching(napsat::Tclause cl, napsat::Tlit lit) const
 {
   assert(_active_clauses.size() > cl);
   assert(_active_clauses[cl] != nullptr);
@@ -398,7 +398,7 @@ const std::vector<napsat::Tlit>& observer::get_assignment()
   return _assignment_stack;
 }
 
-std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> napsat::gui::observer::get_clauses()
+std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> napsat::gui::observer::get_clauses() const
 {
   vector<pair<Tclause, const vector<Tlit>*>> to_return;
   Tclause cl = 0;
@@ -412,7 +412,7 @@ std::vector<std::pair<napsat::Tclause, const std::vector<napsat::Tlit>*>> napsat
   return to_return;
 }
 
-std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
+std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit) const
 {
   string s = "";
   Tvar var = lit_to_var(lit);
@@ -438,7 +438,7 @@ std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit)
   return s;
 }
 
-std::string napsat::gui::observer::variable_to_string(napsat::Tvar var)
+std::string napsat::gui::observer::variable_to_string(napsat::Tvar var) const
 {
   string s = "";
   s += std::to_string(var) + ": ";
@@ -480,7 +480,7 @@ std::string napsat::gui::observer::variable_to_string(napsat::Tvar var)
 
 bool napsat::gui::observer::enable_sorting = false;
 
-void napsat::gui::observer::sort_clause(Tclause cl)
+void napsat::gui::observer::sort_clause(Tclause cl) const
 {
   if (!enable_sorting)
     return;
@@ -519,7 +519,7 @@ void napsat::gui::observer::sort_clause(Tclause cl)
   }
 }
 
-std::string napsat::gui::observer::clause_to_string(Tclause cl)
+std::string napsat::gui::observer::clause_to_string(Tclause cl) const
 {
   string s = "";
   if (cl == CLAUSE_UNDEF)
