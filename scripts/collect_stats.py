@@ -146,6 +146,14 @@ if __name__ == "__main__":
             # sleep for avg_time / 100 (expressed in seconds, but the stat is in milliseconds)
             time.sleep(avg_time / 10**5 if avg_time > 0 else 0.00001)
 
+            if instances_solved % 100 == 0:
+                mutex.acquire()
+                # sort the dataframe by file name and option
+                df = df.sort_values(by=["file", "option"])
+                # save the dataframe to a csv file
+                df.to_csv(out_file, index=False)
+                mutex.release()
+
     # drop the unnecessary columns from the dataframe
     df = df.drop(columns=["Variable added", "Backtracking started", "Invariants checked", "Allocated Chunk", "Purging clauses", "Binary clause simplified", "Literal removed from clause"], errors="ignore")
 

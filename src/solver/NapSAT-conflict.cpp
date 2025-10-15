@@ -259,14 +259,15 @@ Tclause napsat::NapSAT::clause_subsumed_in_formula(const Tlit* lits, size_t size
 
 bool napsat::NapSAT::learned_clause_is_redundant()
 {
-  bool to_return = false;
-  for (unsigned j = 0; j < _lit_buffer_size; j++) { lit_mark(_lit_buffer[j]); }
+#ifndef NDEBUG
+  for (unsigned j = 0; j < _lit_buffer_size; j++) { ASSERT(lit_marked(_lit_buffer[j])); }
+#endif
 
   if (!_options.exhaustive_conflict_repair && _options.graph_backtracking) {
     Tclause redundant = clause_subsumed_in_formula(_lit_buffer, _lit_buffer_size);
     if (redundant != CLAUSE_UNDEF) {
       NOTIFY_STAT(_n_fw_subsumption_in_set);
-      to_return = true;
+      return true;
     }
   } else {
     for (size_t k = 0; k < _conflicts.size(); k++) {
@@ -279,14 +280,12 @@ bool napsat::NapSAT::learned_clause_is_redundant()
         }
       }
       if (all_marked) {
-        to_return = true;
-        break;
+        return true;
       }
     }
   }
 
-  for (unsigned j = 0; j < _lit_buffer_size; j++) { lit_unmark(_lit_buffer[j]); }
-  return to_return;
+  return false;
 }
 
 bool napsat::NapSAT::root_level_conflict()
@@ -510,6 +509,7 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
     // since the missed lower implication does not satisfy the trail invariant, we need to push the reading head to the back
     // note that this may lead to duplicate literals in the learned clause, but this will be cleaned up in the "internal_add_clause" function
     reset_head = true;
+    NOTIFY_OBSERVER(marker, "Using lazy reason for " + lit_to_string(lit) + " reason: " + clause_to_string(reason));
   }
 
   ASSERT(reason != CLAUSE_UNDEF);
@@ -942,37 +942,32 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
     bt = bt_save;
 
     // check if the clause is new
-    if (learned_clause_is_redundant()) { // todo use the marking already for the next check
-      NOTIFY_STAT(_n_fw_subsumption_in_set);
 
-      if (_proof) {
-        _proof->cancel_resolution_chain();
-      }
-      _lit_buffer_size = 0;
-      continue;
+    for (unsigned j = 0; j < _lit_buffer_size; j++) { lit_mark(_lit_buffer[j]); }
+    bool redundant = learned_clause_is_redundant();
+    if (redundant) {
+      NOTIFY_STAT(_n_fw_subsumption_in_set);
     }
     // check if the clause is already learned
-    bool already_learned = false;
-    for (unsigned j = 0; j < _lit_buffer_size; j++) { lit_mark(_lit_buffer[j]); }
+    if (!redundant) {
+      for (const pair<Tclause, vector<Tlit>>& id_clause : learned_clauses) {
+        const vector<Tlit>& clause = id_clause.second;
+        if (clause.size() != _lit_buffer_size)
+          continue;
+        bool all_found = true;
+        for (unsigned j = 0; j < clause.size() && all_found; j++) { all_found &= lit_marked(clause[j]); }
+        if (all_found) {
+          NOTIFY_STAT(_n_fw_subsumption);
 
-    for (const pair<Tclause, vector<Tlit>>& id_clause : learned_clauses) {
-      const vector<Tlit>& clause = id_clause.second;
-      if (clause.size() != _lit_buffer_size)
-        continue;
-      bool all_found = true;
-      for (unsigned j = 0; j < clause.size() && all_found; j++) { all_found &= lit_marked(clause[j]); }
-      if (all_found) {
-        NOTIFY_STAT(_n_fw_subsumption);
-
-        already_learned = true;
-        break;
+          redundant = true;
+          break;
+        }
       }
     }
     for (unsigned j = 0; j < _lit_buffer_size; j++) { lit_unmark(_lit_buffer[j]); }
-    if (already_learned) {
-      if (_proof) {
+    if (redundant) {
+      if (_proof)
         _proof->cancel_resolution_chain();
-      }
       _lit_buffer_size = 0;
       continue;
     }
@@ -1069,20 +1064,13 @@ void napsat::NapSAT::graph_repair()
     ASSERT(analyzed.finished);
     weights.pop_back();
 
-    ASSERT_MSG(analyzed.total_weight <= calculate_weight(analyzed.chunks) + 1e-6,
-               "Calculated weight: " + std::to_string(calculate_weight(analyzed.chunks)) +
-               " Cached weight: " + std::to_string(analyzed.total_weight) +
-               " Chunks: " + analyzed.chunks.to_string());
-    ASSERT_MSG(analyzed.total_weight >= calculate_weight(analyzed.chunks) - 1e-6,
-               "Calculated weight: " + std::to_string(calculate_weight(analyzed.chunks)) +
-               " Cached weight: " + std::to_string(analyzed.total_weight) +
-               " Chunks: " + analyzed.chunks.to_string());
+    ASSERT(analyzed.total_weight <= calculate_weight(analyzed.chunks) + 1e-6);
+    ASSERT(analyzed.total_weight >= calculate_weight(analyzed.chunks) - 1e-6);
 
     if(best.chunks.empty()) {
       best.chunks = analyzed.chunks;
     }
     ASSERT(best.total_weight <= analyzed.total_weight);
-    // todo verify that the best chunk is actually the best
 
     if (analyzed.maybe_learning) {
       try_and_learn(analyzed.chunks, learned_clauses);
