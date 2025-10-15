@@ -105,6 +105,10 @@ Tlit* napsat::NapSAT::advanced_graph_replacement(Tlit* lits, unsigned size) cons
 bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks)
 {
   bitset closure = reimplying_chunks;
+  if (closure.empty()) {
+    return false;
+  }
+
   bool changed = true;
 
   while (changed) {
@@ -119,6 +123,7 @@ bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& re
       if (!(m < closure)) {
         closure |= m;
         changed = true;
+        break;
       }
     }
   }

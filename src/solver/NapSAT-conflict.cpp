@@ -509,7 +509,6 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
     // since the missed lower implication does not satisfy the trail invariant, we need to push the reading head to the back
     // note that this may lead to duplicate literals in the learned clause, but this will be cleaned up in the "internal_add_clause" function
     reset_head = true;
-    NOTIFY_OBSERVER(marker, "Using lazy reason for " + lit_to_string(lit) + " reason: " + clause_to_string(reason));
   }
 
   ASSERT(reason != CLAUSE_UNDEF);
