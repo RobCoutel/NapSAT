@@ -6,6 +6,8 @@ import sys
 import re
 
 
+# find out -type f -print0 | xargs -0 -n 1 -P 8 python3 run_napsat.py --napsat-cmd ~/Work/NapSAT/build/NapSAT | tee ~/out.csv
+
 def run_cmd(cmd, desc):
     try:
         subprocess.run(cmd, check=True)
@@ -14,12 +16,12 @@ def run_cmd(cmd, desc):
         sys.exit(1)
 
 
-def get_unassignment(output: str) -> int:
-    match = re.search(r"^c  - Unassignment: (\d+)", output, re.MULTILINE)
+def get_value(output: str, key: str = "Unassignment") -> int:
+    match = re.search(fr"^c  - {key}: (\d+)", output, re.MULTILINE)
     if match:
         return int(match.group(1))
     else:
-        print("[ERROR] 'Unassignment' line not found in NapSAT output.", file=sys.stderr)
+        print(f"[ERROR] '{key}' line not found in NapSAT output.", file=sys.stderr)
         sys.exit(1)
 
 
@@ -49,18 +51,21 @@ def main():
 
     napsat_cmd = napsat_cmd.split()
     args = f"{cnf_file} -sw --restarts off --delete-clauses off -stat -o -commands {commands_file}".split()
-    options = ["-ncb", "-cb", "-gb"]
+    options = ["-rscb", "-ncb", "-gb", "-gb -bl", "-gb -lcm", "-gb -lcm -bl", "-rscb -pcr", "-ncb -pcr", "-gb -pcr", "-gb -bl -pcr", "-gb -lcm -pcr", "-gb -lcm -bl -pcr", "-rscb -ecr", "-ncb -ecr", "-gb -ecr", "-gb -bl -ecr", "-gb -lcm -ecr", "-gb -lcm -bl -ecr"]
     unassignment_values = []
     for opt in options:
         result = subprocess.run(napsat_cmd + args + [opt], capture_output=True, text=True)
         if result.returncode != 0:
             print(f"[ERROR] NapSAT run failed: {result.stderr}", file=sys.stderr)
             sys.exit(1)
-        unassignment = get_unassignment(result.stdout)
+        unassignment = get_value(result.stdout, "Unassignment")
+        conflicts = get_value(result.stdout, "Conflicts")
+        if conflicts == 0:
+            sys.exit(0)
         unassignment_values.append(unassignment)
 
     # Print the difference
-    print(f"R: {base}," + (",".join(map(str, unassignment_values))))
+    print(f"{base}," + (",".join(map(str, unassignment_values))))
 
     # Delete temp files
     for f in [cnf_file, commands_file]:
