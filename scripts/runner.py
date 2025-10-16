@@ -13,13 +13,14 @@ Heuristics / Assumptions (based on existing runner.txt structure):
  - After trail another '----' precedes conflict / learnt clause information which is ignored here.
 
 Outputs:
- - DIMACS CNF file named <base>.cnf (default base derived from input filename stem, e.g. runner.cnf)
+ - DIMACS CNF file named <base>.cnf (default base derived from input filename stem; supports .xz inputs)
  - Commands file named <base>-commands.txt containing DECIDE lines in increasing decision order.
 
 Usage:
-  python scripts/generate_from_runner.py [-i INPUT] [-o OUT_BASE]
+  python scripts/runner.py [-i INPUT] [-o OUT_BASE]
 
-If OUT_BASE isn't given, it uses the input filename stem without extension.
+If OUT_BASE isn't given, it uses the input filename stem without extension(s). For compressed inputs
+like runner.txt.xz, the base will be 'runner'.
 
 The script is robust to extra spaces and skips empty / comment-looking lines.
 """
@@ -27,10 +28,13 @@ import argparse
 import re
 from pathlib import Path
 import sys
+import lzma
+
 
 def parse_lit(tok: str) -> int | None:
     # minisat does have variables in range 0..n-1, but in DIMACS format variables are 1..n
     return -(int(tok[1:]) + 1) if tok.startswith('~') else int(tok) + 1
+
 
 def fail(msg: str, line: str | None = None):
     """Print an error message to stderr and exit with status 1."""
@@ -41,8 +45,19 @@ def fail(msg: str, line: str | None = None):
     sys.exit(1)
 
 
+def _read_lines(path: Path) -> list[str]:
+    """Read text lines from a possibly-compressed file.
+
+    Supports plain text and .xz-compressed inputs. Uses UTF-8 and ignores undecodable bytes.
+    """
+    if path.suffix == '.xz':
+        with lzma.open(path, 'rt', encoding='utf-8', errors='ignore') as f:
+            return f.read().splitlines()
+    return path.read_text(encoding='utf-8', errors='ignore').splitlines()
+
+
 def parse_runner(path: Path):
-    text = path.read_text(encoding='utf-8', errors='ignore').splitlines()
+    text = _read_lines(path)
 
     # Find separators
     # Expect structure: '====' (optional) header ... '----' clauses ... '----' trail ... '----' rest
@@ -145,9 +160,24 @@ def write_commands(path: Path, actions: list[tuple[int, int]]):
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
+def _derive_base_from_input(path: Path) -> str:
+    """Derive output base name from input, stripping compression and text extensions.
+
+    Example:
+      runner.txt -> runner
+      runner.txt.xz -> runner
+      foo.bar -> foo
+      foo.cnf.xz -> foo
+    """
+    name = path.name
+    if name.endswith('.xz'):
+        name = name[:-3]
+    return Path(name).stem
+
+
 def main():
-    ap = argparse.ArgumentParser(description='Generate DIMACS + command file from a runner.txt log.')
-    ap.add_argument('-i', '--input', default='scripts/runner.txt', help='Path to runner.txt log (default: scripts/runner.txt)')
+    ap = argparse.ArgumentParser(description='Generate DIMACS + command file from a runner.txt log (supports .xz inputs).')
+    ap.add_argument('-i', '--input', default='scripts/runner.txt', help='Path to runner.txt log (plain text or .xz)')
     ap.add_argument('-o', '--out-base', default=None, help='Base name (without extension) for outputs (default: input stem)')
     ap.add_argument('-d', '--out-dir', default='.', help='Directory to place outputs (default: current dir)')
     args = ap.parse_args()
@@ -156,7 +186,7 @@ def main():
     if not in_path.is_file():
         fail("Input file not found", str(in_path))
 
-    base = args.out_base if args.out_base else in_path.stem
+    base = args.out_base if args.out_base else _derive_base_from_input(in_path)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -170,6 +200,7 @@ def main():
 
     print(f"Generated DIMACS:   {dimacs_path}")
     print(f"Generated commands: {commands_path}")
+
 
 if __name__ == '__main__':
     main()
