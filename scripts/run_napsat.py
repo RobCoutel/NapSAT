@@ -27,9 +27,13 @@ def get_value(output: str, key: str = "Unassignment") -> int:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("file", help="Input file for runner.py")
+    parser.add_argument("file", default="", help="Input file for runner.py", nargs="?")
     parser.add_argument("--napsat-cmd", default="", help="NapSAT binary or command (default: ../build/NapSAT)")
     args = parser.parse_args()
+
+    if not args.file:
+        print('name, unassign-rscb, unassign-ncb, unassign-gb, conflict-rscb, conflict-ncb, conflict-gb')
+        sys.exit(0)
 
     input_path = Path(args.file)
     if not input_path.is_file():
@@ -51,8 +55,9 @@ def main():
 
     napsat_cmd = napsat_cmd.split()
     args = f"{cnf_file} -sw --restarts off --delete-clauses off -stat -o -commands {commands_file}".split()
-    options = ["-rscb", "-ncb", "-gb", "-gb -bl", "-gb -lcm", "-gb -lcm -bl", "-rscb -pcr", "-ncb -pcr", "-gb -pcr", "-gb -bl -pcr", "-gb -lcm -pcr", "-gb -lcm -bl -pcr", "-rscb -ecr", "-ncb -ecr", "-gb -ecr", "-gb -bl -ecr", "-gb -lcm -ecr", "-gb -lcm -bl -ecr"]
+    options = ["-rscb", "-ncb", "-gb"]
     unassignment_values = []
+    conflict_values = []
     for opt in options:
         result = subprocess.run(napsat_cmd + args + [opt], capture_output=True, text=True)
         if result.returncode != 0:
@@ -63,9 +68,10 @@ def main():
         if conflicts == 0:
             sys.exit(0)
         unassignment_values.append(unassignment)
+        conflict_values.append(conflicts)
 
     # Print the difference
-    print(f"{base}," + (",".join(map(str, unassignment_values))))
+    print(f"{base}," + (",".join(map(str, unassignment_values))) + "," + (",".join(map(str, conflict_values))))
 
     # Delete temp files
     for f in [cnf_file, commands_file]:
