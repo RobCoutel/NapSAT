@@ -156,7 +156,7 @@ bool observer::notify(notification* notification)
       _display->notify_change(1);
     }
     else
-      _display->notify_change(notification->get_event_level(this));
+      _display->notify_change(_commands.empty() ? notification->get_event_level(this) : MAX_UNSIGNED);
   }
   return apply_success;
 }

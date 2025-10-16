@@ -646,6 +646,8 @@ bool napsat::NapSAT::parse_command(std::string input)
         print_clause_set();
       else if (tokens[1] == "watch-lists")
         print_watch_lists();
+      else if (tokens[1] == "stats")
+        cout << _statistics->get_statistics();
       else
         LOG_WARNING("unknown argument \"" << tokens[1] << "\"");
     }

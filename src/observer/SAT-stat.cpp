@@ -23,8 +23,8 @@ namespace napsat {
     for (const auto& [name, stats] : _stats) {
       ss << "c " << (name.empty() ? "Statistics" : name) << ":" << std::endl;
       for (const auto& stat : stats) {
-        if (stat._cnt == 0 && stat._val == 0)
-          continue;
+        //if (stat._cnt == 0 && stat._val == 0)
+        //  continue;
         ss << "c  - " << stat._name << ": ";
         switch (stat._type) {
           case AVERAGE:
