@@ -7,19 +7,11 @@ import re
 
 
 def run_cmd(cmd, desc):
-    print(f"[INFO] {desc}: {' '.join(cmd)}")
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] Command failed: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-def derive_base(path: Path) -> str:
-    name = path.name
-    if name.endswith('.xz'):
-        name = name[:-3]
-    return Path(name).stem
 
 
 def get_unassignment(output: str) -> int:
@@ -32,9 +24,9 @@ def get_unassignment(output: str) -> int:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run runner.py and NapSAT twice, then clean up temp files.")
+    parser = argparse.ArgumentParser()
     parser.add_argument("file", help="Input file for runner.py")
-    parser.add_argument("--napsat-cmd", default="../build/NapSAT", help="NapSAT binary or command (default: ./build/NapSAT)")
+    parser.add_argument("--napsat-cmd", default="", help="NapSAT binary or command (default: ../build/NapSAT)")
     args = parser.parse_args()
 
     input_path = Path(args.file)
@@ -42,18 +34,21 @@ def main():
         print(f"[ERROR] Input file not found: {input_path}", file=sys.stderr)
         sys.exit(1)
 
-    base = derive_base(input_path)
+    base = input_path.name
     cnf_file = f"{base}.cnf"
     commands_file = f"{base}-commands.txt"
 
+    script_dir = Path(__file__).parent.resolve()
+    runner_py = script_dir / "runner.py"
+    napsat_cmd = args.napsat_cmd if args.napsat_cmd else str(script_dir.parent / "build" / "NapSAT")
+
     # Run runner.py
     run_cmd([
-        sys.executable, "runner.py", "-i", str(input_path), "-o", base
+        sys.executable, runner_py, "-i", str(input_path), "-o", base
     ], "Running runner.py")
 
-    # Run NapSAT twice and capture output
-    napsat_cmd = args.napsat_cmd.split()
-    args = f"{cnf_file} -sw --restarts off -stat -o -commands {commands_file}".split()
+    napsat_cmd = napsat_cmd.split()
+    args = f"{cnf_file} -sw --restarts off --delete-clauses off -stat -o -commands {commands_file}".split()
     options = ["-ncb", "-cb", "-gb"]
     unassignment_values = []
     for opt in options:
@@ -65,7 +60,7 @@ def main():
         unassignment_values.append(unassignment)
 
     # Print the difference
-    print(f"{base}," + (",".join(map(str, unassignment_values))))
+    print(f"R: {base}," + (",".join(map(str, unassignment_values))))
 
     # Delete temp files
     for f in [cnf_file, commands_file]:

@@ -119,9 +119,6 @@ def parse_runner(path: Path):
             if not line:
                 continue
             if assumption_token.match(line):
-                if len(actions) > 0:
-                    # Error if we see simple assumptions after actions
-                    fail("Simple assertion after decisions in trail", line)
                 lit = parse_lit(line)
                 assumptions.append(lit)
             else:
@@ -162,22 +159,6 @@ def write_commands(path: Path, actions: list[tuple[int, int]]):
     lines.append("EXIT")
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
-
-def _derive_base_from_input(path: Path) -> str:
-    """Derive output base name from input, stripping compression and text extensions.
-
-    Example:
-      runner.txt -> runner
-      runner.txt.xz -> runner
-      foo.bar -> foo
-      foo.cnf.xz -> foo
-    """
-    name = path.name
-    if name.endswith('.xz'):
-        name = name[:-3]
-    return Path(name).stem
-
-
 def main():
     ap = argparse.ArgumentParser(description='Generate DIMACS + command file from a runner.txt log (supports .xz inputs).')
     ap.add_argument('-i', '--input', default='scripts/runner.txt', help='Path to runner.txt log (plain text or .xz)')
@@ -189,7 +170,7 @@ def main():
     if not in_path.is_file():
         fail("Input file not found", str(in_path))
 
-    base = args.out_base if args.out_base else _derive_base_from_input(in_path)
+    base = in_path.name
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -201,8 +182,8 @@ def main():
     write_dimacs(dimacs_path, nvar, clauses, assumptions)
     write_commands(commands_path, actions)
 
-    print(f"Generated DIMACS:   {dimacs_path}")
-    print(f"Generated commands: {commands_path}")
+    #print(f"Generated DIMACS:   {dimacs_path}")
+    #print(f"Generated commands: {commands_path}")
 
 
 if __name__ == '__main__':
