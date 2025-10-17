@@ -568,6 +568,18 @@ public:
      * Temp for experiment
      */
     std::set<Tlit> _undone;
+    bool _first_conflict = true;
+
+    inline void found_conflict(Tclause &cl) {
+      if (_first_conflict) {
+        _first_conflict = false;
+        assert(_undone.empty());
+        for (auto a : _trail)
+          _undone.insert(a);
+      }
+      _conflicts.push_back(cl);
+      NOTIFY_OBSERVER(conflict, cl);
+    }
 
     /*************************************************************************/
     /*                      General fields definitions                       */

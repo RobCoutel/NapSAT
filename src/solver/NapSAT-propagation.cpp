@@ -182,8 +182,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     }
     ASSERT_MSG(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]),
                "Clause " + clause_to_string(cl) + " is not correctly ordered after propagation of " + lit_to_string(c1));
-    _conflicts.push_back(cl);
-    NOTIFY_OBSERVER(conflict, cl);
+    found_conflict(cl);
     if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
       return;
     }
@@ -487,8 +486,7 @@ void NapSAT::propagate_lit(Tlit lit)
         lits[1] = c2;
       }
       watch_list.resize(end - watch_list.data());
-      _conflicts.push_back(cl);
-      NOTIFY_OBSERVER(conflict, cl);
+      found_conflict(cl);
       if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
         return;
       } else {

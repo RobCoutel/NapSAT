@@ -156,7 +156,6 @@ def write_commands(path: Path, actions: list[tuple[int, int]]):
             lines.append(f"DECIDE {lit}")
     if len(lines) == 0:
         fail("No decision actions found to write commands")
-    lines.insert(-1, "CLEAR")
     lines.append("PRINT stats")
     lines.append("EXIT")
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
