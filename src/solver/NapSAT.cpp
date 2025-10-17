@@ -125,7 +125,9 @@ void NapSAT::var_unassign(Tvar var)
   ASSERT(!var_undef(var));
 
   TSvar& v = _vars[var];
-  NOTIFY_OBSERVER(unassignment, literal(var, v.state));
+  Tlit l = literal(var, v.state);
+  NOTIFY_OBSERVER(unassignment, l);
+  _undone.emplace(l);
   if (v.missed_lower_implication != CLAUSE_UNDEF) {
     NOTIFY_OBSERVER(remove_lower_implication, var);
     v.missed_lower_implication = CLAUSE_UNDEF;

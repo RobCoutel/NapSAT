@@ -649,6 +649,7 @@ bool napsat::NapSAT::parse_command(std::string input)
       else if (tokens[1] == "stats") {
         if (_statistics) {
           cout << _statistics->get_statistics();
+          cout << "c  - Actual unassigned: " << _undone.size() << std::endl;
         }
       } else
         LOG_WARNING("unknown argument \"" << tokens[1] << "\"");

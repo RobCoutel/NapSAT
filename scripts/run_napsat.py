@@ -41,7 +41,7 @@ def main():
     args = parser.parse_args()
 
     if not args.file:
-        print('name, unassign-rscb, unassign-ncb, unassign-gb, conflict-rscb, conflict-ncb, conflict-gb, avg-size-rscb, avg-size-ncb, avg-size-gb')
+        print('name, unassign-rscb, unassign-ncb, unassign-gb, conflict-rscb, conflict-ncb, conflict-gb, avg-size-rscb, avg-size-ncb, avg-size-gb, actual-rscb, actual-ncb, actual-gb')
         sys.exit(0)
 
     input_path = Path(args.file)
@@ -66,6 +66,7 @@ def main():
     args = f"{cnf_file} -sw --restarts off --delete-clauses off -stat -o -commands {commands_file}".split()
     options = ["-rscb", "-ncb", "-gb"]
     unassignment_values = []
+    unassignment_actual = []
     conflict_values = []
     clause_size_avg = []
     for opt in options:
@@ -78,10 +79,15 @@ def main():
             sys.exit(0)
         conflict_values.append(conflicts)
         unassignment_values.append(get_value(result.stdout, "Unassignment"))
+        unassignment_actual.append(get_value(result.stdout, "Actual unassigned"))
         clause_size_avg.append(get_value_float(result.stdout, "Avg learned clause size"))
 
     # Print the difference
-    print(f"{base}," + (",".join(map(str, unassignment_values))) + "," + (",".join(map(str, conflict_values))) + "," + (",".join(map(str, clause_size_avg))))
+    print(f"{base},"
+          + (",".join(map(str, unassignment_values))) + ","
+          + (",".join(map(str, conflict_values))) + ","
+          + (",".join(map(str, clause_size_avg))) + ","
+          + (",".join(map(str, unassignment_actual))))
 
     # Delete temp files
     for f in [cnf_file, commands_file]:

@@ -563,6 +563,12 @@ public:
         block(LIT_UNDEF) { /* do nothing */ }
     } TSwatch;
 
+
+    /**
+     * Temp for experiment
+     */
+    std::set<Tlit> _undone;
+
     /*************************************************************************/
     /*                      General fields definitions                       */
     /*************************************************************************/
