@@ -29,12 +29,12 @@ namespace napsat {
         switch (stat._type) {
           case AVERAGE:
             if (stat._cnt > 0)
-              ss << pretty_float(static_cast<double>(stat._val) / static_cast<double>(stat._cnt));
+              ss << (static_cast<double>(stat._val) / static_cast<double>(stat._cnt));
             else
               ss << "---";
             break;
           case COUNT:
-            ss << pretty_integer(stat._val);
+            ss << stat._val;
             break;
         }
         ss << std::endl;
