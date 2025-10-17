@@ -649,13 +649,20 @@ bool napsat::NapSAT::parse_command(std::string input)
       else if (tokens[1] == "stats") {
         if (_statistics) {
           cout << _statistics->get_statistics();
-          cout << "c  - Actual unassigned: " << _undone.size() << std::endl;
+          //cout << "c  - Actual unassigned: " << _undone.size() << std::endl;
         }
       } else
         LOG_WARNING("unknown argument \"" << tokens[1] << "\"");
     }
     else
       LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
+  }
+  else if (tokens[0] == "CLEAR") {
+    _undone.clear();
+    for (auto a : _trail) {
+      _undone.insert(a);
+    }
+    cout << "Added " << _undone.size() << " literals to the undone set.\n";
   }
   else if (tokens[0] == "DELETE_CLAUSE") {
     if (tokens.size() != 2) {

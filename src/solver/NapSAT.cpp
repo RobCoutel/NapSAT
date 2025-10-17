@@ -127,7 +127,10 @@ void NapSAT::var_unassign(Tvar var)
   TSvar& v = _vars[var];
   Tlit l = literal(var, v.state);
   NOTIFY_OBSERVER(unassignment, l);
-  _undone.emplace(l);
+  if (_undone.erase(l)) {
+    NOTIFY_STAT(_n_actual_unassigned);
+  }
+
   if (v.missed_lower_implication != CLAUSE_UNDEF) {
     NOTIFY_OBSERVER(remove_lower_implication, var);
     v.missed_lower_implication = CLAUSE_UNDEF;
@@ -307,6 +310,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat._n_backtrack_forced_chunks = _statistics->add_stat("Backtrack forced chunks", cat_aux);
     stat._n_backtrack_better_chunks = _statistics->add_stat("Backtrack better chunks", cat_aux);
     stat._a_learned_clause_size = _statistics->add_stat("Avg learned clause size", cat_aux, statistics::AVERAGE);
+    stat._n_actual_unassigned = _statistics->add_stat("Actual unassigned", cat_aux);
   }
 #else
   if (options.print_stats)

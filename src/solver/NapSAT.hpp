@@ -899,6 +899,7 @@ public:
       statistics::stat *_n_backtrack_forced_chunks = nullptr; // "Forced chunk backtrack"
       statistics::stat *_n_backtrack_better_chunks = nullptr; // "Cross implication back"
       statistics::stat *_a_learned_clause_size = nullptr; // "Avg learned clause size"
+      statistics::stat *_n_actual_unassigned = nullptr; // "Actual undone"
     } stat;
 #endif
 
