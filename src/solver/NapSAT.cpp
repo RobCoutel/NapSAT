@@ -304,6 +304,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat._n_failed_learning = _statistics->add_stat("Failed learning", cat_aux);
     stat._n_backtrack_forced_chunks = _statistics->add_stat("Backtrack forced chunks", cat_aux);
     stat._n_backtrack_better_chunks = _statistics->add_stat("Backtrack better chunks", cat_aux);
+    stat._a_learned_clause_size = _statistics->add_stat("Avg learned clause size", cat_aux, statistics::AVERAGE);
   }
 #else
   if (options.print_stats)

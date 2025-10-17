@@ -118,14 +118,16 @@
 #include "../observer/SAT-stat.hpp"
 
 #if USE_STATISTICS
-#define NOTIFY_STAT(type)                     \
+#define NOTIFY_STAT(type)  NOTIFY_STAT_N(type, 1)
+#define NOTIFY_STAT_N(type, n)                \
   do {                                        \
     if (_statistics) {                        \
-      stat.type->inc();                       \
+      stat.type->inc(n);                      \
     }                                         \
   } while(0)
 #else
-#define NOTIFY_STAT(type)  ((void)0)
+#define NOTIFY_STAT(type)       ((void)0)
+#define NOTIFY_STAT_N(type, n)  ((void)0)
 #endif
 
 #if USE_OBSERVER
@@ -890,6 +892,7 @@ public:
       statistics::stat *_n_failed_learning = nullptr; // "Failed learning"
       statistics::stat *_n_backtrack_forced_chunks = nullptr; // "Forced chunk backtrack"
       statistics::stat *_n_backtrack_better_chunks = nullptr; // "Cross implication back"
+      statistics::stat *_a_learned_clause_size = nullptr; // "Avg learned clause size"
     } stat;
 #endif
 
