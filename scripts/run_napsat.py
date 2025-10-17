@@ -25,6 +25,15 @@ def get_value(output: str, key: str = "Unassignment") -> int:
         sys.exit(1)
 
 
+def get_value_float(output: str, key: str = "Unassignment") -> float:
+    match = re.search(fr"^c  - {key}: (\d+\.?\d*)", output, re.MULTILINE)
+    if match:
+        return float(match.group(1))
+    else:
+        print(f"[ERROR] '{key}' line not found in NapSAT output.", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("file", default="", help="Input file for runner.py", nargs="?")
@@ -32,7 +41,7 @@ def main():
     args = parser.parse_args()
 
     if not args.file:
-        print('name, unassign-rscb, unassign-ncb, unassign-gb, conflict-rscb, conflict-ncb, conflict-gb')
+        print('name, unassign-rscb, unassign-ncb, unassign-gb, conflict-rscb, conflict-ncb, conflict-gb, avg-size-rscb, avg-size-ncb, avg-size-gb')
         sys.exit(0)
 
     input_path = Path(args.file)
@@ -58,20 +67,21 @@ def main():
     options = ["-rscb", "-ncb", "-gb"]
     unassignment_values = []
     conflict_values = []
+    clause_size_avg = []
     for opt in options:
         result = subprocess.run(napsat_cmd + args + [opt], capture_output=True, text=True)
         if result.returncode != 0:
             print(f"[ERROR] NapSAT run failed: {result.stderr}", file=sys.stderr)
             sys.exit(1)
-        unassignment = get_value(result.stdout, "Unassignment")
         conflicts = get_value(result.stdout, "Conflicts")
         if conflicts == 0:
             sys.exit(0)
-        unassignment_values.append(unassignment)
         conflict_values.append(conflicts)
+        unassignment_values.append(get_value(result.stdout, "Unassignment"))
+        clause_size_avg.append(get_value_float(result.stdout, "Avg learned clause size"))
 
     # Print the difference
-    print(f"{base}," + (",".join(map(str, unassignment_values))) + "," + (",".join(map(str, conflict_values))))
+    print(f"{base}," + (",".join(map(str, unassignment_values))) + "," + (",".join(map(str, conflict_values))) + "," + (",".join(map(str, clause_size_avg))))
 
     # Delete temp files
     for f in [cnf_file, commands_file]:
