@@ -69,6 +69,62 @@ namespace napsat
   bool decide(NapSAT* solver, Tlit lit);
 
   /**
+   * @brief Pushes assumptions to the solver.
+   * @param solver an instance of the SAT solver
+   * @param assumption a literal to assume.
+   * @pre the solver is a valid instance of NapSAT
+   * @return true if the assumption was added successfully, false otherwise.
+   * @details Assumptions are literals assigned by the user that the solver cannot
+   * remove until the user calls remove_assumption<s>.
+   * @details The solver will return false if an assumption contradicts the current
+   * set of assumptions
+   * @details In GB, pushing assumptions can be done at any time. If the
+   * assignment contradicts the assumptions, the solver will backtrack to a level where
+   * the assumptions are still valid. In CB and NCB, pushing assumption will force
+   * the solver to backtrack to level 0 before adding the assumptions.
+   */
+  bool add_assumption(NapSAT* solver, Tlit assumption);
+
+  /**
+   * @brief Pushes assumptions to the solver.
+   * @param solver an instance of the SAT solver
+   * @param assumptions vector of literals to assume.
+   * @pre the solver is a valid instance of NapSAT
+   * @return true if all assumptions were added successfully, false otherwise.
+   * @details Assumptions are literals assigned by the user that the solver cannot
+   * remove until the user calls remove_assumption<s>().
+   * @details The solver will return false if an assumption contradicts the current
+   * set of assumptions
+   * @details In GB, pushing assumptions can be done at any time. If the
+   * assignment contradicts the assumptions, the solver will backtrack to a level where
+   * the assumptions are still valid. In CB and NCB, pushing assumption will force
+   * the solver to backtrack to level 0 before adding the assumptions.
+   */
+  bool add_assumption(NapSAT* solver, const std::vector<Tlit>& assumptions);
+
+  /**
+   * @brief Removes an assumption from the solver.
+   * @param solver an instance of the SAT solver
+   * @param assumption literal to remove from the assumptions.
+   * @pre the solver is a valid instance of NapSAT
+   * @return true if the assumption was removed successfully, false otherwise.
+   * @details In CB and NCB, removing an assumption will backtrack the solver to
+   * the assumption levels. In GB, the trail is not modified, but the assumption is
+   * now unlocked and can be modified by the solver.
+   */
+  bool forget_assumption(NapSAT* solver, Tlit assumption);
+
+  /**
+   * @brief Removes all assumptions from the solver.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @details In CB and NCB, removing all assumptions will backtrack the solver to
+   * level 0. In GB, the trail is not modified, but all assumptions are now unlocked and
+   * can be modified by the solver.
+   */
+  void forget_assumption(NapSAT* solver);
+
+  /**
    * @brief Solves the clause set. The procedure stops when all variables are
    * assigned, of the solver concludes that the clause set is unsatisfiable.
    * @param solver an instance of the SAT solver

@@ -16,14 +16,24 @@
 
 using namespace std;
 
+const char ESC_LOCK_START = "🔒"[0];
+const char ESC_LOCK_END = "🔒"[4];
+
 unsigned string_length_escaped(string const str)
 {
   unsigned n_escaped = 0;
   bool escaping = false;
-  for (char c : str) {
+  for (size_t i = 0; i < str.length(); i++) {
+    char c = str[i];
     escaping |= c == ESC_CHAR;
     n_escaped += escaping;
     escaping &= c != ESC_END;
+
+    if (c == ESC_LOCK_START && str.substr(i, 4) == "🔒") {
+      n_escaped += 2; // the lock emoji is 4 bytes in UTF-8 but we want to count it as 1 character
+    }
+
+
   }
   return str.length() - n_escaped;
 }

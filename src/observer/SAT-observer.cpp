@@ -432,6 +432,8 @@ std::string napsat::gui::observer::lit_to_string(napsat::Tlit lit) const
     s += _variables[var].alias;
   else
     s += "-" + _variables[var].alias;
+  if (_variables[var].locked)
+    s += "🔒";
 
   // reset the style
   s += "\033[0m";

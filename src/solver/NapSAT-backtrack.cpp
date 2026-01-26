@@ -258,10 +258,8 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
     }
   }
 
-#ifndef NDEBUG
-  for (Tlit lit : _trail) {
-    ASSERT(!lit_chunks(lit).has_intersection(backtracked_chunks));
-    ASSERT(!lit_propagated(lit) || !lit_cross_chunks(lit).has_intersection(backtracked_chunks));
-  }
-#endif
+  ASSERT(all_of(_trail.begin(), _trail.end(), [this,backtracked_chunks](Tlit l){
+    return !lit_chunks(l).has_intersection(backtracked_chunks); }));
+  ASSERT(all_of(_trail.begin(), _trail.end(), [this,backtracked_chunks](Tlit l){
+    return !lit_propagated(l) || !lit_cross_chunks(l).has_intersection(backtracked_chunks); }));
 }

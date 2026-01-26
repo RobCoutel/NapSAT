@@ -50,6 +50,30 @@ bool napsat::decide(NapSAT* solver, Tlit lit)
   return solver->decide(lit);
 }
 
+bool napsat::add_assumption(NapSAT* solver, Tlit assumption)
+{
+  assert(solver != nullptr);
+  return solver->assume(assumption);
+}
+
+bool napsat::add_assumption(NapSAT* solver, const std::vector<Tlit>& assumptions)
+{
+  assert(solver != nullptr);
+  return solver->add_assumption(assumptions);
+}
+
+bool napsat::forget_assumption(NapSAT* solver, Tlit assumption)
+{
+  assert(solver != nullptr);
+  return solver->forget_assumption(assumption);
+}
+
+void napsat::forget_assumption(NapSAT* solver)
+{
+  assert(solver != nullptr);
+  solver->forget_assumption();
+}
+
 napsat::status napsat::solve(NapSAT* solver)
 {
   assert(solver != nullptr);

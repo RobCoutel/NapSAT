@@ -724,3 +724,85 @@ bool napsat::gui::remove_lower_implication::rollback(observer* obs)
   obs->_variables[var].lazy_reason = last_cl;
   return true;
 }
+
+bool napsat::gui::lock_assumption::apply(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, observer->_variables.size() > var);
+  ASSERT_OBS(this, observer->_variables[var].active);
+  observer->_variables[var].locked = true;
+  return true;
+}
+
+bool napsat::gui::lock_assumption::rollback(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, observer->_variables.size() > var);
+  ASSERT_OBS(this, observer->_variables[var].active);
+  ASSERT_OBS(this, observer->_variables[var].locked);
+  observer->_variables[var].locked = false;
+  return true;
+}
+
+unsigned napsat::gui::lock_assumption::get_event_level(observer* obs) const noexcept {
+  ASSERT_OBS(this, obs);
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : DEFAULT_LEVEL;
+}
+
+bool napsat::gui::unlock_assumption::apply(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, observer->_variables.size() > var);
+  ASSERT_OBS(this, observer->_variables[var].active);
+  observer->_variables[var].locked = false;
+  return true;
+}
+
+bool napsat::gui::unlock_assumption::rollback(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, observer->_variables.size() > var);
+  ASSERT_OBS(this, observer->_variables[var].active);
+  ASSERT_OBS(this, !observer->_variables[var].locked);
+  observer->_variables[var].locked = true;
+  return true;
+}
+
+unsigned napsat::gui::unlock_assumption::get_event_level(observer* obs) const noexcept {
+  ASSERT_OBS(this, obs);
+  return obs->is_variable_marked(lit_to_var(lit)) ? 0 : DEFAULT_LEVEL;
+}
+
+unsigned napsat::gui::update_reason::get_event_level(observer* observer) const noexcept
+{
+  ASSERT_OBS(this, observer);
+  return observer->is_variable_marked(lit_to_var(lit)) ? 0 : DEFAULT_LEVEL;
+}
+
+bool napsat::gui::update_reason::apply(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, observer->_variables.size() > var);
+  ASSERT_OBS(this, observer->_variables[var].active);
+  ASSERT_OBS(this, observer->_variables[var].value != VAR_UNDEF);
+  old_reason = observer->_variables[var].reason;
+  observer->_variables[var].reason = reason;
+  return true;
+}
+
+bool napsat::gui::update_reason::rollback(observer* observer)
+{
+  ASSERT_OBS(this, observer);
+  Tvar var = lit_to_var(lit);
+  ASSERT_OBS(this, observer->_variables.size() > var);
+  ASSERT_OBS(this, observer->_variables[var].active);
+  ASSERT_OBS(this, observer->_variables[var].value != VAR_UNDEF);
+  ASSERT_OBS(this, observer->_variables[var].reason == reason);
+  observer->_variables[var].reason = old_reason;
+  return true;
+}

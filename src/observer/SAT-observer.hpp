@@ -44,6 +44,7 @@ namespace napsat::gui
     friend class delete_variable;
     friend class decision;
     friend class update_level;
+    friend class update_reason;
     friend class implication;
     friend class propagation;
     friend class remove_propagation;
@@ -60,6 +61,8 @@ namespace napsat::gui
     friend class missed_lower_implication;
     friend class remove_lower_implication;
     friend class remove_literal;
+    friend class lock_assumption;
+    friend class unlock_assumption;
 
   public:
     /**
@@ -92,6 +95,7 @@ namespace napsat::gui
       bool active = false;
       bool propagated = false;
       bool constrained = false;
+      bool locked = false;
       std::string alias;
     };
 

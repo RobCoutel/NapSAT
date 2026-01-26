@@ -273,6 +273,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat.missed_lower_implication = _statistics->add_stat("Missed lower implication", cat_core);
     stat.backtracking_started = _statistics->add_stat("Backtracking started", cat_core);
     stat.update_level = _statistics->add_stat("Update level", cat_core);
+    stat.update_reason = _statistics->add_stat("Update reason", cat_core);
     stat.new_clause = _statistics->add_stat("Add clause", cat_core);
     stat.new_variable = _statistics->add_stat("Add variable", cat_core);
     stat.delete_clause = _statistics->add_stat("Delete clause", cat_core);
@@ -280,6 +281,8 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat.watch = _statistics->add_stat("Watch", cat_core);
     stat.unwatch = _statistics->add_stat("Unwatch", cat_core);
     stat.done = _statistics->add_stat("Done", cat_core);
+    stat.lock_assumption = _statistics->add_stat("Lock assumption", cat_core);
+    stat.unlock_assumption = _statistics->add_stat("Unlock assumption", cat_core);
 
     stat._n_purged_clauses = _statistics->add_stat("Purging clauses", cat_aux);
     stat._n_binary_clause_simplified = _statistics->add_stat("Binary clause simplified", cat_aux);
@@ -420,9 +423,15 @@ napsat::gui::observer* napsat::NapSAT::get_observer() const
 
 bool NapSAT::propagate()
 {
+  if (!_conflicts.empty()) {
+    repair_conflicts();
+    if (_status == UNSAT) {
+      return false;
+    }
+  }
   // ASSERT(watch_lists_complete());
   // ASSERT(watch_lists_minimal());
-  if (_status != UNDEF)
+  if (_status != UNKNOWN)
     return false;
   while (_n_propagated_lits < _trail.size()) {
     Tlit lit = _trail[_n_propagated_lits];
@@ -433,14 +442,10 @@ bool NapSAT::propagate()
       NOTIFY_OBSERVER(propagation, lit);
       continue;
     }
-    if (!lit_propagated(lit)) {
-      lit_cross_chunks(lit).clear();
-    }
-#else
-    if (!lit_propagated(lit)) {
-      lit_cross_chunks(lit).clear();
-    }
 #endif
+    if (!lit_propagated(lit)) {
+      lit_cross_chunks(lit).clear();
+    }
     lit_cross_chunks(lit) |= lit_chunks(lit);
 
     propagate_binary_clauses(lit);
@@ -512,14 +517,21 @@ static inline void print_bt_option(const options &options) {
 
 status NapSAT::solve()
 {
-  if (_status != UNDEF)
+  if (_status != UNKNOWN)
     return _status;
   print_bt_option(_options);
   while (true) {
     NOTIFY_OBSERVER(check_invariants);
     if (!propagate()) {
-      if (_status == UNSAT || !_options.interactive)
+      if (_status == UNSAT) {
+        if (_options.interactive && _n_assumptions > 0) {
+          _observer->notify(new napsat::gui::checkpoint());
+          if (_status == UNKNOWN) {
+            continue;
+          }
+        }
         break;
+      }
       NOTIFY_OBSERVER(done, _status == SAT);
     }
     ASSERT(_n_propagated_lits == _trail.size());
@@ -531,8 +543,15 @@ status NapSAT::solve()
       // this is the same trick as in CaDiCaL, but we might be able to do better
       purge_clauses();
       _purge_threshold = _n_root_lvl_lits + _purge_inc;
-      if (_status == UNSAT)
+      if (_status == UNSAT) {
+        if (_options.interactive && _n_assumptions > 0) {
+          _observer->notify(new napsat::gui::checkpoint());
+          if (_status == UNKNOWN) {
+            continue;
+          }
+        }
         return _status;
+      }
       // in chronological backtracking, the purge might have implied some literals
       // therefore we cannot take a decision before we propagate
       continue;
@@ -540,7 +559,7 @@ status NapSAT::solve()
     NOTIFY_OBSERVER(check_invariants);
     synchronize();
 #if USE_OBSERVER
-    if (_observer && _options.interactive)
+    if (_options.interactive)
       _observer->notify(new napsat::gui::checkpoint());
     else
 #endif
@@ -653,9 +672,8 @@ void NapSAT::hint(Tlit lit, unsigned int level)
 
 void NapSAT::synchronize()
 {
-#ifndef NDEBUG
-  for (size_t i = 0; i < _sync_validity_index; i++) { ASSERT(lit_synced(_trail[i])); }
-#endif
+  ASSERT(all_of(_trail.begin(), _trail.begin() + _sync_validity_index, [this](Tlit l){ return !lit_undef(l); }));
+
   for (size_t i = _sync_validity_index; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     Tvar var = lit_to_var(lit);

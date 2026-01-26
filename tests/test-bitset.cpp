@@ -171,14 +171,6 @@ static bool operator==(const bitset &b, const std::bitset<I> &r) {
   return true;
 }
 
-static std::ostream& operator<<(std::ostream& os, const bitset& b) {
-  for (size_t i = 0; i < b.capacity(); ++i) {
-    os << (b[i] ? '1' : '0');
-  }
-  return os;
-}
-
-
 TEST_CASE("insert bits") {
   const size_t CNT = 4000;
   const size_t ROUNDS = 10000;

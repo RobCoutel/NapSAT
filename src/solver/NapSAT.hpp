@@ -16,6 +16,7 @@
  *          πᵈ the set of decision literals
  *          τ the set of propagated literals
  *          ω the propagation queue
+ *          α the set of assumptions
  *          δ(ℓ) the decision level of ℓ
  *          ρ(ℓ) the reason of ℓ
  *          λ(ℓ) the lazy reason of ℓ. That is, a missed lower implication of ℓ.
@@ -208,6 +209,38 @@ namespace napsat
     statistics* get_statistics() const;
 
     /**
+     * @brief Adds an assumption to the solver. Assumptions cannot be removed
+     * until the user calls forget_assumption().
+     * @param assumption a literal to assume.
+     * @return true if the assumption was added successfully, false otherwise.
+     * @details The solver will return false if the assumption contradicts the current set of assumptions
+     */
+    bool assume(Tlit assumption);
+
+    /**
+     * @brief Adds assumptions to the solver. Assumptions cannot be removed until
+     * the user calls forget_assumption().
+     * @param assumptions vector of literals to assume.
+     * @return true if all assumptions were added successfully, false otherwise.
+     */
+    bool add_assumption(const std::vector<Tlit>& assumptions);
+
+    /**
+     * @brief Removes an assumption from the solver.
+     * @param assumption literal to remove from the assumptions.
+     * @return true if the assumption was removed successfully, false otherwise.
+     * @details In CB and NCB, removing an assumption will backtrack the solver to
+     * the level before the assumption was added. In GB, only the assumption and
+     * dependant literals are removed.
+     */
+    bool forget_assumption(Tlit assumption);
+
+    /**
+     * @brief Removes all assumptions from the solver.
+     */
+    void forget_assumption();
+
+    /**
      * @brief Propagate literals in the queue and resolve conflicts if needed.
      * The procedure stops when all variables are assigned, or a decision is
      * needed. If the solver is in input mode, it will switch to propagation
@@ -366,6 +399,12 @@ namespace napsat
     bool check_proof();
 
     /**
+     * @brief Prints the current assignment of the solver on the standard
+     * output in a human-readable format.
+     */
+    void print_trail();
+
+    /**
      * @brief Destroy the napsat::NapSAT object
      */
     ~NapSAT();
@@ -395,7 +434,8 @@ public:
         state(VAR_UNDEF),
         phase_cache(0),
         synced(0),
-        constrained(0)
+        constrained(0),
+        locked(0)
       {}
       /**
        * @brief Decision level at which the variable was assigned.
@@ -445,6 +485,12 @@ public:
        * @brief True if at least one clause constraints this variable.
        */
       unsigned constrained : 1;
+
+      /**
+       * @brief Boolean indicating whether the variable is locked as an
+       * assumption.
+       */
+      unsigned locked : 1;
 
       /**
        * @brief Stores the a clause that could propagate the variable at a
@@ -573,7 +619,7 @@ public:
     /**
      * @brief Status of the solver.
      */
-    status _status = UNDEF;
+    status _status = UNKNOWN;
     /**
      * @brief List of variables in the clause set.
      */
@@ -813,6 +859,22 @@ public:
      */
     unsigned _n_allocated_chunks = 0;
 
+    /**  ASSUMPTIONS  **/
+    /**
+     * @brief Number of current assumptions.
+     * @details In CB and NCB, the assumptions are added as decisions at the
+     * bottom of the trail. Therefore, the number of assumption gives us the effective root level.
+     */
+    unsigned _n_assumptions = 0;
+
+    /**
+     * @brief Set of chunks that contain assumptions.
+     * @details In graph backtracking, assumptions are also added as decisions.
+     * However, they can be located at arbitrary levels and positions in the
+     * trail. They are however locked and cannot be backtracked.
+     */
+    bitset _locked_chunks;
+
     /**  PROOFS  **/
     /**
      * @brief Proof builder of the solver. If _proof is not nullptr, the solver
@@ -861,6 +923,7 @@ public:
       statistics::stat *missed_lower_implication = nullptr; // "Missed lower implication"
       statistics::stat *backtracking_started = nullptr; // "Backtracking started"
       statistics::stat *update_level = nullptr; // "Update level"
+      statistics::stat *update_reason = nullptr; // "update reason"
       statistics::stat *new_clause = nullptr; // "Add clause"
       statistics::stat *new_variable = nullptr; // "Add variable"
       statistics::stat *delete_clause = nullptr; // "Delete clause"
@@ -868,6 +931,8 @@ public:
       statistics::stat *watch = nullptr; // "Unwatch"
       statistics::stat *unwatch = nullptr; // "Unwatch"
       statistics::stat *done = nullptr; // "Done"
+      statistics::stat *lock_assumption = nullptr; // "Sync"
+      statistics::stat *unlock_assumption = nullptr; // "Sync"
 
       // auxilary stats
       statistics::stat *_n_purged_clauses = nullptr; // "Purging clauses"
@@ -1053,6 +1118,25 @@ public:
     inline void lit_sync(Tlit lit) { var_sync(lit_to_var(lit)); }
     inline void var_unsync(Tvar var) { _vars[var].synced = false; }
     inline void lit_unsync(Tlit lit) { var_unsync(lit_to_var(lit)); }
+
+    inline bool var_locked(Tvar var) const { return _vars[var].locked; }
+    inline bool lit_locked(Tlit lit) const { return var_locked(lit_to_var(lit)); }
+    inline void var_lock(Tvar var) {
+      ASSERT(!var_undef(var));
+      ASSERT(!_vars[var].locked);
+      _vars[var].locked = true;
+      NOTIFY_OBSERVER(lock_assumption, literal(var, var_true(var)));
+      _n_assumptions++;
+    }
+    inline void lit_lock(Tlit lit) { var_lock(lit_to_var(lit)); }
+    inline void var_unlock(Tvar var) {
+      ASSERT(!var_undef(var));
+      ASSERT(_vars[var].locked);
+      _vars[var].locked = false;
+      NOTIFY_OBSERVER(unlock_assumption, literal(var, var_true(var)));
+      _n_assumptions--;
+    }
+    inline void lit_unlock(Tlit lit) { var_unlock(lit_to_var(lit)); }
 
     /**  LAZY REIMPLICATION  **/
     /**
@@ -1553,8 +1637,8 @@ public:
      * @param conflicts set of conflicting clauses.
      * @param possibilities vector to store the resulting chunk sets.
      */
-    void compute_backtrack_possibilities(const std::vector<Tclause>& conflicts,
-                                           std::vector<bitset>& possibilities);
+    void compute_backtrack_possibilities(std::vector<bitset>& conflict_chunks,
+                                         std::vector<bitset>& possibilities);
 
     /**
      * @brief Given a learned clause, chooses the level to backtrack to
@@ -1698,6 +1782,18 @@ public:
     void graph_repair();
 
     /**
+     * @brief Setup the weights for a set of chunk sets.
+     * @details This function initializes the weights vector for the given possibilities.
+     * It is meant to be called before calculate_bitset_weights.
+     * @param possibilities the set of chunk sets to evaluate.
+     * @param highest_level the highest level in the set of conflicts.
+     * @param weights the vector to store the weights.
+     */
+    void setup_weights(std::vector<bitset>& possibilities,
+                       napsat::Tlevel& highest_level,
+                       std::vector<napsat::NapSAT::Tweight>& weights);
+
+    /**
      * @brief Perform conflict repair using the level-based criteria.
      * @details This function repairs the conflicts in the set of conflicts. That is, it chooses the appropriate backtrack level (based on CB, or NCB), analyzes the conflicts, (possibly) learns new clauses, backtracks to the chosen level, and implies literals using the conflicting and learned clauses.
      */
@@ -1787,6 +1883,76 @@ public:
      */
     void backtrack(const bitset& backtracked_chunks);
 
+    /*************************************************************************/
+    /*                              Assumptions                              */
+    /*************************************************************************/
+    bool add_assumption_N_CB(Tlit lit);
+
+    /**
+     * @brief Adds the literal as an assumption in graph backtracking.
+     * @param lit literal to add as an assumption in α.
+     * @pre The literal ℓ must be satisfied.
+     *   ℓ ∈ π
+     * @pre The solver is using graph backtracking.
+     * @details If ℓ ∈ π, then either ℓ is a decision, or it is implied.
+     * - If ℓ is a decision, we simply lock it as an assumption.
+     * - If ℓ is implied by a clause C, we convert it to a decision and lock it.
+     *   Then, we need to update all clauses belonging to the original chunks
+     *   of ℓ. That is, for each literal ℓ' after ℓ in the trail that depends
+     *   on ℓ must be updated.
+     *   Let Γ = γ(ℓ) be the chunks of ℓ before being converted to a decision,
+     *   and ck be the new chunk of ℓ as a decision. We set γ(ℓ) = {ck}.
+     *   For each literal ℓ' after ℓ in the trail such that Γ ⊆ γ(ℓ'),
+     *   we need to recompute γ(ℓ').
+     */
+    void add_assumption_GB_true(Tlit lit);
+
+    /**
+     * @brief Adds the literal as a false assumption in graph backtracking.
+     * @param lits list of literals to add as assumptions.
+     * @pre All literals ℓ in the list L must be falsified.
+     *   ∀ℓ ∈ L. ¬ℓ ∈ π
+     * @pre The solver is using graph backtracking.
+     * @details We treat the addition of a false assumptions in L as a
+     * set of conflicts.
+     * That is, we find the cheapest set of chunks to backtrack to in order to
+     * free all literals in L. Then, we backtrack those chunks, convert each ℓ
+     * in L into decisions, and lock them as assumptions.
+     * @returns true if all assumptions were added successfully, false if
+     * γ(ℓ) ⊆ α and the assumption could not be added without contradicting
+     * other assumptions.
+     */
+    bool add_assumption_GB_false(std::vector<Tlit>& lits);
+
+    /**
+     * @brief Adds the literal as a false assumption in graph backtracking.
+     * @param lit literal to add as an assumption.
+     * @pre The literal ℓ must be falsified.
+     *  ¬ℓ ∈ π
+     * @pre The solver is using graph backtracking.
+     * @details We treat the addition of a false assumption ¬ℓ as a conflict.
+     * That is, we find the cheapest set of chunks to backtrack to in order to
+     * free ℓ. Then, we backtrack those chunks, convert ℓ to a decision, and
+     * lock it as an assumption.
+     * @details If several assumptions are added, it is better to add all of
+     * them at the same time to compute a better set of chunks to backtrack.
+     */
+    bool add_assumption_GB_false(Tlit lit);
+
+    /**
+     * @brief Adds the literal as assumption in graph backtracking.
+     * @param lit literal to add as an assumption.
+     * @pre The literal ℓ is undefined.
+     *   ℓ ∉ π ∧ ¬ℓ ∉ π
+     * @pre The solver is using graph backtracking.
+     * @details The literal ℓ is converted to a decision and locked as an
+     * assumption.
+     */
+    void add_assumption_GB_undef(Tlit lit);
+
+    void remove_assumption_N_CB(Tlit lit);
+
+    void remove_assumption_GB(Tlit lit);
 
     /*************************************************************************/
     /*                             Purge Clauses                             */
@@ -1896,12 +2062,6 @@ public:
      * @param size size of the array.
      */
     std::string clause_to_string(const Tlit* lits, size_t size) const;
-
-    /**
-     * @brief Prints the current assignment of the solver on the standard
-     * output in a human-readable format.
-     */
-    void print_trail();
 
     /**
      * @brief Prints the current assignment of the solver on the standard

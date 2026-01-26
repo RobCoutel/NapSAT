@@ -65,15 +65,17 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
     bitset next_process = processed;
     next_process.set(*i, true);
     bitset merged_chunks = _chunks[*i].missed_implication;
-
-    // if they itersect, then all the other possibilities will be subsumed
-    if (current.has_intersection(merged_chunks)) {
-      combinations.push_back(current);
-      continue;
+    if (_n_assumptions > 0) {
+      // the assumptions cannot be backtracked, and are removed from the possibilities
+      merged_chunks = merged_chunks - _locked_chunks;
     }
 
     for (auto j = merged_chunks.cbegin(); j != merged_chunks.cend(); ++j) {
       bitset next_current = current;
+      if (current.get(*j)) {
+        // we already have this chunk, any further combination will be subsumed
+        continue;
+      }
       next_current.set(*j, true);
       compute_lazy_merge_chunk_combination(combinations, next_current, next_process);
     }
@@ -215,9 +217,8 @@ void napsat::NapSAT::fix_conflicts_and_learned_in_order(const std::vector<std::p
 
 Tclause napsat::NapSAT::clause_subsumed_in_formula(const Tlit* lits, size_t size) const
 {
-#ifndef NDEBUG
-  for (unsigned i = 0; i < size; i++) { ASSERT(lit_marked(lits[i])); }
-#endif
+  ASSERT(all_of(lits, lits + size, [this](Tlit l){ return lit_marked(l); }));
+
   // go through the watch lists of all literals and check if the clause is there
   // since clauses are watched by two literals, we can skip the last one
   Tclause found = CLAUSE_UNDEF;
@@ -259,9 +260,8 @@ Tclause napsat::NapSAT::clause_subsumed_in_formula(const Tlit* lits, size_t size
 
 bool napsat::NapSAT::learned_clause_is_redundant()
 {
-#ifndef NDEBUG
-  for (unsigned j = 0; j < _lit_buffer_size; j++) { ASSERT(lit_marked(_lit_buffer[j])); }
-#endif
+  ASSERT(all_of(_lit_buffer, _lit_buffer + _lit_buffer_size, [this](Tlit l){
+    return lit_marked(l); }));
 
   if (!_options.exhaustive_conflict_repair && _options.graph_backtracking) {
     Tclause redundant = clause_subsumed_in_formula(_lit_buffer, _lit_buffer_size);
@@ -315,17 +315,20 @@ struct compare_prefixes {
   }
 };
 
-void napsat::NapSAT::compute_backtrack_possibilities(const std::vector<Tclause>& conflicts,
+void napsat::NapSAT::compute_backtrack_possibilities(std::vector<bitset>& conflict_chunks,
                                                        std::vector<bitset>& possibilities)
 {
   ASSERT(possibilities.empty());
-  vector<bitset> conflict_chunks;
-
-  for (Tclause conflict : conflicts) {
-    bitset cl_chunks = clause_chunks(conflict);
-    conflict_chunks.push_back(cl_chunks);
-  }
   priority_queue<prefix_t, vector<prefix_t>, compare_prefixes> prefixes;
+
+  if (_n_assumptions > 0) {
+    for (bitset& chunks : conflict_chunks) {
+      chunks = chunks - _locked_chunks;
+      if (chunks.empty()) { // conflict cannot be solved
+        return;
+      }
+    }
+  }
 
   prefixes.push(make_pair(make_pair(0, 1), bitset(_n_allocated_chunks)));
   while (!prefixes.empty()) {
@@ -533,9 +536,7 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
 
 template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
-#ifndef NDEBUG
-  for (unsigned i = 0; i < _vars.size(); i++) { ASSERT(!var_marked(Tvar(i))); }
-#endif
+  ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
 
   unsigned count = 0;
 
@@ -724,7 +725,7 @@ void NapSAT::repair_conflicts()
   _conflicts.erase(std::unique(_conflicts.begin(), _conflicts.end()), _conflicts.end());
 
   if (_status == SAT)
-    _status = UNDEF;
+    _status = UNKNOWN;
 
   for (Tclause conflict : _conflicts) {
     bump_clause_activity(conflict);
@@ -739,8 +740,8 @@ void NapSAT::repair_conflicts()
   } else {
     level_repair();
   }
-
-  _conflicts.clear();
+  if (_status != UNSAT)
+    _conflicts.clear();
   _var_activity_increment /= _options.var_activity_decay;
 }
 
@@ -999,8 +1000,18 @@ void napsat::NapSAT::try_and_learn(Tlevel level, vector<pair<Tclause, vector<Tli
 void napsat::NapSAT::graph_repair()
 {
   vector<bitset> possibilities;
-  compute_backtrack_possibilities(_conflicts, possibilities);
-  ASSERT(!possibilities.empty());
+  vector<bitset> conflict_chunks;
+  conflict_chunks.reserve(_conflicts.size());
+  for (Tclause conflict : _conflicts) {
+    conflict_chunks.push_back(clause_chunks(conflict));
+  }
+
+  compute_backtrack_possibilities(conflict_chunks, possibilities);
+  if (possibilities.empty()) {
+    // we cannot repair the conflicts
+    _status = UNSAT;
+    return;
+  }
 
   // Calculate the highest chunk involved in conflicts
   vector<Tweight> weights;
@@ -1008,27 +1019,7 @@ void napsat::NapSAT::graph_repair()
 
   Tlevel highest_level = LEVEL_ROOT;
 
-  for (size_t i = 0; i < possibilities.size(); i++) {
-    Tweight w;
-    w.chunks = possibilities[i];
-    w.maybe_learning = false;
-    for (Tclause conflict : _conflicts) {
-      if (conflict_can_generate_learned_clause(conflict, w.chunks) && !conflict_is_UIP_cut(conflict, w.chunks)) {
-        w.maybe_learning = true;
-        break;
-      }
-    }
-
-    w.give_up_point = _trail.size();
-
-    for (auto it = w.chunks.cbegin(); it != w.chunks.cend(); ++it) {
-      Tlevel cl = chunk_level(*it);
-      w.highest_level = std::max(w.highest_level, cl);
-      w.lowest_level = std::min(w.lowest_level, cl);
-    }
-    highest_level = std::max(highest_level, w.highest_level);
-    weights.push_back(w);
-  }
+  setup_weights(possibilities, highest_level, weights);
 
   vector<Tclause> implying_conflicts;
   vector<pair<Tclause, vector<Tlit>>> learned_clauses;
@@ -1050,10 +1041,6 @@ void napsat::NapSAT::graph_repair()
       }
     }
     ASSERT(!weights.empty());
-
-    // sort the weights by highest lowest level
-    std::sort(weights.begin(), weights.end(),
-              [](const Tweight& a, const Tweight& b) { return a.lowest_level > b.lowest_level; });
 
     calculate_bitset_weights(weights);
 
@@ -1110,6 +1097,35 @@ void napsat::NapSAT::graph_repair()
   }
 
   fix_conflicts_and_learned_in_order(learned_clauses);
+}
+
+void napsat::NapSAT::setup_weights(std::vector<bitset>& possibilities, napsat::Tlevel& highest_level, std::vector<napsat::NapSAT::Tweight>& weights)
+{
+  for (size_t i = 0; i < possibilities.size(); i++) {
+    Tweight w;
+    w.chunks = possibilities[i];
+    w.maybe_learning = false;
+    for (Tclause conflict : _conflicts) {
+      if (conflict_can_generate_learned_clause(conflict, w.chunks)
+        && !conflict_is_UIP_cut(conflict, w.chunks)) {
+        w.maybe_learning = true;
+        break;
+      }
+    }
+
+    w.give_up_point = _trail.size();
+
+    for (auto it = w.chunks.cbegin(); it != w.chunks.cend(); ++it) {
+      Tlevel cl = chunk_level(*it);
+      w.highest_level = std::max(w.highest_level, cl);
+      w.lowest_level = std::min(w.lowest_level, cl);
+    }
+    highest_level = std::max(highest_level, w.highest_level);
+    weights.push_back(w);
+  }
+  // sort the weights by highest lowest level
+  std::sort(weights.begin(), weights.end(),
+            [](const Tweight& a, const Tweight& b) { return a.lowest_level > b.lowest_level; });
 }
 
 void napsat::NapSAT::level_repair()

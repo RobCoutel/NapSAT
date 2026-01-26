@@ -154,7 +154,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       }
     }
     finalize_clause();
-    if (_status != UNDEF)
+    if (_status != UNKNOWN)
       return true;
   }
   return true;
@@ -315,26 +315,7 @@ unsigned napsat::NapSAT::max_utility_heuristic()
 
 void napsat::NapSAT::print_lit(Tlit lit)
 {
-  if (lit_marked(lit))
-    cout << "M";
-  if (lit_synced(lit))
-    cout << "S";
-  if (lit_undef(lit))
-    cout << ORANGE;
-  else if (lit_true(lit))
-    cout << GREEN;
-  else { // lit_false(lit)
-    ASSERT(lit_false(lit));
-    cout << RED;
-  }
-  if (lit_propagated(lit))
-    cout << "\033[4m";
-  if (!lit_pol(lit))
-    cout << "-";
-  cout << lit_to_var(lit);
-
-  cout << esc_char << "[0m";
-  cout << "\033[0m";
+  cout << lit_to_string(lit);
 }
 
 string NapSAT::lit_to_string(Tlit lit) const
@@ -355,6 +336,8 @@ string NapSAT::lit_to_string(Tlit lit) const
   if (!lit_pol(lit))
     s += "-";
   s += to_string(lit_to_var(lit));
+  if (lit_locked(lit))
+    s += "🔒";
 
   s += "\033[0m";
   return s;
@@ -398,7 +381,11 @@ void NapSAT::print_clause(Tclause cl)
 
 void NapSAT::print_trail()
 {
-  cout << "trail: " << _n_propagated_lits << " - " << _trail.size() - _n_propagated_lits << "\n";
+  cout << "trail: " << _n_propagated_lits << " - " << _trail.size() - _n_propagated_lits;
+  if (_n_assumptions > 0) {
+    cout << " (assumptions: " << _n_assumptions << ")";
+  }
+  cout << "\n";
   for (unsigned int i = 0; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     if (i == _n_propagated_lits) {
@@ -416,11 +403,11 @@ void NapSAT::print_trail()
       cout << " / (lazy) ";
       print_clause(lit_lazy_reason(lit));
     }
-    cout << " (" << lit_chunks(lit).to_string() << ")";
-    cout << " / (" << lit_cross_chunks(lit).to_string() << ")";
-    if (lit_propagated(lit)) {
-      cout << " (propagated)";
-    }
+    cout << " (γ = " << lit_chunks(lit).to_string() << ", ";
+    cout <<   "η = " << lit_cross_chunks(lit).to_string() << ")";
+    // if (lit_propagated(lit)) {
+    //   cout << " (propagated)";
+    // }
     cout << "\n";
   }
   for (Tclause conflict : _conflicts) {
@@ -558,6 +545,8 @@ void napsat::NapSAT::print_watch_lists(Tlit lit)
 bool napsat::NapSAT::parse_command(std::string input)
 {
   if (input == "") {
+    if (_status == SAT || _status == UNSAT)
+      return true;
     decide();
     return true;
   }
@@ -599,6 +588,30 @@ bool napsat::NapSAT::parse_command(std::string input)
     }
     else {
       LOG_WARNING("Wrong number of arguments (expected 0 or 1). This command is ignored.");
+      return false;
+    }
+  }
+  else if (tokens[0] == "ASSUME") {
+    if (tokens.size() != 2) {
+      LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
+      return false;
+    }
+    int lit_int = stoi(tokens[1]);
+    Tlit lit = literal(abs(lit_int), lit_int > 0);
+    if (!assume(lit)) {
+      LOG_WARNING("The assumption of literal " << lit_to_string(lit) << " failed.");
+      return false;
+    }
+  }
+  else if (tokens[0] == "FORGET") {
+    if (tokens.size() != 2) {
+      LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
+      return false;
+    }
+    int lit_int = stoi(tokens[1]);
+    Tlit lit = literal(abs(lit_int), lit_int > 0);
+    if (!forget_assumption(lit)) {
+      LOG_WARNING("The forgetting of assumption of literal " << lit_to_string(lit) << " failed.");
       return false;
     }
   }

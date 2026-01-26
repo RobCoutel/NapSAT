@@ -60,7 +60,9 @@ namespace napsat::gui
     BLOCKER,
     CHECK_INVARIANTS,
     MISSED_LOWER_IMPLICATION_LOGGED,
-    REMOVE_LOWER_IMPLICATION_REMOVED
+    REMOVE_LOWER_IMPLICATION_REMOVED,
+    LOCK,
+    UNLOCK
   };
   std::string notification_type_to_string(ENotifType type);
 
@@ -331,6 +333,31 @@ namespace napsat::gui
     const std::string get_message() const noexcept override { return "Update level : " + std::to_string(napsat::lit_to_int(lit)) + " updated to level " + std::to_string(level); }
 
     explicit update_level(napsat::Tlit lit, napsat::Tlevel level) : lit(lit), level(level) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
+  };
+
+  class update_reason : public notification
+  {
+  private:
+    /**
+     * @brief The literal that was updated.
+     */
+    napsat::Tlit lit;
+    /**
+     * @brief The new reason of the literal.
+     */
+    napsat::Tclause reason = CLAUSE_UNDEF;
+    napsat::Tclause old_reason = CLAUSE_UNDEF;
+  public:
+    static const unsigned DEFAULT_LEVEL = 5;
+    static const ENotifType NTYPE = IMPLICATION;
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Update reason : " + std::to_string(napsat::lit_to_int(lit)) + " updated to reason " + std::to_string(reason); }
+
+    explicit update_reason(napsat::Tlit lit, napsat::Tclause reason) : lit(lit), reason(reason) {}
 
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
@@ -757,6 +784,42 @@ namespace napsat::gui
     const std::string get_message() const noexcept override { return "Remove lower implication: " + std::to_string(var) + " in clause " + std::to_string(last_cl); }
 
     explicit remove_lower_implication(Tvar var) : var(var) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
+  };
+
+  // lock for assumptions
+  class lock_assumption : public notification
+  {
+  private:
+    Tlit lit;
+  public:
+    static const unsigned DEFAULT_LEVEL = 5;
+    static const ENotifType NTYPE = CHECKPOINT;
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Lock assumption: " + std::to_string(napsat::lit_to_int(lit)); }
+
+    explicit lock_assumption(Tlit lit) : lit(lit) {}
+
+    bool apply(observer* observer) override;
+    bool rollback(observer* observer) override;
+  };
+
+  // unlock for assumptions
+  class unlock_assumption : public notification
+  {
+  private:
+    Tlit lit;
+  public:
+    static const unsigned DEFAULT_LEVEL = 5;
+    static const ENotifType NTYPE = CHECKPOINT;
+    unsigned get_event_level(observer* observer) const noexcept override;
+    ENotifType get_type() const noexcept override { return NTYPE; }
+    const std::string get_message() const noexcept override { return "Unlock assumption: " + std::to_string(napsat::lit_to_int(lit)); }
+
+    explicit unlock_assumption(Tlit lit) : lit(lit) {}
 
     bool apply(observer* observer) override;
     bool rollback(observer* observer) override;
