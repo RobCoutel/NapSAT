@@ -165,6 +165,18 @@ namespace napsat
     NapSAT(unsigned n_var, unsigned n_clauses, options& options);
 
     /**
+     * @brief Create a new variable in the solver.
+     * @return The variable created.
+     */
+    Tvar new_variable();
+
+    /**
+     * @brief Returns the number of variables in the solver.
+     * @return the number of variables in the solver.
+     */
+    inline unsigned var_count() const noexcept { return _vars.size(); }
+
+    /**
      * @brief Parse a DIMACS file and add the clauses to the clause set.
      * @details supported formats  .cnf / .cnf.bz2 / .cnf.xz
      * @param filename name of the DIMACS file.
@@ -239,6 +251,13 @@ namespace napsat
      * @brief Removes all assumptions from the solver.
      */
     void forget_assumption();
+
+    /**
+     * @brief Returns a list of assumptions that caused the last UNSAT result.
+     * @pre the last call to solve returned UNSAT
+     * @return vector of literals representing the failed assumptions.
+     */
+    std::vector<Tlit> failed_assumptions() const;
 
     /**
      * @brief Propagate literals in the queue and resolve conflicts if needed.
@@ -376,11 +395,38 @@ namespace napsat
     /**
      * @brief Returns true if the literal in the trail is a decision.
      * @pre The literal must be assigned.
+     * @param lit literal to check.
+     * @return true if the literal is a decision, false otherwise.
     */
-    inline bool is_decided(Tlit lit) const
-    {
+    inline bool is_decided(Tlit lit) const {
       ASSERT(!lit_undef(lit));
       return lit_decision(lit);
+    }
+
+    /**
+     * @brief Returns true if the given literal is assigned at root level.
+     * @pre The literal must be assigned.
+     * @param lit literal to check.
+     * @return true if the literal is assigned at root level, false otherwise.
+     */
+    inline bool is_root_level(Tlit lit) const {
+      ASSERT(!lit_undef(lit));
+      return lit_level(lit) == LEVEL_ROOT;
+    }
+
+    /**
+     * @brief Suggest a polarity for a variable.
+     * @details When the variable is decided, it will be assigned the suggested
+     * polarity, unless it has already been assigned, in which case the phase_cache
+     * will be used.
+     * @param lit literal whose variable will have a suggested polarity.
+     * @param polarity suggested polarity. true for positive, false for negative.
+     */
+    inline void suggest_polarity(Tlit lit, bool polarity)
+    {
+      unsigned var = lit_to_var(lit);
+      ASSERT(var < _vars.size());
+      _vars[var].phase_cache = polarity ? 1 : 0;
     }
 
     /**
@@ -960,7 +1006,7 @@ public:
       statistics::stat *_a_learned_clause_size = nullptr; // "Avg learned clause size"
     } stat;
 #endif
-
+  public:
     /*************************************************************************/
     /*                       Quality of life functions                       */
     /*************************************************************************/
@@ -1009,7 +1055,6 @@ public:
      * @brief Returns the level of the given variable.
      */
     inline Tlevel var_level(Tvar var) const { return _vars[var].level; }
-    inline Tlevel& var_level(Tvar var) { return _vars[var].level; }
     /**
      * @brief Returns the level of the given literal. If the literal is not
      * assigned, returns LEVEL_UNDEF.
@@ -1017,6 +1062,21 @@ public:
      * @return level of the literal.
      */
     inline Tlevel lit_level(Tlit lit) const { return var_level(lit_to_var(lit)); }
+
+  private:
+    /**
+     * @brief Returns a reference to the level of the given variable.
+     * @details Used to modify the level of a variable.
+     * @return reference to the level of the variable.
+     */
+    inline Tlevel& var_level(Tvar var) { return _vars[var].level; }
+
+    /**
+     * @brief Returns a reference to the level of the given literal.
+     * @details Used to modify the level of a literal.
+     * @param lit literal to evaluate.
+     * @return reference to the level of the literal.
+     */
     inline Tlevel& lit_level(Tlit lit) { return var_level(lit_to_var(lit)); }
 
     /**

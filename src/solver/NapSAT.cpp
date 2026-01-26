@@ -366,6 +366,13 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   // _backtrack_cost_estimator = default_cost;
 }
 
+Tvar napsat::NapSAT::new_variable()
+{
+  Tvar var = _vars.size();
+  var_allocate(_vars.size() + 1);
+  return var;
+}
+
 NapSAT::~NapSAT()
 {
   for (unsigned i = 0; i < _clauses.size(); i++)

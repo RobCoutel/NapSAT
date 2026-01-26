@@ -26,6 +26,21 @@ namespace napsat
   void delete_solver(NapSAT* solver);
 
   /**
+   * @brief Create a new variable in the solver.
+   * @param solver The solver in which to create the variable.
+   * @return The variable created.
+   */
+  Tvar new_variable(NapSAT* solver);
+
+  /**
+   * @brief Returns the current number of variables in the solver.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @return the current number of variables in the solver.
+   */
+  unsigned variables_count(const NapSAT* solver);
+
+  /**
    * @brief Parse a DIMACS file and add the clauses to the clause set.
    * @details This funciton can be called multiple times to load multiple clause
    * sets and solve the conjunction of them.
@@ -67,6 +82,70 @@ namespace napsat
    * @pre the solver is a valid instance of NapSAT
    */
   bool decide(NapSAT* solver, Tlit lit);
+
+  /**
+   * @brief Solves the clause set. The procedure stops when all variables are
+   * assigned, of the solver concludes that the clause set is unsatisfiable.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   */
+  status solve(NapSAT* solver);
+
+  /**
+   * @brief Solves the clause set with a limit on the number of conflicts.
+   * The procedure stops when all variables are assigned, or the solver
+   * concludes that the clause set is unsatisfiable, or the number of conflicts
+   * reaches the given limit.
+   */
+  status solve_limited(NapSAT* solver, unsigned conflict_limit);
+
+  /**
+   * @brief Returns the status of the solver.
+   * @param solver an instance of the SAT solver
+   * @return status of the solver.
+   * @pre the solver is a valid instance of NapSAT
+   */
+  status get_status(NapSAT* solver);
+
+  /**
+   * @brief Set up the solver to lits a new clause. Sets the solver in
+   * clause_input mode.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   */
+  void start_new_clause(NapSAT* solver);
+
+  /**
+   * @brief Add a literal to the current clause.
+   * @param solver an instance of the SAT solver
+   * @param lit literal to add to the clause.
+   * @pre the solver is a valid instance of NapSAT
+   * @pre The solver must be in clause_input mode.
+   * @pre the literal or its negation must not already be in the clause.
+   */
+  void push_literal(NapSAT* solver, Tlit lit);
+
+  /**
+   * @brief Finalize the current clause and add it to the clause set. If the
+   * solver is in propagation mode, it will propagate literals if needed.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @pre the solver must be in clause_input mode.
+   * @return A handle to the added clause.
+   */
+  Tclause finalize_clause(NapSAT* solver);
+
+  /**
+   * @brief Add a complete clause to the clause set.
+   * @param solver an instance of the SAT solver
+   * @param lits array of literals to add to the clause set.
+   * @param size size of the clause.
+   * @return A handle to the added clause.
+   * @pre the solver is a valid instance of NapSAT
+   * @note The memory of the clause is allocated by the solver. Therefore, the
+   * pointer lits is managed by the user and is not freed by the solver.
+   */
+  Tclause add_clause(NapSAT* solver, const Tlit* lits, unsigned n_lits);
 
   /**
    * @brief Pushes assumptions to the solver.
@@ -125,60 +204,13 @@ namespace napsat
   void forget_assumption(NapSAT* solver);
 
   /**
-   * @brief Solves the clause set. The procedure stops when all variables are
-   * assigned, of the solver concludes that the clause set is unsatisfiable.
+   * @brief Returns the list of failed assumptions after an UNSAT solve.
    * @param solver an instance of the SAT solver
    * @pre the solver is a valid instance of NapSAT
+   * @pre the last call to solve returned UNSAT
+   * @return vector of literals representing the failed assumptions.
    */
-  status solve(NapSAT* solver);
-
-  /**
-   * @brief Returns the status of the solver.
-   * @param solver an instance of the SAT solver
-   * @return status of the solver.
-   * @pre the solver is a valid instance of NapSAT
-   */
-  status get_status(NapSAT* solver);
-
-  /**
-   * @brief Set up the solver to lits a new clause. Sets the solver in
-   * clause_input mode.
-   * @param solver an instance of the SAT solver
-   * @pre the solver is a valid instance of NapSAT
-   */
-  void start_new_clause(NapSAT* solver);
-
-  /**
-   * @brief Add a literal to the current clause.
-   * @param solver an instance of the SAT solver
-   * @param lit literal to add to the clause.
-   * @pre the solver is a valid instance of NapSAT
-   * @pre The solver must be in clause_input mode.
-   * @pre the literal or its negation must not already be in the clause.
-   */
-  void push_literal(NapSAT* solver, Tlit lit);
-
-  /**
-   * @brief Finalize the current clause and add it to the clause set. If the
-   * solver is in propagation mode, it will propagate literals if needed.
-   * @param solver an instance of the SAT solver
-   * @pre the solver is a valid instance of NapSAT
-   * @pre the solver must be in clause_input mode.
-   * @return A handle to the added clause.
-   */
-  Tclause finalize_clause(NapSAT* solver);
-
-  /**
-   * @brief Add a complete clause to the clause set.
-   * @param solver an instance of the SAT solver
-   * @param lits array of literals to add to the clause set.
-   * @param size size of the clause.
-   * @return A handle to the added clause.
-   * @pre the solver is a valid instance of NapSAT
-   * @note The memory of the clause is allocated by the solver. Therefore, the
-   * pointer lits is managed by the user and is not freed by the solver.
-   */
-  Tclause add_clause(NapSAT* solver, const Tlit* lits, unsigned n_lits);
+  std::vector<Tlit> failed_assumptions(const NapSAT* solver);
 
   /**
    * @brief Returns a reference to the trail. The trail should not be modified
@@ -186,12 +218,37 @@ namespace napsat
    * @param solver an instance of the SAT solver
    * @pre the solver is a valid instance of NapSAT
    */
-  const std::vector<Tlit>& get_partial_assignment(NapSAT* solver);
+  const std::vector<Tlit>& get_partial_assignment(const NapSAT* solver);
 
   /**
    * @brief Returns true if the given literal is decided.
   */
-  bool is_decided(NapSAT* solver, Tlit lit);
+  bool is_decided(const NapSAT* solver, Tlit lit);
+
+  /**
+   * @brief Returns true if the given literal is assigned at root level.
+   */
+  bool is_root_level(const NapSAT* solver, Tvar var);
+
+  /**
+   * @brief Returns the value of a literal in the current assignment.
+   * @param solver an instance of the SAT solver
+   * @param lit literal to evaluate.
+   * @return Tval representing the value of the literal.
+   * @pre the solver is a valid instance of NapSAT
+   */
+  Tval get_variable_value(const NapSAT* solver, Tvar var);
+
+  /**
+   * @brief Suggest a polarity for a variable.
+   * @param solver an instance of the SAT solver
+   * @param lit literal whose variable will have a suggested polarity.
+   * @param polarity suggested polarity. true for positive, false for negative.
+   * @pre the solver is a valid instance of NapSAT
+   * @details The first time this variable is assigned as a decision, it will be
+   * assigned the suggested polarity. After that, the phase_cache will be used.
+   */
+  void suggest_polarity(NapSAT* solver, Tlit lit, bool polarity);
 
   /**
    * @brief Prints on the standard output the statistics collected by the solver
