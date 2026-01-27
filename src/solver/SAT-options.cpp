@@ -167,6 +167,7 @@ napsat::options::options(vector<string>& tokens)
     {"--print-proof",                            &print_proof},
     {"-cp",                                      &check_proof},
     {"--check-proof",                            &check_proof},
+    {"--record-dependencies",                    &record_dependencies},
     {"--ignore-unused_variables",                &ignore_unused_variables},
     {"-iuv",                                     &ignore_unused_variables},
     {"--restarts",                               &restarts},
@@ -188,7 +189,8 @@ napsat::options::options(vector<string>& tokens)
     {"--var-activity-decay",              &var_activity_decay},
     {"--conflict-penalty",                &conflict_penalty},
     {"--backtrack-possibilities-limit",   &backtrack_possibilities_limit},
-    {"--sync-weight",                     &sync_weight}
+    {"--sync-weight",                     &sync_weight},
+    {"--conflict-limit",                  &conflict_limit}
   };
 
   /**

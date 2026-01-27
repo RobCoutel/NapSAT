@@ -96,6 +96,11 @@ namespace napsat
    * The procedure stops when all variables are assigned, or the solver
    * concludes that the clause set is unsatisfiable, or the number of conflicts
    * reaches the given limit.
+   * @param solver an instance of the SAT solver
+   * @param conflict_limit limit on the number of conflicts before stopping the
+   * solve.
+   * @pre the solver is a valid instance of NapSAT
+   * @return status of the solver.
    */
   status solve_limited(NapSAT* solver, unsigned conflict_limit);
 
@@ -210,7 +215,16 @@ namespace napsat
    * @pre the last call to solve returned UNSAT
    * @return vector of literals representing the failed assumptions.
    */
-  std::vector<Tlit> failed_assumptions(const NapSAT* solver);
+  std::vector<Tlit> unsat_core(const NapSAT* solver);
+
+  /**
+   * @brief Returns the list of clauses in the unsat core after an UNSAT solve modulo assumptions.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @pre the last call to solve returned UNSAT
+   * @return vector of clause identifiers representing the clauses in the unsat core modulo assumptions.
+   */
+  std::vector<Tclause> clause_unsat_core(NapSAT* solver);
 
   /**
    * @brief Returns a reference to the trail. The trail should not be modified
@@ -222,7 +236,11 @@ namespace napsat
 
   /**
    * @brief Returns true if the given literal is decided.
-  */
+   * @param solver an instance of the SAT solver
+   * @param lit literal to check.
+   * @return true if the literal is decided, false otherwise.
+   * @pre the solver is a valid instance of NapSAT
+   */
   bool is_decided(const NapSAT* solver, Tlit lit);
 
   /**

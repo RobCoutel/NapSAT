@@ -78,7 +78,7 @@ void NapSAT::forget_assumption()
   }
 }
 
-std::vector<Tlit> napsat::NapSAT::failed_assumptions() const
+std::vector<Tlit> napsat::NapSAT::unsat_core() const
 {
   ASSERT(_status == UNSAT);
   ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
@@ -106,6 +106,73 @@ std::vector<Tlit> napsat::NapSAT::failed_assumptions() const
   }
   ASSERT(false);
   return failed;
+}
+
+std::vector<Tclause> napsat::NapSAT::clause_unsat_core()
+{
+  ASSERT(_status == UNSAT);
+  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT_MSG(_dependency_tracker, "Clause unsat core requires a dependency tracker.");
+  // look at each conflict clause, and find the ones that are failed by locked
+  // chunks only. Return the corresponding clauses.
+  std::set<Tclause> failed;
+
+  // search the conflict that is responsible for the UNSAT
+  bitset conflict_chunks(_n_allocated_chunks);
+  Tclause conflict_clause = CLAUSE_UNDEF;
+  for (const Tclause conflict : _conflicts) {
+    const Tlit* lits = clause_lits(conflict);
+    const unsigned size = clause_size(conflict);
+    conflict_chunks.clear();
+    for (unsigned i = 0; i < size; i++) {
+      conflict_chunks |= lit_chunks(lits[i]);
+    }
+    if (conflict_chunks <= _locked_chunks) {
+      // all chunks in the conflict are locked, the assumption failed
+      conflict_clause = conflict;
+      break;
+    }
+  }
+
+  // now perform some sort of conflict analysis to find all clauses in the unsat core
+  const set<Tclause>& dependecies = _dependency_tracker->get_dependencies(conflict_clause);
+  failed.insert(dependecies.begin(), dependecies.end());
+
+  // mark all literals in the conflict clause
+  ASSERT(all_of(_vars.begin(), _vars.end(), [](const TSvar& var) { return !var.marked; }));
+  const Tlit* lits = clause_lits(conflict_clause);
+  const unsigned size = clause_size(conflict_clause);
+  for (unsigned i = 0; i < size; i++)
+    lit_mark(lits[i]);
+
+  // perform a reverse traversal of the trail
+  for (size_t i = _trail.size(); i-- > 0;) {
+    Tlit lit = _trail[i];
+    if (!lit_marked(lit)) {
+      continue;
+    }
+    lit_unmark(lit);
+    Tclause reason = lit_reason(lit);
+    ASSERT(reason != CLAUSE_UNDEF || lit_locked(lit));
+
+    if (lit_locked(lit)) {
+      // the literal is an assumption, nothing to do
+      continue;
+    }
+
+    // add the reason clause to the unsat core
+    const set<Tclause>& deps = _dependency_tracker->get_dependencies(reason);
+    failed.insert(deps.begin(), deps.end());
+    // mark all literals in the reason clause
+    const Tlit* rlits = clause_lits(reason);
+    const unsigned rsize = clause_size(reason);
+    for (unsigned j = 0; j < rsize; j++)
+      lit_mark(rlits[j]);
+  }
+
+  std::vector<Tclause> to_return(failed.begin(), failed.end());
+  std::sort(to_return.begin(), to_return.end());
+  return to_return;
 }
 
 bool NapSAT::add_assumption_N_CB(Tlit lit)

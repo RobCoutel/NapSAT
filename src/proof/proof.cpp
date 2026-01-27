@@ -26,7 +26,12 @@
 
 using namespace std;
 
-void napsat::proof::resolution_proof::apply_resolution(vector<Tlit>& base, unsigned resolvent_index, Tlit pivot)
+namespace napsat
+{
+namespace proof
+{
+
+void resolution_proof::apply_resolution(vector<Tlit>& base, unsigned resolvent_index, Tlit pivot)
 {
   auto pivot_location = find(base.begin(), base.end(), pivot); // TODO can use binary search if too slow
   assert(pivot_location != base.end());
@@ -51,7 +56,7 @@ void napsat::proof::resolution_proof::apply_resolution(vector<Tlit>& base, unsig
     base.resize(j);
 }
 
-void napsat::proof::resolution_proof::input_clause(napsat::Tclause id, const napsat::Tlit* lits, unsigned size)
+void resolution_proof::input_clause(napsat::Tclause id, const napsat::Tlit* lits, unsigned size)
 {
   clauses.push_back(clause());
   clause &c = clauses.back();
@@ -82,12 +87,12 @@ void napsat::proof::resolution_proof::input_clause(napsat::Tclause id, const nap
   c.size = min(j, c.size);
 }
 
-void napsat::proof::resolution_proof::start_resolution_chain(void)
+void resolution_proof::start_resolution_chain(void)
 {
   assert(current_resolution_chain.size() == 0);
 }
 
-void napsat::proof::resolution_proof::link_resolution(napsat::Tlit pivot, napsat::Tclause id)
+void resolution_proof::link_resolution(napsat::Tlit pivot, napsat::Tclause id)
 {
   assert(id < clause_matches.size());
   unsigned cl_num = clause_matches[id];
@@ -96,7 +101,7 @@ void napsat::proof::resolution_proof::link_resolution(napsat::Tlit pivot, napsat
   current_resolution_chain.push_back(pair<Tlit, unsigned>(pivot, cl_num));
 }
 
-void napsat::proof::resolution_proof::finalize_resolution(napsat::Tclause id, const napsat::Tlit* lits, unsigned size)
+void resolution_proof::finalize_resolution(napsat::Tclause id, const napsat::Tlit* lits, unsigned size)
 {
   input_clause(id, lits, size);
   clause &c = clauses.back();
@@ -107,7 +112,7 @@ void napsat::proof::resolution_proof::finalize_resolution(napsat::Tclause id, co
   assert(check_resolution_chain(clauses.size() - 1));
 }
 
-void napsat::proof::resolution_proof::cancel_resolution_chain(void)
+void resolution_proof::cancel_resolution_chain(void)
 {
   current_resolution_chain.clear();
 }
@@ -144,7 +149,7 @@ static void binary_insert(vector<napsat::Tlit>& lits, napsat::Tlit lit)
   lits.insert(lits.begin() + left, lit);
 }
 
-bool napsat::proof::resolution_proof::check_resolution_chain(unsigned index)
+bool resolution_proof::check_resolution_chain(unsigned index)
 {
   clause &c = clauses[index];
   if (c.resolution_chain.size() == 0) {
@@ -223,13 +228,13 @@ bool napsat::proof::resolution_proof::check_resolution_chain(unsigned index)
   return true;
 }
 
-void napsat::proof::resolution_proof::root_assign(napsat::Tlit lit, napsat::Tclause reason)
+void resolution_proof::root_assign(napsat::Tlit lit, napsat::Tclause reason)
 {
   root_lit.push_back(lit);
   root_reason.push_back(reason);
 }
 
-void napsat::proof::resolution_proof::remove_root_literals(napsat::Tclause id)
+void resolution_proof::remove_root_literals(napsat::Tclause id)
 {
   assert(clause_matches[id] != CLAUSE_UNDEF);
   clause &c = clauses[clause_matches[id]];
@@ -258,14 +263,14 @@ void napsat::proof::resolution_proof::remove_root_literals(napsat::Tclause id)
   finalize_resolution(id, simplified_clause.data(), simplified_clause.size());
 }
 
-void napsat::proof::resolution_proof::deactivate_clause(napsat::Tclause id)
+void resolution_proof::deactivate_clause(napsat::Tclause id)
 {
   assert(id < clause_matches.size());
   assert(clause_matches[id] != CLAUSE_UNDEF);
   clause_matches[id] = CLAUSE_UNDEF;
 }
 
-bool napsat::proof::resolution_proof::check_proof(void)
+bool resolution_proof::check_proof(void)
 {
   assert(empty_clause_id != CLAUSE_UNDEF);
   vector<unsigned> clauses_to_check;
@@ -286,7 +291,7 @@ bool napsat::proof::resolution_proof::check_proof(void)
   return true;
 }
 
-void napsat::proof::resolution_proof::print_clause(unsigned index)
+void resolution_proof::print_clause(unsigned index)
 {
   assert(index < clauses.size());
   clause &c = clauses[index];
@@ -297,7 +302,7 @@ void napsat::proof::resolution_proof::print_clause(unsigned index)
   }
 }
 
-void napsat::proof::resolution_proof::print_resolution_chain(unsigned index) {
+void resolution_proof::print_resolution_chain(unsigned index) {
   assert(index < clauses.size());
   clause &c = clauses[index];
   vector<Tlit> base;
@@ -330,7 +335,7 @@ void napsat::proof::resolution_proof::print_resolution_chain(unsigned index) {
   }
 }
 
-void napsat::proof::resolution_proof::print_proof(void)
+void resolution_proof::print_proof(void)
 {
   assert(empty_clause_id != CLAUSE_UNDEF);
   vector<unsigned> clauses_to_check;
@@ -360,7 +365,7 @@ void napsat::proof::resolution_proof::print_proof(void)
   }
 }
 
-void napsat::proof::resolution_proof::print_clause_matches(void)
+void resolution_proof::print_clause_matches(void)
 {
   cout << "Clause matches:\n";
   for (unsigned i = 0; i < clause_matches.size(); i++)
@@ -368,7 +373,7 @@ void napsat::proof::resolution_proof::print_clause_matches(void)
   cout << "Empty clause: " << empty_clause_id << endl;
 }
 
-void napsat::proof::resolution_proof::print_clause_set(void)
+void resolution_proof::print_clause_set(void)
 {
   cout << "Clauses:\n";
   for (unsigned i = 0; i < clauses.size(); i++) {
@@ -378,9 +383,12 @@ void napsat::proof::resolution_proof::print_clause_set(void)
   }
 }
 
-napsat::proof::resolution_proof::~resolution_proof()
+resolution_proof::~resolution_proof()
 {
   for (clause c : clauses)
     if (c.size != 0)
       delete[] c.lits;
 }
+
+} // namespace proof
+} // namespace napsat

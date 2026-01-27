@@ -12,6 +12,7 @@
 #include "NapSAT.hpp"
 
 #include "custom-assert.hpp"
+#include "../proof/dependency_tracker.hpp"
 
 #include <iostream>
 #include <cstring>
@@ -136,10 +137,14 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       _clauses[id].watched = false;
       if (_proof)
         _proof->deactivate_clause(id);
+      if (_dependency_tracker)
+        _dependency_tracker->delete_clause(id);
+
       _deleted_clauses.push_back(id);
     }
     return CLAUSE_UNDEF;
   }
+
 
   unsigned clause_size = input_size - n_removed;
 
@@ -184,6 +189,18 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       _proof->remove_root_literals(id);
     }
   }
+  if (_dependency_tracker && external) {
+    _dependency_tracker->add_input(id);
+    // Remove the literals falsified at level 0 in the dependencies
+    if (n_removed > 0) {
+      for (unsigned i = 0; i < input_size; i++) {
+        if (lit_level(lits_input[i]) == LEVEL_ROOT) {
+          _dependency_tracker->link_dependencies(id, lit_reason(lits_input[i]));
+        }
+      }
+    }
+  }
+
 
   #if USE_OBSERVER
   if (_observer) {
@@ -263,6 +280,8 @@ void napsat::NapSAT::delete_clause(Tclause cl)
 {
   // If the clause is the reason for a literal, it cannot be deleted
   ASSERT(cl < _clauses.size());
+  ASSERT(!_clauses[cl].deleted);
+  ASSERT(!_dependency_tracker || !_clauses[cl].external);
   TSclause &clause = _clauses[cl];
   ASSERT(!is_protected(cl));
   _n_learned_clauses -= _clauses[cl].learned;
@@ -272,6 +291,8 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   NOTIFY_OBSERVER(delete_clause, cl);
   if(_proof)
     _proof->deactivate_clause(cl);
+  if (_dependency_tracker)
+    _dependency_tracker->delete_clause(cl);
 }
 
 bitset napsat::NapSAT::clause_chunks(Tclause cl)

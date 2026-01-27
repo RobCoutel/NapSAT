@@ -102,6 +102,7 @@
 #include "SAT-options.hpp"
 #include "custom-assert.hpp"
 #include "../proof/proof.hpp"
+#include "../proof/dependency_tracker.hpp"
 #include "../utils/printer.hpp"
 #include "../utils/heap.hpp"
 #include "../utils/bitset.hpp"
@@ -257,7 +258,15 @@ namespace napsat
      * @pre the last call to solve returned UNSAT
      * @return vector of literals representing the failed assumptions.
      */
-    std::vector<Tlit> failed_assumptions() const;
+    std::vector<Tlit> unsat_core() const;
+
+    /**
+     * @brief Returns the list of clauses in the unsat core after an UNSAT solve
+     * modulo assumptions.
+     * @pre the last call to solve returned UNSAT
+     * @return vector of clause identifiers representing the clauses in the unsat core modulo assumptions.
+     */
+    std::vector<Tclause> clause_unsat_core();
 
     /**
      * @brief Propagate literals in the queue and resolve conflicts if needed.
@@ -277,10 +286,18 @@ namespace napsat
     status solve();
 
     /**
+     * @brief Solves the clause set with a limit on the number of conflicts.
+     * The procedure stops when all variables are assigned, or the solver
+     * concludes that the clause set is unsatisfiable, or the number of conflicts
+     * reaches the given limit.
+     */
+    status solve(unsigned conflict_limit);
+
+    /**
      * @brief Returns the status of the solver.
      * @return status of the solver.
      */
-    status get_status();
+    status get_status() const;
 
     /**
      * @brief Decides the value of a variable. The variable must be unassigned.
@@ -842,6 +859,13 @@ public:
      */
     unsigned _purge_inc = 2;
 
+    /**
+     * @brief Conflict counter to determine when to purge level 0 literals
+     * @details The counter is incremented at each conflict. If the conflict_limit
+     * option is set, the solver will stop upon reaching the conflict limit.
+     */
+    unsigned _conflict_count = 0;
+
     /**  CHRONOLOGICAL BACKTRACKING  **/
     /**
      * @brief Buffer used to reorder the backtracked variables.
@@ -927,6 +951,13 @@ public:
      * builds a resolution proof for unsatisfiability.
     */
     proof::resolution_proof* _proof = nullptr;
+
+    /**
+     * @brief Dependency tracker of the solver. If _dependency_tracker is not
+     * nullptr, the solver tracks dependencies of learned clauses.
+     * @details The dependency tracker is used to compute the UNSAT cores
+     */
+    proof::dependency_tracker* _dependency_tracker = nullptr;
 
     /**  SMT SYNCHRONIZATION  **/
     /**

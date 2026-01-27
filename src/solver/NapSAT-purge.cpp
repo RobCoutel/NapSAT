@@ -221,6 +221,11 @@ void napsat::NapSAT::purge_clauses()
       _proof->deactivate_clause(cl);
       _proof->finalize_resolution(cl, lits, clause.size);
     }
+    if (_dependency_tracker && previous_size != clause.size) {
+      for (unsigned j = clause.size; j < previous_size; j++) {
+        _dependency_tracker->link_dependencies(cl, lit_reason(clause.lits[j]));
+      }
+    }
 
     if (clause.size == 2) {
       _binary_watches[lits[0]].push_back(TSwatch(cl, lits[1]));

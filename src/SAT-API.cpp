@@ -15,7 +15,7 @@
 
 #include <iostream>
 
-using namespace napsat;
+namespace napsat {
 
 NapSAT* create_solver(unsigned n_var, unsigned n_clauses, options& opt)
 {
@@ -88,6 +88,12 @@ status solve(NapSAT* solver)
   return solver->solve();
 }
 
+status solve_limited(NapSAT* solver, unsigned conflict_limit)
+{
+  assert(solver != nullptr);
+  return solver->solve(conflict_limit);
+}
+
 status get_status(NapSAT* solver)
 {
   return solver->get_status();
@@ -136,6 +142,12 @@ bool is_root_level(const NapSAT* solver, Tvar var)
   return lvl == LEVEL_ROOT;
 }
 
+void suggest_polarity(NapSAT* solver, Tlit lit, bool polarity)
+{
+  assert(solver != nullptr);
+  solver->suggest_polarity(lit, polarity);
+}
+
 void print_statistics(const NapSAT* solver)
 {
 #if USE_STATISTICS
@@ -162,20 +174,30 @@ bool check_proof(NapSAT* solver)
   return solver->check_proof();
 }
 
-std::vector<Tlit> napsat::failed_assumptions(const NapSAT* solver)
+std::vector<Tlit> unsat_core(const NapSAT* solver)
 {
   assert(solver != nullptr);
-  return solver->failed_assumptions();
+  assert(solver->get_status() == napsat::status::UNSAT);
+  return solver->unsat_core();
 }
 
-Tval napsat::get_variable_value(const NapSAT* solver, Tvar var)
+std::vector<Tclause> clause_unsat_core(NapSAT* solver)
+{
+  assert(solver != nullptr);
+  assert(solver->get_status() == napsat::status::UNSAT);
+  return solver->clause_unsat_core();
+}
+
+Tval get_variable_value(const NapSAT* solver, Tvar var)
 {
   assert(solver != nullptr);
   return solver->var_value(var);
 }
 
-unsigned napsat::variables_count(const NapSAT* solver)
+unsigned variables_count(const NapSAT* solver)
 {
   assert(solver != nullptr);
   return solver->var_count();
+}
+
 }

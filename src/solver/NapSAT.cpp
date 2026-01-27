@@ -357,8 +357,9 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 
   if (options.build_proof)
     _proof = new napsat::proof::resolution_proof();
-  else
-    _proof = nullptr;
+
+  if (options.record_dependencies)
+    _dependency_tracker = new napsat::proof::dependency_tracker();
 
   if (_options.graph_backtracking) {
     allocate_chunks(4032);
@@ -383,6 +384,8 @@ NapSAT::~NapSAT()
 #endif
   if (_proof)
     delete _proof;
+  if (_dependency_tracker)
+    delete _dependency_tracker;
   delete[] _lit_buffer;
 }
 
@@ -486,6 +489,10 @@ bool NapSAT::propagate()
     if (!_conflicts.empty()
     && (!_options.exhaustive_conflict_repair || _n_propagated_lits == _trail.size())
     && (!_options.partial_conflict_repair || stop_propagation)) {
+      _conflict_count++;
+      if (_options.conflict_limit >= 0 && _conflict_count > _options.conflict_limit) {
+        return false;
+      }
       repair_conflicts();
 
       if (_status == UNSAT) {
@@ -582,7 +589,17 @@ status NapSAT::solve()
   return _status;
 }
 
-status NapSAT::get_status()
+status napsat::NapSAT::solve(unsigned conflict_limit)
+{
+  double old_conflict_limit = _options.conflict_limit;
+  _options.conflict_limit = conflict_limit;
+  _conflict_count = 0;
+  status result = solve();
+  _options.conflict_limit = old_conflict_limit;
+  return result;
+}
+
+status NapSAT::get_status() const
 {
   return _status;
 }

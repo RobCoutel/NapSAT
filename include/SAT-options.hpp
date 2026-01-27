@@ -261,6 +261,13 @@ namespace napsat
     bool print_proof = false;
 
     /**
+     * @brief If true, for each learned clause, the solver will record on which input clauses it depends.
+     * @note If this option is enabled, deletion of input clauses is disabled (even when satisfied at level 0).
+     * @warning This option must be enabled to produce clause UNSAT cores.
+     */
+    bool record_dependencies = false;
+
+    /**
      * @brief File containing the commands to be executed by the solver.
      * @requires interactive is on
      * @alias -commands
@@ -321,6 +328,12 @@ namespace napsat
      * @alias -pcr
      */
     bool partial_conflict_repair = false;
+
+    /**
+     * @brief Limit on the number of conflicts before stopping the solve.
+     * @details If set to a negative value, there is no limit.
+     */
+    double conflict_limit = -1.0;
 
     /**
      * @brief If this option is true, the solver will backtrack the chunks that were analyzed to learn clauses. Otherwise, the solver will always backtrack the smallest set of chunks, if possible.

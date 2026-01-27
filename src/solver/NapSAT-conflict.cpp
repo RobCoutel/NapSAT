@@ -517,6 +517,8 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
   ASSERT(reason != CLAUSE_UNDEF);
   if (_proof)
     _proof->link_resolution(lit_neg(lit), reason);
+  if (_dependency_tracker)
+    _dependency_tracker->track_dependency(reason);
 
   const Tlit* reason_lits = clause_lits(reason);
   for (unsigned j = 1; j < clause_size(reason); j++) {
@@ -595,15 +597,23 @@ void NapSAT::analyze_conflict_impl(T level) {
     if(lit_is_required_in_learned_clause(lit)) {
       _lit_buffer[_lit_buffer_size++] = lit_neg(lit);
     } else {
-      if (_proof) {
+      if (_proof)
         _proof->link_resolution(lit_neg(lit), lit_reason(lit));
-      }
+      if (_dependency_tracker)
+        _dependency_tracker->track_dependency(lit_reason(lit));
     }
   }
 
   // clean up the literals at level 0
-  if (_proof) {
+  if (_proof)
     prove_root_literal_removal(_lit_buffer, _lit_buffer_size);
+  if (_dependency_tracker) {
+    for (unsigned i = 0; i < _lit_buffer_size; i++) {
+      Tlit lit = _lit_buffer[i];
+      if (lit_level(lit) == LEVEL_ROOT) {
+        _dependency_tracker->track_dependency(lit_reason(lit));
+      }
+    }
   }
 
   unsigned k = 0;
@@ -909,6 +919,8 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
       _proof->start_resolution_chain();
       _proof->link_resolution(LIT_UNDEF, conflict);
     }
+    if (_dependency_tracker)
+      _dependency_tracker->start_tracking();
 
     T bt_save = bt;
     do {
@@ -927,9 +939,11 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
 
       // we need to continue the analysis with the missed implication
       // fill in the literal buffer
-      if (_proof) {
+      if (_proof)
         _proof->link_resolution(uip, lazy_reason);
-      }
+      if (_dependency_tracker)
+        _dependency_tracker->track_dependency(lazy_reason);
+
       const Tlit* reason_lits = clause_lits(lazy_reason);
       for (unsigned j = 1; j < clause_size(lazy_reason); j++) {
         _lit_buffer[_lit_buffer_size++] = reason_lits[j];
@@ -968,6 +982,8 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
     if (redundant) {
       if (_proof)
         _proof->cancel_resolution_chain();
+      if (_dependency_tracker)
+        _dependency_tracker->cancel_tracking();
       _lit_buffer_size = 0;
       continue;
     }
@@ -979,9 +995,11 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
               [this](Tlit a, Tlit b) { return utility_heuristic(a) > utility_heuristic(b); });
     Tclause id = next_clause_id(_lit_buffer_size);
     learned_clauses.push_back({id, learned_clause});
-    if (_proof) {
+    if (_proof)
       _proof->finalize_resolution(id, learned_clause.data(), learned_clause.size());
-    }
+    if (_dependency_tracker)
+      _dependency_tracker->finalize_tracking(id);
+
     if (_lit_buffer_size == 0) {
       _status = UNSAT;
       return;
@@ -1089,7 +1107,7 @@ void napsat::NapSAT::graph_repair()
       NOTIFY_STAT(_n_backtrack_forced_chunks);
     }
   } else {
-    // we did learn, so we backtrack whatever we want (i.e. the smalles chunk)
+    // we did learn, so we backtrack whatever we want (i.e. the smallest chunk)
     backtrack(best.chunks);
     if (best.chunks != analyzed.chunks) {
       NOTIFY_STAT(_n_backtrack_better_chunks);
