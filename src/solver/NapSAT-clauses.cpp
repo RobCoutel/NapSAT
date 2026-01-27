@@ -232,11 +232,18 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     if (lit_undef(lits[0]))
       imply_literal(lits[0], id);
     if (lit_true(lits[0])) {
-      if (_options.lazy_strong_chronological_backtracking)
+      if (_options.lazy_strong_chronological_backtracking || _options.graph_backtracking)
         reimply_literal(lits[0], id);
+      else {
+        // TODO need to backtrack properly here
+        ASSERT(false);
+      }
       return id;
     }
     if (lit_false(lits[0])) {
+      if (_status == SAT)
+        _status = UNKNOWN;
+
       _conflicts.push_back(id);
     }
     return id;
@@ -266,6 +273,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       imply_literal(lits[0], id);
     } else if (lit_false(lits[0])) {
       _conflicts.push_back(id);
+      if (_status == SAT)
+        _status = UNKNOWN;
     } else if (_options.lazy_strong_chronological_backtracking) {
       ASSERT(lit_true(lits[0]));
       reimply_literal(lits[0], id);

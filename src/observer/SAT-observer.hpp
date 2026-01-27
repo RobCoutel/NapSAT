@@ -79,8 +79,16 @@ namespace napsat::gui
     struct variable
     {
       variable() = default;
-      variable(napsat::Tval value, napsat::Tlevel level, napsat::Tclause reason, bool active) : value(value), level(level), reason(reason), active(active) {}
-      variable(const variable& other) : value(other.value), level(other.level), reason(other.reason), active(other.active) {}
+      variable(napsat::Tval value, napsat::Tlevel level, napsat::Tclause reason, bool active) :value(value), level(level), reason(reason), active(active) {}
+      variable(const variable& other) :
+        value(other.value),
+        level(other.level),
+        reason(other.reason),
+        active(other.active),
+        propagated(other.propagated),
+        constrained(other.constrained),
+        locked(other.locked),
+        alias(other.alias) {}
 
       /**
        * @brief The truth value of the variable. It can be either true, false, or undefined.

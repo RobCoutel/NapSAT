@@ -247,6 +247,10 @@ void napsat::NapSAT::var_allocate(Tvar var)
   if (_vars.size() >= var + 1)
     return;
 
+  if (_status == SAT) {
+    _status = UNKNOWN;
+  }
+
   unsigned old_size = _vars.size();
   _vars.resize(var + 1);
   for (Tvar i = old_size; i <= var; i++) {
@@ -353,6 +357,8 @@ string NapSAT::clause_to_string(Tclause cl) const
     s += "d";
   }
   s += to_string(cl) + ": ";
+  ASSERT(clause_size(cl) > 0);
+  ASSERT(clause_size(cl) < 1000000);
   for (const Tlit* i = clause_lits(cl); i < clause_lits(cl) + clause_size(cl); i++) {
     if (i == clause_lits(cl) + clause_size(cl))
       s += "| ";
@@ -403,8 +409,14 @@ void NapSAT::print_trail()
       cout << " / (lazy) ";
       print_clause(lit_lazy_reason(lit));
     }
-    cout << " (γ = " << lit_chunks(lit).to_string() << ", ";
-    cout <<   "η = " << lit_cross_chunks(lit).to_string() << ")";
+    if (_options.graph_backtracking) {
+      cout << " (γ = " << lit_chunks(lit).to_string() << ", ";
+      cout <<   "η = " << (lit_cross_chunks(lit) - lit_chunks(lit)).to_string();
+      if (lit_decision(lit) && lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+        cout << ", ξ = " << _chunks[lit_to_var(lit)].missed_implication.to_string();
+      }
+      cout << ")";
+    }
     // if (lit_propagated(lit)) {
     //   cout << " (propagated)";
     // }
@@ -495,7 +507,7 @@ void napsat::NapSAT::print_clause_set()
   Tclause i = 0;
   while (i < _clauses.size()) {
     unsigned j = max_clause_width;
-    while (j < TERMINAL_WIDTH && i < _clauses.size()) {
+    do {
       if (_clauses[i].deleted) {
         i++;
         continue;
@@ -505,11 +517,13 @@ void napsat::NapSAT::print_clause_set()
       string spaces = "";
 
       ASSERT(string_length_escaped(clause_str) <= max_clause_width);
+      ASSERT(max_clause_width >= string_length_escaped(clause_str));
       for (unsigned k = 0; k < max_clause_width - string_length_escaped(clause_str); k++)
         spaces += " ";
-      cout << spaces;
+      if (j + max_clause_width < TERMINAL_WIDTH)
+        cout << spaces;
       j += max_clause_width;
-    }
+    } while (j < TERMINAL_WIDTH && i < _clauses.size());
     cout << endl;
   }
 }

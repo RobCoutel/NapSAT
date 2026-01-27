@@ -445,6 +445,10 @@ std::string napsat::gui::observer::variable_to_string(napsat::Tvar var) const
   string s = "";
   s += std::to_string(var) + ": ";
   s += pad(var, _variables.size());
+  if (_variables[var].propagated)
+    s += " (p)";
+  else
+    s += " (u)";
   if (_variables[var].alias != "")
     s += _variables[var].alias + ": ";
   else
@@ -754,8 +758,8 @@ void napsat::gui::observer::print_variables()
   vector<string> variables_str;
   unsigned max_var_str_length = 0;
   for (Tvar var = 0; var < _variables.size(); var++) {
-    if (!_variables[var].constrained)
-      continue;
+    // if (!_variables[var].constrained)
+    //   continue;
     string variable_str = variable_to_string(var);
     max_var_str_length = max(max_var_str_length, string_length_escaped(variable_str));
     variables_str.push_back(variable_str);

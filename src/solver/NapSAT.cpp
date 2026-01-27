@@ -491,6 +491,7 @@ bool NapSAT::propagate()
     && (!_options.partial_conflict_repair || stop_propagation)) {
       _conflict_count++;
       if (_options.conflict_limit >= 0 && _conflict_count > _options.conflict_limit) {
+        LOG_INFO("Conflict limit reached: " + std::to_string(_options.conflict_limit));
         return false;
       }
       repair_conflicts();
@@ -507,6 +508,7 @@ bool NapSAT::propagate()
     }
   }
 
+  cout << "Propagation complete." << endl;
   if (_trail.size() == _vars.size() - 1) {
     _status = SAT;
     return false;
@@ -531,6 +533,22 @@ static inline void print_bt_option(const options &options) {
 
 status NapSAT::solve()
 {
+  cout << "Starting solving process..." << endl;
+  cout << "Current status before solving: ";
+  switch (_status) {
+    case SAT:
+      cout << "SAT" << endl;
+      break;
+    case UNSAT:
+      cout << "UNSAT" << endl;
+      break;
+    case UNKNOWN:
+      cout << "UNKNOWN" << endl;
+      break;
+    case ERROR:
+      cout << "ERROR" << endl;
+      break;
+  }
   if (_status != UNKNOWN)
     return _status;
   print_bt_option(_options);
@@ -648,6 +666,12 @@ napsat::Tclause NapSAT::finalize_clause()
 {
   ASSERT(_writing_clause);
   Tclause cl = internal_add_clause(_lit_buffer, _lit_buffer_size, false, true);
+  cout << "Finalizing clause in NapSAT: ";
+  if (cl != CLAUSE_UNDEF) {
+    cout << clause_to_string(cl) << endl;
+  } else {
+    cout << "deleted upon addition by the solver." << endl;
+  }
   _writing_clause = false;
   _lit_buffer_size = 0;
   return cl;

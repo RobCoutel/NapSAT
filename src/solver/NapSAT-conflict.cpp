@@ -24,6 +24,8 @@ using namespace napsat;
 
 void napsat::NapSAT::subsumption_filter_chunks(std::vector<bitset>& possibilities)
 {
+  if (possibilities.size() <= 1)
+    return;
   for (size_t i = 0; i < possibilities.size() - 1; i++) {
     for (size_t j = i + 1; j < possibilities.size(); j++) {
       if (possibilities[i] >= possibilities[j]) {
@@ -92,7 +94,6 @@ void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(std::vect
     possibilities.pop_back();
     original_size--;
   }
-
   subsumption_filter_chunks(possibilities);
 }
 
@@ -178,14 +179,18 @@ void napsat::NapSAT::fix_conflicts_and_learned_in_order(const std::vector<std::p
 
     if (existing_clause_is_better) {
       examined_conflicts[lowest_id] = true;
+
       Tclause conflict = conflicts[lowest_id];
-      fix_watched_literals(conflict);
       Tlit* lits = clause_lits(conflict);
-      if (_options.graph_backtracking
-       && lit_true(lits[0]) && lit_false(lits[1])) {
-        lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
+      if (clause_size(conflict) > 2) {
+        fix_watched_literals(conflict);
+        if (_options.graph_backtracking
+         && lit_true(lits[0]) && lit_false(lits[1])) {
+          lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
+        }
       }
-      if (lit_undef(lits[0]) && lit_false(lits[1])) {
+      if (lit_undef(lits[0])
+       && (clause_size(conflict) == 1 || lit_false(lits[1]))) {
         imply_literal(lits[0], conflict);
       }
       if (lit_false(lits[0])) {
@@ -673,7 +678,8 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
     }
   }
   ASSERT(highest_lit != nullptr);
-  ASSERT(second_highest_lit != nullptr);
+  ASSERT_MSG(second_highest_lit != nullptr,
+             "Conflict clause " + clause_to_string(conflict) + " has only one literal?");
   ASSERT(highest_lit != second_highest_lit);
 
   if (second_highest_lit == lits) {
@@ -716,6 +722,8 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
 
 void NapSAT::repair_conflicts()
 {
+  if (clause_size(_conflicts[0]) == 1)
+    print_trail();
   NOTIFY_STAT(_n_conflict_repair);
   /**
    * Precondition:
@@ -727,7 +735,12 @@ void NapSAT::repair_conflicts()
    *    δ(c₁) = δ(C)
    */
   ASSERT(!_conflicts.empty());
-  ASSERT(_options.exhaustive_conflict_repair || _options.partial_conflict_repair || _conflicts.size() == 1);
+  ASSERT(_options.exhaustive_conflict_repair
+      || _options.partial_conflict_repair
+      || _conflicts.size() == 1
+      || any_of(_conflicts.begin(), _conflicts.end(), [this](Tclause c){
+    return _clauses[c].external;
+  }));
 
   // in general, a conflict may appear twice in the list.
   // clean up duplicates
@@ -1025,6 +1038,7 @@ void napsat::NapSAT::graph_repair()
   }
 
   compute_backtrack_possibilities(conflict_chunks, possibilities);
+  LOG_INFO("Found " + std::to_string(possibilities.size()) + " backtrack possibilities to repair " + std::to_string(_conflicts.size()) + " conflicts.");
   if (possibilities.empty()) {
     // we cannot repair the conflicts
     _status = UNSAT;

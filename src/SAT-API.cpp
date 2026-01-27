@@ -91,7 +91,9 @@ status solve(NapSAT* solver)
 status solve_limited(NapSAT* solver, unsigned conflict_limit)
 {
   assert(solver != nullptr);
-  return solver->solve(conflict_limit);
+  status s = solver->solve(conflict_limit);
+  // solver->print_trail();
+  return s;
 }
 
 status get_status(NapSAT* solver)
