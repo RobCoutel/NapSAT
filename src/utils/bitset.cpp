@@ -305,25 +305,25 @@ static bitset::bitstore combine(const bitset::bitstore &a, const bitset::bitstor
 bitset bitset::operator&(const bitset &other) const {  // check metadata
   assert(capacity() == other.capacity());
   const auto o = [](uint64_t a, uint64_t b) { return a & b; };
-  return bitset(std::move(combine(_bits, other._bits, o)));
+  return bitset(combine(_bits, other._bits, o));
 }
 
 bitset bitset::operator|(const bitset &other) const {
   assert(capacity() == other.capacity());
   const auto o = [](uint64_t a, uint64_t b) { return a | b; };
-  return bitset(std::move(combine(_bits, other._bits, o)));
+  return bitset(combine(_bits, other._bits, o));
 }
 
 bitset bitset::operator^(const bitset &other) const {
   assert(capacity() == other.capacity());
   const auto o = [](uint64_t a, uint64_t b) { return a ^ b; };
-  return bitset(std::move(combine(_bits, other._bits, o)));
+  return bitset(combine(_bits, other._bits, o));
 }
 
 bitset bitset::operator-(const bitset &other) const {
   assert(capacity() == other.capacity());
   const auto o = [](uint64_t a, uint64_t b) { return a ^ (a & b); };
-  return bitset(std::move(combine(_bits, other._bits, o)));
+  return bitset(combine(_bits, other._bits, o));
 }
 
 static void update(bitset::bitstore &a, const bitset::bitstore &b, const op_t op) {
@@ -346,11 +346,11 @@ static void update(bitset::bitstore &a, const bitset::bitstore &b, const op_t op
       uint64_t v = op(a1, a2);
       if (LB(v1)) {
         *it1 = v;
-        it1++;
+        ++it1;
         o |= (v ? MSK_HI(1) : 0);
       } else if (v) {
         it1 = a.insert(it1, v);
-        it1++;
+        ++it1;
         o |= MSK_HI(1);
       }
     }
@@ -379,6 +379,12 @@ void bitset::operator|=(const bitset &other) {
 void bitset::operator^=(const bitset &other) {
   assert(capacity() == other.capacity());
   const auto o = [](uint64_t a, uint64_t b) { return a ^ b; };
+  update(_bits, other._bits, o);
+}
+
+void bitset::operator-=(const bitset &other) {
+  assert(capacity() == other.capacity());
+  const auto o = [](uint64_t a, uint64_t b) { return a ^ (a & b); };
   update(_bits, other._bits, o);
 }
 
@@ -434,7 +440,7 @@ void bitset::iterator::next() {
   }
 
   // no more bits, get the next data byte
-  _it_d++;
+  ++_it_d;
   // no more bytes, we're at the end
   if (_it_d == _b._bits.cend()) {
     _pos_d = 0;
@@ -454,7 +460,7 @@ void bitset::iterator::next() {
   // next metadata word
   do {
     assert(*_it_m & M_NEXT_MSK);
-    _it_m++;
+    ++_it_m;
   } while (!first_bit(*_it_m & M_DATA_MSK, _pos_m));
 
 }
@@ -470,12 +476,12 @@ bitset::iterator bitset::iterator::operator++(int) {
   return o;
 }
 
-bool bitset::iterator::operator==(const bitset::iterator &other) {
+bool bitset::iterator::operator==(const bitset::iterator &other) const {
   assert(std::addressof(other._b) == std::addressof(_b));
   return _it_d == other._it_d && _pos_d == other._pos_d;
 }
 
-bool bitset::iterator::operator!=(const bitset::iterator &other) {
+bool bitset::iterator::operator!=(const bitset::iterator &other) const {
   return !(*this == other);
 }
 

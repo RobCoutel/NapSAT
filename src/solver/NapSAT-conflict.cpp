@@ -69,7 +69,7 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
     bitset merged_chunks = _chunks[*i].missed_implication;
     if (_n_assumptions > 0) {
       // the assumptions cannot be backtracked, and are removed from the possibilities
-      merged_chunks = merged_chunks - _locked_chunks;
+      merged_chunks -= _locked_chunks;
     }
 
     for (auto j = merged_chunks.cbegin(); j != merged_chunks.cend(); ++j) {
@@ -328,7 +328,7 @@ void napsat::NapSAT::compute_backtrack_possibilities(std::vector<bitset>& confli
 
   if (_n_assumptions > 0) {
     for (bitset& chunks : conflict_chunks) {
-      chunks = chunks - _locked_chunks;
+      chunks -= _locked_chunks;
       if (chunks.empty()) { // conflict cannot be solved
         return;
       }

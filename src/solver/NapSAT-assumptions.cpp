@@ -49,7 +49,7 @@ bool NapSAT::forget_assumption(Tlit assumption)
     ASSERT(lit_decision(assumption));
     // unlock the chunk of the literal
     ASSERT(lit_chunks(assumption).count() == 1);
-    _locked_chunks = _locked_chunks - lit_chunks(assumption);
+    _locked_chunks -= lit_chunks(assumption);
     lit_unlock(assumption);
   }
   if (_status == UNSAT) {

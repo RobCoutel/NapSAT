@@ -82,6 +82,7 @@ public:
   void operator&=(const bitset& other);
   void operator|=(const bitset& other);
   void operator^=(const bitset& other);
+  void operator-=(const bitset& other);
 
   // comparison
   bool operator==(const bitset& other) const;
@@ -109,8 +110,8 @@ public:
     unsigned operator*() const;
     iterator& operator++();
     iterator operator++(int);
-    bool operator==(const iterator &other);
-    bool operator!=(const iterator &other);
+    bool operator==(const iterator &other) const;
+    bool operator!=(const iterator &other) const;
 
   private:
     friend bitset;
