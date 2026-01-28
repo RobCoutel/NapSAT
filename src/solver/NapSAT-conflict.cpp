@@ -151,8 +151,7 @@ void napsat::NapSAT::fix_conflicts_and_learned_in_order(const std::vector<std::p
       unsigned n_undef = 0;
       for (unsigned j = 0; j < clause_size(conflict); j++) {
         if (lit_undef(lits[j])) {
-          n_undef++;
-          if (n_undef > 1) {
+          if (n_undef++ > 1) {
             // we still need to fix the clause so we need to have a lower less than LEVEL_UNDEF
             level = LEVEL_UNDEF - 1;
           }
@@ -182,7 +181,7 @@ void napsat::NapSAT::fix_conflicts_and_learned_in_order(const std::vector<std::p
 
       Tclause conflict = conflicts[lowest_id];
       Tlit* lits = clause_lits(conflict);
-      if (clause_size(conflict) > 2) {
+      if (clause_size(conflict) >= 2) {
         fix_watched_literals(conflict);
         if (_options.graph_backtracking
          && lit_true(lits[0]) && lit_false(lits[1])) {
@@ -722,8 +721,6 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
 
 void NapSAT::repair_conflicts()
 {
-  if (clause_size(_conflicts[0]) == 1)
-    print_trail();
   NOTIFY_STAT(_n_conflict_repair);
   /**
    * Precondition:
@@ -925,7 +922,8 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
     Tlit* lits = clause_lits(conflict);
     for (unsigned j = 0; j < clause_size(conflict); j++) {
       Tlit lit = lits[j];
-      ASSERT(lit_false(lit));
+      ASSERT_MSG(lit_false(lit),
+                 "Conflict clause " + clause_to_string(conflict) + " is not conflicting?");
       _lit_buffer[_lit_buffer_size++] = lit;
     }
     if (_proof) {
@@ -1038,7 +1036,7 @@ void napsat::NapSAT::graph_repair()
   }
 
   compute_backtrack_possibilities(conflict_chunks, possibilities);
-  LOG_INFO("Found " + std::to_string(possibilities.size()) + " backtrack possibilities to repair " + std::to_string(_conflicts.size()) + " conflicts.");
+  // LOG_INFO("Found " + std::to_string(possibilities.size()) + " backtrack possibilities to repair " + std::to_string(_conflicts.size()) + " conflicts.");
   if (possibilities.empty()) {
     // we cannot repair the conflicts
     _status = UNSAT;

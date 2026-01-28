@@ -70,7 +70,10 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
       _free_chunks.pop_back();
       svar.chunks.set(chunk_number, true);
       _chunks[chunk_number].decision = var;
-      ASSERT(_chunks.size() == solver_level() + _free_chunks.size());
+      ASSERT_MSG(_chunks.size() == solver_level() + _free_chunks.size(),
+        "Chunks size: " + std::to_string(_chunks.size()) +
+        "\nSolver level: " + std::to_string(solver_level()) +
+        "\nFree chunks size: " + std::to_string(_free_chunks.size()));
     }
   }
   else if (reason == CLAUSE_LAZY) {
@@ -248,12 +251,34 @@ double napsat::NapSAT::default_cost(Tlit lit) {
   return 1;
 }
 
+static inline void print_bt_option(const options &options) {
+  string bt = "non-chronological";
+  if (options.chronological_backtracking)
+    bt = "chronological";
+  else if (options.weak_chronological_backtracking)
+    bt = "weak-chronological";
+  else if (options.restoring_strong_chronological_backtracking)
+    bt = "restoring-strong-chronological";
+  else if (options.lazy_strong_chronological_backtracking)
+    bt = "lazy-strong-chronological";
+  else if (options.graph_backtracking)
+    bt = "graph";
+
+#ifndef NDEBUG
+  bt += " (debug)";
+#else
+  bt += " (release)";
+#endif
+  LOG_INFO("Using backtracking strategy: " + bt);
+}
+
 /*****************************************************************************/
 /*                            Public interface                               */
 /*****************************************************************************/
 napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options) :
   _options(options)
 {
+  print_bt_option(_options);
 #if USE_STATISTICS
   if (options.print_stats || options.print_live_stats) {
     _statistics = new napsat::statistics(options);
@@ -433,12 +458,7 @@ napsat::gui::observer* napsat::NapSAT::get_observer() const
 
 bool NapSAT::propagate()
 {
-  if (!_conflicts.empty()) {
-    repair_conflicts();
-    if (_status == UNSAT) {
-      return false;
-    }
-  }
+  ASSERT(_conflicts.empty());
   // ASSERT(watch_lists_complete());
   // ASSERT(watch_lists_minimal());
   if (_status != UNKNOWN)
@@ -508,7 +528,6 @@ bool NapSAT::propagate()
     }
   }
 
-  cout << "Propagation complete." << endl;
   if (_trail.size() == _vars.size() - 1) {
     _status = SAT;
     return false;
@@ -516,43 +535,20 @@ bool NapSAT::propagate()
   return true;
 }
 
-static inline void print_bt_option(const options &options) {
-  string bt = "non-chronological";
-  if (options.chronological_backtracking)
-    bt = "chronological";
-  else if (options.weak_chronological_backtracking)
-    bt = "weak-chronological";
-  else if (options.restoring_strong_chronological_backtracking)
-    bt = "restoring-strong-chronological";
-  else if (options.lazy_strong_chronological_backtracking)
-    bt = "lazy-strong-chronological";
-  else if (options.graph_backtracking)
-    bt = "graph";
-  LOG_INFO("Using backtracking strategy: " + bt);
-}
+static unsigned solve_cycle = 0;
 
 status NapSAT::solve()
 {
-  cout << "Starting solving process..." << endl;
-  cout << "Current status before solving: ";
-  switch (_status) {
-    case SAT:
-      cout << "SAT" << endl;
-      break;
-    case UNSAT:
-      cout << "UNSAT" << endl;
-      break;
-    case UNKNOWN:
-      cout << "UNKNOWN" << endl;
-      break;
-    case ERROR:
-      cout << "ERROR" << endl;
-      break;
-  }
+  cout << "Starting solve call #" << ++solve_cycle << "\r";
   if (_status != UNKNOWN)
     return _status;
-  print_bt_option(_options);
   while (true) {
+    if (!_conflicts.empty()) {
+      repair_conflicts();
+      if (_status == UNSAT) {
+        return _status;
+      }
+    }
     NOTIFY_OBSERVER(check_invariants);
     if (!propagate()) {
       if (_status == UNSAT) {
@@ -666,12 +662,6 @@ napsat::Tclause NapSAT::finalize_clause()
 {
   ASSERT(_writing_clause);
   Tclause cl = internal_add_clause(_lit_buffer, _lit_buffer_size, false, true);
-  cout << "Finalizing clause in NapSAT: ";
-  if (cl != CLAUSE_UNDEF) {
-    cout << clause_to_string(cl) << endl;
-  } else {
-    cout << "deleted upon addition by the solver." << endl;
-  }
   _writing_clause = false;
   _lit_buffer_size = 0;
   return cl;

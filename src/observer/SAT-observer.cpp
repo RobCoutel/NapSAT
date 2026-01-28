@@ -153,7 +153,7 @@ bool observer::notify(notification* notification)
   if (!_check_invariants_only) {
     if (_breakpoints.find(_location) != _breakpoints.end()) {
       cout << "Breakpoint reached" << endl;
-      _display->notify_change(1);
+      _display->notify_change(0);
     }
     else
       _display->notify_change(notification->get_event_level(this));

@@ -233,10 +233,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       imply_literal(lits[0], id);
     if (lit_true(lits[0])) {
       if (_options.lazy_strong_chronological_backtracking || _options.graph_backtracking)
-        reimply_literal(lits[0], id);
+        reimply_literal_root(lits[0], id);
       else {
         // TODO need to backtrack properly here
-        ASSERT(false);
       }
       return id;
     }

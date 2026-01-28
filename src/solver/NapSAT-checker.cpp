@@ -134,6 +134,34 @@ bool napsat::NapSAT::trail_variable_consistency()
   return success;
 }
 
+bool napsat::NapSAT::decision_index_consistency()
+{
+  bool success = true;
+  for (size_t i = 0; i < _decision_index.size(); i++) {
+    if (_decision_index[i] >= _trail.size()) {
+      success = false;
+      LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << i << ", index " << _decision_index[i] << " is out of bounds (trail size: " << _trail.size() << ")");
+      continue;
+    }
+    Tlit lit = _trail[_decision_index[i]];
+    if (!lit_decision(lit)) {
+      success = false;
+      LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << i << ", index " << _decision_index[i] << " points to literal " << lit_to_string(lit) << " which is not a decision literal");
+    }
+    if (lit_level(lit) != i + 1) {
+      success = false;
+      LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << i + 1 << ", index " << _decision_index[i] << " points to literal " << lit_to_string(lit) << " which is at level " << lit_level(lit));
+    }
+  }
+  if (!success) {
+    // print the _decision_index for debugging
+    for (size_t i = 0; i < _decision_index.size(); i++) {
+      cout << "_decision_index[" << i << "] = " << _decision_index[i] << endl;
+    }
+  }
+  return success;
+}
+
 bool napsat::NapSAT::is_watched(Tlit lit, Tclause cl)
 {
   ASSERT(cl != CLAUSE_UNDEF);

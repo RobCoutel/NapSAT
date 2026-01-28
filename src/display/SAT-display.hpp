@@ -33,7 +33,7 @@ namespace napsat::gui
     /**
      * @brief The granularity level of the display. It decided how often the display is refreshed and asks for user input.
      */
-    unsigned _display_level = 1;
+    unsigned _display_level = 0;
 
     /**
      * @brief Whether the display has been updated since the last user input.

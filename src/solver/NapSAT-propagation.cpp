@@ -102,6 +102,96 @@ Tlit* napsat::NapSAT::advanced_graph_replacement(Tlit* lits, unsigned size) cons
   return top_element;
 }
 
+void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
+{
+  ASSERT(decision_index_consistency());
+
+  ASSERT_MSG(_options.graph_backtracking,
+    "TODO: reimply_literal_root is only implemented for graph backtracking");
+  ASSERT(lit_true(lit));
+  ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
+  ASSERT(lit == clause_lits(reason)[0]);
+  ASSERT(clause_size(reason) == 1);
+  if (lit_level(lit) == LEVEL_ROOT)
+    return;
+
+  // search the literal in the trail
+  Tlevel old_level = lit_level(lit);
+  ASSERT(old_level != LEVEL_UNDEF);
+  // first literal at level after the decision (we do not want to count the decision to increment the level)
+  size_t pos = _decision_index[old_level-1];
+  for (; pos < _trail.size(); pos++)
+    if (_trail[pos] == lit)
+      break;
+  ASSERT(pos < _trail.size());
+
+  // if the literal is a decision, we will need to update the decision index
+  bool squash_level = lit_decision(lit);
+  if (squash_level) {
+    // we need to free the chunk of the decision
+    ASSERT(lit_chunks(lit).count() == 1);
+    Tchunk ck = *lit_chunks(lit).cbegin();
+    _locked_chunks.set(ck, false);
+    _free_chunks.push_back(ck);
+    _chunks[ck].decision = VAR_UNDEF;
+    _chunks[ck].missed_implication.clear();
+    _decision_index.resize(_decision_index.size() - 1);
+  }
+
+  // update the level of the literal to root
+  lit_level(lit) = LEVEL_ROOT;
+  NOTIFY_OBSERVER(update_level, lit, LEVEL_ROOT);
+  lit_reason(lit) = reason;
+  NOTIFY_OBSERVER(update_reason, lit, reason);
+  bitset old_chunks = lit_chunks(lit);
+  lit_chunks(lit).clear();
+
+  // fix the trail
+  for (size_t i = pos + 1; i < _trail.size(); i++) {
+    Tlit l = _trail[i];
+
+    if (squash_level) {
+      if (lit_level(l) > old_level) {
+        lit_level(l)--;
+        NOTIFY_OBSERVER(update_level, l, lit_level(l));
+      }
+      lit_cross_chunks(l).set(*old_chunks.cbegin(), false);
+    }
+
+    if (lit_decision(l)) {
+      ASSERT_MSG(lit_level(l) >= old_level,
+                 "Literal " + lit_to_string(l) + " at position " + std::to_string(i) +
+                 " should have level greater than " + std::to_string(old_level) +
+                 " but has level " + std::to_string(lit_level(l)));
+      if (squash_level) {
+        _decision_index[lit_level(l) - 1] = i;
+      }
+      continue;
+    }
+
+    if (lit_chunks(l) >= old_chunks) {
+      Tlevel recomputed_level = LEVEL_ROOT;
+      lit_chunks(l).clear();
+      const Tclause reason = lit_reason(l);
+      ASSERT(reason != CLAUSE_UNDEF);
+      const Tlit* lits = clause_lits(reason);
+      const unsigned size = clause_size(reason);
+      for (unsigned j = 1; j < size; j++) {
+        Tlit rl = lits[j];
+        lit_chunks(l) |= lit_chunks(rl);
+        recomputed_level = std::max(recomputed_level, lit_level(rl));
+      }
+      if (lit_level(l) != recomputed_level) {
+        NOTIFY_OBSERVER(update_level, l, recomputed_level);
+      }
+      lit_level(l) = recomputed_level;
+      NOTIFY_OBSERVER(update_level, l, recomputed_level);
+    }
+  }
+
+  ASSERT(decision_index_consistency());
+}
+
 bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks)
 {
   bitset closure = reimplying_chunks;
@@ -156,7 +246,11 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
       }
       continue;
     }
-    ASSERT(!lit_propagated(c1));
+    if (lit_propagated(c1)) {
+      print_trail();
+    }
+    ASSERT_MSG(!lit_propagated(c1),
+               "Literal " + lit_to_string(c1) + " should not be propagated when propagating binary clause " + clause_to_string(cl));
     Tlit* lits = clause_lits(cl);
     if (lit_undef(c2)) {
       // ensure that the implied literal is positioned at the first position

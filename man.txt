@@ -129,6 +129,10 @@ The options are the following:
     Enables the observer to print the proof during the execution.
     Requires: build_proof is on
 
+  --record-dependencies <bool = off>
+    If true, for each learned clause, the solver will record on which input clauses it depends.
+    Warning: This option must be enabled to produce clause UNSAT cores.
+
   -commands or --commands-file <string = "">
     File containing the commands to be executed by the solver.
     Requires: interactive is on
@@ -171,6 +175,9 @@ The options are the following:
 
   -pcr or --partial-conflict-repair <bool = off>
     Enables partial conflict repair.
+
+  --conflict-limit <double = -1.0>
+    Limit on the number of conflicts before stopping the solve.
 
   -bl or --backtrack-learned <bool = off>
     If this  option  is true,  the solver  will  backtrack  the chunks  that were analyzed  to learn

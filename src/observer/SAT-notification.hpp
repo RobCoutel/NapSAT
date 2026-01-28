@@ -153,7 +153,7 @@ namespace napsat::gui
     bool sat;
 
   public:
-    static const unsigned DEFAULT_LEVEL = 0;
+    static const unsigned DEFAULT_LEVEL = 1;
     static const ENotifType NTYPE = DONE;
 
     unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }
@@ -180,7 +180,7 @@ namespace napsat::gui
     std::string description;
 
   public:
-    static const unsigned DEFAULT_LEVEL = 1;
+    static const unsigned DEFAULT_LEVEL = 0;
     static const ENotifType NTYPE = MARKER;
 
     unsigned get_event_level(observer* observer) const noexcept override { return DEFAULT_LEVEL; }

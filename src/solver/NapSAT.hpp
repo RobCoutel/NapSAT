@@ -1530,6 +1530,21 @@ public:
     void reimply_literal(Tlit lit, Tclause reason);
 
     /**
+     * @brief Eagerly reimplies a literal to level ROOT.
+     * @pre The literal ℓ must be satisfied.
+     *   ℓ ∈ π
+     * @pre The first literal of the clause is ℓ
+     *   C[0] = ℓ
+     * @pre The reason C must be a propagating clause.
+     *   C ≠ ■ ∧ C \ {ℓ}, π ⊧ ⊥
+     * @post The level of the literal ℓ is set to LEVEL_ROOT.
+     *   δ(ℓ) = LEVEL_ROOT
+     * @post The reason of the literal ℓ is set to C.
+     *   ρ(ℓ) = C
+     */
+    void reimply_literal_root(Tlit lit, Tclause reason);
+
+    /**
      * @brief Checks whether reimplying lit (a decision literal) would create a cycle.
      */
     bool reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks);
@@ -2191,6 +2206,12 @@ public:
      * every assigned variable is in the trail.
      */
     bool trail_variable_consistency();
+
+    /**
+     * @brief Returns true if the decision indices of the literals in the trail
+     * are consistent with their position in the trail.
+     */
+    bool decision_index_consistency();
 
     /**
      * @brief returns true if the clause cl is in the watch list of the literal

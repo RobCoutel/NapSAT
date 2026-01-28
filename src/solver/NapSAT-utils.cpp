@@ -398,7 +398,9 @@ void NapSAT::print_trail()
       cout << "-------- waiting queue --------\n";
     }
     ASSERT(!lit_undef(lit));
-    cout << lit_level(lit) << ": ";
+    cout << i;
+    pad(i, _trail.size());
+    cout << ": δ = " << lit_level(lit) << " ";
     for (Tlevel i = 0; i < lit_level(lit); i++) {
       cout << " ";
     }
