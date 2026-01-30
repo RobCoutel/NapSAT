@@ -147,9 +147,9 @@ void napsat::NapSAT::purge_clauses()
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
     // Do not remove clauses that are used as reasons
     TSclause& clause = _clauses[cl];
-    if (is_protected(cl))
-      continue;
     if (clause.deleted || !clause.watched || clause.size <= 2)
+      continue;
+    if (is_protected(cl))
       continue;
     // Since all literals are propagated, if a clause has a watched literal falsified at level 0, then the other must be satisfied.
     // In strong chronological backtracking, the other watched literal must be satisfied at level 0 too.

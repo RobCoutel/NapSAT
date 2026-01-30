@@ -2,6 +2,7 @@
 #include "SAT-types.hpp"
 
 #include <vector>
+#include <functional>
 
 namespace napsat
 {
@@ -267,6 +268,15 @@ namespace napsat
    * assigned the suggested polarity. After that, the phase_cache will be used.
    */
   void suggest_polarity(NapSAT* solver, Tlit lit, bool polarity);
+
+  /**
+   * @brief Provide a weight function to the solver for weighted SAT solving.
+   * @param solver an instance of the SAT solver
+   * @param weight_function a function that takes a literal and returns its weight as an unsigned integer.
+   * @pre the solver is a valid instance of NapSAT
+   * @details The weight function is used to compute the weight of a set of literals or chunks during graph-based backtracking.
+   */
+  void set_weight_function(NapSAT* solver, std::function<double(Tlit)> weight_function);
 
   /**
    * @brief Prints on the standard output the statistics collected by the solver

@@ -505,7 +505,6 @@ void napsat::NapSAT::print_clause_set()
   }
 
   unsigned max_clause_width = (longest_clause + 2) * (longest_var + 1) + 3;
-  cout << "max_clause_width = " << max_clause_width << endl;
   Tclause i = 0;
   while (i < _clauses.size()) {
     unsigned j = max_clause_width;

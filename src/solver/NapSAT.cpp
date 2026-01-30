@@ -340,7 +340,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 
   // We have to create the observer before allocating the variables. Otherwise, the notifications will not be sent
 #if USE_OBSERVER
-  if (options.interactive || options.observing || options.check_invariants) {
+  if (options.interactive || options.observing || options.check_invariants || options.print_live_stats) {
     _observer = new napsat::gui::observer(options);
     // make a functional object that will parse the command
     if (options.interactive) {
@@ -349,6 +349,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
       };
       _observer->set_command_parser(command_parser);
     }
+    if (options.interactive || options.observing || options.check_invariants)
     NOTIFY_OBSERVER(marker, "Start");
 #if USE_STATISTICS
     _observer->set_statistics(_statistics);
@@ -401,6 +402,13 @@ Tvar napsat::NapSAT::new_variable()
 
 NapSAT::~NapSAT()
 {
+#if USE_STATISTICS
+  if (_options.print_stats || _options.print_live_stats) {
+    LOG_INFO("Final statistics:");
+    if (_statistics)
+      cout << get_statistics() << endl;
+#endif
+  }
   for (unsigned i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
 #if USE_OBSERVER

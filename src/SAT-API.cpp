@@ -150,6 +150,12 @@ void suggest_polarity(NapSAT* solver, Tlit lit, bool polarity)
   solver->suggest_polarity(lit, polarity);
 }
 
+void set_weight_function(NapSAT* solver, std::function<double(Tlit)> weight_function)
+{
+  assert(solver != nullptr);
+  solver->set_weight_function(weight_function);
+}
+
 void print_statistics(const NapSAT* solver)
 {
 #if USE_STATISTICS

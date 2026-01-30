@@ -446,6 +446,10 @@ namespace napsat
       _vars[var].phase_cache = polarity ? 1 : 0;
     }
 
+    void set_weight_function(std::function<double(Tlit)> func) {
+      _backtrack_cost_estimator = func;
+    }
+
     /**
      * @brief Prints a proof of unsatisfiability on the standard output.
      * @pre The clause set must be unsatisfiable.
@@ -488,10 +492,7 @@ public:
      */
     typedef struct TSvar
     {
-      TSvar()
-        : level(LEVEL_UNDEF),
-        reason(CLAUSE_UNDEF),
-        activity(0.0),
+      TSvar() :
         marked(false),
         propagated(false),
         state(VAR_UNDEF),
@@ -504,7 +505,7 @@ public:
        * @brief Decision level at which the variable was assigned.
        * @details If the variable is unassigned, the level is LEVEL_UNDEF.
        */
-      Tlevel level;
+      Tlevel level = LEVEL_UNDEF;
       /**
        * @brief Clause that propagated the variable.
        * @details If the variable is assigned by a decision, the reason is
@@ -512,11 +513,11 @@ public:
        * @note In mathematical symbols, we write ρ(ℓ) as the reason of the
        * literal ℓ or ¬ℓ.
        */
-      Tclause reason;
+      Tclause reason = CLAUSE_UNDEF;
       /**
        * @brief Activity of the variable. Used in decision heuristics.
        */
-      double activity;
+      double activity = 0.0;
       /**
        * @brief Boolean indicating if the variable was already marked. It is used
        * in conflict analysis.
@@ -915,7 +916,7 @@ public:
      * @param size number of backtracked literals
      * @returns the estimated cost of backtracking the given literals
      */
-    std::function<unsigned(Tlit)> _backtrack_cost_estimator;
+    std::function<double(Tlit)> _backtrack_cost_estimator;
 
     /**
      * @brief Default cost function
@@ -1044,22 +1045,34 @@ public:
     /**
      * @brief Returns true if the variable is not assigned.
      */
-    inline bool var_undef(Tvar var) const {return  _vars[var].state == VAR_UNDEF; }
+    inline bool var_undef(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return  _vars[var].state == VAR_UNDEF;
+    }
     /**
      * @brief Returns true if the variable is assigned true.
      */
-    inline bool var_true(Tvar var) const { return _vars[var].state == VAR_TRUE; }
+    inline bool var_true(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].state == VAR_TRUE;
+    }
     /**
      * @brief Returns true if the variable is assigned false.
      */
-    inline bool var_false(Tvar var) const { return _vars[var].state == VAR_FALSE; }
+    inline bool var_false(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].state == VAR_FALSE;
+    }
     /**
      * @brief Returns the value of the given variable.
      * @details The value of a variable is either 0 (false), 1 (true), or 2 (undefined).
      * @param var variable to evaluate.
      * @return value of the variable.
      */
-    inline unsigned var_value(Tvar var) const { return _vars[var].state; }
+    inline unsigned var_value(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].state;
+    }
 
     /**
      * @brief Returns true if a literal is satisfied.
@@ -1085,7 +1098,10 @@ public:
     /**
      * @brief Returns the level of the given variable.
      */
-    inline Tlevel var_level(Tvar var) const { return _vars[var].level; }
+    inline Tlevel var_level(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].level;
+    }
     /**
      * @brief Returns the level of the given literal. If the literal is not
      * assigned, returns LEVEL_UNDEF.
@@ -1100,7 +1116,10 @@ public:
      * @details Used to modify the level of a variable.
      * @return reference to the level of the variable.
      */
-    inline Tlevel& var_level(Tvar var) { return _vars[var].level; }
+    inline Tlevel& var_level(Tvar var) {
+      ASSERT(var < _vars.size());
+      return _vars[var].level;
+    }
 
     /**
      * @brief Returns a reference to the level of the given literal.
@@ -1115,8 +1134,14 @@ public:
      * @param var variable to evaluate.
      * @return clause that implied the variable.
      */
-    inline Tclause var_reason(Tvar var) const { return _vars[var].reason; }
-    inline Tclause& var_reason(Tvar var) { return _vars[var].reason; }
+    inline Tclause var_reason(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].reason;
+    }
+    inline Tclause& var_reason(Tvar var) {
+      ASSERT(var < _vars.size());
+      return _vars[var].reason;
+    }
 
     /**
      * @brief Returns the reason of the literal. If the literal is not
@@ -1132,7 +1157,10 @@ public:
      * @param var variable to evaluate.
      * @return true if the variable is a decision variable, false otherwise.
      */
-    inline bool var_decision(Tvar var) const { return !var_undef(var) && var_reason(var) == CLAUSE_UNDEF; }
+    inline bool var_decision(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return !var_undef(var) && var_reason(var) == CLAUSE_UNDEF;
+    }
 
     /**
      * @brief Returns true if the literal is a decision literal.
