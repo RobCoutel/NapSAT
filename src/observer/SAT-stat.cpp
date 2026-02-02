@@ -20,7 +20,35 @@ namespace napsat {
     const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::high_resolution_clock::now() - _creation_time);
     ss << "c Time: " + pretty_time(duration) << std::endl;
+    // print the core stats first if available
+    auto it = _stats.find("Core statistics");
+
+    if (it != _stats.end()) {
+      const auto& name = it->first;
+      const auto& stats = it->second;
+      ss << "c " << (name.empty() ? "Statistics" : name) << ":" << std::endl;
+      for (const auto& stat : stats) {
+        if (stat._cnt == 0 && stat._val == 0)
+          continue;
+        ss << "c  - " << stat._name << ": ";
+        switch (stat._type) {
+          case AVERAGE:
+            if (stat._cnt > 0)
+              ss << pretty_float(static_cast<double>(stat._val) / static_cast<double>(stat._cnt));
+            else
+              ss << "---";
+            break;
+          case COUNT:
+            ss << pretty_integer(stat._val);
+            break;
+        }
+        ss << std::endl;
+      }
+    }
+
     for (const auto& [name, stats] : _stats) {
+      if (name == "Core statistics")
+        continue;
       ss << "c " << (name.empty() ? "Statistics" : name) << ":" << std::endl;
       for (const auto& stat : stats) {
         if (stat._cnt == 0 && stat._val == 0)

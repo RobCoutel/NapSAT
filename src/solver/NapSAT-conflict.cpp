@@ -22,6 +22,21 @@
 using namespace std;
 using namespace napsat;
 
+void napsat::NapSAT::purge_conflict_buffer()
+{
+  ASSERT(!_options.graph_backtracking);
+  size_t write_index = 0;
+  for (size_t read_index = 0; read_index < _conflicts.size(); read_index++) {
+    Tclause conflict = _conflicts[read_index];
+    if (clause_falsified(conflict)) {
+      // still conflicting, keep it
+      _conflicts[write_index++] = conflict;
+      continue;
+    }
+  }
+  _conflicts.resize(write_index);
+}
+
 void napsat::NapSAT::subsumption_filter_chunks(std::vector<bitset>& possibilities)
 {
   if (possibilities.size() <= 1)
@@ -403,6 +418,9 @@ void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
       ASSERT(w.give_up_point <= _trail.size());
       size_t i = --w.give_up_point;
       Tlit lit = _trail[i];
+      if (!lit_synced(lit)) {
+        continue;
+      }
       if (lit_chunks(lit).has_intersection(w.chunks)) {
         if (_backtrack_cost_estimator) {
           w.total_weight += _backtrack_cost_estimator(lit);
@@ -428,6 +446,9 @@ double napsat::NapSAT::calculate_weight(const bitset& chunks)
   double total_weight = 0.0;
   for (size_t i = 0; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
+    if (!lit_synced(lit)) {
+      continue;
+    }
     if (lit_chunks(lit).has_intersection(chunks)) {
       if (_backtrack_cost_estimator) {
         total_weight += _backtrack_cost_estimator(lit);
@@ -488,10 +509,24 @@ bool napsat::NapSAT::lit_is_required_in_learned_clause(Tlit lit)
   TSclause& clause = _clauses[lit_reason(lit)];
   ASSERT(!clause.deleted);
 
-  for (unsigned i = 1; i < clause.size; i++)
+  bool found_missing = false;
+
+  for (unsigned i = 1; i < clause.size && !found_missing; i++)
     if (!lit_marked(clause.lits[i]))
-      return true;
-  return false;
+      found_missing = true;
+
+  if (found_missing) {
+    // check if the lazy reason contains any marked literal
+    Tclause lazy_reason = lit_lazy_reason(lit);
+    if (lazy_reason != CLAUSE_UNDEF) {
+      const Tlit* lazy_lits = clause_lits(lazy_reason);
+      for (unsigned i = 0; i < clause_size(lazy_reason); i++)
+        if (lit_marked(lazy_lits[i]))
+          return true;
+    }
+  }
+
+  return found_missing;
 }
 
 bool napsat::NapSAT::lit_analyzed(Tlit lit, Tlevel level)

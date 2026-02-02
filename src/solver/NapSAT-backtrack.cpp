@@ -47,6 +47,9 @@ Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned siz
 void napsat::NapSAT::backtrack(Tlevel level)
 {
   ASSERT(level <= solver_level());
+  if (_status == SAT) {
+    _status = UNKNOWN;
+  }
   if (level == solver_level())
     return;
   NOTIFY_OBSERVER(backtracking_started, level);

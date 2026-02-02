@@ -105,15 +105,20 @@ Tlit* napsat::NapSAT::advanced_graph_replacement(Tlit* lits, unsigned size) cons
 void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 {
   ASSERT(decision_index_consistency());
-
-  ASSERT_MSG(_options.graph_backtracking,
-    "TODO: reimply_literal_root is only implemented for graph backtracking");
   ASSERT(lit_true(lit));
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
   ASSERT(lit == clause_lits(reason)[0]);
   ASSERT(clause_size(reason) == 1);
   if (lit_level(lit) == LEVEL_ROOT)
     return;
+
+  if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+    // Non-chronological backtracking
+    Tlevel backtrack_level = LEVEL_ROOT;
+    backtrack(backtrack_level);
+    imply_literal(lit, reason);
+    return;
+  }
 
   // search the literal in the trail
   Tlevel old_level = lit_level(lit);
@@ -143,49 +148,94 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   NOTIFY_OBSERVER(update_level, lit, LEVEL_ROOT);
   lit_reason(lit) = reason;
   NOTIFY_OBSERVER(update_reason, lit, reason);
+
+  // this does nothing outside of GB, but it does not hurt either
   bitset old_chunks = lit_chunks(lit);
   lit_chunks(lit).clear();
 
   // fix the trail
-  for (size_t i = pos + 1; i < _trail.size(); i++) {
-    Tlit l = _trail[i];
+  if (!_options.graph_backtracking) {
+    for (size_t i = pos + 1; i < _trail.size(); i++) {
+      Tlit l = _trail[i];
 
-    if (squash_level) {
-      if (lit_level(l) > old_level) {
-        lit_level(l)--;
-        NOTIFY_OBSERVER(update_level, l, lit_level(l));
-      }
-      lit_cross_chunks(l).set(*old_chunks.cbegin(), false);
-    }
-
-    if (lit_decision(l)) {
-      ASSERT_MSG(lit_level(l) >= old_level,
-                 "Literal " + lit_to_string(l) + " at position " + std::to_string(i) +
-                 " should have level greater than " + std::to_string(old_level) +
-                 " but has level " + std::to_string(lit_level(l)));
       if (squash_level) {
-        _decision_index[lit_level(l) - 1] = i;
+        if (lit_level(l) > old_level) {
+          lit_level(l)--;
+          NOTIFY_OBSERVER(update_level, l, lit_level(l));
+        }
       }
-      continue;
-    }
 
-    if (lit_chunks(l) >= old_chunks) {
-      Tlevel recomputed_level = LEVEL_ROOT;
-      lit_chunks(l).clear();
-      const Tclause reason = lit_reason(l);
-      ASSERT(reason != CLAUSE_UNDEF);
-      const Tlit* lits = clause_lits(reason);
-      const unsigned size = clause_size(reason);
-      for (unsigned j = 1; j < size; j++) {
-        Tlit rl = lits[j];
-        lit_chunks(l) |= lit_chunks(rl);
-        recomputed_level = std::max(recomputed_level, lit_level(rl));
+      if (lit_decision(l)) {
+        ASSERT_MSG(lit_level(l) >= old_level,
+                   "Literal " + lit_to_string(l) + " at position " + std::to_string(i) +
+                   " should have level greater than " + std::to_string(old_level) +
+                   " but has level " + std::to_string(lit_level(l)));
+        if (squash_level) {
+          _decision_index[lit_level(l) - 1] = i;
+        }
+        continue;
       }
-      if (lit_level(l) != recomputed_level) {
+
+      // recompute the level
+      Tclause reason = lit_reason(l);
+      Tlit* lits = clause_lits(reason);
+      unsigned size = clause_size(reason);
+      Tlit* r = advanced_level_replacement(lits, size);
+      // if the replacement is the same as before, then the watched literals do not change.
+      // replacement is the highest level literal in the clause
+      ASSERT(lit_is_max_literal(*r, lits + 1, size - 1));
+      if (*r != lits[1]) {
+        // we have to fix the watches
+        std::swap(*r, lits[1]);
+        // note that now *r is the old watched literal
+        stop_watch(*r, reason);
+        watch_lit(lits[1], reason);
+      }
+      lit_level(l) = lit_level(lits[1]);
+    }
+  }
+
+  if (_options.graph_backtracking) {
+    for (size_t i = pos + 1; i < _trail.size(); i++) {
+      Tlit l = _trail[i];
+
+      if (squash_level) {
+        if (lit_level(l) > old_level) {
+          lit_level(l)--;
+          NOTIFY_OBSERVER(update_level, l, lit_level(l));
+        }
+        lit_cross_chunks(l).set(*old_chunks.cbegin(), false);
+      }
+
+      if (lit_decision(l)) {
+        ASSERT_MSG(lit_level(l) >= old_level,
+                   "Literal " + lit_to_string(l) + " at position " + std::to_string(i) +
+                   " should have level greater than " + std::to_string(old_level) +
+                   " but has level " + std::to_string(lit_level(l)));
+        if (squash_level) {
+          _decision_index[lit_level(l) - 1] = i;
+        }
+        continue;
+      }
+
+      if (lit_chunks(l) >= old_chunks) {
+        Tlevel recomputed_level = LEVEL_ROOT;
+        lit_chunks(l).clear();
+        const Tclause reason = lit_reason(l);
+        ASSERT(reason != CLAUSE_UNDEF);
+        const Tlit* lits = clause_lits(reason);
+        const unsigned size = clause_size(reason);
+        for (unsigned j = 1; j < size; j++) {
+          Tlit rl = lits[j];
+          lit_chunks(l) |= lit_chunks(rl);
+          recomputed_level = std::max(recomputed_level, lit_level(rl));
+        }
+        if (lit_level(l) != recomputed_level) {
+          NOTIFY_OBSERVER(update_level, l, recomputed_level);
+        }
+        lit_level(l) = recomputed_level;
         NOTIFY_OBSERVER(update_level, l, recomputed_level);
       }
-      lit_level(l) = recomputed_level;
-      NOTIFY_OBSERVER(update_level, l, recomputed_level);
     }
   }
 
@@ -231,19 +281,10 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     ASSERT(clause_size(cl) == 2);
 
     if (lit_true(c2)) {
-      if (_options.lazy_strong_chronological_backtracking && lit_level(c2) > lit_level(c1)) {
-        // missed lower implication
-        Tlit* lits = clause_lits(cl);
-        lits[0] = c2;
-        lits[1] = c1;
-        reimply_literal(c2, cl);
-      }
-      if (_options.graph_backtracking && !(lit_chunks(c2) <= lit_chunks(c1))) {
-        lit_cross_chunks(c1) |= lit_chunks(c2);
-        if (_options.lazy_chunk_merging && lit_decision(c2)) {
-          // TODO check for missed implications
-        }
-      }
+      Tlit* lits = clause_lits(cl);
+      lits[0] = c2;
+      lits[1] = c1;
+      reimply_literal(c2, cl);
       continue;
     }
     if (lit_propagated(c1)) {
@@ -422,6 +463,9 @@ void NapSAT::propagate_lit(Tlit lit)
      * GB:   [c₂ ∉ π ∨ γ(c₂) ⊈ η(c₁)] ∧ [b ∉ π ∨ γ(b) ⊈ η(c₁)]
     */
     ASSERT(r != nullptr);
+    if (lit_propagated(c1)) {
+      print_trail();
+    }
     // in debug mode, we still run the propagation, but it should not change anything
     ASSERT_MSG(!lit_propagated(c1) || find(_conflicts.begin(), _conflicts.end(), cl) != _conflicts.end(), lit_to_string(c1) + " requires changes on clause " + clause_to_string(cl));
 
@@ -660,30 +704,8 @@ void NapSAT::propagate_lit(Tlit lit)
      *
      * Note that reimply literal ensures δ(λ(c₂) \ {c₂}) > δ(c₁) ∧  δ(ℓ) > δ(c₁) before reimplication
      */
-    if (_options.lazy_strong_chronological_backtracking) {
-      reimply_literal(c2, cl);
-    } else if (_options.lazy_chunk_merging && lit_decision(c2) && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
-      Tlit reimp_lit = lits[0];
-      // compute the chunk set of the clause, excluding the lits[1]
-      bitset chunks(_n_allocated_chunks);
-      ASSERT(lits[0] == c2);
-      for (size_t j = 1; j < clause.size; j++) {
-        ASSERT(lits[j] != c2);
-        chunks |= lit_chunks(lits[j]);
-      }
+    reimply_literal(c2, cl);
 
-      auto it = lit_chunks(reimp_lit).cbegin();
-      Tchunk decision_chunk = *it;
-      ASSERT(++it == lit_chunks(reimp_lit).cend());
-      NOTIFY_STAT(_n_cross_implication_decisions);
-      if (!reimplication_cycle(decision_chunk, chunks)) {
-        lit_lazy_reason(c2) = cl;
-        _chunks[decision_chunk].missed_implication = chunks;
-        NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), cl);
-      }
-    }
-
-    lit_cross_chunks(c1) |= lit_chunks(c2);
     /**
      * We now have in addition that δ(λ(c₂) \ {c₂}) ≤ δ(c₁)
      * that satisfies

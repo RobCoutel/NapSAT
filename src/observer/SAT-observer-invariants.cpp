@@ -141,13 +141,13 @@ bool napsat::gui::observer::check_trail_monotonicity()
 {
   const string error_header = ERROR_HEAD + "Invariant violation (trail monotonicity): ";
   bool success = true;
-  Tlevel last_level = 0;
-  for (Tlit lit : _assignment_stack) {
-    if (lit_level(lit) < last_level) {
+  for (size_t i = 1; i < _assignment_stack.size(); i++) {
+    Tlit lit = _assignment_stack[i];
+    Tlit prev = _assignment_stack[i - 1];
+    if (lit_level(lit) < lit_level(prev)) {
       success = false;
-      _error_message += error_header + "literal " + lit_to_string(lit) + " has a lower level than the previous literal " + lit_to_string(_assignment_stack[_assignment_stack.size() - 1]) + ".\n";
+      _error_message += error_header + "literal " + lit_to_string(lit) + " has a lower level than the previous literal " + lit_to_string(prev) + ".\n";
     }
-    last_level = lit_level(lit);
   }
   return success;
 }

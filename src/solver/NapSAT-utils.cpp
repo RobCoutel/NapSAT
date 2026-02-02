@@ -206,6 +206,22 @@ void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
   #endif
 }
 
+void napsat::NapSAT::watch_lit_bin(Tclause cl)
+{
+  const Tlit* lits = clause_lits(cl);
+  ASSERT(cl != CLAUSE_UNDEF);
+  ASSERT(cl < _clauses.size());
+  ASSERT(clause_size(cl) == 2);
+  _binary_watches[lits[0]].push_back(TSwatch(cl, lits[1]));
+  _binary_watches[lits[1]].push_back(TSwatch(cl, lits[0]));
+  #if NOTIFY_WATCH_CHANGES
+    NOTIFY_OBSERVER(watch, cl, lits[0]);
+    NOTIFY_OBSERVER(block, cl, lits[1], lits[0]);
+    NOTIFY_OBSERVER(watch, cl, lits[1]);
+    NOTIFY_OBSERVER(block, cl, lits[0], lits[1]);
+  #endif
+}
+
 void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
 {
 #if NOTIFY_WATCH_CHANGES
@@ -395,12 +411,11 @@ void NapSAT::print_trail()
   for (unsigned int i = 0; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     if (i == _n_propagated_lits) {
-      cout << "-------- waiting queue --------\n";
+      cout << "^ τ -------- propagation head -------- ω v\n";
     }
     ASSERT(!lit_undef(lit));
-    cout << i;
-    pad(i, _trail.size());
-    cout << ": δ = " << lit_level(lit) << " ";
+    cout << pad(i, _trail.size()) << i;
+    cout << ": δ = " <<  pad(lit_level(lit), solver_level()) << lit_level(lit) << " ";
     for (Tlevel i = 0; i < lit_level(lit); i++) {
       cout << " ";
     }
@@ -434,25 +449,6 @@ void NapSAT::print_trail()
   cout << endl;
 }
 
-/**
- * @brief Adds spaces to the left of the number to make it have as many digits as the maximum number of digits in the given range.
- */
-static void pad(int n, int max_int)
-{
-  int max_digits = 0;
-  while (max_int > 0) {
-    max_int /= 10;
-    max_digits++;
-  }
-  int digits = 0;
-  while (n > 0) {
-    n /= 10;
-    digits++;
-  }
-  for (int i = 0; i < max_digits - digits; i++)
-    cout << " ";
-}
-
 void napsat::NapSAT::print_trail_simple()
 {
   cout << "trail :\n";
@@ -465,12 +461,12 @@ void napsat::NapSAT::print_trail_simple()
       if (lit_level(lit) == lvl) {
         if (lit_pol(lit))
           cout << " ";
-        pad(lit_to_var(lit), _vars.size());
+        cout << pad(lit_to_var(lit), _vars.size());
         print_lit(lit);
         cout << " ";
       }
       else {
-        pad(0, _vars.size());
+        cout << pad(0, _vars.size());
         cout << "  ";
       }
     }

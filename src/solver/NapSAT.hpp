@@ -541,7 +541,7 @@ public:
       unsigned phase_cache : 1;
 
       /**
-       * @brief Boolean indicating the synchronization state of the variable.
+       * @brief Boolean indicating the polarity of the last synchronization.
        */
       unsigned synced : 1;
 
@@ -1078,7 +1078,7 @@ public:
      * @brief Returns true if a literal is satisfied.
      * @param lit literal to evaluate.
      * @return true if the literal is satisfied, false otherwise.
-     */
+    */
     inline bool lit_true(Tlit lit) const { return !(var_value(lit_to_var(lit)) ^ lit_pol(lit)); }
 
     /**
@@ -1231,12 +1231,17 @@ public:
      */
     inline void lit_unmark(Tlit lit) { var_unmark(lit_to_var(lit)); }
 
-    inline bool var_synced(Tvar var) const { return _vars[var].synced; }
+    inline bool var_synced(Tvar var) const {
+      const TSvar& v = _vars[var];
+      return v.state != VAR_UNDEF && v.synced == v.state % 2;
+    }
     inline bool lit_synced(Tlit lit) const { return var_synced(lit_to_var(lit)); }
-    inline void var_sync(Tvar var) { _vars[var].synced = true; }
+    inline void var_sync(Tvar var) {
+      ASSERT(!var_undef(var));
+      _vars[var].synced = _vars[var].state % 2;
+      NOTIFY_STAT(_n_sync);
+    }
     inline void lit_sync(Tlit lit) { var_sync(lit_to_var(lit)); }
-    inline void var_unsync(Tvar var) { _vars[var].synced = false; }
-    inline void lit_unsync(Tlit lit) { var_unsync(lit_to_var(lit)); }
 
     inline bool var_locked(Tvar var) const { return _vars[var].locked; }
     inline bool lit_locked(Tlit lit) const { return var_locked(lit_to_var(lit)); }
@@ -1461,6 +1466,11 @@ public:
     void watch_lit(Tlit lit, Tclause cl);
 
     /**
+     * @brief Add a binary clause to the watch list of its two literals.
+     */
+    void watch_lit_bin(Tclause cl);
+
+    /**
      * @brief Find the clause cl in the watch list of lit and remove it.
      * @details Complexity: O(n), where n is the length of the watch list.
      */
@@ -1654,6 +1664,14 @@ public:
     /*************************************************************************/
     /*                           Conflict analysis                           */
     /*************************************************************************/
+
+    /**
+     * @brief Removes the clauses that are no longer conflicting from the conflict buffer.
+     * @details In incremental solving, it can be that adding a missed lower implication to the
+     * formula forces a backtrack that invalidates some of the conflicts stored in the conflict buffer.
+     * (not in graph backtracking)
+     */
+    void purge_conflict_buffer();
 
     void subsumption_filter_chunks(std::vector<bitset>& possibilities);
 

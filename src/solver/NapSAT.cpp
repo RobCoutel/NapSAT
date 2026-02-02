@@ -156,30 +156,98 @@ void NapSAT::var_unassign(Tvar var)
   v.reason = CLAUSE_UNDEF;
   v.level = LEVEL_UNDEF;
   v.propagated = false;
-
-  v.synced = 0;
 }
 
-void napsat::NapSAT::reimply_literal(Tlit lit, Tclause reason)
+void napsat::NapSAT::reimply_literal(Tlit c2, Tclause reason)
 {
-  TSclause& clause = _clauses[reason];
-  unsigned size = clause.size;
-
-  ASSERT(lit_true(lit));
-  ASSERT(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking);
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
-  ASSERT(lit == clause.lits[0]);
-  ASSERT(clause_implying(reason));
-  ASSERT(size < 2 || lit_is_max_literal(clause.lits[1], clause.lits + 2, size - 2));
 
-  Tlevel reimplication_level = size == 1 ? 0 : lit_level(clause.lits[1]);
-  if (lit_level(lit) <= reimplication_level)
+  TSclause& clause = _clauses[reason];
+  Tlit* lits = clause.lits;
+  Tlit c1 = lits[1];
+
+  if (_options.restoring_strong_chronological_backtracking && !clause.external) {
+    // Nothing to do. The restoration will be done during backtracking, where the propagation head will be moved back.
     return;
-  if (lit_lazy_reason(lit) != CLAUSE_UNDEF
-   && lit_level(clause_lits(lit_lazy_reason(lit))[1]) <= reimplication_level)
+  }
+
+  // The levels are ok. Nothing to do here.
+  if (!_options.graph_backtracking &&
+       lit_level(c2) <= lit_level(c1))
+      return;
+
+  ASSERT_MSG(!_options.restoring_strong_chronological_backtracking,
+             "RSCB reimplication not supported yet. Need to add restore point calculation");
+
+  ASSERT_MSG(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking || clause.external,
+            "Clause " + clause_to_string(reason) + " cannot be used for reimplication without LSCB or GB");
+  ASSERT(lit_true(c2));
+  ASSERT(c2 == lits[0]);
+  ASSERT(clause_implying(reason));
+  ASSERT(clause.size >= 2);
+
+  /**
+   * We want to recover some backtrack compatible watch literal invariants
+   * NCB
+   *  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
+   *  ∀ij. i < j ⇒ δ(π[i]) ≤ δ(π[j])
+   * RSCB
+   *  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
+   * LSCB
+   *  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
+   *                ∨ [b  ∈ π ∧  δ(b)  ≤ δ(c₁)]
+   * GB
+   *  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ γ(c₂) ⊆ γ(c₁) ∪ η(c₁)]
+   *                ∨ [b  ∈ π ∧ γ(b)  ⊆ γ(c₁) ∪ η(c₁)]
+   */
+
+  if (_options.graph_backtracking) {
+    lit_cross_chunks(c1) |= lit_chunks(c2);
+
+    if (!_options.lazy_chunk_merging) {
+      return;
+    }
+
+    // Lazy chunk merging
+    if (lit_decision(c2) && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
+      // compute the chunk set of the clause, excluding the lits[1]
+      bitset chunks(_n_allocated_chunks);
+      for (size_t j = 1; j < clause.size; j++) {
+        ASSERT(lits[j] != c2);
+        chunks |= lit_chunks(lits[j]);
+      }
+
+      ASSERT(lit_chunks(c2).count() == 1);
+      Tchunk decision_chunk = *lit_chunks(c2).cbegin();
+      NOTIFY_STAT(_n_cross_implication_decisions);
+      if (!reimplication_cycle(decision_chunk, chunks)) {
+        lit_lazy_reason(c2) = reason;
+        _chunks[decision_chunk].missed_implication = chunks;
+        NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
+      }
+    }
+
     return;
-  lit_lazy_reason(lit) = reason;
-  NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(lit), reason);
+  }
+
+  ASSERT(lit_is_max_literal(lits[1], lits + 2, clause.size - 2));
+  if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+    // Non-chronological backtracking
+    ASSERT(clause.external);
+
+    // NCB does not support lazy reimplication. We need to backtrack and reimply now.
+    Tlevel backtrack_level = lit_level(c1);
+    backtrack(backtrack_level);
+    imply_literal(c2, reason);
+    return;
+  }
+
+  ASSERT(_options.lazy_strong_chronological_backtracking);
+  if (lit_lazy_level(c2) <= lit_level(c1)) {
+    return;
+  }
+  lit_lazy_reason(c2) = reason;
+  NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
 }
 
 void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
@@ -291,21 +359,21 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat.implication = _statistics->add_stat("Implication", cat_core);
     stat.unassignment = _statistics->add_stat("Unassignment", cat_core);
     stat.remove_propagation = _statistics->add_stat("Remove propagation", cat_core);
-    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_core);
+    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_aux);
     stat.remove_literal = _statistics->add_stat("Remove literal", cat_core);
-    stat.block = _statistics->add_stat("Block", cat_core);
-    stat.check_invariants = _statistics->add_stat("Check invariants", cat_core);
+    stat.block = _statistics->add_stat("Block", cat_aux);
+    stat.check_invariants = _statistics->add_stat("Check invariants", cat_aux);
     stat.missed_lower_implication = _statistics->add_stat("Missed lower implication", cat_core);
     stat.backtracking_started = _statistics->add_stat("Backtracking started", cat_core);
-    stat.update_level = _statistics->add_stat("Update level", cat_core);
-    stat.update_reason = _statistics->add_stat("Update reason", cat_core);
+    stat.update_level = _statistics->add_stat("Update level", cat_aux);
+    stat.update_reason = _statistics->add_stat("Update reason", cat_aux);
     stat.new_clause = _statistics->add_stat("Add clause", cat_core);
     stat.new_variable = _statistics->add_stat("Add variable", cat_core);
     stat.delete_clause = _statistics->add_stat("Delete clause", cat_core);
-    stat.marker = _statistics->add_stat("Marker", cat_core);
-    stat.watch = _statistics->add_stat("Watch", cat_core);
-    stat.unwatch = _statistics->add_stat("Unwatch", cat_core);
-    stat.done = _statistics->add_stat("Done", cat_core);
+    stat.marker = _statistics->add_stat("Marker", cat_aux);
+    stat.watch = _statistics->add_stat("Watch", cat_aux);
+    stat.unwatch = _statistics->add_stat("Unwatch", cat_aux);
+    stat.done = _statistics->add_stat("Solve calls", cat_core);
     stat.lock_assumption = _statistics->add_stat("Lock assumption", cat_core);
     stat.unlock_assumption = _statistics->add_stat("Unlock assumption", cat_core);
 
@@ -321,7 +389,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat._n_lazy_reimplication_used = _statistics->add_stat("Lazy reimplication used", cat_aux);
     stat._n_propagation_replayed = _statistics->add_stat("Replayed Propagation", cat_aux);
     stat._n_skipped_propagation = _statistics->add_stat("Skipped Propagation", cat_aux);
-    stat._n_sync = _statistics->add_stat("Sync", cat_aux);
+    stat._n_sync = _statistics->add_stat("Sync", cat_core);
     stat._n_restart = _statistics->add_stat("Restart", cat_aux);
     stat._n_fw_subsumption_in_set = _statistics->add_stat("Forward subsumption in set", cat_aux);
     stat._n_fw_subsumption = _statistics->add_stat("Forward subsumption", cat_aux);
@@ -390,7 +458,6 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   if (_options.graph_backtracking) {
     allocate_chunks(4032);
   }
-  // _backtrack_cost_estimator = default_cost;
 }
 
 Tvar napsat::NapSAT::new_variable()
@@ -404,9 +471,10 @@ NapSAT::~NapSAT()
 {
 #if USE_STATISTICS
   if (_options.print_stats || _options.print_live_stats) {
-    LOG_INFO("Final statistics:");
-    if (_statistics)
-      cout << get_statistics() << endl;
+    if (_statistics) {
+      LOG_INFO("Final statistics:");
+      cout << get_statistics()->get_statistics() << endl;
+    }
 #endif
   }
   for (unsigned i = 0; i < _clauses.size(); i++)
@@ -547,9 +615,12 @@ static unsigned solve_cycle = 0;
 
 status NapSAT::solve()
 {
+  // cout << "######## SOLVE ########" << endl;
   cout << "Starting solve call #" << ++solve_cycle << "\r";
-  if (_status != UNKNOWN)
+  if (_status != UNKNOWN) {
+    ASSERT(_status != SAT || _trail.size() == _vars.size() - 1);
     return _status;
+  }
   while (true) {
     if (!_conflicts.empty()) {
       repair_conflicts();
@@ -593,7 +664,6 @@ status NapSAT::solve()
       continue;
     }
     NOTIFY_OBSERVER(check_invariants);
-    synchronize();
 #if USE_OBSERVER
     if (_options.interactive)
       _observer->notify(new napsat::gui::checkpoint());
@@ -604,7 +674,6 @@ status NapSAT::solve()
     if (_status == SAT)
       break;
   }
-  synchronize();
   if (_status == SAT)
     NOTIFY_OBSERVER(check_invariants);
   NOTIFY_OBSERVER(done, _status == SAT);
@@ -638,7 +707,7 @@ bool NapSAT::decide()
   Tvar var = _variable_heap.top();
 
   ASSERT(var_constrained(var));
-  Tlit lit = literal(var, _vars[var].phase_cache);
+  Tlit lit = literal(var, _vars[var].synced);
   imply_literal(lit, CLAUSE_UNDEF);
   return true;
 }
@@ -723,11 +792,11 @@ void NapSAT::synchronize()
   for (size_t i = _sync_validity_index; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     Tvar var = lit_to_var(lit);
-    TSvar& v = _vars[var];
-    if (!v.synced) {
-      NOTIFY_STAT(_n_sync);
-      v.synced = 1;
+    ASSERT(!var_undef(var));
+    if (var_synced(var)) {
+      continue;
     }
+    var_sync(var);
   }
   _sync_validity_index = _trail.size();
 }

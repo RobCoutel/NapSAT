@@ -156,6 +156,12 @@ void set_weight_function(NapSAT* solver, std::function<double(Tlit)> weight_func
   solver->set_weight_function(weight_function);
 }
 
+void synchronize(NapSAT* solver)
+{
+  assert(solver != nullptr);
+  solver->synchronize();
+}
+
 void print_statistics(const NapSAT* solver)
 {
 #if USE_STATISTICS

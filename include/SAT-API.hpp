@@ -278,6 +278,8 @@ namespace napsat
    */
   void set_weight_function(NapSAT* solver, std::function<double(Tlit)> weight_function);
 
+  void synchronize(NapSAT* solver);
+
   /**
    * @brief Prints on the standard output the statistics collected by the solver
    * if the observer was enabled. Otherwise prints a warning.

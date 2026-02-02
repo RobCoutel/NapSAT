@@ -231,12 +231,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   if (clause_size == 1) {
     if (lit_undef(lits[0]))
       imply_literal(lits[0], id);
-    if (lit_true(lits[0])) {
-      if (_options.lazy_strong_chronological_backtracking || _options.graph_backtracking)
-        reimply_literal_root(lits[0], id);
-      else {
-        // TODO need to backtrack properly here
-      }
+    if (lit_true(lits[0]) && lit_level(lits[0]) != LEVEL_ROOT) {
+      reimply_literal_root(lits[0], id);
       return id;
     }
     if (lit_false(lits[0])) {
@@ -247,39 +243,58 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     }
     return id;
   }
-  else if (clause_size == 2) { // TODO simplify this
-    // clause->watched = false;
-    _binary_watches[lits[0]].push_back(TSwatch(id, lits[1]));
-    _binary_watches[lits[1]].push_back(TSwatch(id, lits[0]));
-#if NOTIFY_WATCH_CHANGES
-    NOTIFY_OBSERVER(watch, id, lits[0]);
-    NOTIFY_OBSERVER(watch, id, lits[1]);
-#endif
-    if (lit_false(lits[0]) && !lit_false(lits[1])) {
-      // swap the literals so that the false literal is at the second position
-      lits[1] = lits[0] ^ lits[1];
-      lits[0] = lits[0] ^ lits[1];
-      lits[1] = lits[0] ^ lits[1];
-      // no need to update the watch list
-    }
-  } else {
+  else {
     select_watched_literals(lits, clause_size);
-    watch_lit(lits[0], id);
-    watch_lit(lits[1], id);
-  }
-  if (lit_false(lits[1])) {
-    if (lit_undef(lits[0])) {
-      imply_literal(lits[0], id);
-    } else if (lit_false(lits[0])) {
-      _conflicts.push_back(id);
-      if (_status == SAT)
-        _status = UNKNOWN;
-    } else if (_options.lazy_strong_chronological_backtracking) {
-      ASSERT(lit_true(lits[0]));
-      reimply_literal(lits[0], id);
-    }  else if (_options.graph_backtracking) {
-      lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
+    if (clause_size == 2) {
+      watch_lit_bin(id);
+    } else {
+      watch_lit(lits[0], id);
+      watch_lit(lits[1], id);
     }
+  }
+
+  // cout << "Added clause " << clause_to_string(id) << endl;
+
+  // The clause is not unit or conflicting. Nothing special to do
+  if (!lit_false(lits[1])) {
+    return id;
+  }
+
+  // fix the trail if the clause is unit/conflicting
+  if (lit_undef(lits[0])) {
+
+    if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+      // we need to ensure monotonicity of the trail. For that reason, we have to backtrack everything above the implied level
+      Tlevel backtrack_level = lit_level(lits[1]);
+      backtrack(backtrack_level);
+    }
+
+    ASSERT(clause_unit(id));
+    imply_literal(lits[0], id);
+    return id;
+  }
+  if (lit_false(lits[0])) {
+    ASSERT(clause_falsified(id));
+    _conflicts.push_back(id);
+    if (_status == SAT)
+      _status = UNKNOWN;
+    if (!_options.graph_backtracking) {
+      // except in graph backtracking, there is no reason to not handle the conflict eagerly
+      // in GB, we want to select the best chunks at the end of the procedure.
+      _lit_buffer_size = 0;
+      repair_conflicts();
+    }
+
+    return id;
+  }
+
+  ASSERT(lit_true(lits[0]));
+  ASSERT(clause_implying(id));
+  ASSERT(lit_level(lits[1]) > LEVEL_ROOT);
+
+  if (lit_level(lits[0]) > lit_level(lits[1])) {
+    // This is a missed lower implication
+    reimply_literal(lits[0], id);
   }
   return id;
 }
