@@ -46,6 +46,8 @@ namespace napsat {
 
     [[nodiscard]] std::string get_statistics() const;
 
+    void print_statistics(bool clear) const;
+
   private:
     napsat::options _options;
 

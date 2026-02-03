@@ -173,11 +173,6 @@ namespace napsat::gui
     static long unsigned hash_clause(const std::vector<napsat::Tlit>& literals);
 
     /**
-     * Print the statistics and resets the cursor if needed.
-     */
-    void print_live_stats(bool clear = true) const;
-
-    /**
      * @brief List of commands to be executed when the observer receives a checkpoint.
      */
     std::vector<std::string> _commands;

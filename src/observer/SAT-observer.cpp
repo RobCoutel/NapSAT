@@ -106,34 +106,6 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
   }
 }
 
-void observer::print_live_stats(bool clear) const
-{
-  update_terminal_width();
-  const string s = get_statistics();
-  vector<string> lines;
-  unsigned last_line_end = 0;
-  for (unsigned i = 0; i < s.size(); i++) {
-    if (s[i] == '\n') {
-      string line = s.substr(last_line_end, i - last_line_end);
-      lines.push_back(line);
-      last_line_end = i + 1;
-    }
-  }
-  // print the lines and pad them with spaces
-  for (unsigned i = 0; i < lines.size(); i++) {
-    cout << std::setw (TERMINAL_WIDTH) << left << lines[i] << endl;
-  }
-  // bring the cursor up to the beginning of the statistics
-  if (clear) {
-    for (unsigned i = 0; i < lines.size(); i++)
-      cout << "\033[A";
-  } else {
-    for (unsigned i = 0; i < TERMINAL_WIDTH; i++)
-      cout << "*";
-    cout << endl;
-  }
-}
-
 bool observer::notify(notification* notification)
 {
   const auto type = notification->get_type();
@@ -143,7 +115,7 @@ bool observer::notify(notification* notification)
 
   // print the statistics
   if (_options.print_live_stats && level < 3) {
-    print_live_stats(type != DONE);
+    _statistics->print_statistics(true);
   }
 
   _location++;

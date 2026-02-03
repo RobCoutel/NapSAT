@@ -350,14 +350,17 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 #if USE_STATISTICS
   if (options.print_stats || options.print_live_stats) {
     _statistics = new napsat::statistics(options);
-    const std::string cat_core = "Core statistics";
-    const std::string cat_aux = "Auxiliary statistics";
+    const std::string cat_time = "1. Runtime";
+    const std::string cat_core = "2. Core statistics";
+    const std::string cat_aux = "3. Auxiliary statistics";
+
+    stat.runtime = _statistics->add_stat("Solve time", cat_time, statistics::COUNT);
 
     stat.decision = _statistics->add_stat("Decisions", cat_core);
     stat.conflict = _statistics->add_stat("Conflicts", cat_core);
     stat.propagation = _statistics->add_stat("Propagation", cat_core);
     stat.implication = _statistics->add_stat("Implication", cat_core);
-    stat.unassignment = _statistics->add_stat("Unassignment", cat_core);
+    stat.unassignment= _statistics->add_stat("Unassignment", cat_core);
     stat.remove_propagation = _statistics->add_stat("Remove propagation", cat_core);
     stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_aux);
     stat.remove_literal = _statistics->add_stat("Remove literal", cat_core);
@@ -408,7 +411,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 
   // We have to create the observer before allocating the variables. Otherwise, the notifications will not be sent
 #if USE_OBSERVER
-  if (options.interactive || options.observing || options.check_invariants || options.print_live_stats) {
+  if (options.interactive || options.observing || options.check_invariants) {
     _observer = new napsat::gui::observer(options);
     // make a functional object that will parse the command
     if (options.interactive) {
@@ -470,10 +473,10 @@ Tvar napsat::NapSAT::new_variable()
 NapSAT::~NapSAT()
 {
 #if USE_STATISTICS
-  if (_options.print_stats || _options.print_live_stats) {
+  if (_options.print_stats) {
     if (_statistics) {
       LOG_INFO("Final statistics:");
-      cout << get_statistics()->get_statistics() << endl;
+      get_statistics()->print_statistics(_options.print_live_stats);
     }
 #endif
   }
@@ -611,12 +614,10 @@ bool NapSAT::propagate()
   return true;
 }
 
-static unsigned solve_cycle = 0;
-
 status NapSAT::solve()
 {
   // cout << "######## SOLVE ########" << endl;
-  cout << "Starting solve call #" << ++solve_cycle << "\r";
+  auto start_time = std::chrono::high_resolution_clock::now();
   if (_status != UNKNOWN) {
     ASSERT(_status != SAT || _trail.size() == _vars.size() - 1);
     return _status;
@@ -625,6 +626,10 @@ status NapSAT::solve()
     if (!_conflicts.empty()) {
       repair_conflicts();
       if (_status == UNSAT) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        NOTIFY_STAT_N(runtime, duration);
+        get_statistics()->print_statistics(true);
         return _status;
       }
     }
@@ -657,6 +662,10 @@ status NapSAT::solve()
             continue;
           }
         }
+        auto end_time = std::chrono::high_resolution_clock::now();
+        long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        NOTIFY_STAT_N(runtime, duration);
+        get_statistics()->print_statistics(true);
         return _status;
       }
       // in chronological backtracking, the purge might have implied some literals
@@ -677,6 +686,10 @@ status NapSAT::solve()
   if (_status == SAT)
     NOTIFY_OBSERVER(check_invariants);
   NOTIFY_OBSERVER(done, _status == SAT);
+  auto end_time = std::chrono::high_resolution_clock::now();
+  long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+  NOTIFY_STAT_N(runtime, duration);
+  get_statistics()->print_statistics(true);
   return _status;
 }
 
