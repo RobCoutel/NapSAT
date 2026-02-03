@@ -759,6 +759,13 @@ public:
      */
     unsigned _lit_buffer_size = 0;
 
+    /**
+     * @brief Flag recording whether the most recent conflict is due to the user
+     * @details In that case, the termination of CDCL-GB is not in danger and we
+     * can backtrack any chunk we want.
+     */
+    bool _just_learned_from_user = false;
+
     /**  ACTIVITY HEAP  **/
     /**
      * @brief Activity increment for variables. This value is multiplied by the
@@ -921,7 +928,7 @@ public:
     /**
      * @brief Default cost function
      */
-    double default_cost(Tlit lit);
+    double literal_cost(Tlit lit);
 
     /**
      * @brief Number of allocated chunks.
@@ -990,6 +997,9 @@ public:
       statistics::stat *solve_time = nullptr; // "Runtime of the SAT solver"
       statistics::stat *repair_time = nullptr; // "Runtime of the SAT solver"
       statistics::stat *cost_estimation_time = nullptr; // "Chunk cost estimation time"
+      statistics::stat *backtrack_possibilities_time = nullptr; // "Backtrack possibilities time"
+      statistics::stat *conflict_analysis_time = nullptr; // "Conflict analysis time"
+      statistics::stat *conflict_fixing_time = nullptr; // "Conflict fixing time"
 
       // stats from observable events
       statistics::stat *decision = nullptr; // "Decisions"
@@ -1022,7 +1032,7 @@ public:
       statistics::stat *_n_binary_clause_added = nullptr; // "Binary clause added"
       statistics::stat *_n_clause_learned = nullptr; // "Learned clause"
       statistics::stat *_n_unit_clause_simplified = nullptr; // "Unit clause simplified"
-      statistics::stat *_n_clause_deleted = nullptr; // "Clause deleted"
+      statistics::stat *_n_redundant_clause = nullptr; // "Clause deleted"
       statistics::stat *_n_clause_set_simplified = nullptr; // "Clause set simplified"
       statistics::stat *_n_allocated_chunks = nullptr; // "Allocated Chunk"
       statistics::stat *_n_cross_implication_decisions = nullptr; // "Cross implication for decision"
@@ -1784,6 +1794,14 @@ public:
      * @param weights vector of bitsets to evaluate. After the call, the weights are updated and sorted such that the lightest bitset is at the beginning of the vector.
      */
     void calculate_bitset_weights(std::vector<Tweight>& weights);
+
+    /**
+     * @brief Given a set of bitsets, calculate an approximation of their weights according to the current state of the solver.
+     * @details The approximation is done by ignoring the intersections between chunks. The cost of each chunk is calculated separately and summed to obtain the total weight of the bitset.
+     * This function is faster than calculate_bitset_weights but less accurate.
+     * @param weights vector of bitsets to evaluate. After the call, the weights are updated.
+     */
+    void calculate_bitset_weights_approx(std::vector<Tweight>& weights);
 
     double calculate_weight(const bitset& chunks);
 

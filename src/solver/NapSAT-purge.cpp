@@ -272,7 +272,7 @@ void napsat::NapSAT::simplify_clause_set()
       continue;
     if (_activities[cl] < threshold) {
       delete_clause(cl);
-      NOTIFY_STAT(_n_clause_deleted);
+      NOTIFY_STAT(_n_redundant_clause);
     }
   }
   repair_watch_lists();

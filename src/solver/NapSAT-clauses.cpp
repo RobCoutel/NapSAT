@@ -282,6 +282,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       // except in graph backtracking, there is no reason to not handle the conflict eagerly
       // in GB, we want to select the best chunks at the end of the procedure.
       _lit_buffer_size = 0;
+      _just_learned_from_user = true;
       repair_conflicts();
     }
 
@@ -292,10 +293,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   ASSERT(clause_implying(id));
   ASSERT(lit_level(lits[1]) > LEVEL_ROOT);
 
-  if (lit_level(lits[0]) > lit_level(lits[1])) {
-    // This is a missed lower implication
-    reimply_literal(lits[0], id);
-  }
+  // This might be a missed lower implication
+  // check if we need to reimply the literal at a lower level (or fix the cross-chunks)
+  reimply_literal(lits[0], id);
   return id;
 }
 

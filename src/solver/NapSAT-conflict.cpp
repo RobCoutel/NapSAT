@@ -60,12 +60,29 @@ void napsat::NapSAT::subsumption_filter_chunks(std::vector<bitset>& possibilitie
   }
 }
 
+static bool subsumed(const vector<bitset>& a, const bitset& b)
+{
+  for (const bitset& ba : a) {
+    if (ba <= b) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combinations,
                                                           bitset current,
                                                           bitset processed)
 {
-  bitset diff = current - processed;
+  if (combinations.size() > _options.backtrack_possibilities_limit) {
+    return;
+  }
+  // check for subsumption
+  if (subsumed(combinations, current)) {
+    return;
+  }
 
+  bitset diff = current - processed;
   for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
     if (var_lazy_reason(_chunks[*i].decision) == CLAUSE_UNDEF) {
       processed.set(*i, true);
@@ -103,13 +120,94 @@ void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(std::vect
 {
   size_t original_size = possibilities.size();
   while(original_size > 0) {
-    compute_lazy_merge_chunk_combination(possibilities, possibilities[original_size - 1], bitset(_n_allocated_chunks));
-    // remove the original possibility
+    bitset current = possibilities[original_size - 1];
     possibilities[original_size - 1] = possibilities.back();
     possibilities.pop_back();
     original_size--;
+    compute_lazy_merge_chunk_combination(possibilities, current, bitset(_n_allocated_chunks));
+    // remove the original possibility
   }
-  subsumption_filter_chunks(possibilities);
+
+  // subsumption_filter_chunks(possibilities);
+}
+
+typedef pair<pair<unsigned, unsigned>, bitset> prefix_t;
+// this is used to sort the prefixes in the priority queue such that the ones that solve the most conflicts are first
+struct compare_prefixes {
+  bool operator()(const prefix_t& a, const prefix_t& b) const {
+    return a.first.first + a.first.second < b.first.first + b.first.second;
+  }
+};
+
+void napsat::NapSAT::compute_backtrack_possibilities(std::vector<bitset>& conflict_chunks,
+                                                     std::vector<bitset>& possibilities)
+{
+  ASSERT(possibilities.empty());
+  priority_queue<prefix_t, vector<prefix_t>, compare_prefixes> prefixes;
+
+  if (_n_assumptions > 0) {
+    for (bitset& chunks : conflict_chunks) {
+      chunks -= _locked_chunks;
+      if (chunks.empty()) { // conflict cannot be solved
+        return;
+      }
+    }
+  }
+
+  prefixes.push(make_pair(make_pair(conflict_chunks.size(), 0), bitset(_n_allocated_chunks)));
+  while (!prefixes.empty()) {
+    // check if the prefix is subsumed by an existing possibility
+    if (possibilities.size() > _options.backtrack_possibilities_limit) {
+      NOTIFY_STAT(_n_backtrack_limit_reached);
+      break;
+    }
+
+    prefix_t p = prefixes.top();
+    bitset prefix = p.second;
+    prefixes.pop();
+
+    if (p.first.first == 0) {
+      // all conflicts are solved, we can stop
+      possibilities.push_back(prefix);
+      continue;
+    }
+
+    bitset remaining(_n_allocated_chunks);
+
+    // Calculate which chunks can still be required
+    for (const bitset& cl_chunks : conflict_chunks) {
+      if (prefix.has_intersection(cl_chunks))
+        continue;
+      remaining |= cl_chunks;
+    }
+    ASSERT (!remaining.empty());
+
+    // expand the prefix
+    for (auto it = remaining.cbegin(); it != remaining.cend(); ++it) {
+      bitset next = prefix;
+      next.set(*it, true);
+      bool subsumed = false;
+      for (const bitset& p : possibilities) {
+        if (p >= next) {
+          // the prefix is subsumed, we can skip it
+          subsumed = true;
+          break;
+        }
+      }
+      if (subsumed)
+        continue;
+
+      unsigned conflicts_left = conflict_chunks.size();
+      for (const bitset& cl_chunks : conflict_chunks) {
+        if (next.has_intersection(cl_chunks))
+          conflicts_left--;
+      }
+      ASSERT(conflicts_left < p.first.first);
+      prefixes.push(make_pair(make_pair(conflicts_left, next.count()), next));
+    }
+  }
+
+  enhance_backtrack_possibilities_with_lazy_merging(possibilities);
 }
 
 void napsat::NapSAT::fix_conflicts_and_learned_in_order(const std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned)
@@ -326,90 +424,8 @@ bool napsat::NapSAT::root_level_conflict()
   return false;
 }
 
-typedef pair<pair<unsigned, unsigned>, bitset> prefix_t;
-// this is used to sort the prefixes in the priority queue such that the ones that solve the most conflicts are first
-struct compare_prefixes {
-  bool operator()(const prefix_t& a, const prefix_t& b) const {
-    return a.first.first * 1.0 / a.first.second < b.first.first * 1.0 / b.first.second;
-  }
-};
-
-void napsat::NapSAT::compute_backtrack_possibilities(std::vector<bitset>& conflict_chunks,
-                                                       std::vector<bitset>& possibilities)
-{
-  ASSERT(possibilities.empty());
-  priority_queue<prefix_t, vector<prefix_t>, compare_prefixes> prefixes;
-
-  if (_n_assumptions > 0) {
-    for (bitset& chunks : conflict_chunks) {
-      chunks -= _locked_chunks;
-      if (chunks.empty()) { // conflict cannot be solved
-        return;
-      }
-    }
-  }
-
-  prefixes.push(make_pair(make_pair(0, 1), bitset(_n_allocated_chunks)));
-  while (!prefixes.empty()) {
-    // check if the prefix is subsumed by an existing possibility
-    if (possibilities.size() > _options.backtrack_possibilities_limit) {
-      NOTIFY_STAT(_n_backtrack_limit_reached);
-      break;
-    }
-
-    prefix_t p = prefixes.top();
-    bitset prefix = p.second;
-    prefixes.pop();
-
-    if (p.first.first == conflict_chunks.size()) {
-      // all conflicts are solved, we can stop
-      possibilities.push_back(prefix);
-      continue;
-    }
-
-    bitset remaining(_n_allocated_chunks);
-
-    // Calculate which chunks can still be required
-    for (const bitset& cl_chunks : conflict_chunks) {
-      if (prefix.has_intersection(cl_chunks))
-        continue;
-      remaining |= cl_chunks;
-    }
-    ASSERT (!remaining.empty());
-
-    // expand the prefix
-    for (auto it = remaining.cbegin(); it != remaining.cend(); ++it) {
-      bitset next = prefix;
-      next.set(*it, true);
-      bool subsumed = false;
-      for (const bitset& p : possibilities) {
-        if (p >= next) {
-          // the prefix is subsumed, we can skip it
-          subsumed = true;
-          break;
-        }
-      }
-      if (subsumed)
-        continue;
-
-      unsigned number_of_solved_conflicts = 0;
-      for (const bitset& cl_chunks : conflict_chunks) {
-        if (next.has_intersection(cl_chunks))
-          number_of_solved_conflicts++;
-      }
-      ASSERT(number_of_solved_conflicts > p.first.first);
-      prefixes.push(make_pair(make_pair(number_of_solved_conflicts, next.count()), next));
-    }
-  }
-
-  subsumption_filter_chunks(possibilities);
-
-  enhance_backtrack_possibilities_with_lazy_merging(possibilities);
-}
-
 void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
 {
-  const auto start = chrono::high_resolution_clock::now();
   double lowest_weight = std::numeric_limits<double>::max();
 
   for (Tweight& w : weights) {
@@ -423,11 +439,7 @@ void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
         continue;
       }
       if (lit_chunks(lit).has_intersection(w.chunks)) {
-        if (_backtrack_cost_estimator) {
-          w.total_weight += _backtrack_cost_estimator(lit);
-        } else {
-          w.total_weight += default_cost(lit);
-        }
+        w.total_weight += literal_cost(lit);
       }
     }
 
@@ -440,10 +452,77 @@ void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
   // sort again, such that the best candidate is first
   std::sort(weights.begin(), weights.end(),
             [](const Tweight& a, const Tweight& b) { return b < a; });
-  const auto end = chrono::high_resolution_clock::now();
-  NOTIFY_STAT_N(cost_estimation_time,
-                  chrono::duration_cast<chrono::milliseconds>(end - start).count());
+}
 
+void napsat::NapSAT::calculate_bitset_weights_approx(std::vector<Tweight>& weights)
+{
+  if (weights.empty() || weights[0].finished) {
+    sort(weights.begin(), weights.end(),
+            [](const Tweight& a, const Tweight& b) { return b < a; });
+    return;
+  }
+
+  vector<double> chunk_weights(_n_allocated_chunks, 0.0);
+  vector<double> decision_weights(_n_allocated_chunks, 0.0);
+  bitset counted_chunks(_n_allocated_chunks);
+  for (Tweight& w : weights) {
+    size_t end = decision_lit_ptr(w.lowest_level) - _trail.data();
+    // this is a bit dirty, but like this we can reuse the same interface as above.
+    // The function will not do anything on the second call.
+    if (w.give_up_point == end)
+      continue;
+    w.give_up_point = end;
+    w.finished = true;
+    counted_chunks |= w.chunks;
+  }
+
+  // calculate the weight of each chunk
+  for (size_t i = 0; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    if (!lit_synced(lit)) {
+      ASSERT(!var_synced(lit_to_var(lit)));
+      continue;
+    }
+    ASSERT(var_synced(lit_to_var(lit)));
+    bitset lit_chunks_set = lit_chunks(lit) & counted_chunks;
+    double lit_cost = literal_cost(lit);
+    for (auto it = lit_chunks_set.cbegin(); it != lit_chunks_set.cend(); ++it) {
+      size_t chunk_id = *it;
+      chunk_weights[chunk_id] += lit_cost;
+      if (lit_decision(lit)) {
+        decision_weights[chunk_id] += lit_cost;
+      }
+    }
+  }
+
+  // now put the estimated weights together
+  for (Tweight& w : weights) {
+    w.total_weight = 0.0;
+    double max_cost = 0.0;
+    for (auto it = w.chunks.cbegin(); it != w.chunks.cend(); ++it) {
+      size_t chunk_id = *it;
+      if (_options.use_sum_approximate_cost_estimation) {
+        w.total_weight += chunk_weights[chunk_id];
+        continue;
+      }
+      Tvar decision = _chunks[chunk_id].decision;
+      double decision_cost = 0.0;
+      if (var_synced(decision)) {
+        decision_cost = decision_weights[chunk_id];
+      }
+      ASSERT_MSG(chunk_weights[chunk_id] >= decision_cost,
+                 "Chunk weight " + std::to_string(chunk_weights[chunk_id]) +
+                 " is less than decision cost " + std::to_string(decision_cost) +
+                 " for chunk " + std::to_string(chunk_id));
+      max_cost = max(max_cost, chunk_weights[chunk_id] - decision_cost);
+      w.total_weight += decision_cost;
+    }
+    w.total_weight += max_cost;
+  }
+
+  // sort again, such that the best candidate is first
+  std::sort(weights.begin(), weights.end(),
+            [](const Tweight& a, const Tweight& b) { return b < a; });
 }
 
 double napsat::NapSAT::calculate_weight(const bitset& chunks)
@@ -455,11 +534,7 @@ double napsat::NapSAT::calculate_weight(const bitset& chunks)
       continue;
     }
     if (lit_chunks(lit).has_intersection(chunks)) {
-      if (_backtrack_cost_estimator) {
-        total_weight += _backtrack_cost_estimator(lit);
-      } else {
-        total_weight += default_cost(lit);
-      }
+      total_weight += literal_cost(lit);
     }
   }
   return total_weight;
@@ -1080,7 +1155,11 @@ void napsat::NapSAT::graph_repair()
     conflict_chunks.push_back(clause_chunks(conflict));
   }
 
+  auto start = chrono::high_resolution_clock::now();
   compute_backtrack_possibilities(conflict_chunks, possibilities);
+  auto end = chrono::high_resolution_clock::now();
+  NOTIFY_STAT_N(backtrack_possibilities_time,
+                  chrono::duration_cast<chrono::milliseconds>(end - start).count());
   // LOG_INFO("Found " + std::to_string(possibilities.size()) + " backtrack possibilities to repair " + std::to_string(_conflicts.size()) + " conflicts.");
   if (possibilities.empty()) {
     // we cannot repair the conflicts
@@ -1117,7 +1196,18 @@ void napsat::NapSAT::graph_repair()
     }
     ASSERT(!weights.empty());
 
-    calculate_bitset_weights(weights);
+    bool approximate = _options.use_max_approximate_cost_estimation || _options.use_sum_approximate_cost_estimation;
+
+    const auto start = chrono::high_resolution_clock::now();
+    if (approximate) {
+      calculate_bitset_weights_approx(weights);
+    } else {
+      calculate_bitset_weights(weights);
+    }
+    const auto end = chrono::high_resolution_clock::now();
+    NOTIFY_STAT_N(cost_estimation_time,
+                    chrono::duration_cast<chrono::milliseconds>(end - start).count());
+
 
     // the top element is the best one because it was sorted by the calculate_bitset_weights function
     ASSERT(!weights.empty());
@@ -1125,8 +1215,12 @@ void napsat::NapSAT::graph_repair()
     ASSERT(analyzed.finished);
     weights.pop_back();
 
-    ASSERT(analyzed.total_weight <= calculate_weight(analyzed.chunks) + 1e-6);
-    ASSERT(analyzed.total_weight >= calculate_weight(analyzed.chunks) - 1e-6);
+    ASSERT(approximate || analyzed.total_weight <= calculate_weight(analyzed.chunks) + 1e-6);
+    ASSERT(approximate || analyzed.total_weight >= calculate_weight(analyzed.chunks) - 1e-6);
+    ASSERT(!_options.use_max_approximate_cost_estimation
+      || analyzed.total_weight <= calculate_weight(analyzed.chunks) + 1e-6);
+    ASSERT(!_options.use_sum_approximate_cost_estimation
+      || analyzed.total_weight >= calculate_weight(analyzed.chunks) - 1e-6);
 
     if(best.chunks.empty()) {
       best.total_weight = analyzed.total_weight;
@@ -1135,7 +1229,11 @@ void napsat::NapSAT::graph_repair()
     ASSERT(best.total_weight <= analyzed.total_weight);
 
     if (analyzed.maybe_learning) {
+      auto start = chrono::high_resolution_clock::now();
       try_and_learn(analyzed.chunks, learned_clauses);
+      auto end = chrono::high_resolution_clock::now();
+      NOTIFY_STAT_N(conflict_analysis_time,
+                      chrono::duration_cast<chrono::milliseconds>(end - start).count());
 
       if(_status == UNSAT) {
         return;
@@ -1149,7 +1247,7 @@ void napsat::NapSAT::graph_repair()
       NOTIFY_STAT(_n_failed_learning);
     }
 
-    if (analyzed.highest_level == highest_level) {
+    if (_just_learned_from_user || analyzed.highest_level == highest_level) {
       // this is the lightest and highest -> we're taking it
       // we are at the highest level, we can stop there
       break;
@@ -1172,7 +1270,12 @@ void napsat::NapSAT::graph_repair()
     }
   }
 
+  // auto start_fixing = chrono::high_resolution_clock::now();
   fix_conflicts_and_learned_in_order(learned_clauses);
+  // auto end_fixing = chrono::high_resolution_clock::now();
+  // NOTIFY_STAT_N(conflict_analysis_time,
+  //                 chrono::duration_cast<chrono::milliseconds>(end_fixing - start_fixing).count());
+  _just_learned_from_user = false;
 }
 
 void napsat::NapSAT::setup_weights(std::vector<bitset>& possibilities, napsat::Tlevel& highest_level, std::vector<napsat::NapSAT::Tweight>& weights)

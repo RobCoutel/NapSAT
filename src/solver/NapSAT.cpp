@@ -312,14 +312,19 @@ void NapSAT::restart()
   }
 }
 
-double napsat::NapSAT::default_cost(Tlit lit) {
-  if (lit_synced(lit)) {
-    return _options.sync_weight;
+double napsat::NapSAT::literal_cost(Tlit lit) {
+  if (_backtrack_cost_estimator) {
+    return _backtrack_cost_estimator(lit);
   }
   return 1;
 }
 
 static inline void print_bt_option(const options &options) {
+#ifndef NDEBUG
+    LOG_INFO("Running NapSAT (debug)");
+#else
+    LOG_INFO("Running NapSAT (release)");
+#endif
   string bt = "non-chronological";
   if (options.chronological_backtracking)
     bt = "chronological";
@@ -332,12 +337,25 @@ static inline void print_bt_option(const options &options) {
   else if (options.graph_backtracking)
     bt = "graph";
 
-#ifndef NDEBUG
-  bt += " (debug)";
-#else
-  bt += " (release)";
-#endif
   LOG_INFO("Using backtracking strategy: " + bt);
+  if (options.exhaustive_conflict_repair)
+    LOG_INFO(" - with exhaustive conflict repair");
+  if (options.partial_conflict_repair)
+    LOG_INFO(" - with partial conflict repair");
+
+  if (options.graph_backtracking) {
+    if (options.lazy_chunk_merging)
+      LOG_INFO(" - with lazy chunk merging");
+    if (options.backtrack_smallest_chunk)
+      LOG_INFO(" - with backtrack smallest chunk");
+    else if (options.backtrack_first_chunk)
+      LOG_INFO(" - with backtrack first chunk");
+    if (options.use_max_approximate_cost_estimation)
+      LOG_INFO(" - with max approximate cost estimation");
+    else if (options.use_sum_approximate_cost_estimation)
+      LOG_INFO(" - with sum approximate cost estimation");
+    LOG_INFO(" - with backtrack possibilities limit: " + std::to_string(options.backtrack_possibilities_limit));
+  }
 }
 
 /*****************************************************************************/
@@ -352,59 +370,67 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     _statistics = new napsat::statistics(options);
     const std::string cat_time = "1. Runtime";
     const std::string cat_core = "2. Core statistics";
-    const std::string cat_aux = "3. Auxiliary statistics";
+    const std::string cat_alg  = "3. Algorithmic";
+    const std::string cat_inp  = "4. Inprocessing";
+    const std::string cat_aux  = "5. Auxiliary statistics";
 
     stat.solve_time = _statistics->add_stat("Solve time", cat_time, statistics::TIME);
     stat.repair_time = _statistics->add_stat("Repair time", cat_time, statistics::TIME);
     stat.cost_estimation_time = _statistics->add_stat("Cost estimation time", cat_time, statistics::TIME);
+    stat.backtrack_possibilities_time = _statistics->add_stat("Backtrack possibilities time", cat_time, statistics::TIME);
+    stat.conflict_analysis_time = _statistics->add_stat("Conflict analysis time", cat_time, statistics::TIME);
+    stat.conflict_fixing_time = _statistics->add_stat("Conflict fixing time", cat_time, statistics::TIME);
 
+    stat.done = _statistics->add_stat("Solve calls", cat_core);
+    stat.new_variable = _statistics->add_stat("Add variable", cat_core);
+    stat.new_clause = _statistics->add_stat("Add clause", cat_core);
     stat.decision = _statistics->add_stat("Decisions", cat_core);
     stat.conflict = _statistics->add_stat("Conflicts", cat_core);
-    stat.propagation = _statistics->add_stat("Propagation", cat_core);
+    stat._n_conflict_repair = _statistics->add_stat("Conflict repair", cat_core);
     stat.implication = _statistics->add_stat("Implication", cat_core);
+    stat.propagation = _statistics->add_stat("Propagation", cat_core);
     stat.unassignment= _statistics->add_stat("Unassignment", cat_core);
-    stat.remove_propagation = _statistics->add_stat("Remove propagation", cat_core);
-    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_aux);
-    stat.remove_literal = _statistics->add_stat("Remove literal", cat_core);
-    stat.block = _statistics->add_stat("Block", cat_aux);
     stat.check_invariants = _statistics->add_stat("Check invariants", cat_aux);
     stat.missed_lower_implication = _statistics->add_stat("Missed lower implication", cat_core);
-    stat.backtracking_started = _statistics->add_stat("Backtracking started", cat_core);
-    stat.update_level = _statistics->add_stat("Update level", cat_aux);
-    stat.update_reason = _statistics->add_stat("Update reason", cat_aux);
-    stat.new_clause = _statistics->add_stat("Add clause", cat_core);
-    stat.new_variable = _statistics->add_stat("Add variable", cat_core);
-    stat.delete_clause = _statistics->add_stat("Delete clause", cat_core);
-    stat.marker = _statistics->add_stat("Marker", cat_aux);
-    stat.watch = _statistics->add_stat("Watch", cat_aux);
-    stat.unwatch = _statistics->add_stat("Unwatch", cat_aux);
-    stat.done = _statistics->add_stat("Solve calls", cat_core);
+    stat._n_sync = _statistics->add_stat("Sync", cat_core);
+    stat._n_restart = _statistics->add_stat("Restart", cat_core);
     stat.lock_assumption = _statistics->add_stat("Lock assumption", cat_core);
     stat.unlock_assumption = _statistics->add_stat("Unlock assumption", cat_core);
 
-    stat._n_purged_clauses = _statistics->add_stat("Purging clauses", cat_aux);
+    stat.remove_literal = _statistics->add_stat("Remove literal", cat_inp);
+    stat.marker = _statistics->add_stat("Marker", cat_aux);
+    stat.watch = _statistics->add_stat("Watch", cat_alg);
+    stat.unwatch = _statistics->add_stat("Unwatch", cat_alg);
+    stat.block = _statistics->add_stat("Block", cat_alg);
+    stat._n_propagation_replayed = _statistics->add_stat("Replayed Propagation", cat_alg);
+    stat._n_skipped_propagation = _statistics->add_stat("Skipped Propagation", cat_alg);
+    stat._n_fw_subsumption = _statistics->add_stat("Forward subsumption", cat_alg);
+    stat._n_bw_subsumption = _statistics->add_stat("Backward subsumption", cat_alg);
+    stat._n_fw_subsumption_in_set = _statistics->add_stat("Forward subsumption in set", cat_alg);
+    stat._n_backtrack_forced_chunks = _statistics->add_stat("Backtrack forced chunks", cat_alg);
+    stat._n_backtrack_better_chunks = _statistics->add_stat("Backtrack better chunks", cat_alg);
+    stat._n_backtrack_limit_reached = _statistics->add_stat("Backtrack limit reached", cat_alg);
+    stat._n_failed_learning = _statistics->add_stat("Failed learning", cat_alg);
+
+    stat._n_purged_clauses = _statistics->add_stat("Purging clauses", cat_inp);
+    stat.delete_clause = _statistics->add_stat("Delete clause", cat_inp);
+    stat._n_redundant_clause = _statistics->add_stat("Clause deleted", cat_inp);
+
+    stat.backtracking_started = _statistics->add_stat("Backtracking started", cat_aux);
+    stat.update_level = _statistics->add_stat("Update level", cat_aux);
+    stat.update_reason = _statistics->add_stat("Update reason", cat_aux);
+    stat.remove_propagation = _statistics->add_stat("Remove propagation", cat_aux);
+    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_aux);
     stat._n_binary_clause_simplified = _statistics->add_stat("Binary clause simplified", cat_aux);
     stat._n_binary_clause_added = _statistics->add_stat("Binary clause added", cat_aux);
     stat._n_clause_learned = _statistics->add_stat("Learned clause", cat_aux);
     stat._n_unit_clause_simplified = _statistics->add_stat("Unit clause simplified", cat_aux);
-    stat._n_clause_deleted = _statistics->add_stat("Clause deleted", cat_aux);
     stat._n_clause_set_simplified = _statistics->add_stat("Clause set simplified", cat_aux);
     stat._n_allocated_chunks = _statistics->add_stat("Allocated Chunk", cat_aux);
     stat._n_cross_implication_decisions = _statistics->add_stat("Cross implication for decision", cat_aux);
     stat._n_lazy_reimplication_used = _statistics->add_stat("Lazy reimplication used", cat_aux);
-    stat._n_propagation_replayed = _statistics->add_stat("Replayed Propagation", cat_aux);
-    stat._n_skipped_propagation = _statistics->add_stat("Skipped Propagation", cat_aux);
-    stat._n_sync = _statistics->add_stat("Sync", cat_core);
-    stat._n_restart = _statistics->add_stat("Restart", cat_aux);
-    stat._n_fw_subsumption_in_set = _statistics->add_stat("Forward subsumption in set", cat_aux);
-    stat._n_fw_subsumption = _statistics->add_stat("Forward subsumption", cat_aux);
-    stat._n_bw_subsumption = _statistics->add_stat("Backward subsumption", cat_aux);
-    stat._n_backtrack_limit_reached = _statistics->add_stat("Backtrack limit reached", cat_aux);
-    stat._n_conflict_repair = _statistics->add_stat("Conflict repair", cat_aux);
-    stat._n_failed_learning = _statistics->add_stat("Failed learning", cat_aux);
-    stat._n_backtrack_forced_chunks = _statistics->add_stat("Backtrack forced chunks", cat_aux);
-    stat._n_backtrack_better_chunks = _statistics->add_stat("Backtrack better chunks", cat_aux);
     stat._a_learned_clause_size = _statistics->add_stat("Avg learned clause size", cat_aux, statistics::AVERAGE);
+
   }
 #else
   if (options.print_stats)
@@ -477,7 +503,6 @@ NapSAT::~NapSAT()
 #if USE_STATISTICS
   if (_options.print_stats) {
     if (_statistics) {
-      LOG_INFO("Final statistics:");
       get_statistics()->print_statistics(_options.print_live_stats);
     }
 #endif
@@ -631,7 +656,9 @@ status NapSAT::solve()
         auto end_time = std::chrono::high_resolution_clock::now();
         long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
         NOTIFY_STAT_N(solve_time, duration);
-        get_statistics()->print_statistics(true);
+
+        if (_options.print_live_stats || _options.print_stats)
+          get_statistics()->print_statistics(true);
         return _status;
       }
     }
@@ -667,7 +694,8 @@ status NapSAT::solve()
         auto end_time = std::chrono::high_resolution_clock::now();
         long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
         NOTIFY_STAT_N(solve_time, duration);
-        get_statistics()->print_statistics(true);
+        if (_options.print_live_stats || _options.print_stats)
+          get_statistics()->print_statistics(true);
         return _status;
       }
       // in chronological backtracking, the purge might have implied some literals
@@ -691,7 +719,8 @@ status NapSAT::solve()
   auto end_time = std::chrono::high_resolution_clock::now();
   long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
   NOTIFY_STAT_N(solve_time, duration);
-  get_statistics()->print_statistics(true);
+  if (_options.print_live_stats || _options.print_stats)
+    get_statistics()->print_statistics(true);
   return _status;
 }
 

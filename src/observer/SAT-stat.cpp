@@ -78,9 +78,8 @@ namespace napsat {
   #endif
   }
 
-  void statistics::print_statistics(bool clear)const
+  void statistics::print_statistics(bool clear) const
   {
-
     if (last_clear) {
       for (unsigned i = 0; i < last_line_count; i++)
         cout << "\033[A";

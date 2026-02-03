@@ -176,7 +176,11 @@ napsat::options::options(vector<string>& tokens)
     {"--partial-conflict-repair",                &partial_conflict_repair},
     {"-pcr",                                     &partial_conflict_repair},
     {"--backtrack-learned",                      &backtrack_learned},
-    {"-bl",                                      &backtrack_learned}
+    {"-bl",                                      &backtrack_learned},
+    {"--use-max-approximate-cost-estimation",    &use_max_approximate_cost_estimation},
+    {"-approx-max-cost",                         &use_max_approximate_cost_estimation},
+    {"--use-sum-approximate-cost-estimation",    &use_sum_approximate_cost_estimation},
+    {"-approx-sum-cost",                         &use_sum_approximate_cost_estimation}
   };
 
   /**
@@ -327,6 +331,12 @@ napsat::options::options(vector<string>& tokens)
     LOG_WARNING("backtrack first chunk subsumes backtrack smallest chunk.");
     LOG_WARNING("The solver will run with backtrack first chunk.");
     backtrack_smallest_chunk = false;
+  }
+
+  if (!graph_backtracking && use_max_approximate_cost_estimation) {
+    LOG_WARNING("use approximate cost estimation requires graph backtracking.");
+    LOG_WARNING("The solver will ignore this option.");
+    use_max_approximate_cost_estimation = false;
   }
 
   if (clause_activity_threshold_decay <= 0 || clause_activity_threshold_decay >= 1) {

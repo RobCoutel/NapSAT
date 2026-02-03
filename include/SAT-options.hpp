@@ -343,6 +343,20 @@ namespace napsat
     bool backtrack_learned = false;
 
     /**
+     * @brief If true, the solver will use an approximate cost estimation when calculating the weights of bitsets during conflict analysis.
+     * @alias -approx-max-cost
+     * @requires -gb and not
+     */
+    bool use_max_approximate_cost_estimation = false;
+
+    /**
+     * @brief If true, the solver will use an alternative approximate cost estimation when calculating the weights of bitsets during conflict analysis.
+     * @alias -approx-sum-cost
+     * @requires -gb and not use_max_approximate_cost_estimation
+     */
+    bool use_sum_approximate_cost_estimation = false;
+
+    /**
      * @brief Limit on the number of backtrack possibilities to consider when using graph backtracking. If the number of possibilities is greater than the limit, the solver will heuristically cutoff.
      */
     double backtrack_possibilities_limit = 1000;
