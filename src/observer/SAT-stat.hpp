@@ -13,7 +13,8 @@ namespace napsat {
   public:
     enum stat_type {
       AVERAGE,
-      COUNT
+      COUNT,
+      TIME
     };
 
     struct stat {

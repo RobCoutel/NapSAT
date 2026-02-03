@@ -108,7 +108,7 @@ napsat::gui::observer::observer(napsat::options& options) : _options(options)
 
 bool observer::notify(notification* notification)
 {
-  const auto type = notification->get_type();
+  // const auto type = notification->get_type();
   const auto level = notification->get_event_level(this);
 
   _notifications.push_back(notification);

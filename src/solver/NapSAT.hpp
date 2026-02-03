@@ -987,7 +987,9 @@ public:
 
     /** STATISTICS **/
     struct {
-      statistics::stat *runtime = nullptr; // "Runtime of the SAT solver"
+      statistics::stat *solve_time = nullptr; // "Runtime of the SAT solver"
+      statistics::stat *repair_time = nullptr; // "Runtime of the SAT solver"
+      statistics::stat *cost_estimation_time = nullptr; // "Chunk cost estimation time"
 
       // stats from observable events
       statistics::stat *decision = nullptr; // "Decisions"

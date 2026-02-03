@@ -409,6 +409,7 @@ void napsat::NapSAT::compute_backtrack_possibilities(std::vector<bitset>& confli
 
 void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
 {
+  const auto start = chrono::high_resolution_clock::now();
   double lowest_weight = std::numeric_limits<double>::max();
 
   for (Tweight& w : weights) {
@@ -439,6 +440,10 @@ void napsat::NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights)
   // sort again, such that the best candidate is first
   std::sort(weights.begin(), weights.end(),
             [](const Tweight& a, const Tweight& b) { return b < a; });
+  const auto end = chrono::high_resolution_clock::now();
+  NOTIFY_STAT_N(cost_estimation_time,
+                  chrono::duration_cast<chrono::milliseconds>(end - start).count());
+
 }
 
 double napsat::NapSAT::calculate_weight(const bitset& chunks)
@@ -757,6 +762,7 @@ void napsat::NapSAT::fix_watched_literals(Tclause conflict)
 void NapSAT::repair_conflicts()
 {
   NOTIFY_STAT(_n_conflict_repair);
+  auto start = std::chrono::high_resolution_clock::now();
   /**
    * Precondition:
    * - The conflict clause C is conflicting with the current partial assignment π
@@ -798,6 +804,10 @@ void NapSAT::repair_conflicts()
   if (_status != UNSAT)
     _conflicts.clear();
   _var_activity_increment /= _options.var_activity_decay;
+
+  auto end = std::chrono::high_resolution_clock::now();
+  long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+  NOTIFY_STAT_N(repair_time, duration);
 }
 
 bool napsat::NapSAT::conflict_can_generate_learned_clause(Tclause conflict, const bitset& bt)
@@ -1119,6 +1129,7 @@ void napsat::NapSAT::graph_repair()
     ASSERT(analyzed.total_weight >= calculate_weight(analyzed.chunks) - 1e-6);
 
     if(best.chunks.empty()) {
+      best.total_weight = analyzed.total_weight;
       best.chunks = analyzed.chunks;
     }
     ASSERT(best.total_weight <= analyzed.total_weight);
