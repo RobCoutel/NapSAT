@@ -134,8 +134,8 @@ void napsat::NapSAT::purge_root_watch_lists()
 
 void napsat::NapSAT::purge_clauses()
 {
-  ASSERT(watch_lists_complete());
-  ASSERT(watch_lists_minimal());
+  ASSERT(check_watch_lists_complete());
+  ASSERT(check_watch_lists_minimal());
   NOTIFY_STAT(_n_purged_clauses);
   _purge_threshold = _n_root_lvl_lits + _purge_inc;
   // We assume that all the literals are propagated
@@ -252,8 +252,8 @@ void napsat::NapSAT::purge_clauses()
   // remove the deleted clauses
   repair_watch_lists();
   NOTIFY_OBSERVER(check_invariants);
-  ASSERT(watch_lists_complete());
-  ASSERT(watch_lists_minimal());
+  ASSERT(check_watch_lists_complete());
+  ASSERT(check_watch_lists_minimal());
 }
 
 void napsat::NapSAT::simplify_clause_set()
@@ -276,7 +276,7 @@ void napsat::NapSAT::simplify_clause_set()
     }
   }
   repair_watch_lists();
-  ASSERT(watch_lists_complete());
-  ASSERT(watch_lists_minimal());
+  ASSERT(check_watch_lists_complete());
+  ASSERT(check_watch_lists_minimal());
   NOTIFY_STAT(_n_clause_set_simplified);
 }

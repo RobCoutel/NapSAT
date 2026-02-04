@@ -39,7 +39,7 @@ static inline bool is_prefix(const string &s, const string &prefix) {
   return s.compare(0, prefix.size(), prefix) == 0;
 }
 
-bool napsat::NapSAT::parse_dimacs(const char* filename)
+bool NapSAT::parse_dimacs(const char* filename)
 {
 #if USE_OBSERVER
   bool printed_warning = false;
@@ -145,7 +145,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
         int lit = stoi(token);
         if (lit == 0)
           break;
-        add_literal(napsat::literal(abs(lit), lit > 0));
+        add_literal(literal(abs(lit), lit > 0));
       } catch (invalid_argument &e) {
         LOG_ERROR("The token " << token << " is not a number.");
         _status = ERROR;
@@ -160,7 +160,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
   return true;
 }
 
-void napsat::NapSAT::bump_var_activity(Tvar var)
+void NapSAT::bump_var_activity(Tvar var)
 {
   assert(var < _vars.size());
   TSvar& svar = _vars[var];
@@ -177,7 +177,7 @@ void napsat::NapSAT::bump_var_activity(Tvar var)
   }
 }
 
-void napsat::NapSAT::bump_clause_activity(Tclause cl)
+void NapSAT::bump_clause_activity(Tclause cl)
 {
   _activities[cl] += _clause_activity_increment;
   _clause_activity_increment *= _options.clause_activity_multiplier;
@@ -192,7 +192,7 @@ void napsat::NapSAT::bump_clause_activity(Tclause cl)
 
 static const char esc_char = 27; // the decimal code for escape character is 27
 
-void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
+void NapSAT::watch_lit(Tlit lit, Tclause cl)
 {
   const Tlit* lits = clause_lits(cl);
   ASSERT(cl != CLAUSE_UNDEF);
@@ -206,7 +206,7 @@ void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
   #endif
 }
 
-void napsat::NapSAT::watch_lit_bin(Tclause cl)
+void NapSAT::watch_lit_bin(Tclause cl)
 {
   const Tlit* lits = clause_lits(cl);
   ASSERT(cl != CLAUSE_UNDEF);
@@ -222,7 +222,7 @@ void napsat::NapSAT::watch_lit_bin(Tclause cl)
   #endif
 }
 
-void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
+void NapSAT::stop_watch(Tlit lit, Tclause cl)
 {
 #if NOTIFY_WATCH_CHANGES
   NOTIFY_OBSERVER(unwatch, cl, lit);
@@ -238,7 +238,7 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
   _watches[lit].erase(_watches[lit].begin() + loc);
 }
 
-unsigned napsat::NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
+unsigned NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
 {
   Tlit* i = lits;
   Tlit* j = i;
@@ -258,7 +258,7 @@ unsigned napsat::NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
   return new_size;
 }
 
-void napsat::NapSAT::var_allocate(Tvar var)
+void NapSAT::var_allocate(Tvar var)
 {
   if (_vars.size() >= var + 1)
     return;
@@ -290,7 +290,7 @@ void napsat::NapSAT::var_allocate(Tvar var)
   _lit_buffer = new_literal_buffer;
 }
 
-void napsat::NapSAT::allocate_chunks(size_t n_chunks)
+void NapSAT::allocate_chunks(size_t n_chunks)
 {
   ASSERT(n_chunks > _n_allocated_chunks);
   ASSERT(_chunks.size() == _n_allocated_chunks);
@@ -312,7 +312,7 @@ void napsat::NapSAT::allocate_chunks(size_t n_chunks)
   }
 }
 
-unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
+unsigned NapSAT::utility_heuristic(Tlit lit)
 {
   // In graph backtracking, we cannot use a utility function anymore, because the literals are
   // now in a lattice, where all literals are not necessarily comparable.
@@ -328,12 +328,79 @@ unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
        + (lit_false(lit) * level_weight + 1);
 }
 
-unsigned napsat::NapSAT::max_utility_heuristic()
+unsigned NapSAT::max_utility_heuristic()
 {
   return (2 * solver_level() + 3);
 }
 
-void napsat::NapSAT::print_lit(Tlit lit)
+
+void NapSAT::defragment_order()
+{
+  _current_order = 0;
+  for (size_t i = 0; i < _trail.size(); i++) {
+    lit_order(_trail[i]) = _current_order++;
+  }
+}
+
+void napsat::NapSAT::defragment_trail()
+{
+  // TODO is there a faster way to do this?
+  // Probably, but algorithmically complicated.
+  // Change if bottleneck.
+
+  // store all the decisions
+  vector<Tlit> decisions;
+  for (Tlevel level = 1; level <= solver_level(); level++) {
+    decisions.push_back(decision_lit_ptr(level)[0]);
+  }
+  restart();
+  propagate();
+  ASSERT(_conflicts.empty());
+  for (Tlit decision : decisions) {
+    imply_literal(decision, CLAUSE_UNDEF);
+    propagate();
+    ASSERT(_conflicts.empty());
+  }
+  ASSERT(check_trail_monotonicity());
+}
+
+size_t napsat::NapSAT::find_literal_in_trail(Tlit lit) const
+{
+  // the literal must be located between the decision of it's decision level and the end of the trail
+  // if in NCB, it must be located between the decision of it's decision level and the next decision of a different level
+  Tlevel level = lit_level(lit);
+  const Tlit* left = decision_lit_ptr(level);
+  const Tlit* right = _trail.data() + _trail.size();
+  if (lit_decision(lit)) {
+    return left - _trail.data();
+  }
+  if (!_options.chronological_backtracking && !_options.graph_backtracking
+   && level < solver_level()) {
+    right = decision_lit_ptr(level + 1);
+  }
+
+  size_t target_order = lit_order(lit);
+  while(left < right) {
+    const Tlit* mid = left + (right - left) / 2;
+    if (lit_order(*mid) == target_order) {
+      return mid - _trail.data();
+    }
+    if (lit_order(*mid) < target_order) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+  ASSERT_MSG(false,
+             "The literal " << lit_to_string(lit) << " with order " << target_order
+          << " was not found in the trail between " << (left - _trail.data())
+          << " and " << (right - _trail.data()) << ".");
+  return _trail.size();
+}
+
+
+
+void NapSAT::print_lit(Tlit lit) const
 {
   cout << lit_to_string(lit);
 }
@@ -384,7 +451,7 @@ string NapSAT::clause_to_string(Tclause cl) const
   return s;
 }
 
-std::string napsat::NapSAT::clause_to_string(const Tlit* lits, size_t size) const
+std::string NapSAT::clause_to_string(const Tlit* lits, size_t size) const
 {
   string s = "";
   s += "{ ";
@@ -396,12 +463,12 @@ std::string napsat::NapSAT::clause_to_string(const Tlit* lits, size_t size) cons
   return s;
 }
 
-void NapSAT::print_clause(Tclause cl)
+void NapSAT::print_clause(Tclause cl) const
 {
   cout << clause_to_string(cl);
 }
 
-void NapSAT::print_trail()
+void NapSAT::print_trail() const
 {
   cout << "trail: " << _n_propagated_lits << " - " << _trail.size() - _n_propagated_lits;
   if (_n_assumptions > 0) {
@@ -449,7 +516,7 @@ void NapSAT::print_trail()
   cout << endl;
 }
 
-void napsat::NapSAT::print_trail_simple()
+void NapSAT::print_trail_simple() const
 {
   cout << "trail :\n";
   for (Tlevel lvl = solver_level(); lvl <= solver_level(); lvl--) {
@@ -474,7 +541,7 @@ void napsat::NapSAT::print_trail_simple()
   }
 }
 
-void napsat::NapSAT::print_chunks()
+void NapSAT::print_chunks() const
 {
   for (Tchunk chunk = 0; chunk < _chunks.size(); chunk++) {
     cout << "Chunk " << chunk << ": ";
@@ -484,7 +551,7 @@ void napsat::NapSAT::print_chunks()
 
 const static unsigned TERMINAL_WIDTH = 120;
 
-void napsat::NapSAT::print_clause_set()
+void NapSAT::print_clause_set() const
 {
   unsigned longest_clause = 0;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
@@ -525,7 +592,7 @@ void napsat::NapSAT::print_clause_set()
   }
 }
 
-void napsat::NapSAT::print_watch_lists(Tlit lit)
+void NapSAT::print_watch_lists(Tlit lit) const
 {
   Tlit i = 1;
   Tlit end = _watches.size();
@@ -553,7 +620,7 @@ void napsat::NapSAT::print_watch_lists(Tlit lit)
   }
 }
 
-bool napsat::NapSAT::parse_command(std::string input)
+bool NapSAT::parse_command(std::string input)
 {
   if (input == "") {
     if (_status == SAT || _status == UNSAT)
@@ -694,7 +761,7 @@ bool napsat::NapSAT::parse_command(std::string input)
   }
   else if (tokens[0] == "HELP") {
     // print the content of the help file
-    string man_file = napsat::env::get_man_page_folder() + "man-sat.txt";
+    string man_file = env::get_man_page_folder() + "man-sat.txt";
     ifstream file(man_file);
     if (file.is_open()) {
       string line;

@@ -21,7 +21,42 @@
 using namespace napsat;
 using namespace std;
 
-Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size)
+void NapSAT::var_unassign(Tvar var)
+{
+  ASSERT(!var_undef(var));
+
+  TSvar& v = _vars[var];
+  NOTIFY_OBSERVER(unassignment, literal(var, v.state));
+  if (v.missed_lower_implication != CLAUSE_UNDEF) {
+    NOTIFY_OBSERVER(remove_lower_implication, var);
+    v.missed_lower_implication = CLAUSE_UNDEF;
+  }
+  if (!_variable_heap.contains(var))
+    _variable_heap.insert(var, v.activity);
+
+  if (_options.graph_backtracking) {
+    if (v.reason == CLAUSE_UNDEF) {
+      ASSERT(v.chunks.count() == 1);
+      for (Tchunk ck = 0; ck < _n_allocated_chunks; ck++) {
+        TSchunk& chunk = _chunks[ck];
+        if (chunk.decision == var) {
+          _free_chunks.push_back(ck);
+          chunk.decision = LIT_UNDEF;
+          chunk.missed_implication.clear();
+          break;
+        }
+      }
+    }
+    v.chunks.clear();
+    v.cross_chunks.clear();
+  }
+  v.state = VAR_UNDEF;
+  v.reason = CLAUSE_UNDEF;
+  v.level = LEVEL_UNDEF;
+  v.propagated = false;
+}
+
+Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size)
 {
   ASSERT(!_options.graph_backtracking);
 #ifndef NDEBUG
@@ -44,7 +79,7 @@ Tlevel napsat::NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned siz
   return lit_level(learned_lits[1]);
 }
 
-void napsat::NapSAT::backtrack(Tlevel level)
+void NapSAT::backtrack(Tlevel level)
 {
   ASSERT(level <= solver_level());
   if (_status == SAT) {
@@ -144,7 +179,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
 
 static Tvar last_backtracked_decision = 0;
 
-void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
+void NapSAT::backtrack(const bitset& backtracked_chunks)
 {
   ASSERT(_options.graph_backtracking);
   ASSERT(!backtracked_chunks.empty());
@@ -165,7 +200,7 @@ void napsat::NapSAT::backtrack(const bitset& backtracked_chunks)
     }
   }
 
-  Tlit* i = decision_lit_ptr(min_level);
+  Tlit* i = _trail.data() + _decision_index[min_level - 1];
   size_t start_position = i - _trail.data();
   Tlit* j = i;
   Tlit* end = _trail.data() + _trail.size();

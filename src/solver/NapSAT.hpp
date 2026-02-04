@@ -469,7 +469,7 @@ namespace napsat
      * @brief Prints the current assignment of the solver on the standard
      * output in a human-readable format.
      */
-    void print_trail();
+    void print_trail() const;
 
     /**
      * @brief Destroy the napsat::NapSAT object
@@ -483,7 +483,11 @@ public:
 #endif
 
     typedef unsigned Tchunk;
-    const Tchunk CHUNK_UNDEF = 0xFFFFFFFF;
+    static const Tchunk CHUNK_UNDEF = 0xFFFFFFFF;
+
+    size_t _current_order = 0;
+    static const size_t ORDER_RESET = 0xFFFFFFFFFFFFFFFF;
+
     /*************************************************************************/
     /*                            Data structures                            */
     /*************************************************************************/
@@ -514,6 +518,17 @@ public:
        * literal ℓ or ¬ℓ.
        */
       Tclause reason = CLAUSE_UNDEF;
+      /**
+       * @brief Order in which the variable as been last assigned.
+       * @details Used to find the position of a literal in the trail with binary
+       * search.
+       * @details This number is only increased when the variable is assigned.
+       * Backtracking does not change the order of variables.
+       * @details The order is defragmented when the solver backtracks to level 0
+       * or reaches arithmetic overflow.
+       */
+      size_t order = ORDER_RESET;
+
       /**
        * @brief Activity of the variable. Used in decision heuristics.
        */
@@ -1000,6 +1015,7 @@ public:
       statistics::stat *backtrack_possibilities_time = nullptr; // "Backtrack possibilities time"
       statistics::stat *conflict_analysis_time = nullptr; // "Conflict analysis time"
       statistics::stat *conflict_fixing_time = nullptr; // "Conflict fixing time"
+      statistics::stat *backtrack_time = nullptr; // "Backtrack time"
 
       // stats from observable events
       statistics::stat *decision = nullptr; // "Decisions"
@@ -1183,6 +1199,17 @@ public:
      */
     inline bool lit_decision(Tlit lit) const { return var_decision(lit_to_var(lit)); }
 
+    inline size_t var_order(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].order;
+    }
+    inline size_t lit_order(Tlit lit) const { return var_order(lit_to_var(lit)); }
+    inline size_t& var_order(Tvar var) {
+      ASSERT(var < _vars.size());
+      return _vars[var].order;
+    }
+    inline size_t& lit_order(Tlit lit) { return var_order(lit_to_var(lit)); }
+
     /**
      * @brief Returns the decision literal at the given level.
      * @param level decision level to evaluate.
@@ -1196,12 +1223,13 @@ public:
       ASSERT(lit_level(_trail[_decision_index[level - 1]]) == level);
       return _trail[_decision_index[level - 1]];
     }
-    inline Tlit* decision_lit_ptr(Tlevel level) {
+    inline const Tlit* decision_lit_ptr(Tlevel level) const {
       ASSERT(level >= 1);
       ASSERT(level <= solver_level());
       ASSERT(lit_decision(_trail[_decision_index[level - 1]]));
       ASSERT(lit_level(_trail[_decision_index[level - 1]]) == level);
-      return &_trail[_decision_index[level - 1]];
+      const Tlit* start = _trail.data();
+      return start + _decision_index[level - 1];
     }
 
     /**
@@ -1311,7 +1339,7 @@ public:
       Tlit* lits = clause_lits(l_reason);
       ASSERT(lit == lits[0]);
       ASSERT(lit_level(lit) > LEVEL_ROOT);
-      ASSERT(clause_implying(l_reason));
+      ASSERT(check_clause_implying(l_reason));
       ASSERT(clause_size(l_reason) > 1);
       ASSERT(lit_is_max_literal(lits[1], lits + 1, clause_size(l_reason) - 1));
       return lit_level(lits[1]);
@@ -1372,6 +1400,24 @@ public:
      * @return size of the clause.
      */
     inline size_t clause_size(Tclause cl) const { return _clauses[cl].size; }
+
+    inline Tlevel implication_level(Tclause cl) const {
+      const Tlit* lits = clause_lits(cl);
+      Tlevel max_level = LEVEL_ROOT;
+      for (size_t i = 1; i < clause_size(cl); i++) {
+        max_level = std::max(max_level, lit_level(lits[i]));
+      }
+      return max_level;
+    }
+
+    inline void recompute_chunks(Tlit lit) {
+      ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
+      const Tlit* lits = clause_lits(lit_reason(lit));
+      lit_chunks(lit).clear();
+      for (size_t i = 1; i < clause_size(lit_reason(lit)); i++) {
+        lit_chunks(lit) |= lit_chunks(lits[i]);
+      }
+    }
 
 
     /** OTHERS **/
@@ -1457,14 +1503,33 @@ public:
      * @param cl clause to evaluate.
      * @return chunk of the clause.
      */
-    bitset clause_chunks(Tclause cl);
+    bitset clause_chunks(Tclause cl) const;
 
     /**
      * @brief Returns the level of a clause.
      * @param cl clause to evaluate.
      * @return the maximum level of the literals in the clause.
      */
-    Tlevel clause_level(Tclause cl);
+    Tlevel clause_level(Tclause cl) const;
+
+    /**
+     * @brief Defragments the order of the trail. That is, the order of the variables in the trail is updated to
+     * be contiguous and increasing from 0 to the number of literals in the trail.
+     * This is used to ensure that no arithmetic overflow happens in the order of the variables.
+     */
+    void defragment_order();
+
+    /**
+     * @brief Defragments the trail by sorting the trails by levels.
+     */
+    void defragment_trail();
+
+    /**
+     * @brief Performs binary search to find a literal in the trail. Returns the index of the literal if it is in the
+     * trail, and TRAIL_UNDEF otherwise.
+     * @pre The trail is sorted by the order of the variables, so the search is done on the variable of the literal.
+     */
+    size_t find_literal_in_trail(Tlit lit) const;
 
 
     /*************************************************************************/
@@ -1533,13 +1598,6 @@ public:
     /*                     Boolean Constraint Propagation                    */
     /*************************************************************************/
     /**
-     * @brief Unassign a variable.
-     * @param var variable to unassign.
-     * @pre The variable must be assigned.
-     */
-    void var_unassign(Tvar var);
-
-    /**
      * @brief Add one literal to the propagation queue.
      * @pre The literal ℓ must be unassigned.
      *     ¬ℓ ∉ π ∧ ℓ ∉ π
@@ -1595,6 +1653,12 @@ public:
      *   ρ(ℓ) = C
      */
     void reimply_literal_root(Tlit lit, Tclause reason);
+
+    /**
+     * @brief Eagerly reimplies a decision literal to an implied literals with new justification.
+     * @details Restores the topological order of the trail by reimplying the decision
+     */
+    void eager_decision_reimplication(Tlit decision, Tclause reason);
 
     /**
      * @brief Checks whether reimplying lit (a decision literal) would create a cycle.
@@ -2033,6 +2097,13 @@ public:
     /*                              Backtracking                             */
     /*************************************************************************/
     /**
+     * @brief Unassign a variable.
+     * @param var variable to unassign.
+     * @pre The variable must be assigned.
+     */
+    void var_unassign(Tvar var);
+
+    /**
      * @brief Backtrack literals in the chronological setting.
      * @param level level to backtrack to.
      * @pre The solver runs in chronological backtracking mode. Let π be the
@@ -2191,7 +2262,7 @@ public:
      * @brief Prints a literal on the standard output.
      * @param lit literal to print.
      */
-    void print_lit(Tlit lit);
+    void print_lit(Tlit lit) const;
 
     /**
      * @brief Parses a command and executes it.
@@ -2241,27 +2312,27 @@ public:
      * @brief Prints the current assignment of the solver on the standard
      * output in a human-readable format.
      */
-    void print_trail_simple();
+    void print_trail_simple() const;
 
-    void print_chunks();
+    void print_chunks() const;
 
     /**
      * @brief Prints a clause on the standard output in a human-readable format.
      * @param clause clause to print.
      */
-    void print_clause(Tclause cl);
+    void print_clause(Tclause cl) const;
 
     /**
      * @brief Prints the clause set on the standard output in a human-readable
      * format.
      */
-    void print_clause_set();
+    void print_clause_set() const;
 
     /**
      * @brief Prints the watch lists on the standard output in a human-readable
      * format.
      */
-    void print_watch_lists(Tlit lit = LIT_UNDEF);
+    void print_watch_lists(Tlit lit = LIT_UNDEF) const;
 
 
     /*************************************************************************/
@@ -2273,57 +2344,68 @@ public:
      * @brief Returns trues if every variable in the trail is assigned and that
      * every assigned variable is in the trail.
      */
-    bool trail_variable_consistency();
+    bool check_trail_variable_consistency() const;
 
     /**
      * @brief Returns true if the decision indices of the literals in the trail
      * are consistent with their position in the trail.
      */
-    bool decision_index_consistency();
+    bool check_decision_index_consistency() const;
+
+    /**
+     * @brief Returns true if the order of variables is monotonic in the trail
+     */
+    bool check_trail_order_consistency();
+
+    /**
+     * @brief Returns true if the decision levels of the literals in the trail
+     * are monotonic.
+     */
+    bool check_trail_monotonicity();
 
     /**
      * @brief returns true if the clause cl is in the watch list of the literal
      * lit.
     */
-    bool is_watched(Tlit lit, Tclause cl);
+    bool check_is_watched(Tlit lit, Tclause cl) const;
 
     /**
      * @brief returns true if the watch lists of watched literals of a clause
      * contain the clause.
      */
-    bool watch_lists_complete();
+    bool check_watch_lists_complete() const;
 
     /**
      * @brief returns true if each clause in a watch list is watched by the
      * corresponding literal.
      */
-    bool watch_lists_minimal();
+    bool check_watch_lists_minimal() const;
 
     /**
      * @brief Returns true if the clause is a unit clause.
      * Further, it checks that a unit clause has its unassigned literal at the front of the clause
      * @warning This function is meant to be used for debugging
      */
-    bool clause_unit(Tclause cl) const;
+    bool check_clause_unit(Tclause cl) const;
 
     /**
      * @brief Returns true if the clause is implying its first literal.
      * A clause C is implying its first literal ℓ if C[0] = ℓ and C \ {ℓ} ⊧ ⊥
      * @warning This function is meant to be used for debugging
      */
-    bool clause_implying(Tclause cl) const;
+    bool check_clause_implying(Tclause cl) const;
 
     /**
      * @brief Returns true if the clause is satisfied.
      * @warning This function is meant to be used for debugging
      */
-    bool clause_satisfied(Tclause cl) const;
+    bool check_clause_satisfied(Tclause cl) const;
 
     /**
      * @brief Returns true if the clause is falsified.
      * @warning This function is meant to be used for debugging
      */
-    bool clause_falsified(Tclause cl) const;
+    bool check_clause_falsified(Tclause cl) const;
 
     /**
      * @brief Returns true if the literal lit is the maximum literal in cl according to
@@ -2338,6 +2420,6 @@ public:
      * does not satisfy the invariants.
      * @warning This function is very expensive and should only be used for debugging
      */
-    bool lit_needs_fixing(Tlit lit) const;
+    bool check_lit_needs_fixing(Tlit lit) const;
   };
 }

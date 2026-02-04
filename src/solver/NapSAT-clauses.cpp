@@ -269,12 +269,12 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       backtrack(backtrack_level);
     }
 
-    ASSERT(clause_unit(id));
+    ASSERT(check_clause_unit(id));
     imply_literal(lits[0], id);
     return id;
   }
   if (lit_false(lits[0])) {
-    ASSERT(clause_falsified(id));
+    ASSERT(check_clause_falsified(id));
     _conflicts.push_back(id);
     if (_status == SAT)
       _status = UNKNOWN;
@@ -290,7 +290,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   }
 
   ASSERT(lit_true(lits[0]));
-  ASSERT(clause_implying(id));
+  ASSERT(check_clause_implying(id));
   ASSERT(lit_level(lits[1]) > LEVEL_ROOT);
 
   // This might be a missed lower implication
@@ -318,10 +318,10 @@ void napsat::NapSAT::delete_clause(Tclause cl)
     _dependency_tracker->delete_clause(cl);
 }
 
-bitset napsat::NapSAT::clause_chunks(Tclause cl)
+bitset napsat::NapSAT::clause_chunks(Tclause cl) const
 {
   bitset chunk(_n_allocated_chunks);
-  Tlit* lits = clause_lits(cl);
+  const Tlit* lits = clause_lits(cl);
   unsigned size = clause_size(cl);
   for (unsigned i = 0; i < size; i++) {
     const bitset& lit_chunk = lit_chunks(lits[i]);
@@ -330,7 +330,7 @@ bitset napsat::NapSAT::clause_chunks(Tclause cl)
   return chunk;
 }
 
-Tlevel napsat::NapSAT::clause_level(Tclause cl)
+Tlevel napsat::NapSAT::clause_level(Tclause cl) const
 {
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(cl < _clauses.size());

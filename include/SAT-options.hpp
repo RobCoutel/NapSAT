@@ -170,6 +170,13 @@ namespace napsat
     bool lazy_chunk_merging = false;
 
     /**
+     * @brief Enables the solver to eagerly merge chunks when a missed implication is detected for a decision. That is, when a decision is detected to be implied by a clause, the chunks of the lazy reason clause are merged with the chunk of the decision right away.
+     * @requires -gb is true and -lcm is false
+     * @alias -ecm
+     */
+    bool eager_chunk_merging = false;
+
+    /**
      * @brief Enables the solver to search the smallest UIP and choose the backtracked chunk accordingly.
      * @requires -gb is true, -bfc is false
      * @alias -bsc

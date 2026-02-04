@@ -28,7 +28,7 @@ void napsat::NapSAT::purge_conflict_buffer()
   size_t write_index = 0;
   for (size_t read_index = 0; read_index < _conflicts.size(); read_index++) {
     Tclause conflict = _conflicts[read_index];
-    if (clause_falsified(conflict)) {
+    if (check_clause_falsified(conflict)) {
       // still conflicting, keep it
       _conflicts[write_index++] = conflict;
       continue;
@@ -857,6 +857,7 @@ void NapSAT::repair_conflicts()
 
   // in general, a conflict may appear twice in the list.
   // clean up duplicates
+
   std::sort(_conflicts.begin(), _conflicts.end());
   _conflicts.erase(std::unique(_conflicts.begin(), _conflicts.end()), _conflicts.end());
 
@@ -1256,6 +1257,7 @@ void napsat::NapSAT::graph_repair()
   } while (!weights.empty());
 
   ASSERT(best.total_weight <= analyzed.total_weight);
+  auto start_backtracking = chrono::high_resolution_clock::now();
   if (_options.backtrack_learned || learned_clauses.empty()) {
     backtrack(analyzed.chunks);
     // add assertion to make sure we are indeed at the highest level
@@ -1269,12 +1271,15 @@ void napsat::NapSAT::graph_repair()
       NOTIFY_STAT(_n_backtrack_better_chunks);
     }
   }
+  auto end_backtracking = chrono::high_resolution_clock::now();
+  NOTIFY_STAT_N(backtrack_time,
+                  chrono::duration_cast<chrono::milliseconds>(end_backtracking - start_backtracking).count());
 
-  // auto start_fixing = chrono::high_resolution_clock::now();
+  auto start_fixing = chrono::high_resolution_clock::now();
   fix_conflicts_and_learned_in_order(learned_clauses);
-  // auto end_fixing = chrono::high_resolution_clock::now();
-  // NOTIFY_STAT_N(conflict_analysis_time,
-  //                 chrono::duration_cast<chrono::milliseconds>(end_fixing - start_fixing).count());
+  auto end_fixing = chrono::high_resolution_clock::now();
+  NOTIFY_STAT_N(conflict_analysis_time,
+                  chrono::duration_cast<chrono::milliseconds>(end_fixing - start_fixing).count());
   _just_learned_from_user = false;
 }
 

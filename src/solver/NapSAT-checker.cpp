@@ -23,7 +23,7 @@
 using namespace std;
 using namespace napsat;
 
-bool napsat::NapSAT::clause_unit(Tclause cl) const
+bool napsat::NapSAT::check_clause_unit(Tclause cl) const
 {
   const TSclause& c = _clauses[cl];
   ASSERT(c.size > 0);
@@ -35,7 +35,7 @@ bool napsat::NapSAT::clause_unit(Tclause cl) const
   return true;
 }
 
-bool napsat::NapSAT::clause_implying(Tclause cl) const
+bool napsat::NapSAT::check_clause_implying(Tclause cl) const
 {
   const TSclause& c = _clauses[cl];
   ASSERT(c.size > 0);
@@ -47,7 +47,7 @@ bool napsat::NapSAT::clause_implying(Tclause cl) const
   return true;
 }
 
-bool napsat::NapSAT::clause_satisfied(Tclause cl) const
+bool napsat::NapSAT::check_clause_satisfied(Tclause cl) const
 {
   const TSclause& c = _clauses[cl];
   for (size_t i = 0; i < c.size; i++)
@@ -56,7 +56,7 @@ bool napsat::NapSAT::clause_satisfied(Tclause cl) const
   return false;
 }
 
-bool napsat::NapSAT::clause_falsified(Tclause cl) const
+bool napsat::NapSAT::check_clause_falsified(Tclause cl) const
 {
   const TSclause& c = _clauses[cl];
   for (size_t i = 0; i < c.size; i++)
@@ -65,7 +65,7 @@ bool napsat::NapSAT::clause_falsified(Tclause cl) const
   return true;
 }
 
-bool napsat::NapSAT::lit_needs_fixing(Tlit lit) const
+bool napsat::NapSAT::check_lit_needs_fixing(Tlit lit) const
 {
   lit = lit_neg(lit);
   for (const TSwatch& bw : _binary_watches[lit]) {
@@ -106,7 +106,7 @@ bool napsat::NapSAT::lit_is_max_literal(Tlit lit, const Tlit* lits, size_t size)
   return true;
 }
 
-bool napsat::NapSAT::trail_variable_consistency()
+bool napsat::NapSAT::check_trail_variable_consistency() const
 {
   bool success = true;
   for (Tlit lit : _trail) {
@@ -134,7 +134,7 @@ bool napsat::NapSAT::trail_variable_consistency()
   return success;
 }
 
-bool napsat::NapSAT::decision_index_consistency()
+bool napsat::NapSAT::check_decision_index_consistency() const
 {
   bool success = true;
   for (size_t i = 0; i < _decision_index.size(); i++) {
@@ -162,19 +162,19 @@ bool napsat::NapSAT::decision_index_consistency()
   return success;
 }
 
-bool napsat::NapSAT::is_watched(Tlit lit, Tclause cl)
+bool napsat::NapSAT::check_is_watched(Tlit lit, Tclause cl) const
 {
   ASSERT(cl != CLAUSE_UNDEF);
-  ASSERT_MSG(lit != LIT_UNDEF, "is_watched(" << lit_to_string(lit) << ", " << clause_to_string(cl) << ")");
+  ASSERT_MSG(lit != LIT_UNDEF, "check_is_watched(" << lit_to_string(lit) << ", " << clause_to_string(cl) << ")");
   if (_clauses[cl].size == 2) {
     // check the binary clause list
-    for (TSwatch &w : _binary_watches[lit])
+    for (const TSwatch &w : _binary_watches[lit])
       if (w.cl == cl)
         return true;
     return false;
   }
-  vector<TSwatch>& watch_list = _watches[lit];
-  for (TSwatch &w : watch_list) {
+  const vector<TSwatch>& watch_list = _watches[lit];
+  for (const TSwatch &w : watch_list) {
     if (w.cl == cl) {
       return true;
     }
@@ -182,7 +182,7 @@ bool napsat::NapSAT::is_watched(Tlit lit, Tclause cl)
   return false;
 }
 
-bool napsat::NapSAT::watch_lists_complete()
+bool napsat::NapSAT::check_watch_lists_complete() const
 {
   bool success = true;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
@@ -190,12 +190,12 @@ bool napsat::NapSAT::watch_lists_complete()
     if (clause.size < 2 || !clause.watched || clause.deleted)
       continue;
     Tlit lit = clause.lits[0];
-    if (!is_watched(lit, cl)) {
+    if (!check_is_watched(lit, cl)) {
       success = false;
       LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is not in the watch list of its watched literal " << lit_to_string(lit));
     }
     lit = clause.lits[1];
-    if (!is_watched(lit, cl)) {
+    if (!check_is_watched(lit, cl)) {
       success = false;
       LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is not in the watch list of its watched literal " << lit_to_string(lit));
     }
@@ -203,7 +203,7 @@ bool napsat::NapSAT::watch_lists_complete()
   return success;
 }
 
-bool napsat::NapSAT::watch_lists_minimal()
+bool napsat::NapSAT::check_watch_lists_minimal() const
 {
   bool success = true;
   for (Tlit lit = 0; lit < _watches.size(); lit++) {
@@ -251,5 +251,41 @@ bool napsat::NapSAT::watch_lists_minimal()
     print_watch_lists();
   }
 
+  return success;
+}
+
+bool napsat::NapSAT::check_trail_order_consistency()
+{
+  bool success = true;
+  for (size_t i = 1; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    Tlit prev_lit = _trail[i - 1];
+    if (lit_order(lit) < lit_order(prev_lit)) {
+      success = false;
+      LOG_ERROR("Invariant violation: Trail order consistency: literal " << lit_to_string(lit) << " at position " << i << " has order " << lit_order(lit) << " which is less than the order of the previous literal " << lit_to_string(prev_lit) << " which is " << lit_order(prev_lit));
+    }
+  }
+  if (!success) {
+    print_trail();
+  }
+  return success;
+}
+
+bool napsat::NapSAT::check_trail_monotonicity()
+{
+  bool success = true;
+  int current_level = 0;
+  for (size_t i = 0; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    int lit_level_i = lit_level(lit);
+    if (lit_level_i < current_level) {
+      success = false;
+      LOG_ERROR("Invariant violation: Trail monotonicity: literal " << lit_to_string(lit) << " at position " << i << " is at level " << lit_level_i << " which is less than the current level " << current_level);
+    }
+    current_level = lit_level_i;
+  }
+  if (!success) {
+    print_trail();
+  }
   return success;
 }
