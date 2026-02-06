@@ -37,15 +37,11 @@ void NapSAT::var_unassign(Tvar var)
   if (_options.graph_backtracking) {
     if (v.reason == CLAUSE_UNDEF) {
       ASSERT(v.chunks.count() == 1);
-      for (Tchunk ck = 0; ck < _n_allocated_chunks; ck++) {
-        TSchunk& chunk = _chunks[ck];
-        if (chunk.decision == var) {
-          _free_chunks.push_back(ck);
-          chunk.decision = LIT_UNDEF;
-          chunk.missed_implication.clear();
-          break;
-        }
-      }
+      Tchunk ck = *v.chunks.cbegin();
+      TSchunk& chunk = _chunks[ck];
+      _free_chunks.push_back(ck);
+      chunk.decision = LIT_UNDEF;
+      chunk.missed_implication.clear();
     }
     v.chunks.clear();
     v.cross_chunks.clear();
@@ -56,7 +52,7 @@ void NapSAT::var_unassign(Tvar var)
   v.propagated = false;
 }
 
-Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size)
+Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
 {
   ASSERT(!_options.graph_backtracking);
 #ifndef NDEBUG

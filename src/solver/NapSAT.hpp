@@ -1892,7 +1892,7 @@ public:
      * @brief Given a learned clause, chooses the level to backtrack to
      * according to the options and the literals in the clause.
      */
-    Tlevel choose_backtracked_level(Tlit* learned_lits, unsigned size);
+    Tlevel choose_backtracked_level(Tlit* learned_lits, unsigned size) const;
 
     /**
      * @brief Checks if a conflict clause has exactly one literal in the given chunks.
