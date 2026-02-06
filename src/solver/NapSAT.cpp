@@ -117,6 +117,8 @@ static inline void print_bt_option(const options &options) {
   if (options.graph_backtracking) {
     if (options.lazy_chunk_merging)
       LOG_INFO(" - with lazy chunk merging");
+    else if (options.eager_chunk_merging)
+      LOG_INFO(" - with eager chunk merging");
     if (options.backtrack_smallest_chunk)
       LOG_INFO(" - with backtrack smallest chunk");
     else if (options.backtrack_first_chunk)
@@ -152,6 +154,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat.conflict_analysis_time = _statistics->add_stat("Conflict analysis time", cat_time, statistics::TIME);
     stat.conflict_fixing_time = _statistics->add_stat("Conflict fixing time", cat_time, statistics::TIME);
     stat.backtrack_time = _statistics->add_stat("Backtrack time", cat_time, statistics::TIME);
+    stat.reimply_time = _statistics->add_stat("Reimplication time", cat_time, statistics::TIME);
 
     stat.done = _statistics->add_stat("Solve calls", cat_core);
     stat.new_variable = _statistics->add_stat("Add variable", cat_core);
@@ -523,6 +526,10 @@ bool NapSAT::decide()
   Tvar var = _variable_heap.top();
 
   ASSERT(var_constrained(var));
+  // chose a random polarity
+  // bool value = (rand() % 2) == 0;
+  // Tlit lit = literal(var, value);
+  // Tlit lit = literal(var, false);
   Tlit lit = literal(var, _vars[var].synced);
   imply_literal(lit, CLAUSE_UNDEF);
   return true;

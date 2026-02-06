@@ -180,9 +180,11 @@ napsat::options::options(vector<string>& tokens)
     {"--backtrack-learned",                      &backtrack_learned},
     {"-bl",                                      &backtrack_learned},
     {"--use-max-approximate-cost-estimation",    &use_max_approximate_cost_estimation},
-    {"-approx-max-cost",                         &use_max_approximate_cost_estimation},
+    {"-max-approx-cost",                         &use_max_approximate_cost_estimation},
     {"--use-sum-approximate-cost-estimation",    &use_sum_approximate_cost_estimation},
-    {"-approx-sum-cost",                         &use_sum_approximate_cost_estimation}
+    {"-sum-approx-cost",                         &use_sum_approximate_cost_estimation},
+    {"--use-vsids-approximate-cost-estimation", &use_vsids_approximate_cost_estimation},
+    {"-vsids-approx-cost",                      &use_vsids_approximate_cost_estimation}
   };
 
   /**
@@ -193,7 +195,6 @@ napsat::options::options(vector<string>& tokens)
     {"--clause-activity-multiplier",      &clause_activity_multiplier},
     {"--clause-activity-threshold-decay", &clause_activity_threshold_decay},
     {"--var-activity-decay",              &var_activity_decay},
-    {"--conflict-penalty",                &conflict_penalty},
     {"--backtrack-possibilities-limit",   &backtrack_possibilities_limit},
     {"--sync-weight",                     &sync_weight},
     {"--conflict-limit",                  &conflict_limit}

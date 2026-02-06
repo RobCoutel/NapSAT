@@ -201,7 +201,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     }
   }
 
-
   #if USE_OBSERVER
   if (_observer) {
     vector<Tlit> lits_vector;
@@ -228,6 +227,12 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       var_mark_constrained(lit_to_var(lits[i]));
   }
 
+  // if (external) {
+  //   cout << "Added external clause " << clause_to_string(id) << endl;
+  // } else {
+  //   cout << "Learned clause " << clause_to_string(id) << endl;
+  // }
+
   if (clause_size == 1) {
     if (lit_undef(lits[0]))
       imply_literal(lits[0], id);
@@ -240,17 +245,18 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
         _status = UNKNOWN;
 
       _conflicts.push_back(id);
+      _lit_buffer_size = 0;
+      _just_learned_from_user = true;
+      repair_conflicts();
     }
     return id;
   }
-  else {
-    select_watched_literals(lits, clause_size);
-    if (clause_size == 2) {
-      watch_lit_bin(id);
-    } else {
-      watch_lit(lits[0], id);
-      watch_lit(lits[1], id);
-    }
+  select_watched_literals(lits, clause_size);
+  if (clause_size == 2) {
+    watch_lit_bin(id);
+  } else {
+    watch_lit(lits[0], id);
+    watch_lit(lits[1], id);
   }
 
   // cout << "Added clause " << clause_to_string(id) << endl;

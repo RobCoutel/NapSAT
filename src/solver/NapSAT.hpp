@@ -1016,6 +1016,7 @@ public:
       statistics::stat *conflict_analysis_time = nullptr; // "Conflict analysis time"
       statistics::stat *conflict_fixing_time = nullptr; // "Conflict fixing time"
       statistics::stat *backtrack_time = nullptr; // "Backtrack time"
+      statistics::stat *reimply_time = nullptr; // "Reimplication time"
 
       // stats from observable events
       statistics::stat *decision = nullptr; // "Decisions"
@@ -1181,6 +1182,15 @@ public:
      */
     inline Tclause lit_reason(Tlit lit) const { return var_reason(lit_to_var(lit)); }
     inline Tclause& lit_reason(Tlit lit) { return var_reason(lit_to_var(lit)); }
+
+    inline double var_activity(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].activity;
+    }
+    inline double& var_activity(Tvar var) {
+      ASSERT(var < _vars.size());
+      return _vars[var].activity;
+    }
 
     /**
      * @brief Returns true if the variable is a decision variable.

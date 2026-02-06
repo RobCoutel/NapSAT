@@ -269,7 +269,7 @@ namespace napsat
 
     /**
      * @brief If true, for each learned clause, the solver will record on which input clauses it depends.
-     * @note If this option is enabled, deletion of input clauses is disabled (even when satisfied at level 0).
+     * @details Note that if this option is enabled, deletion of input clauses is disabled (even when satisfied at level 0).
      * @warning This option must be enabled to produce clause UNSAT cores.
      */
     bool record_dependencies = false;
@@ -293,13 +293,6 @@ namespace napsat
      * @requires 0 < decay < 1
      */
     double var_activity_decay = 0.95;
-
-    /**
-     * @brief Penalty applied to chunks that do not lead to learning a new clause
-     * @details This is used such that the solver will prioritize undoing chunks that will result in progress through learning a new clause.
-     * @requires 1 <= conflict_penalty, -gb on
-     */
-    double conflict_penalty = 1.25;
 
     /** CLAUSE DELETION **/
     /**
@@ -338,7 +331,7 @@ namespace napsat
 
     /**
      * @brief Limit on the number of conflicts before stopping the solve.
-     * @details If set to a negative value, there is no limit.
+     * If set to a negative value, there is no limit.
      */
     double conflict_limit = -1.0;
 
@@ -351,17 +344,24 @@ namespace napsat
 
     /**
      * @brief If true, the solver will use an approximate cost estimation when calculating the weights of bitsets during conflict analysis.
-     * @alias -approx-max-cost
-     * @requires -gb and not
+     * @alias -max-approx-cost
+     * @requires -gb and not use_sum_approximate_cost_estimation and not use_vsids_approximate_cost_estimation
      */
     bool use_max_approximate_cost_estimation = false;
 
     /**
      * @brief If true, the solver will use an alternative approximate cost estimation when calculating the weights of bitsets during conflict analysis.
-     * @alias -approx-sum-cost
-     * @requires -gb and not use_max_approximate_cost_estimation
+     * @alias -sum-approx-cost
+     * @requires -gb and not use_max_approximate_cost_estimation and not use_vsids_approximate_cost_estimation
      */
     bool use_sum_approximate_cost_estimation = false;
+
+    /**
+     * @brief If true, the solver will use an approximate cost estimation based on VSIDS activity when calculating the weights of bitsets during conflict analysis.
+     * @alias -vsids-approx-cost
+     * @requires -gb and not use_max_approximate_cost_estimation and not use_sum_approximate_cost_estimation
+     */
+    bool use_vsids_approximate_cost_estimation = false;
 
     /**
      * @brief Limit on the number of backtrack possibilities to consider when using graph backtracking. If the number of possibilities is greater than the limit, the solver will heuristically cutoff.

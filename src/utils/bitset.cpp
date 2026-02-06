@@ -523,11 +523,18 @@ bitset::iterator bitset::iterator::end(const bitset &bs) {
 std::string bitset::to_string() const {
   std::string result = "[";
   auto i = cbegin();
+  unsigned lim = 20;
   while (i != cend()) {
     result += std::to_string(*i);
     ++i;
     if (i != cend()) {
       result += ", ";
+    }
+    if (--lim == 0) {
+      result += "... ";
+      unsigned left = count() - 20;
+      result += std::to_string(left) + " more";
+      break;
     }
   }
   result += "]";

@@ -439,6 +439,12 @@ string NapSAT::clause_to_string(Tclause cl) const
   if (_clauses[cl].deleted) {
     s += "d";
   }
+  if (_clauses[cl].external) {
+    s += "e";
+  }
+  if (_clauses[cl].learned) {
+    s += "l";
+  }
   s += to_string(cl) + ": ";
   ASSERT(clause_size(cl) > 0);
   ASSERT(clause_size(cl) < 1000000);
@@ -483,15 +489,18 @@ void NapSAT::print_trail() const
     ASSERT(!lit_undef(lit));
     cout << pad(i, _trail.size()) << i;
     cout << ": δ = " <<  pad(lit_level(lit), solver_level()) << lit_level(lit) << " ";
-    for (Tlevel i = 0; i < lit_level(lit); i++) {
-      cout << " ";
+    if (solver_level() < 500) {
+      for (Tlevel i = 0; i < lit_level(lit); i++) {
+        cout << " ";
+      }
     }
     print_lit(lit);
-    cout << " --> reason: ";
+    cout << " --> ρ = ";
     print_clause(lit_reason(lit));
     if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
-      cout << " / (lazy) ";
+      cout << " / (λ = ";
       print_clause(lit_lazy_reason(lit));
+      cout << ")";
     }
     if (_options.graph_backtracking) {
       cout << " (γ = " << lit_chunks(lit).to_string() << ", ";

@@ -250,7 +250,6 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 void NapSAT::reimply_literal(Tlit c2, Tclause reason)
 {
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
-
   TSclause& clause = _clauses[reason];
   Tlit* lits = clause.lits;
   Tlit c1 = lits[1];
@@ -290,6 +289,8 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
    *                ∨ [b  ∈ π ∧ γ(b)  ⊆ γ(c₁) ∪ η(c₁)]
    */
 
+  auto start = std::chrono::high_resolution_clock::now();
+
   if (_options.graph_backtracking) {
     lit_cross_chunks(c1) |= lit_chunks(c2);
 
@@ -301,6 +302,9 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
     if (_options.eager_chunk_merging) {
       ASSERT(lit_lazy_reason(c2) == CLAUSE_UNDEF);
       eager_decision_reimplication(c2, reason);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+      NOTIFY_STAT_N(reimply_time, duration.count());
       return;
     }
 
@@ -322,7 +326,9 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
         NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
       }
     }
-
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    NOTIFY_STAT_N(reimply_time, duration.count());
     return;
   }
 
@@ -335,6 +341,9 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
     Tlevel backtrack_level = lit_level(c1);
     backtrack(backtrack_level);
     imply_literal(c2, reason);
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    NOTIFY_STAT_N(reimply_time, duration.count());
     return;
   }
 
@@ -344,6 +353,9 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
   }
   lit_lazy_reason(c2) = reason;
   NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  NOTIFY_STAT_N(reimply_time, duration.count());
 }
 
 void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
@@ -372,7 +384,6 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
     }
   }
 
-  Tlevel decision_level = lit_level(decision);
   Tchunk decision_chunk = *lit_chunks(decision).cbegin();
 
   // buffer holding the literals that will be moved. That is, the literals that are reimplied and will be shifted in the trail.
@@ -429,13 +440,12 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
     if (_n_propagated_lits == read) {
       _n_propagated_lits = write;
     }
-    cout << "Checking literal " << lit_to_string(_trail[read]) << " at position " << read << endl;
+    // cout << "Checking literal " << lit_to_string(_trail[read]) << " at position " << read << endl;
     ASSERT(read - write == to_move.size());
 
     Tlit lit = _trail[read];
     bool keep = true;
     if (lit_decision(lit)) {
-      ASSERT(lit_level(lit) >= decision_level);
       lit_level(lit)--;
       _decision_index[lit_level(lit) - 1] = write;
     } else {
@@ -474,7 +484,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
 
   // now we have a hole the perfect size of the literals we need to move. We just need to fill it with the literals in the to_move buffer.
   while(read != write) {
-    cout << "Moving literal " << lit_to_string(to_move.back()) << endl;
+    // cout << "Moving literal " << lit_to_string(to_move.back()) << endl;
     ASSERT(read > write);
     ASSERT(read - write <= to_move.size());
     Tlit lit = to_move[to_move.size() - (read - write)];
@@ -490,10 +500,9 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   ASSERT(read == write);
   while(read < _trail.size()) {
     Tlit lit = _trail[read];
-    cout << "Updating literal " << lit_to_string(lit) << " at position " << read << endl;
+    // cout << "Updating literal " << lit_to_string(lit) << " at position " << read << endl;
     if (lit_decision(lit)) {
       lit_level(lit)--;
-      ASSERT(lit_level(lit) >= decision_level);
       _decision_index[lit_level(lit) - 1] = read;
     } else {
       lit_level(lit) = implication_level(lit_reason(lit));

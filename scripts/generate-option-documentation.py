@@ -38,6 +38,7 @@ columns = [
     "Description",
     "Requires",
     "Subsumed by",
+    "Details",
     "Warning",
 ]
 
@@ -48,6 +49,7 @@ tagToColumn = {
     "@subsumed": "Subsumed by",
     "@warning": "Warning",
     "@default": "Default",
+    "@details": "Details",
 }
 
 dataframe = pd.DataFrame(columns=columns)
