@@ -50,11 +50,11 @@ std::string pretty_integer(long long n);
 std::string pretty_float(double f, unsigned n = 2);
 
 /**
- * @brief Returns a string representation of a time in milliseconds.
+ * @brief Returns a string representation of a time in microseconds.
  * @param time The time to convert.
  * @return A string representation of the time.
  */
-std::string pretty_time(std::chrono::milliseconds time);
+std::string pretty_time(std::chrono::microseconds time);
 
 const std::string ERROR_HEAD = "\033[1;31mERROR: \033[0m";
 const std::string WARNING_HEAD = "\033[0;33mWARNING: \033[0m";

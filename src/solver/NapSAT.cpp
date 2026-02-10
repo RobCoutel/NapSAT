@@ -151,6 +151,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat.repair_time = _statistics->add_stat("Repair time", cat_time, statistics::TIME);
     stat.cost_estimation_time = _statistics->add_stat("Cost estimation time", cat_time, statistics::TIME);
     stat.backtrack_possibilities_time = _statistics->add_stat("Backtrack possibilities time", cat_time, statistics::TIME);
+    stat.subsumption_time = _statistics->add_stat("Subsumption time", cat_time, statistics::TIME);
     stat.conflict_analysis_time = _statistics->add_stat("Conflict analysis time", cat_time, statistics::TIME);
     stat.conflict_fixing_time = _statistics->add_stat("Conflict fixing time", cat_time, statistics::TIME);
     stat.backtrack_time = _statistics->add_stat("Backtrack time", cat_time, statistics::TIME);
@@ -205,6 +206,8 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat._n_cross_implication_decisions = _statistics->add_stat("Cross implication for decision", cat_aux);
     stat._n_lazy_reimplication_used = _statistics->add_stat("Lazy reimplication used", cat_aux);
     stat._a_learned_clause_size = _statistics->add_stat("Avg learned clause size", cat_aux, statistics::AVERAGE);
+    stat._a_bt_choices = _statistics->add_stat("Avg number of backtrack choices", cat_aux, statistics::AVERAGE);
+    stat._a_prefix_size = _statistics->add_stat("Avg prefix size", cat_aux, statistics::AVERAGE);
 
   }
 #else
@@ -429,7 +432,7 @@ status NapSAT::solve()
       repair_conflicts();
       if (_status == UNSAT) {
         auto end_time = std::chrono::high_resolution_clock::now();
-        long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
         NOTIFY_STAT_N(solve_time, duration);
 
         if (_options.print_live_stats || _options.print_stats)
@@ -467,7 +470,7 @@ status NapSAT::solve()
           }
         }
         auto end_time = std::chrono::high_resolution_clock::now();
-        long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
         NOTIFY_STAT_N(solve_time, duration);
         if (_options.print_live_stats || _options.print_stats)
           get_statistics()->print_statistics(true);
@@ -492,7 +495,7 @@ status NapSAT::solve()
     NOTIFY_OBSERVER(check_invariants);
   NOTIFY_OBSERVER(done, _status == SAT);
   auto end_time = std::chrono::high_resolution_clock::now();
-  long long duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+  long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
   NOTIFY_STAT_N(solve_time, duration);
   if (_options.print_live_stats || _options.print_stats)
     get_statistics()->print_statistics(true);

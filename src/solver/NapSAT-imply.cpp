@@ -303,7 +303,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
       ASSERT(lit_lazy_reason(c2) == CLAUSE_UNDEF);
       eager_decision_reimplication(c2, reason);
       auto stop = std::chrono::high_resolution_clock::now();
-      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
       NOTIFY_STAT_N(reimply_time, duration.count());
       return;
     }
@@ -327,7 +327,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
       }
     }
     auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
     NOTIFY_STAT_N(reimply_time, duration.count());
     return;
   }
@@ -342,7 +342,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
     backtrack(backtrack_level);
     imply_literal(c2, reason);
     auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
     NOTIFY_STAT_N(reimply_time, duration.count());
     return;
   }
@@ -354,7 +354,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
   lit_lazy_reason(c2) = reason;
   NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
   auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
   NOTIFY_STAT_N(reimply_time, duration.count());
 }
 

@@ -78,12 +78,12 @@ int main(int argc, char** argv)
     delete_solver(solver);
     return 1;
   }
-  chrono::milliseconds parse_duration = chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - start);
+  chrono::microseconds parse_duration = chrono::duration_cast<chrono::microseconds>(chrono::high_resolution_clock::now() - start);
   cout << "c Input file parsed in " << pretty_time(parse_duration) << endl;
   start = chrono::high_resolution_clock::now();
   solve(solver);
   chrono::time_point<chrono::high_resolution_clock> end = chrono::high_resolution_clock::now();
-  chrono::milliseconds duration = chrono::duration_cast<chrono::milliseconds>(end - start);
+  chrono::microseconds duration = chrono::duration_cast<chrono::microseconds>(end - start);
 
   cout << "c Solution found in " << pretty_time(duration) << endl;
   cout << "c  - Time (ms): " << duration.count() << endl;

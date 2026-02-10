@@ -1017,6 +1017,7 @@ public:
       statistics::stat *conflict_fixing_time = nullptr; // "Conflict fixing time"
       statistics::stat *backtrack_time = nullptr; // "Backtrack time"
       statistics::stat *reimply_time = nullptr; // "Reimplication time"
+      statistics::stat *subsumption_time = nullptr; // "Subsumption time"
 
       // stats from observable events
       statistics::stat *decision = nullptr; // "Decisions"
@@ -1067,6 +1068,8 @@ public:
       statistics::stat *_n_backtrack_forced_chunks = nullptr; // "Forced chunk backtrack"
       statistics::stat *_n_backtrack_better_chunks = nullptr; // "Cross implication back"
       statistics::stat *_a_learned_clause_size = nullptr; // "Avg learned clause size"
+      statistics::stat *_a_bt_choices = nullptr; // "Avg backtrack size"
+      statistics::stat *_a_prefix_size = nullptr; // "Avg learned clause size"
     } stat;
 #endif
   public:
@@ -1761,7 +1764,7 @@ public:
      */
     void purge_conflict_buffer();
 
-    void subsumption_filter_chunks(std::vector<bitset>& possibilities);
+    void subsumption_filter(std::vector<bitset>& possibilities);
 
     void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, bitset current, bitset processed);
 

@@ -87,20 +87,20 @@ string pretty_float(double f, unsigned n)
   return s;
 }
 
-string pretty_time(chrono::milliseconds time)
+string pretty_time(chrono::microseconds time)
 {
   string str = "";
-  const long long ms = time.count();
+  const long long ms = time.count() / 1000;
   const long long hours = ms / 3600000;
   const long long minutes = (ms % 3600000) / 60000;
   const long long seconds = (ms % 60000) / 1000;
-  const long long milliseconds = ms % 1000;
+  const long long microseconds = ms % 1000;
   if (hours > 0)
     str += to_string(hours) + "h ";
   if (minutes > 0)
     str += to_string(minutes) + "m ";
   if (seconds > 0)
     str += to_string(seconds) + "s ";
-  str += to_string(milliseconds) + "ms";
+  str += to_string(microseconds) + "ms";
   return str;
 }

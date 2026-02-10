@@ -23,7 +23,7 @@ namespace napsat {
   string statistics::get_statistics() const {
     ostringstream ss;
     const auto now = chrono::high_resolution_clock::now();
-    const auto duration = chrono::duration_cast<chrono::milliseconds>(
+    const auto duration = chrono::duration_cast<chrono::microseconds>(
       now - _creation_time);
     ss << "c Time since creation: " + pretty_time(duration) << endl;
     // print the core stats first if available
@@ -50,7 +50,7 @@ namespace napsat {
             }
             break;
           case TIME:
-            ss << pretty_time(chrono::milliseconds(stat._val));
+            ss << pretty_time(chrono::microseconds(stat._val));
             break;
         }
         ss << endl;
