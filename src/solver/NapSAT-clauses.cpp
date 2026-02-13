@@ -200,6 +200,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       }
     }
   }
+  // sort the literals
+  sort(lits, lits + clause_size);
+  cout << "Added clause " << clause_to_string(id) << endl;
 
   #if USE_OBSERVER
   if (_observer) {

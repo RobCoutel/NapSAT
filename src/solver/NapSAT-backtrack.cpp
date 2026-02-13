@@ -177,6 +177,7 @@ static Tvar last_backtracked_decision = 0;
 
 void NapSAT::backtrack(const bitset& backtracked_chunks)
 {
+  // cout << "Backtracking chunks " << backtracked_chunks << endl;
   ASSERT(_options.graph_backtracking);
   ASSERT(!backtracked_chunks.empty());
   ASSERT(!backtracked_chunks.empty());

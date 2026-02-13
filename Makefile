@@ -63,10 +63,10 @@ debug: $(BUILD_DIR)/$(EXEC)
 
 .PHONY: install
 install:
-	sudo apt-get install liblzma-dev libbz2-dev
+	apt-get install liblzma libbz2
 
 install-test:
-	sudo apt-get install catch2
+	apt-get install catch2
 
 .PHONY: bench
 

@@ -517,6 +517,8 @@ namespace napsat::gui
      */
     std::string implication_graph_to_latex();
 
+    std::string print_graphviz_implication_graph();
+
     bool _recording = false;
 
     /**

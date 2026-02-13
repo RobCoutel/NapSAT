@@ -284,6 +284,23 @@ void napsat::gui::display::notify_change(unsigned level)
       else
         std::cout << latex << std::endl;
     }
+    else if (command.rfind("print implications graphviz", 0) == 0) {
+      std::string pattern = "print implications graphviz";
+      unsigned command_len = pattern.size() + 1;
+      std::string graphviz = _observer->print_graphviz_implication_graph();
+      if (command.size() > command_len) {
+        std::string filename = command.substr(command_len);
+        std::ofstream file(filename);
+        if (!file.is_open()) {
+          std::cout << "Could not open file " << filename << std::endl;
+          goto loop_start;
+        }
+        file << graphviz;
+        file.close();
+      }
+      else
+        std::cout << graphviz << std::endl;
+    }
     else if (command == "start recording") {
       _observer->_recording = true;
     }
@@ -359,6 +376,6 @@ void napsat::gui::display::print_state()
 {
   _observer->print_variables();
   _observer->print_clause_set();
-  _observer->print_assignment();
+  // _observer->print_assignment();
   _updated = false;
 }

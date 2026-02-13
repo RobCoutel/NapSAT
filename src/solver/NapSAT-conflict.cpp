@@ -150,11 +150,6 @@ void napsat::NapSAT::compute_backtrack_possibilities(vector<bitset>& conflict_ch
   // remove duplicate and subsumed conflict chunks
   subsumption_filter(conflict_chunks);
 
-  // cout << "\nComputing backtrack possibilities for " << conflict_chunks.size() << " conflicts." << endl;
-  // for (size_t i = 0; i < conflict_chunks.size(); i++) {
-  //   cout << "Conflict size " << conflict_chunks[i].count() << ": " <<  conflict_chunks[i] << endl;
-  // }
-
   ASSERT(possibilities.empty());
   priority_queue<prefix_t, vector<prefix_t>, compare_prefixes> prefixes;
 
@@ -517,7 +512,7 @@ void napsat::NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
             [](const Tweight& a, const Tweight& b) { return b < a; });
     return;
   }
-
+  // print_trail();
   // calculate the weight of each chunk
   for (size_t i = 0; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
@@ -528,6 +523,9 @@ void napsat::NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
     ASSERT(var_synced(lit_to_var(lit)));
     bitset lit_chunks_set = lit_chunks(lit) & counted_chunks;
     double lit_cost = literal_cost(lit);
+    // if (!lit_chunks_set.empty()) {
+    //   cout << "Literal " << lit_to_string(lit) << " has cost " << lit_cost << " and chunks " << lit_chunks_set << " and was propagated by " << clause_to_string(lit_reason(lit)) << endl;
+    // }
     for (auto it = lit_chunks_set.cbegin(); it != lit_chunks_set.cend(); ++it) {
       size_t chunk_id = *it;
       chunk_weights[chunk_id] += lit_cost;
@@ -674,6 +672,7 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
     // note that this may lead to duplicate literals in the learned clause, but this will be cleaned up in the "internal_add_clause" function
     reset_head = true;
   }
+  // cout << "Justifying " << lit_to_string(lit) << " with reason " << clause_to_string(reason) << endl;
 
   ASSERT(reason != CLAUSE_UNDEF);
   if (_proof)
@@ -699,8 +698,9 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
 
 template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
+  // print_trail();
   ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
-
+  cout << "Analyzing conflict on " << level << endl;
   unsigned count = 0;
 
   for (unsigned i = 0; i < _lit_buffer_size; i++) {
@@ -722,6 +722,7 @@ void NapSAT::analyze_conflict_impl(T level) {
     Tlit lit = _trail[--i];
     if (!lit_marked(lit))
       continue;
+    // cout << "Analyzing marked literal " << lit_to_string(lit) << ". Current count = " << count << endl;
     if (!lit_analyzed(lit, level))
       continue;
     lit_unmark(lit);
@@ -1082,7 +1083,9 @@ Tlevel napsat::NapSAT::update_bt_after_analysis_of_reimplication(Tlevel level)
 template<typename T>
 void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learned_clauses)
 {
+  cout << "Trying to learn from conflicts at " << bt << endl;
   for (Tclause conflict : _conflicts) {
+    cout << "Trying to learn from conflict clause " << clause_to_string(conflict);
     if (!conflict_can_generate_learned_clause(conflict, bt)) {
       continue;
     }
@@ -1201,6 +1204,7 @@ void napsat::NapSAT::try_and_learn(Tlevel level, vector<pair<Tclause, vector<Tli
 
 void napsat::NapSAT::graph_repair()
 {
+  print_trail();
   static vector<bitset> possibilities;
   static vector<bitset> conflict_chunks;
   possibilities.clear();
@@ -1208,6 +1212,13 @@ void napsat::NapSAT::graph_repair()
   conflict_chunks.reserve(_conflicts.size());
   for (Tclause conflict : _conflicts) {
     conflict_chunks.push_back(clause_chunks(conflict));
+    cout << "Conflict clause : " << clause_to_string(conflict) << endl;
+    cout << "Conflict size " << conflict_chunks.back().count() << ": " <<  conflict_chunks.back() << endl;
+    // for each literal, show the set of chunks they belong to
+    const Tlit* lits = clause_lits(conflict);
+    for (unsigned i = 0; i < clause_size(conflict); i++) {
+      cout << "  Lit " << lit_to_string(lits[i]) << ": " << lit_chunks(lits[i]) << endl;
+    }
   }
 
   auto start = chrono::high_resolution_clock::now();
@@ -1216,6 +1227,10 @@ void napsat::NapSAT::graph_repair()
   NOTIFY_STAT_N(backtrack_possibilities_time,
                   chrono::duration_cast<chrono::microseconds>(end - start).count());
   // LOG_INFO("Found " + to_string(possibilities.size()) + " backtrack possibilities to repair " + to_string(_conflicts.size()) + " conflicts.");
+  // for (size_t i = 0; i < possibilities.size(); i++) {
+  //   cout << possibilities[i] << ", ";
+  // }
+  // cout << endl;
   if (possibilities.empty()) {
     // we cannot repair the conflicts
     _status = UNSAT;
@@ -1265,6 +1280,10 @@ void napsat::NapSAT::graph_repair()
     } else {
       calculate_bitset_weights(weights);
     }
+    // print all the weights
+    // for (size_t i = 0; i < weights.size(); i++) {
+    //   cout << "Weight of " << weights[i].chunks << " is " << weights[i].total_weight << endl;
+    // }
     const auto end = chrono::high_resolution_clock::now();
     NOTIFY_STAT_N(cost_estimation_time,
                     chrono::duration_cast<chrono::microseconds>(end - start).count());

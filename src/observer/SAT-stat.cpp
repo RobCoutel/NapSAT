@@ -45,7 +45,7 @@ namespace napsat {
             ss << pretty_integer(stat._val);
             // print the count per second as well
             if (duration.count() > 0) {
-              double cps = (static_cast<double>(stat._val) * 1000.0) / static_cast<double>(duration.count());
+              double cps = (static_cast<double>(stat._val) * 1000000.0) / static_cast<double>(duration.count());
               ss << "     (" << pretty_float(cps) << " per second)";
             }
             break;

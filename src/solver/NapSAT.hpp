@@ -916,6 +916,17 @@ public:
     {
       Tvar decision;
       bitset missed_implication;
+      /**
+       * @brief Over approximation of the chunk. When a literal is added to the chunk,
+       * we add it in the list as well. However, the list is cleaned up lazily.
+       * This is done during chunk cost evaluation or conflict analysis.
+       */
+      std::vector<Tlit> literals;
+      /**
+       * @brief When the chunk is backtrack, this is the position in the trail where
+       * the propagation head has to be moved.
+       */
+      size_t restore_point;
     };
 
     /**
@@ -1463,6 +1474,12 @@ public:
      */
     inline bool var_constrained(Tvar var) const { return _vars[var].constrained == 1; }
 
+    /**
+     * @brief
+     */
+    void update_chunks(Tvar var, const bitset& new_chunks);
+
+    void update_cross_chunks(Tvar var, const bitset& new_cross_chunks);
 
     /*************************************************************************/
     /*                          Resource management                          */

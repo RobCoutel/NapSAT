@@ -1108,24 +1108,101 @@ std::string napsat::gui::observer::implication_graph_to_latex()
           s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr] (v" + to_string(lit_to_var(lit)) + ");";
         }
         else {
-          s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, bend right=30] (v" + to_string(lit_to_var(lit)) + ");";
+          // the angle is 60 / distance between the two literals in the trail level, with a maximum of 60
+          unsigned distance = 0;
+          // find lit 2 in the level
+          Tlevel lit2_level = lit_level(lit2);
+          for (unsigned j = i - 1; j > 0; j--) {
+            if (lit_level(_assignment_stack[j]) == lit2_level) {
+              distance++;
+              if (_assignment_stack[j] == lit_neg(lit2))
+                break;
+            }
+          };
+          double angle = min(30.0, 60.0 / distance);
+
+          s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, bend right=" + to_string(angle) + "] (v" + to_string(lit_to_var(lit)) + ");";
         }
         s += "\n";
       }
+      s += "\n";
     }
     reason = _variables[lit_to_var(lit)].lazy_reason;
     if (reason != CLAUSE_UNDEF) {
       for (unsigned j = 0; j < _active_clauses[reason]->literals.size(); j++) {
         Tlit lit2 = _active_clauses[reason]->literals[j];
         if (lit2 == lit)
-          continue;
+        continue;
         assert(lit_level(lit2) != lit_level(lit) || lit_to_var(lit2) == lit_to_var(_assignment_stack[i - 1]));
         s += "\\draw (v" + to_string(lit_to_var(lit2)) + ") edge[myarr, dashed] (v" + to_string(lit_to_var(lit)) + ");";
         s += "\n";
       }
+      s += "\n";
     }
-    s += "\n";
   }
+  return s;
+}
+
+std::string napsat::gui::observer::print_graphviz_implication_graph()
+{
+  std::string s;
+  s += "digraph G {\n";
+  s += "  rankdir=TB;\n";
+  s += "  node [fontsize=10];\n";
+  s += "  edge [arrowsize=0.7];\n\n";
+  s += "  overlap=false;\n";
+
+  // --- Nodes grouped by decision level ---
+  for (Tlevel lvl = 0; lvl <= _decision_level; lvl++) {
+      s += "  { rank=same;\n";
+
+      for (Tlit lit : _assignment_stack) {
+          if (lit_level(lit) == lvl) {
+              s += "    v" + std::to_string(lit_to_var(lit)) + " [";
+
+              if (lit_reason(lit) == CLAUSE_UNDEF)
+                  s += "shape=box";       // decision
+              else
+                  s += "shape=circle";    // propagated
+
+              s += ", label=\"";
+              s += to_string(lit_to_int(lit)); // remove $ if present
+              s += "\"];\n";
+          }
+      }
+
+      s += "  }\n\n";
+  }
+
+  // --- Edges ---
+  for (unsigned i = 1; i < _assignment_stack.size(); i++) {
+      Tlit lit = _assignment_stack[i];
+      Tclause reason = lit_reason(lit);
+
+      if (reason != CLAUSE_UNDEF) {
+          for (Tlit lit2 : _active_clauses[reason]->literals) {
+              if (lit2 == lit) continue;
+
+              s += "  v" + std::to_string(lit_to_var(lit2))
+                  + " -> v" + std::to_string(lit_to_var(lit))
+                  + ";\n";
+          }
+      }
+
+      // Lazy reason = dashed
+      reason = _variables[lit_to_var(lit)].lazy_reason;
+      if (reason != CLAUSE_UNDEF) {
+          for (Tlit lit2 : _active_clauses[reason]->literals) {
+              if (lit2 == lit) continue;
+
+              s += "  v" + std::to_string(lit_to_var(lit2))
+                  + " -> v" + std::to_string(lit_to_var(lit))
+                  + " [style=dashed];\n";
+          }
+      }
+  }
+
+  s += "}\n";
   return s;
 }
 

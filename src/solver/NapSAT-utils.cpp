@@ -240,6 +240,7 @@ void NapSAT::stop_watch(Tlit lit, Tclause cl)
 
 unsigned NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
 {
+  ASSERT(all_of(lits, lits + size, [this](Tlit lit) { return !lit_marked(lit); }));
   Tlit* i = lits;
   Tlit* j = i;
   Tlit* end = i + size;
@@ -418,7 +419,7 @@ string NapSAT::lit_to_string(Tlit lit) const
     ASSERT(lit_false(lit));
     s += RED;
   }
-  if (lit_propagated(lit))
+  if (lit_decision(lit))
     s += "\033[4m";
   if (!lit_pol(lit))
     s += "-";

@@ -368,7 +368,10 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   ASSERT(check_clause_implying(reason));
 
   // check that the chunks don't cycle. That is, check that γ(C) ∩ γ(decision) = ∅. If they do, we cannot do eager reimplication, as we would end up with a cycle of implications.
-  bitset reason_chunks = clause_chunks(reason);
+  bitset reason_chunks = bitset(_n_allocated_chunks);
+  for (unsigned i = 1; i < clause_size(reason); i++) {
+    reason_chunks |= lit_chunks(clause_lits(reason)[i]);
+  }
   if (reason_chunks.has_intersection(lit_chunks(decision))) {
     return;
   }
@@ -397,7 +400,6 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   ASSERT(decision_position < _trail.size());
   size_t last_position = find_literal_in_trail(last_literal);
   ASSERT(last_position < _trail.size());
-  cout << "Decision position: " << decision_position << ", last literal position: " << last_position << endl;
 
   // we mark the literals in the to_move buffer. This makes it easier to check if a literal needs to be moved as well, as we only need to check if one of its reasons is in the to_move buffer.
   // in principle, in GB, we could use chunks to determine whether a literal needs to be moved.
