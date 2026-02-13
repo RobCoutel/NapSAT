@@ -23,28 +23,63 @@
 
 using namespace std;
 
-std::string napsat::env::man_page_folder = "../";
-std::string napsat::env::invariant_configuration_folder = "../invariant-configurations/";
-bool napsat::env::suppress_warning = false;
-bool napsat::env::suppress_info = false;
 
 
 /**************************************************************************************************/
 /*                                  GLOBAL ENVIRONMENT                                            */
 /**************************************************************************************************/
-vector<string> napsat::env::extract_environment_variables(vector<string>& tokens) {
+namespace napsat
+{
+/**
+ * @brief The directory of the manual pages. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable. NapSAT will find the manual pages folder if the option is not set. This option is only meant to be used by the user of the library.
+ * @default [exec_dir]/../
+ * @alias -m
+ */
+static std::string man_page_folder;
+
+/**
+ * @brief The directory of the invariant configurations. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable.
+ * NapSAT will find the invariant configurations folder if the option is not set. However, the user can use this option to set their own configurations.
+ * The invariants will only be used if the observer is active (-i, -o or -c).
+ * @default [exec_dir]/../invariant-configurations/
+ * @alias -icf
+ */
+static std::string invariant_configuration_folder;
+
+/**
+ * @brief The directory of the obsidian template folder. This folder should contain a subfolder named ".obsidian" with the necessary configuration files for Obsidian to recognize the exported graph. This option is used when exporting the implication graph to an obsidian vault. If the template folder is not found, a warning will be printed and the exported graph may not be properly recognized by Obsidian.
+ * @default [exec_dir]/../obsidian_template/
+ */
+static std::string obsidian_template_folder;
+
+/**
+ * @brief If true, the solver will not print warnings to the standard output.
+ * @default off
+ * @alias -sw
+*/
+static bool suppress_warning;
+
+/**
+ * @brief If true, the solver will not print information to the standard output.
+ * @default off
+ * @alias -si
+*/
+static bool suppress_info;
+
+vector<string> env::extract_environment_variables(vector<string>& tokens) {
   static unordered_map<string, bool*> bool_options = {
-    {"--suppress-warning", &napsat::env::suppress_warning},
-    {"-sw",                &napsat::env::suppress_warning},
-    {"--suppress-info",    &napsat::env::suppress_info},
-    {"-si",                &napsat::env::suppress_info}
+    {"--suppress-warning", &suppress_warning},
+    {"-sw",                &suppress_warning},
+    {"--suppress-info",    &suppress_info},
+    {"-si",                &suppress_info}
   };
 
   static unordered_map<string, string*> string_options = {
-    {"--man-page-folder",                &napsat::env::man_page_folder},
-    {"-m",                               &napsat::env::man_page_folder},
-    {"--invariant-configuration-folder", &napsat::env::invariant_configuration_folder},
-    {"-icf",                             &napsat::env::invariant_configuration_folder}};
+    {"--man-page-folder",                &man_page_folder},
+    {"-m",                               &man_page_folder},
+    {"--invariant-configuration-folder", &invariant_configuration_folder},
+    {"--obsidian-template-folder",       &obsidian_template_folder},
+    {"-icf",                             &invariant_configuration_folder}};
 
   vector<string> to_return;
 
@@ -86,38 +121,47 @@ vector<string> napsat::env::extract_environment_variables(vector<string>& tokens
   return to_return;
 }
 
-string napsat::env::get_man_page_folder() {
+string env::get_man_page_folder() {
   return man_page_folder;
 }
 
-string napsat::env::get_invariant_configuration_folder() {
+string env::get_invariant_configuration_folder() {
   return invariant_configuration_folder;
 }
 
-void napsat::env::set_man_page_folder(string dir) {
+string env::get_obsidian_template_folder()
+{
+  return obsidian_template_folder;
+}
+
+void env::set_man_page_folder(string dir) {
   man_page_folder = dir;
 }
 
-void napsat::env::set_invariant_configuration_folder(string dir) {
+void env::set_invariant_configuration_folder(string dir) {
   invariant_configuration_folder = dir;
 }
 
-bool napsat::env::get_suppress_warning() {
+void env::set_obsidian_template_folder(string dir) {
+  obsidian_template_folder = dir;
+}
+
+bool env::get_suppress_warning() {
   return suppress_warning;
 }
 
-void napsat::env::set_suppress_warning(bool sw) {
+void env::set_suppress_warning(bool sw) {
   suppress_warning = sw;
 }
 
-bool napsat::env::get_suppress_info() {
+bool env::get_suppress_info() {
   return suppress_info;
 }
 
-void napsat::env::set_suppress_info(bool si) {
+void env::set_suppress_info(bool si) {
   suppress_info = si;
 }
-
+}
 
 /**************************************************************************************************/
 /*                                    LOCAL OPTIONS                                               */

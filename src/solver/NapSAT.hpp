@@ -109,6 +109,8 @@
 #include "../utils/luby-counter.hpp"
 #include "../observer/SAT-notification.hpp"
 #include "../observer/SAT-observer.hpp"
+#include "../observer/SAT-stat.hpp"
+#include "../exporter/implication_graph_exporter.hpp"
 
 #include <vector>
 #include <set>
@@ -117,7 +119,6 @@
 #include <cassert>
 #include <algorithm>
 
-#include "../observer/SAT-stat.hpp"
 
 #if USE_STATISTICS
 #define NOTIFY_STAT(type)  NOTIFY_STAT_N(type, 1)
@@ -148,6 +149,46 @@
 #else
 #define NOTIFY_OBSERVER(NAME,...)  NOTIFY_STAT(NAME)
 #endif
+#define SAVE_STATE                                                          \
+do {                                                                        \
+  bool save = false;                                                        \
+  while (true) {                                                            \
+    std::string input;                                                      \
+    std::cout << "Enter [y/n] to save or not the implication graph: ";      \
+    std::getline(std::cin, input);                                          \
+    if (input == "y" || input == "Y") {                                     \
+      save = true;                                                          \
+      break;                                                                \
+    }                                                                       \
+    else if (input == "n" || input == "N") {                                \
+      save = false;                                                         \
+      break;                                                                \
+    }                                                                       \
+    else                                                                    \
+      std::cout << "Invalid input. Please enter 'y' or 'n'." << std::endl;  \
+  }                                                                         \
+  if (save) {                                                               \
+    exporter::implication_graph_exporter::export_implication_graph(         \
+      "",                                                                   \
+      _vars.size() - 1,                                                     \
+      _trail,                                                               \
+      [this](Tlit lit) {                                                    \
+        Tclause reason = this->lit_reason(lit);                             \
+        if (reason == CLAUSE_UNDEF)                                         \
+          return (const Tlit*) nullptr;                                     \
+        return (const Tlit*) this->clause_lits(reason);                     \
+      },                                                                    \
+      [this](Tlit lit) {                                                    \
+        Tclause reason = this->lit_reason(lit);                             \
+        if (reason == CLAUSE_UNDEF)                                         \
+          return (size_t) 0;                                                \
+        return this->clause_size(reason);                                   \
+      },                                                                    \
+      [this](Tlit lit) { return lit_to_md_info_string(lit); }               \
+    );                                                                      \
+  }                                                                         \
+} while(0);
+
 
 namespace napsat
 {
@@ -954,7 +995,7 @@ public:
     /**
      * @brief Default cost function
      */
-    double literal_cost(Tlit lit);
+    double literal_cost(Tlit lit) const;
 
     /**
      * @brief Number of allocated chunks.
@@ -2309,6 +2350,12 @@ public:
      */
     bool parse_command(std::string command);
 
+    /**
+     * @brief Saves the current state of the solver in an obsidian vault.
+     * @details This function is meant to be used for debugging. It saves the current state of the solver in an obsidian vault, including the trail, the clause set, and the watch lists. The state is saved in a markdown file with a name based on the current timestamp.
+     */
+    void save_state();
+
     /*************************************************************************/
     /*                        Printing the state                             */
     /*************************************************************************/
@@ -2320,6 +2367,10 @@ public:
      */
     std::string lit_to_string(Tlit lit) const;
 
+    std::string lit_to_md_string(Tlit lit) const;
+
+    std::string lit_to_md_info_string(Tlit lit) const;
+
     /**
      * @brief Returns a string of a clause. The clause is printed in the form
      * "cl : lit1 lit2 ... litm | litm+1 ... litn" where lit1, ..., litn are the
@@ -2330,6 +2381,8 @@ public:
      */
     std::string clause_to_string(Tclause cl) const;
 
+    std::string clause_to_md_string(Tclause cl) const;
+
     /**
      * @brief Returns a string of a clause. The clause is printed in the form
      * "{lit1 lit2 ... litm}"
@@ -2337,6 +2390,8 @@ public:
      * @param size size of the array.
      */
     std::string clause_to_string(const Tlit* lits, size_t size) const;
+
+    std::string clause_to_md_string(const Tlit* lits, size_t size) const;
 
     /**
      * @brief Prints the current assignment of the solver on the standard

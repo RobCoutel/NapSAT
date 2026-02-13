@@ -310,8 +310,11 @@ void napsat::gui::display::notify_change(unsigned level)
     else if (command == "save") {
       bool old_record = _observer->_recording;
       _observer->_recording = true;
-      _observer->save_state();
+      _observer->save_latex();
       _observer->_recording = old_record;
+    }
+    else if (command.rfind("save state", 0) == 0) {
+      _observer->save_state();
     }
     else if (command == "sort clauses") {
       observer::enable_sorting = true;
@@ -376,6 +379,6 @@ void napsat::gui::display::print_state()
 {
   _observer->print_variables();
   _observer->print_clause_set();
-  // _observer->print_assignment();
+  _observer->print_assignment();
   _updated = false;
 }

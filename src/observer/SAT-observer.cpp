@@ -262,7 +262,7 @@ void napsat::gui::observer::load_commands(const std::string& filename)
 
 void napsat::gui::observer::set_command_parser(const command_parser &parser)
 {
-  _command_parser = parser;
+  command_parser_callback = parser;
 }
 
 void napsat::gui::observer::set_statistics(const statistics *statistics)
@@ -272,8 +272,14 @@ void napsat::gui::observer::set_statistics(const statistics *statistics)
 
 bool napsat::gui::observer::transmit_command(const std::string &command)
 {
-  assert(_command_parser);
-  return _command_parser(command);
+  assert(command_parser_callback);
+  return command_parser_callback(command);
+}
+
+void napsat::gui::observer::save_state()
+{
+  assert(save_state_callback);
+  save_state_callback();
 }
 
 napsat::Tval observer::var_value(napsat::Tvar var) const
@@ -683,6 +689,10 @@ void napsat::gui::observer::print_deleted_clauses()
 
 void napsat::gui::observer::print_assignment()
 {
+  if (_assignment_stack.size() > 1000) {
+    cerr << "The assignment stack is too large to be printed" << endl;
+    return;
+  }
   update_terminal_width();
 
   cout << "trail :\n";
@@ -1206,7 +1216,7 @@ std::string napsat::gui::observer::print_graphviz_implication_graph()
   return s;
 }
 
-void napsat::gui::observer::save_state()
+void napsat::gui::observer::save_latex()
 {
   if (!_recording)
     return;

@@ -83,7 +83,7 @@ void NapSAT::restart()
   }
 }
 
-double napsat::NapSAT::literal_cost(Tlit lit) {
+double napsat::NapSAT::literal_cost(Tlit lit) const {
   if (_backtrack_cost_estimator) {
     return _backtrack_cost_estimator(lit);
   }
@@ -226,6 +226,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
       };
       _observer->set_command_parser(command_parser);
     }
+    _observer->set_save_state_function([this]() { this->save_state(); });
     if (options.interactive || options.observing || options.check_invariants)
 #if USE_STATISTICS
     _observer->set_statistics(_statistics);

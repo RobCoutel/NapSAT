@@ -18,22 +18,20 @@
 
 #ifndef NDEBUG
 #if OBSERVED_ASSERTS && USE_OBSERVER
-#define ASSERT(cond) \
-  do {                                                              \
-    if (_observer) {                                                \
-      if (!(cond))  {                                               \
-        NOTIFY_OBSERVER(marker, "Assertion failed: " #cond);        \
-        assert(cond);                                               \
-      }                                                             \
-    } else {                                                        \
-      assert(cond);                                                 \
-    }                                                               \
+#define ASSERT(cond)                                              \
+  do {                                                            \
+    if (!(cond))  {                                               \
+      SAVE_STATE;                                                 \
+      NOTIFY_OBSERVER(marker, "Assertion failed: " #cond);        \
+      assert(cond);                                               \
+    }                                                             \
   } while(0)
 
-#define ASSERT_MSG(cond, msg) \
+#define ASSERT_MSG(cond, msg)                                       \
   do {                                                              \
     if (!(cond))  {                                                 \
       LOG_ERROR( "MESSAGE: " << msg );                              \
+      SAVE_STATE;                                                   \
       NOTIFY_OBSERVER(marker, "Assertion failed: " #cond);          \
       assert(cond);                                                 \
     }                                                               \

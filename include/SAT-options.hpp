@@ -37,35 +37,6 @@ namespace napsat
     /* Note that the flags "[Start/Stop] Documentation" are used to generate the man page.*/
     /** Start Documentation **/
     /** GLOBAL ENVIRONMENT **/
-    /**
-     * @brief The directory of the manual pages. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable. NapSAT will find the manual pages folder if the option is not set. This option is only meant to be used by the user of the library.
-     * @default [exec_dir]/../
-     * @alias -m
-     */
-    static std::string man_page_folder;
-
-    /**
-     * @brief The directory of the invariant configurations. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable.
-     * NapSAT will find the invariant configurations folder if the option is not set. However, the user can use this option to set their own configurations.
-     * The invariants will only be used if the observer is active (-i, -o or -c).
-     * @default [exec_dir]/../invariant-configurations/
-     * @alias -icf
-     */
-    static std::string invariant_configuration_folder;
-
-    /**
-     * @brief If true, the solver will not print warnings to the standard output.
-     * @default off
-     * @alias -sw
-    */
-    static bool suppress_warning;
-
-    /**
-     * @brief If true, the solver will not print information to the standard output.
-     * @default off
-     * @alias -si
-    */
-    static bool suppress_info;
 
     public:
     /** Stop Documentation **/
@@ -83,6 +54,11 @@ namespace napsat
      * @brief Returns the directory of the invariant configurations.
      */
     static std::string get_invariant_configuration_folder();
+
+    /**
+     * @brief Returns the directory of the obsidian template folder.
+     */
+    static std::string get_obsidian_template_folder();
 
     /**
      * @brief Returns true if the solver will not print warnings.
@@ -105,6 +81,12 @@ namespace napsat
      * @param dir The directory of the invariant configurations.
      */
     static void set_invariant_configuration_folder(std::string dir);
+
+    /**
+     * @brief Sets the directory of the obsidian template folder.
+     * @param dir The directory of the obsidian template folder.
+     */
+    static void set_obsidian_template_folder(std::string dir);
 
     /**
      * @brief Sets the solver to suppress warnings.

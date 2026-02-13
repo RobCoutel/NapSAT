@@ -14,6 +14,7 @@
 #include "NapSAT.hpp"
 
 #include "custom-assert.hpp"
+#include "../exporter/implication_graph_exporter.hpp"
 
 #include <cstring>
 #include <iostream>
@@ -700,7 +701,7 @@ template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
   // print_trail();
   ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
-  cout << "Analyzing conflict on " << level << endl;
+  // cout << "Analyzing conflict on " << level << endl;
   unsigned count = 0;
 
   for (unsigned i = 0; i < _lit_buffer_size; i++) {
@@ -1083,9 +1084,9 @@ Tlevel napsat::NapSAT::update_bt_after_analysis_of_reimplication(Tlevel level)
 template<typename T>
 void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learned_clauses)
 {
-  cout << "Trying to learn from conflicts at " << bt << endl;
+  // cout << "Trying to learn from conflicts at " << bt << endl;
   for (Tclause conflict : _conflicts) {
-    cout << "Trying to learn from conflict clause " << clause_to_string(conflict);
+    // cout << "Trying to learn from conflict clause " << clause_to_string(conflict);
     if (!conflict_can_generate_learned_clause(conflict, bt)) {
       continue;
     }
@@ -1204,7 +1205,6 @@ void napsat::NapSAT::try_and_learn(Tlevel level, vector<pair<Tclause, vector<Tli
 
 void napsat::NapSAT::graph_repair()
 {
-  print_trail();
   static vector<bitset> possibilities;
   static vector<bitset> conflict_chunks;
   possibilities.clear();
@@ -1212,13 +1212,13 @@ void napsat::NapSAT::graph_repair()
   conflict_chunks.reserve(_conflicts.size());
   for (Tclause conflict : _conflicts) {
     conflict_chunks.push_back(clause_chunks(conflict));
-    cout << "Conflict clause : " << clause_to_string(conflict) << endl;
-    cout << "Conflict size " << conflict_chunks.back().count() << ": " <<  conflict_chunks.back() << endl;
-    // for each literal, show the set of chunks they belong to
-    const Tlit* lits = clause_lits(conflict);
-    for (unsigned i = 0; i < clause_size(conflict); i++) {
-      cout << "  Lit " << lit_to_string(lits[i]) << ": " << lit_chunks(lits[i]) << endl;
-    }
+    // cout << "Conflict clause : " << clause_to_string(conflict) << endl;
+    // cout << "Conflict size " << conflict_chunks.back().count() << ": " <<  conflict_chunks.back() << endl;
+    // // for each literal, show the set of chunks they belong to
+    // const Tlit* lits = clause_lits(conflict);
+    // for (unsigned i = 0; i < clause_size(conflict); i++) {
+    //   cout << "  Lit " << lit_to_string(lits[i]) << ": " << lit_chunks(lits[i]) << endl;
+    // }
   }
 
   auto start = chrono::high_resolution_clock::now();
@@ -1226,11 +1226,7 @@ void napsat::NapSAT::graph_repair()
   auto end = chrono::high_resolution_clock::now();
   NOTIFY_STAT_N(backtrack_possibilities_time,
                   chrono::duration_cast<chrono::microseconds>(end - start).count());
-  // LOG_INFO("Found " + to_string(possibilities.size()) + " backtrack possibilities to repair " + to_string(_conflicts.size()) + " conflicts.");
-  // for (size_t i = 0; i < possibilities.size(); i++) {
-  //   cout << possibilities[i] << ", ";
-  // }
-  // cout << endl;
+
   if (possibilities.empty()) {
     // we cannot repair the conflicts
     _status = UNSAT;

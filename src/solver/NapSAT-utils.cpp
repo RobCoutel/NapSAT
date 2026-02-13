@@ -431,6 +431,83 @@ string NapSAT::lit_to_string(Tlit lit) const
   return s;
 }
 
+std::string napsat::NapSAT::lit_to_md_string(Tlit lit) const
+{
+  string s = "";
+  if (lit_undef(lit))
+    s += "<span style=\"color:rgb(200, 200, 0)\">";
+  else if (lit_true(lit))
+    s += "<span style=\"color:rgb(0, 176, 80)\">";
+  else { // lit_false(lit)
+    ASSERT(lit_false(lit));
+    s += "<span style=\"color:rgb(255, 0, 0)\">";
+  }
+  if (lit_decision(lit))
+    s += "<u>";
+  s += to_string(lit_to_int(lit));
+  if (lit_locked(lit))
+    s += "🔒";
+
+  if (lit_decision(lit))
+    s += "</u>";
+
+  s += "</span>";
+
+  return s;
+}
+
+std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
+{
+//   ---
+// tags:
+//   - decision
+// ---
+  string s = "---\n";
+  if (lit_decision(lit)) {
+    s += "  tags:\n   - decision\n";
+  } else {
+    s += "  tags:\n   - implied\n";
+  }
+  // check if the literal is part of a conflict
+  bool in_conflict = false;
+  for (Tclause conflict : _conflicts) {
+    const Tlit* lits = clause_lits(conflict);
+    for (const Tlit* i = lits; i < lits + clause_size(conflict); i++) {
+      if (lit_to_var(*i) == lit_to_var(lit)) {
+        in_conflict = true;
+        break;
+      }
+    }
+  }
+  if (in_conflict) {
+    s += "   - conflicting\n";
+  }
+  s += "---\n";
+  s += "$\\ell$: " + lit_to_md_string(lit) + "\n";
+  s += "$\\delta(\\ell)$: " + to_string(lit_level(lit)) + "\n";
+  s += "$\\rho(\\ell)$: " + clause_to_md_string(lit_reason(lit)) + "\n";
+  if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+    s += "$\\lambda(\\ell)$: " + clause_to_md_string(lit_lazy_reason(lit)) + "\n";
+  }
+  if (_options.graph_backtracking) {
+    s += "$\\gamma(\\ell)$: " + lit_chunks(lit).to_string() + "\n";
+    s += "$\\eta(\\ell)$: " + (lit_cross_chunks(lit) - lit_chunks(lit)).to_string() + "\n";
+    s += "$\\zeta(\\ell)$: " + to_string(literal_cost(lit)) + "\n";
+  }
+
+  s += "---\n";
+  s += "Watch list for " + lit_to_md_string(lit) + ":\n";
+  for (const TSwatch& watch : _watches[lit]) {
+    s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
+  }
+  s += "---\n";
+  s += "Watch list for " + lit_to_md_string(lit_neg(lit)) + ":\n";
+  for (const TSwatch& watch : _watches[lit_neg(lit)]) {
+    s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
+  }
+  return s;
+}
+
 string NapSAT::clause_to_string(Tclause cl) const
 {
   string s = "";
@@ -458,12 +535,54 @@ string NapSAT::clause_to_string(Tclause cl) const
   return s;
 }
 
+std::string napsat::NapSAT::clause_to_md_string(Tclause cl) const
+{
+  string s = "";
+  if (cl == CLAUSE_UNDEF)
+    return "undef";
+  if (_clauses[cl].deleted) {
+    s += "~~";
+  }
+  if (_clauses[cl].external) {
+    s += "**";
+  }
+  s += to_string(cl);
+  if (_clauses[cl].deleted) {
+    s += "~~";
+  }
+  if (_clauses[cl].external) {
+    s += "**";
+  }
+  s += ": ";
+  ASSERT(clause_size(cl) > 0);
+  ASSERT(clause_size(cl) < 1000000);
+  for (const Tlit* i = clause_lits(cl); i < clause_lits(cl) + clause_size(cl); i++) {
+    if (i == clause_lits(cl) + clause_size(cl))
+      s += "| ";
+    s += lit_to_md_string(*i);
+    s += " ";
+  }
+  return s;
+}
+
 std::string NapSAT::clause_to_string(const Tlit* lits, size_t size) const
 {
   string s = "";
   s += "{ ";
   for (const Tlit* i = lits; i < lits + size; i++) {
     s += lit_to_string(*i);
+    s += " ";
+  }
+  s += "}";
+  return s;
+}
+
+std::string napsat::NapSAT::clause_to_md_string(const Tlit* lits, size_t size) const
+{
+  string s = "";
+  s += "{ ";
+  for (const Tlit* i = lits; i < lits + size; i++) {
+    s += lit_to_md_string(*i);
     s += " ";
   }
   s += "}";
@@ -788,4 +907,9 @@ bool NapSAT::parse_command(std::string input)
     return false;
   }
   return true;
+}
+
+void napsat::NapSAT::save_state()
+{
+  SAVE_STATE;
 }

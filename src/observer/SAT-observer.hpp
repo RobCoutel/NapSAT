@@ -180,7 +180,9 @@ namespace napsat::gui
     /**
      * @brief Function of the solver used to parse commands
      */
-    command_parser _command_parser = nullptr;
+    command_parser command_parser_callback = nullptr;
+
+    std::function<void()> save_state_callback = nullptr;
 
     /**
      * @brief The statistics of the solver.
@@ -339,6 +341,12 @@ namespace napsat::gui
     void set_command_parser(const command_parser &parser);
 
     /**
+     * @brief Set the function to call when the observer receives a "save state" command. This function is meant to be used for debugging. It saves the current state of the solver in an obsidian vault, including the trail, the clause set, and the watch lists. The state is saved in a markdown file with a name based on the current timestamp.
+     * @param save_state_function The function to call when the observer receives a "save state
+     */
+    void set_save_state_function(std::function<void()> save_state_function) { save_state_callback = std::move(save_state_function); }
+
+    /**
      * @brief Set the statistics object for printing statistics.
      */
     void set_statistics(const statistics *statistics);
@@ -350,6 +358,12 @@ namespace napsat::gui
      * @pre The command parser must be set.
      */
     bool transmit_command(const std::string &command);
+
+    /**
+     * @brief Saves the current state of the SAT solver an obsidian vault.
+     * It calls a callback function in the solver that is set by the solver itself. This function is meant to be used for debugging. It saves the current state of the solver in an obsidian vault, including the trail, the clause set, and the watch lists. The state is saved in a markdown file with a name based on the current timestamp.
+     */
+    void save_state();
 
     /**  Saving and loading executions  **/
     /**
@@ -525,7 +539,7 @@ namespace napsat::gui
      * @brief Saves the tikz trail and the clause set to the files pre-held in field fileTrail and fileClauses + some id. If _recording is false, then do nothing
      * @details The id is incremented by one.
      */
-    void save_state();
+    void save_latex();
 
     ~observer();
 

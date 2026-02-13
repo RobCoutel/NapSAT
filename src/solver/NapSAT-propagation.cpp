@@ -159,6 +159,12 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
 
 void NapSAT::propagate_lit(Tlit lit)
 {
+  cout << "Propagating " << lit_to_string(lit);
+  if (lit_propagated(lit)) {
+    cout << " (already propagated)" << endl;
+  } else {
+    cout << endl;
+  }
   /**
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
    */

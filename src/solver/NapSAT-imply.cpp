@@ -414,6 +414,11 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   lit_level(decision) = implication_level(reason);
   lit_chunks(decision) = reason_chunks;
 
+  // update the cross chunk
+  if (clause_size(reason) >= 2) {
+    lit_cross_chunks(clause_lits(reason)[1]) |= lit_chunks(decision);
+  }
+
 #if USE_OBSERVER
   // we need to change the trail completely. Notify the observer.
   if (_observer) {
@@ -442,7 +447,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
     if (_n_propagated_lits == read) {
       _n_propagated_lits = write;
     }
-    // cout << "Checking literal " << lit_to_string(_trail[read]) << " at position " << read << endl;
+    cout << "Checking literal " << lit_to_string(_trail[read]) << " at position " << read << endl;
     ASSERT(read - write == to_move.size());
 
     Tlit lit = _trail[read];
