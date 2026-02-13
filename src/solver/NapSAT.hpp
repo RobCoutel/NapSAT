@@ -1479,7 +1479,9 @@ public:
       ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
       const Tlit* lits = clause_lits(lit_reason(lit));
       lit_chunks(lit).clear();
+      std::cout << "Recomputing chunks for lit " << lit << " with reason " << clause_to_string(lit_reason(lit)) << std::endl;
       for (size_t i = 1; i < clause_size(lit_reason(lit)); i++) {
+        std::cout << "Adding chunks : " << lit_chunks(lits[i]) << " for lit " << lit << std::endl;
         lit_chunks(lit) |= lit_chunks(lits[i]);
       }
     }

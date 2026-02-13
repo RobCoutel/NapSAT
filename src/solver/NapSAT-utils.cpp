@@ -482,6 +482,29 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
   if (in_conflict) {
     s += "   - conflicting\n";
   }
+
+  s += "  level: "      + to_string(lit_level(lit)) + "\n";
+  s += "  propagated: " + (string) (lit_propagated(lit) ? "true" : "false") + "\n";
+  s += "  sync: "       + (string) (lit_synced(lit) ? "true" : "false") + "\n";
+  s += "  locked: "     + (string) (lit_locked(lit) ? "true" : "false") + "\n";
+  s += "  marked: "     + (string) (lit_marked(lit) ? "true" : "false") + "\n";
+  s += "  vsids: "      + to_string(_vars[lit_to_var(lit)].activity) + "\n";
+
+  // compute the number of clauses that contain this variable
+  unsigned n_clauses = 0;
+  for (TSclause cl : _clauses) {
+    if (cl.deleted)
+      continue;
+    const Tlit* lits = cl.lits;
+    for (const Tlit* i = lits; i < lits + cl.size; i++) {
+      if (lit_to_var(*i) == lit_to_var(lit)) {
+        n_clauses++;
+        break;
+      }
+    }
+  }
+  s += "  n_clauses: " + to_string(n_clauses) + "\n";
+
   s += "---\n";
   s += "$\\ell$: " + lit_to_md_string(lit) + "\n";
   s += "$\\delta(\\ell)$: " + to_string(lit_level(lit)) + "\n";
@@ -505,6 +528,7 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
   for (const TSwatch& watch : _watches[lit_neg(lit)]) {
     s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
   }
+  s += "---\n";
   return s;
 }
 

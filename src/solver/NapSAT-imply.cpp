@@ -235,9 +235,10 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
       }
 
       if (lit_chunks(l) >= old_chunks) {
-        lit_level(lit) = implication_level(lit_reason(lit));
-        recompute_chunks(lit);
-        if (lit_level(l) != old_level) {
+        Tlevel prev_level = lit_level(l);
+        lit_level(l) = implication_level(lit_reason(l));
+        recompute_chunks(l);
+        if (lit_level(l) != prev_level) {
           NOTIFY_OBSERVER(update_level, l, lit_level(l));
         }
       }
@@ -447,7 +448,6 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
     if (_n_propagated_lits == read) {
       _n_propagated_lits = write;
     }
-    cout << "Checking literal " << lit_to_string(_trail[read]) << " at position " << read << endl;
     ASSERT(read - write == to_move.size());
 
     Tlit lit = _trail[read];
@@ -491,7 +491,6 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
 
   // now we have a hole the perfect size of the literals we need to move. We just need to fill it with the literals in the to_move buffer.
   while(read != write) {
-    // cout << "Moving literal " << lit_to_string(to_move.back()) << endl;
     ASSERT(read > write);
     ASSERT(read - write <= to_move.size());
     Tlit lit = to_move[to_move.size() - (read - write)];
@@ -507,7 +506,6 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   ASSERT(read == write);
   while(read < _trail.size()) {
     Tlit lit = _trail[read];
-    // cout << "Updating literal " << lit_to_string(lit) << " at position " << read << endl;
     if (lit_decision(lit)) {
       lit_level(lit)--;
       _decision_index[lit_level(lit) - 1] = read;
