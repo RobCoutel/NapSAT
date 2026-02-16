@@ -370,7 +370,10 @@ size_t napsat::NapSAT::find_literal_in_trail(Tlit lit) const
   // the literal must be located between the decision of it's decision level and the end of the trail
   // if in NCB, it must be located between the decision of it's decision level and the next decision of a different level
   Tlevel level = lit_level(lit);
-  const Tlit* left = decision_lit_ptr(level);
+  const Tlit* left = _trail.data();
+  if (level > 0) {
+    left = decision_lit_ptr(level);
+  }
   const Tlit* right = _trail.data() + _trail.size();
   if (lit_decision(lit)) {
     return left - _trail.data();
