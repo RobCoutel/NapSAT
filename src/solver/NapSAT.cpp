@@ -343,6 +343,12 @@ napsat::gui::observer* napsat::NapSAT::get_observer() const
 
 bool NapSAT::propagate()
 {
+  if (!_conflicts.empty()) {
+    repair_conflicts();
+    if (_status == UNSAT) {
+      return false;
+    }
+  }
   ASSERT(_conflicts.empty());
   // ASSERT(check_watch_lists_complete());
   // ASSERT(check_watch_lists_minimal());
@@ -429,19 +435,6 @@ status NapSAT::solve()
     return _status;
   }
   while (true) {
-    if (!_conflicts.empty()) {
-      repair_conflicts();
-      if (_status == UNSAT) {
-        auto end_time = std::chrono::high_resolution_clock::now();
-        long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-        NOTIFY_STAT_N(solve_time, duration);
-
-        if (_options.print_live_stats || _options.print_stats)
-          get_statistics()->print_statistics(true);
-        return _status;
-      }
-    }
-    NOTIFY_OBSERVER(check_invariants);
     if (!propagate()) {
       if (_status == UNSAT) {
         if (_options.interactive && _n_assumptions > 0) {

@@ -346,6 +346,13 @@ namespace napsat
     bool use_vsids_approximate_cost_estimation = false;
 
     /**
+     * @brief Penalty for the level of chunks in the cost heuristic. The higher the penalty, the more the heuristic
+     * will prefer to backtrack chunks at higher level.
+     * @requires -gb
+     */
+    double chunk_level_penalty = 1000.0;
+
+    /**
      * @brief Limit on the number of backtrack possibilities to consider when using graph backtracking. If the number of possibilities is greater than the limit, the solver will heuristically cutoff.
      */
     double backtrack_possibilities_limit = 1000;

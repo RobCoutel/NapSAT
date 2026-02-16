@@ -21,6 +21,7 @@
 #define ASSERT(cond)                                              \
   do {                                                            \
     if (!(cond))  {                                               \
+      LOG_ERROR( "Assertion failed: " << #cond );                 \
       SAVE_STATE;                                                 \
       NOTIFY_OBSERVER(marker, "Assertion failed: " #cond);        \
       assert(cond);                                               \
@@ -30,6 +31,7 @@
 #define ASSERT_MSG(cond, msg)                                       \
   do {                                                              \
     if (!(cond))  {                                                 \
+      LOG_ERROR( "Assertion failed: " << #cond );                   \
       LOG_ERROR( "MESSAGE: " << msg );                              \
       SAVE_STATE;                                                   \
       NOTIFY_OBSERVER(marker, "Assertion failed: " #cond);          \

@@ -799,6 +799,8 @@ public:
      */
     std::vector<Tclause> _conflicts;
 
+    std::vector<bitset> _conflicts_chunks;
+
     /**  ADDING CLAUSES  **/
     /**
      * @brief True if the solver is in clause input mode.
@@ -1479,9 +1481,7 @@ public:
       ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
       const Tlit* lits = clause_lits(lit_reason(lit));
       lit_chunks(lit).clear();
-      std::cout << "Recomputing chunks for lit " << lit << " with reason " << clause_to_string(lit_reason(lit)) << std::endl;
       for (size_t i = 1; i < clause_size(lit_reason(lit)); i++) {
-        std::cout << "Adding chunks : " << lit_chunks(lits[i]) << " for lit " << lit << std::endl;
         lit_chunks(lit) |= lit_chunks(lits[i]);
       }
     }
@@ -1826,9 +1826,10 @@ public:
 
     void subsumption_filter(std::vector<bitset>& possibilities);
 
-    void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, bitset current, bitset processed);
+    void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, bitset current, bitset processed) const;
 
-    void enhance_backtrack_possibilities_with_lazy_merging(std::vector<bitset>& possibilities);
+    void enhance_backtrack_possibilities_with_lazy_merging(const bitset& combined_chunks,
+                                                           std::vector<bitset>& possibilities) const;
 
     void fix_conflicts_and_learned_in_order(const std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned);
 
@@ -1948,8 +1949,7 @@ public:
      * @param conflicts set of conflicting clauses.
      * @param possibilities vector to store the resulting chunk sets.
      */
-    void compute_backtrack_possibilities(std::vector<bitset>& conflict_chunks,
-                                         std::vector<bitset>& possibilities);
+    void compute_backtrack_possibilities(std::vector<bitset>& possibilities) const;
 
     /**
      * @brief Given a learned clause, chooses the level to backtrack to

@@ -306,16 +306,12 @@ bool NapSAT::add_assumption_GB_false(std::vector<Tlit>& lits)
   ));
 
   // find the cheapest set of chunks to backtrack to in order to free all literals in L
-  vector<bitset> conflict_chunks;
+  _conflicts_chunks.clear();
   for (Tlit l : lits) {
-    conflict_chunks.push_back(lit_chunks(l));
+    _conflicts_chunks.push_back(lit_chunks(l));
   }
   vector<bitset> possibilities;
-  compute_backtrack_possibilities(conflict_chunks, possibilities);
-  cout << "Possibilities: " << endl;
-  for (const bitset& b : possibilities) {
-    cout << "  " << b.to_string() << endl;
-  }
+  compute_backtrack_possibilities(possibilities);
   if (possibilities.empty()) {
     return false;
   }

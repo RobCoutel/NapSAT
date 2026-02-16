@@ -73,7 +73,6 @@ bool napsat::NapSAT::check_lit_needs_fixing(Tlit lit) const
       return true;
   }
   for (const TSwatch& w: _watches[lit]) {
-    cout << "Checking watch " << clause_to_string(w.cl) << " blocked by " << lit_to_string(w.block) << endl;
     if (lit_true(w.block))
       continue;
     Tlit c1 = clause_lits(w.cl)[0];

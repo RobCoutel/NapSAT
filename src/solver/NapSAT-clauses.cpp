@@ -202,7 +202,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   }
   // sort the literals
   sort(lits, lits + clause_size);
-  cout << "Added clause " << clause_to_string(id) << endl;
+  // cout << "Added clause " << clause_to_string(id) << endl;
 
   #if USE_OBSERVER
   if (_observer) {
@@ -333,8 +333,7 @@ bitset napsat::NapSAT::clause_chunks(Tclause cl) const
   const Tlit* lits = clause_lits(cl);
   unsigned size = clause_size(cl);
   for (unsigned i = 0; i < size; i++) {
-    const bitset& lit_chunk = lit_chunks(lits[i]);
-    chunk |= lit_chunk;
+    chunk |= lit_chunks(lits[i]);
   }
   return chunk;
 }

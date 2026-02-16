@@ -266,8 +266,6 @@ bool napsat::gui::implication::apply(observer* obs)
       return false;
     }
   }
-  if (obs->_variables[var].level > obs->_decision_level)
-    cout << obs->_variables[var].level << " !<= " <<  obs->_decision_level << endl;
   ASSERT_OBS(this, obs->_variables[var].level <= obs->_decision_level);
   obs->_assignment_stack.push_back(lit);
   return true;
