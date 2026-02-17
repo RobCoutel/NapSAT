@@ -280,13 +280,6 @@ Tvar napsat::NapSAT::new_variable()
 
 NapSAT::~NapSAT()
 {
-#if USE_STATISTICS
-  if (_options.print_stats) {
-    if (_statistics) {
-      get_statistics()->print_statistics(_options.print_live_stats);
-    }
-#endif
-  }
   for (unsigned i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
 #if USE_OBSERVER
@@ -429,10 +422,10 @@ bool NapSAT::propagate()
 
 status NapSAT::solve()
 {
-  // cout << "######## SOLVE ########" << endl;
   auto start_time = std::chrono::high_resolution_clock::now();
   if (_status != UNKNOWN) {
     ASSERT(_status != SAT || _trail.size() == _vars.size() - 1);
+    NOTIFY_OBSERVER(done, _status == SAT);
     return _status;
   }
   while (true) {
@@ -469,6 +462,7 @@ status NapSAT::solve()
         NOTIFY_STAT_N(solve_time, duration);
         if (_options.print_live_stats)
           get_statistics()->print_statistics(true);
+        NOTIFY_OBSERVER(done, _status == SAT);
         return _status;
       }
       // in chronological backtracking, the purge might have implied some literals
@@ -494,6 +488,7 @@ status NapSAT::solve()
   NOTIFY_STAT_N(solve_time, duration);
   if (_options.print_live_stats)
     get_statistics()->print_statistics(true);
+  NOTIFY_OBSERVER(done, _status == SAT);
   return _status;
 }
 

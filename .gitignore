@@ -1,6 +1,7 @@
 build/
 build_rel/
 .vscode/
+.venv/
 
 SAT.cc
 SAT.hh
