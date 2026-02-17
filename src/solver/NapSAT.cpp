@@ -186,6 +186,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat._n_backtrack_forced_chunks = _statistics->add_stat("Backtrack forced chunks", cat_alg);
     stat._n_backtrack_better_chunks = _statistics->add_stat("Backtrack better chunks", cat_alg);
     stat._n_backtrack_limit_reached = _statistics->add_stat("Backtrack limit reached", cat_alg);
+    stat._n_sync_cost = _statistics->add_stat("Sync Cost", cat_alg);
     stat._n_failed_learning = _statistics->add_stat("Failed learning", cat_alg);
 
     stat._n_purged_clauses = _statistics->add_stat("Purging clauses", cat_inp);
@@ -466,7 +467,7 @@ status NapSAT::solve()
         auto end_time = std::chrono::high_resolution_clock::now();
         long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
         NOTIFY_STAT_N(solve_time, duration);
-        if (_options.print_live_stats || _options.print_stats)
+        if (_options.print_live_stats)
           get_statistics()->print_statistics(true);
         return _status;
       }
@@ -491,7 +492,7 @@ status NapSAT::solve()
   auto end_time = std::chrono::high_resolution_clock::now();
   long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
   NOTIFY_STAT_N(solve_time, duration);
-  if (_options.print_live_stats || _options.print_stats)
+  if (_options.print_live_stats)
     get_statistics()->print_statistics(true);
   return _status;
 }
@@ -616,6 +617,7 @@ void NapSAT::synchronize()
     if (var_synced(var)) {
       continue;
     }
+    NOTIFY_STAT_N(_n_sync_cost, (unsigned) literal_cost(lit));
     var_sync(var);
   }
   _sync_validity_index = _trail.size();

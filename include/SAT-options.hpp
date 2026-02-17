@@ -350,7 +350,7 @@ namespace napsat
      * will prefer to backtrack chunks at higher level.
      * @requires -gb
      */
-    double chunk_level_penalty = 1000.0;
+    double chunk_level_penalty = 0.01;
 
     /**
      * @brief Limit on the number of backtrack possibilities to consider when using graph backtracking. If the number of possibilities is greater than the limit, the solver will heuristically cutoff.

@@ -1121,6 +1121,7 @@ public:
       statistics::stat *_n_failed_learning = nullptr; // "Failed learning"
       statistics::stat *_n_backtrack_forced_chunks = nullptr; // "Forced chunk backtrack"
       statistics::stat *_n_backtrack_better_chunks = nullptr; // "Cross implication back"
+      statistics::stat *_n_sync_cost = nullptr; // "Avg decision level"
       statistics::stat *_a_learned_clause_size = nullptr; // "Avg learned clause size"
       statistics::stat *_a_bt_choices = nullptr; // "Avg backtrack size"
       statistics::stat *_a_prefix_size = nullptr; // "Avg learned clause size"
@@ -1834,7 +1835,7 @@ public:
     void fix_conflicts_and_learned_in_order(const std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned);
 
     /**
-     * @brief Returns true if the learned clause is redundant with any other confliting clauses in the set of conflicts.
+     * @brief Returns true if the learned clause is redundant with any other conflicting clauses in the set of conflicts.
      * @details The clause is held in the _lit_buffer and its size in _lit_buffer_size.
      * @details A learned clause is redundant if it is subsumed by any other conflicting clause
      * @return true if the learned clause is redundant, false otherwise.

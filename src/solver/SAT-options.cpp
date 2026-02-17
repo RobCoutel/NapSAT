@@ -241,7 +241,8 @@ napsat::options::options(vector<string>& tokens)
     {"--var-activity-decay",              &var_activity_decay},
     {"--backtrack-possibilities-limit",   &backtrack_possibilities_limit},
     {"--sync-weight",                     &sync_weight},
-    {"--conflict-limit",                  &conflict_limit}
+    {"--conflict-limit",                  &conflict_limit},
+    {"--chunk-level-penalty",             &chunk_level_penalty}
   };
 
   /**

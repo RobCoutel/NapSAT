@@ -436,7 +436,7 @@ string NapSAT::lit_to_string(Tlit lit) const
 
 std::string napsat::NapSAT::lit_to_md_string(Tlit lit) const
 {
-  string s = "";
+  string s = "[";
   if (lit_undef(lit))
     s += "<span style=\"color:rgb(200, 200, 0)\">";
   else if (lit_true(lit))
@@ -455,6 +455,10 @@ std::string napsat::NapSAT::lit_to_md_string(Tlit lit) const
     s += "</u>";
 
   s += "</span>";
+  int lit_int = lit_to_int(lit);
+  if (lit_false(lit))
+    lit_int = -lit_int;
+  s += "](obsidian://open?vault=bug-1&file=" + to_string(lit_int) + ".md)";
 
   return s;
 }

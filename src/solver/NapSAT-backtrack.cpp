@@ -197,20 +197,51 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
     }
   }
 
-  Tlit* i = _trail.data() + _decision_index[min_level - 1];
-  size_t start_position = i - _trail.data();
-  Tlit* j = i;
+  Tlit* i = _trail.data();
+  Tlit* j = i + _decision_index[min_level - 1];
   Tlit* end = _trail.data() + _trail.size();
   Tlevel decision_counter = min_level - 1;
   unsigned new_propagation_head = _n_propagated_lits;
   // print_trail();
   while (i < end) {
     Tlit lit = *i;
-    bitset& chunks = lit_chunks(lit);
-    Tlevel lit_lvl = lit_level(lit);
+    Tvar var = lit_to_var(lit);
+    bitset& chunks = var_chunks(var);
+    Tlevel lit_lvl = var_level(var);
+
     // belonging to one of the deleted levels is a sufficient condition, faster to compute than the chunk intersection
-    if (level_transformation[lit_lvl] == LEVEL_ERROR
-     || chunks.has_intersection(backtracked_chunks)) {
+    bool backtracked = i >= j &&  (level_transformation[lit_lvl] == LEVEL_ERROR || chunks.has_intersection(backtracked_chunks));
+
+    /** CROSS-CHUNKS **/
+    if (!backtracked && lit_propagated(lit) && lit_cross_chunks(lit).has_intersection(backtracked_chunks)) {
+      unsigned loc = j - _trail.data();
+      _vars[var].propagated = false;
+      NOTIFY_STAT(_n_propagation_replayed);
+      new_propagation_head = min(new_propagation_head, loc);
+    }
+
+    // check if the lazy reimplication still holds
+    Tclause lazy_reason = lit_lazy_reason(lit);
+    if (lazy_reason != CLAUSE_UNDEF) {
+      ASSERT(lit_decision(lit));
+      bitset& missed_implication = _chunks[*var_chunks(var).cbegin()].missed_implication;
+      if (missed_implication.has_intersection(backtracked_chunks)) {
+        lit_lazy_reason(lit) = CLAUSE_UNDEF;
+        missed_implication.clear();
+        NOTIFY_OBSERVER(remove_lower_implication, var);
+      }
+    }
+
+    if (i < j) {
+      i++;
+      continue;
+    }
+
+
+    /** ACTUAL BACKTRACKING **/
+    // only for after the start position
+
+    if (backtracked) {
       if(lit_decision(lit)) {
         last_backtracked_decision = lit_to_var(lit);
       }
@@ -229,29 +260,11 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
       _decision_index[decision_counter++] = j - _trail.data();
     }
 
-    // check if the lazy reimplication still holds
-    Tclause lazy_reason = lit_lazy_reason(lit);
-    if (lazy_reason != CLAUSE_UNDEF) {
-      for (unsigned k = 1; k < clause_size(lazy_reason); k++) {
-        Tlit l = clause_lits(lazy_reason)[k];
-        if (lit_undef(l) || lit_chunks(l).has_intersection(backtracked_chunks)) {
-          lit_lazy_reason(lit) = CLAUSE_UNDEF;
-          break;
-        }
-      }
-    }
-    Tvar var = lit_to_var(lit);
     if (lit_lvl > min_level) {
       // We need to fix the level of the literal
       var_level(var) = level_transformation[var_level(var)];
       ASSERT(var_level(var) != LEVEL_ERROR);
       NOTIFY_OBSERVER(update_level, lit, var_level(var));
-    }
-    if (lit_propagated(lit) && lit_cross_chunks(lit).has_intersection(backtracked_chunks)) {
-      unsigned loc = j - _trail.data();
-      _vars[var].propagated = false;
-      NOTIFY_STAT(_n_propagation_replayed);
-      new_propagation_head = min(new_propagation_head, loc);
     }
     *(j++) = *(i++);
   }
@@ -259,38 +272,14 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   _decision_index.resize(decision_counter);
   _trail.resize(j - _trail.data());
 
-  // we now search for literals that need to be repropagated on the left side of the decision
-  // todo: we would like not to have to do that...
-  for (size_t i = 0; i < start_position; i++) {
-    Tlit lit = _trail[i];
-    if (lit_propagated(lit) && lit_cross_chunks(lit).has_intersection(backtracked_chunks)) {
-      Tvar var = lit_to_var(lit);
-      _vars[var].propagated = false;
-      NOTIFY_STAT(_n_propagation_replayed);
-      new_propagation_head = min(new_propagation_head, (unsigned) i);
-    }
-  }
-
-  // print_trail();
-
   ASSERT(_n_propagated_lits <= _trail.size());
-  while(new_propagation_head < _n_propagated_lits) {
-    _n_propagated_lits--;
-    NOTIFY_OBSERVER(remove_propagation, _trail[_n_propagated_lits]);
-  }
-
-  // We need to kill the invalidated missed_implications
-  for (unsigned location : _decision_index) {
-    Tlit lit  = _trail[location];
-    ASSERT(lit_decision(lit));
-    auto it = lit_chunks(lit).cbegin();
-    Tchunk decision_chunk = *it;
-    ASSERT(++it == lit_chunks(lit).cend());
-    bitset& missed_implication = _chunks[decision_chunk].missed_implication;
-    if (missed_implication.has_intersection(backtracked_chunks)) {
-      lit_lazy_reason(lit) = CLAUSE_UNDEF;
-      missed_implication.clear();
+  if (_observer) {
+    while(new_propagation_head < _n_propagated_lits) {
+      _n_propagated_lits--;
+      NOTIFY_OBSERVER(remove_propagation, _trail[_n_propagated_lits]);
     }
+  } else {
+    _n_propagated_lits = new_propagation_head;
   }
 
   ASSERT(all_of(_trail.begin(), _trail.end(), [this,backtracked_chunks](Tlit l){

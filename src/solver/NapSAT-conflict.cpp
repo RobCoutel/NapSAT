@@ -40,7 +40,6 @@ void napsat::NapSAT::purge_conflict_buffer()
 
 void napsat::NapSAT::subsumption_filter(vector<bitset>& possibilities)
 {
-  auto start = chrono::high_resolution_clock::now();
   if (possibilities.size() <= 1)
     return;
   for (size_t i = 0; i < possibilities.size() - 1; i++) {
@@ -60,10 +59,6 @@ void napsat::NapSAT::subsumption_filter(vector<bitset>& possibilities)
       }
     }
   }
-  auto end = chrono::high_resolution_clock::now();
-  auto duration = chrono::duration_cast<chrono::microseconds>(end -
-                                                    start).count();
-  NOTIFY_STAT_N(subsumption_time, duration);
 }
 
 static bool subsumed(const vector<bitset>& a, const bitset& b)
@@ -489,6 +484,7 @@ void napsat::NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
   vector<double> chunk_weights(_n_allocated_chunks, 0.0);
   vector<double> decision_weights(_n_allocated_chunks, 0.0);
   bitset counted_chunks(_n_allocated_chunks);
+  Tlevel lowest_level = LEVEL_UNDEF;
   for (Tweight& w : weights) {
     size_t end = decision_lit_ptr(w.lowest_level) - _trail.data();
     // this is a bit dirty, but like this we can reuse the same interface as above.
@@ -498,6 +494,8 @@ void napsat::NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
     w.give_up_point = end;
     w.finished = true;
     counted_chunks |= w.chunks;
+
+    lowest_level = min(lowest_level, w.lowest_level);
 
     if (_options.use_vsids_approximate_cost_estimation) {
       // use VSIDS activity as a proxy for literal cost
@@ -516,17 +514,39 @@ void napsat::NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
   }
 
   // calculate the weight of each chunk
-  for (size_t i = 0; i < _trail.size(); i++) {
+  size_t start_point = _decision_index[lowest_level-1];
+  bitset lit_chunks_set(_n_allocated_chunks);
+  const bitset* last_chunks = &lit_chunks_set;
+  size_t count = 0;
+  size_t counted_chunk_size = counted_chunks.count();
+
+  for (size_t i = start_point; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     if (!lit_synced(lit)) {
       ASSERT(!var_synced(lit_to_var(lit)));
       continue;
     }
-    ASSERT(var_synced(lit_to_var(lit)));
-    bitset lit_chunks_set = lit_chunks(lit) & counted_chunks;
+    // if (!lit_chunks(lit).has_intersection(counted_chunks)) {
+    //   continue;
+    // }
+    // no need to clear because we know that lit_chunks_set is always a subset of counted_chunks
+    if (*last_chunks != lit_chunks(lit)) {
+      lit_chunks_set = lit_chunks(lit);
+      lit_chunks_set &= counted_chunks;
+      count = lit_chunks_set.count();
+    } else {
+      last_chunks = &lit_chunks(lit);
+    }
+    // if the literal belongs to all, or none of the counted chunks, we can skip it because it will not change the order of the weights
+    if (count == 0 || count == counted_chunk_size)
+      continue;
+
     double lit_cost = literal_cost(lit);
 
-    for (auto it = lit_chunks_set.cbegin(); it != lit_chunks_set.cend(); ++it) {
+    // we do not check for cend() because it is slower
+    auto it = lit_chunks_set.cbegin();
+    for (size_t j = 0; j < count; ++j, ++it) {
+      ASSERT(it != lit_chunks_set.cend());
       size_t chunk_id = *it;
       chunk_weights[chunk_id] += lit_cost;
       if (lit_decision(lit)) {
@@ -923,6 +943,7 @@ void NapSAT::repair_conflicts()
 
   auto end = chrono::high_resolution_clock::now();
   long long duration = chrono::duration_cast<chrono::microseconds>(end - start).count();
+  // if the duration is above 0.5 sec, we save the state
   NOTIFY_STAT_N(repair_time, duration);
 }
 
@@ -1216,11 +1237,7 @@ void napsat::NapSAT::graph_repair()
     }
   }
 
-  auto start = chrono::high_resolution_clock::now();
   compute_backtrack_possibilities(possibilities);
-  auto end = chrono::high_resolution_clock::now();
-  NOTIFY_STAT_N(backtrack_possibilities_time,
-                  chrono::duration_cast<chrono::microseconds>(end - start).count());
 
   if (possibilities.empty()) {
     // we cannot repair the conflicts
@@ -1287,8 +1304,8 @@ void napsat::NapSAT::graph_repair()
     }
 
     const auto end = chrono::high_resolution_clock::now();
-    NOTIFY_STAT_N(cost_estimation_time,
-                    chrono::duration_cast<chrono::microseconds>(end - start).count());
+    const auto duration = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    NOTIFY_STAT_N(cost_estimation_time, duration);
 
     // the top element is the best one because it was sorted by the calculate_bitset_weights function
     ASSERT(!weights.empty());
@@ -1301,8 +1318,10 @@ void napsat::NapSAT::graph_repair()
 #endif
     ASSERT(approximate || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6);
     ASSERT(approximate || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6);
-    ASSERT(!_options.use_max_approximate_cost_estimation
-      || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6);
+    ASSERT_MSG(!_options.use_max_approximate_cost_estimation
+      || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6,
+               "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) + " and penalty " + to_string(penalty) +
+               " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)));
     ASSERT(!_options.use_sum_approximate_cost_estimation
       || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6);
 
@@ -1315,11 +1334,7 @@ void napsat::NapSAT::graph_repair()
                 " but analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight));
 
     if (analyzed.maybe_learning) {
-      auto start = chrono::high_resolution_clock::now();
       try_and_learn(analyzed.chunks, learned_clauses);
-      auto end = chrono::high_resolution_clock::now();
-      NOTIFY_STAT_N(conflict_analysis_time,
-                      chrono::duration_cast<chrono::microseconds>(end - start).count());
 
       if(_status == UNSAT) {
         return;
@@ -1342,7 +1357,6 @@ void napsat::NapSAT::graph_repair()
   } while (!weights.empty());
 
   ASSERT(best.total_weight <= analyzed.total_weight);
-  auto start_backtracking = chrono::high_resolution_clock::now();
   if (_options.backtrack_learned || learned_clauses.empty()) {
     backtrack(analyzed.chunks);
     // add assertion to make sure we are indeed at the highest level
@@ -1356,15 +1370,8 @@ void napsat::NapSAT::graph_repair()
       NOTIFY_STAT(_n_backtrack_better_chunks);
     }
   }
-  auto end_backtracking = chrono::high_resolution_clock::now();
-  NOTIFY_STAT_N(backtrack_time,
-                  chrono::duration_cast<chrono::microseconds>(end_backtracking - start_backtracking).count());
 
-  auto start_fixing = chrono::high_resolution_clock::now();
   fix_conflicts_and_learned_in_order(learned_clauses);
-  auto end_fixing = chrono::high_resolution_clock::now();
-  NOTIFY_STAT_N(conflict_analysis_time,
-                  chrono::duration_cast<chrono::microseconds>(end_fixing - start_fixing).count());
   _just_learned_from_user = false;
 }
 
