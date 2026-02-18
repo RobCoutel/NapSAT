@@ -280,13 +280,6 @@ Tvar napsat::NapSAT::new_variable()
 
 NapSAT::~NapSAT()
 {
-#if USE_STATISTICS
-  if (_statistics) {
-    if (_options.print_stats)
-      get_statistics()->print_statistics(false);
-    delete _statistics;
-  }
-#endif
   for (unsigned i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
 #if USE_OBSERVER
