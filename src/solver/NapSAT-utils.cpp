@@ -458,7 +458,7 @@ std::string napsat::NapSAT::lit_to_md_string(Tlit lit) const
   int lit_int = lit_to_int(lit);
   if (lit_false(lit))
     lit_int = -lit_int;
-  s += "](obsidian://open?vault=bug-1&file=" + to_string(lit_int) + ".md)";
+  s += "](obsidian://open?vault=VAULT_NAME&file=" + to_string(lit_int) + ".md)";
 
   return s;
 }
@@ -525,17 +525,17 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
     s += "$\\zeta(\\ell)$: " + to_string(literal_cost(lit)) + "\n";
   }
 
-  s += "---\n";
+  s += "\n---\n";
   s += "Watch list for " + lit_to_md_string(lit) + ":\n";
   for (const TSwatch& watch : _watches[lit]) {
     s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
   }
-  s += "---\n";
+  s += "\n---\n";
   s += "Watch list for " + lit_to_md_string(lit_neg(lit)) + ":\n";
   for (const TSwatch& watch : _watches[lit_neg(lit)]) {
     s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
   }
-  s += "---\n";
+  s += "\n---\n";
   return s;
 }
 

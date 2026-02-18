@@ -1,6 +1,7 @@
 #include "implication_graph_exporter.hpp"
 
 #include "SAT-options.hpp"
+#include "../utils/printer.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -19,27 +20,28 @@ void implication_graph_exporter::export_implication_graph(const std::string& fol
                                                           std::function<size_t(Tlit)> get_reason_size,
                                                           std::function<std::string(Tlit)> lit_info)
 {
-  while (folder_name.empty()) {
+  std::string actual_folder_name = folder_name;
+
+  cout << "Exporting implication graph to folder " << folder_name << "..." << endl;
+  do {
     // ask the user to provide a folder name
+    if (!actual_folder_name.empty()) {
+      // check if the folder can be created
+      try {
+        create_folder_if_not_exists(actual_folder_name);
+      } catch (const std::exception& e) {
+        cerr << "Error: Could not create folder " << actual_folder_name << ". " << e.what() << endl;
+        actual_folder_name = "";
+        continue;
+      }
+    }
     cout << "Please provide a folder name to export the implication graph to: ";
-    string input;
-    getline(cin, input);
-    if (input.empty()) {
+    getline(cin, actual_folder_name);
+    if (actual_folder_name.empty()) {
       cout << "Folder name cannot be empty. Please try again." << endl;
       continue;
     }
-    // check if the folder can be created
-    try {
-      create_folder_if_not_exists(input);
-    } catch (const std::exception& e) {
-      cerr << "Error: Could not create folder " << input << ". " << e.what() << endl;
-      continue;
-    }
-    return export_implication_graph(input, nvars, assignment, get_reason, get_reason_size, lit_info);
-  }
-
-  cout << "Exporting implication graph to folder " << folder_name << "..." << endl;
-  create_folder_if_not_exists(folder_name);
+  } while (actual_folder_name.empty());
 
   vector<vector<Tlit>> implying_literals(nvars + 1);
 
@@ -60,7 +62,7 @@ void implication_graph_exporter::export_implication_graph(const std::string& fol
   for (size_t i = 0; i < assignment.size(); i++) {
     Tlit lit = assignment[i];
     string content = lit_info(lit);
-    create_file_for_literal(folder_name, lit, content, implying_literals[lit_to_var(lit)]);
+    create_file_for_literal(actual_folder_name, lit, content, implying_literals[lit_to_var(lit)]);
   }
 }
 
@@ -86,10 +88,12 @@ void implication_graph_exporter::create_folder_if_not_exists(const std::string& 
     if (std::filesystem::exists(template_path)) {
       std::filesystem::copy(template_path, folder_name + "/.obsidian", std::filesystem::copy_options::recursive);
     } else {
-      cerr << "Warning: .obsidian template folder not found. The exported graph may not be properly recognized by Obsidian. Please create a folder named 'obsidian_template' with a subfolder named '.obsidian' containing the necessary Obsidian configuration files to fix this issue." << endl;
+      LOG_ERROR("Could not find the obsidian template folder at " << location);
     }
   }
 }
+
+const string VAULT_PLACEHOLDER = "VAULT_NAME";
 
 void implication_graph_exporter::create_file_for_literal(const std::string& folder_name,
                                                         Tlit lit,
@@ -103,7 +107,17 @@ void implication_graph_exporter::create_file_for_literal(const std::string& fold
     return;
   }
 
-  file << content << endl;
+  // replace the placeholder VAULT_PLACEHOLDER in the content with the actual folder name
+  std::string content_with_links = content;
+  std::string vault_name = folder_name.substr(folder_name.find_last_of("/\\") + 1);
+
+  size_t pos = content_with_links.find(VAULT_PLACEHOLDER);
+  while (pos != std::string::npos) {
+    content_with_links.replace(pos, VAULT_PLACEHOLDER.length(), vault_name);
+    pos = content_with_links.find(VAULT_PLACEHOLDER, pos + vault_name.length());
+  }
+
+  file << content_with_links << endl;
 
   if (!implying_literals.empty()) {
     file << "\nImplying the following literals : \n";

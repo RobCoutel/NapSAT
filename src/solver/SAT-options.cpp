@@ -35,7 +35,7 @@ namespace napsat
  * @default [exec_dir]/../
  * @alias -m
  */
-static std::string man_page_folder;
+static std::string man_page_folder = "../";
 
 /**
  * @brief The directory of the invariant configurations. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable.
@@ -44,13 +44,13 @@ static std::string man_page_folder;
  * @default [exec_dir]/../invariant-configurations/
  * @alias -icf
  */
-static std::string invariant_configuration_folder;
+static std::string invariant_configuration_folder = "../invariant-configurations/";
 
 /**
  * @brief The directory of the obsidian template folder. This folder should contain a subfolder named ".obsidian" with the necessary configuration files for Obsidian to recognize the exported graph. This option is used when exporting the implication graph to an obsidian vault. If the template folder is not found, a warning will be printed and the exported graph may not be properly recognized by Obsidian.
  * @default [exec_dir]/../obsidian_template/
  */
-static std::string obsidian_template_folder;
+static std::string obsidian_template_folder = "../obsidian_template/";
 
 /**
  * @brief If true, the solver will not print warnings to the standard output.

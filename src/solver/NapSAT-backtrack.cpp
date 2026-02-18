@@ -177,7 +177,6 @@ static Tvar last_backtracked_decision = 0;
 
 void NapSAT::backtrack(const bitset& backtracked_chunks)
 {
-  // cout << "Backtracking chunks " << backtracked_chunks << endl;
   ASSERT(_options.graph_backtracking);
   ASSERT(!backtracked_chunks.empty());
   ASSERT(!backtracked_chunks.empty());
@@ -214,7 +213,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
 
     /** CROSS-CHUNKS **/
     if (!backtracked && lit_propagated(lit) && lit_cross_chunks(lit).has_intersection(backtracked_chunks)) {
-      unsigned loc = j - _trail.data();
+      unsigned loc = min(i, j) - _trail.data();
       _vars[var].propagated = false;
       NOTIFY_STAT(_n_propagation_replayed);
       new_propagation_head = min(new_propagation_head, loc);

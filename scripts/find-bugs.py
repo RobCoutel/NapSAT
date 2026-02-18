@@ -12,7 +12,7 @@ directorySat = "/home/robin/OneDrive/University/Library/SAT.CNF/sat/"
 # Path to the directory containing the unsat instances
 directoryUnSat = "/home/robin/OneDrive/University/Library/SAT.CNF/unsat/"
 # Path to the executable
-SAT_exec = "/home/robin/programs/NapSAT-dev/build/NapSAT"
+SAT_exec = "/home/robin/programs/vampire/NapSAT/build/NapSAT"
 
 SAT_options = ["", "-rscb", "-lscb", "-gb", "-gb -lcm", "-gb -bl", "-gb -bl -lcm"]
 opts = []
