@@ -203,7 +203,8 @@ void napsat::NapSAT::purge_clauses()
         for (unsigned i = 2; i < clause.size; i++) {
           ASSERT_MSG(lit_false(lits[i]),
             "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]));
-          ASSERT(lit_level(lits[i]) == LEVEL_ROOT);
+          ASSERT_MSG(lit_level(lits[i]) == LEVEL_ROOT,
+            "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]) + "\nLevel: " + std::to_string(lit_level(lits[i])));
         }
 #endif
         NOTIFY_OBSERVER(remove_literal, cl, lits[1]);

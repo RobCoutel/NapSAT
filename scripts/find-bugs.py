@@ -22,7 +22,7 @@ for option in SAT_options:
     opts.append(option + " -pcr")
 SAT_options = opts
 
-additional_options = "-c -sw -cp"
+additional_options = "-c -sw -cp -ssi off"
 
 N_THREADS = os.cpu_count() - 1
 

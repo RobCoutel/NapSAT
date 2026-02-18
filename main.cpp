@@ -45,6 +45,7 @@ int main(int argc, char** argv)
   string exec_dir = string(dirname(argv[0]));
   napsat::env::set_man_page_folder(exec_dir + "/../");
   napsat::env::set_invariant_configuration_folder(exec_dir + "/../invariant-configurations/");
+  napsat::env::set_obsidian_template_folder(exec_dir + "/../obsidian_template/");
 
   if (string(argv[1]) == "-h" || string(argv[1]) == "--help") {
     string man_file = napsat::env::get_man_page_folder() + "man.txt";

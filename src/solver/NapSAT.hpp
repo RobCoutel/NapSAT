@@ -149,44 +149,46 @@
 #else
 #define NOTIFY_OBSERVER(NAME,...)  NOTIFY_STAT(NAME)
 #endif
-#define SAVE_STATE                                                          \
-do {                                                                        \
-  bool save = false;                                                        \
-  while (true) {                                                            \
-    std::string input;                                                      \
-    std::cout << "Enter [y/n] to save or not the implication graph: ";      \
-    std::getline(std::cin, input);                                          \
-    if (input == "y" || input == "Y") {                                     \
-      save = true;                                                          \
-      break;                                                                \
-    }                                                                       \
-    else if (input == "n" || input == "N") {                                \
-      save = false;                                                         \
-      break;                                                                \
-    }                                                                       \
-    else                                                                    \
-      std::cout << "Invalid input. Please enter 'y' or 'n'." << std::endl;  \
-  }                                                                         \
-  if (save) {                                                               \
-    exporter::implication_graph_exporter::export_implication_graph(         \
-      "",                                                                   \
-      _vars.size() - 1,                                                     \
-      _trail,                                                               \
-      [this](Tlit lit) {                                                    \
-        Tclause reason = this->lit_reason(lit);                             \
-        if (reason == CLAUSE_UNDEF)                                         \
-          return (const Tlit*) nullptr;                                     \
-        return (const Tlit*) this->clause_lits(reason);                     \
-      },                                                                    \
-      [this](Tlit lit) {                                                    \
-        Tclause reason = this->lit_reason(lit);                             \
-        if (reason == CLAUSE_UNDEF)                                         \
-          return (size_t) 0;                                                \
-        return this->clause_size(reason);                                   \
-      },                                                                    \
-      [this](Tlit lit) { return lit_to_md_info_string(lit); }               \
-    );                                                                      \
-  }                                                                         \
+#define SAVE_STATE                                                            \
+do {                                                                          \
+  bool save = false;                                                          \
+  if (_options.save_state_on_interrupt) {                                     \
+    while (true) {                                                            \
+      std::string input;                                                      \
+      std::cout << "Enter [y/n] to save or not the implication graph: ";      \
+      std::getline(std::cin, input);                                          \
+      if (input == "y" || input == "Y") {                                     \
+        save = true;                                                          \
+        break;                                                                \
+      }                                                                       \
+      else if (input == "n" || input == "N") {                                \
+        save = false;                                                         \
+        break;                                                                \
+      }                                                                       \
+      else                                                                    \
+        std::cout << "Invalid input. Please enter 'y' or 'n'." << std::endl;  \
+    }                                                                         \
+  }                                                                           \
+  if (save) {                                                                 \
+    exporter::implication_graph_exporter::export_implication_graph(           \
+      "",                                                                     \
+      _vars.size() - 1,                                                       \
+      _trail,                                                                 \
+      [this](Tlit lit) {                                                      \
+        Tclause reason = this->lit_reason(lit);                               \
+        if (reason == CLAUSE_UNDEF)                                           \
+          return (const Tlit*) nullptr;                                       \
+        return (const Tlit*) this->clause_lits(reason);                       \
+      },                                                                      \
+      [this](Tlit lit) {                                                      \
+        Tclause reason = this->lit_reason(lit);                               \
+        if (reason == CLAUSE_UNDEF)                                           \
+          return (size_t) 0;                                                  \
+        return this->clause_size(reason);                                     \
+      },                                                                      \
+      [this](Tlit lit) { return lit_to_md_info_string(lit); }                 \
+    );                                                                        \
+  }                                                                           \
 } while(0);
 
 

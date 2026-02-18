@@ -201,6 +201,8 @@ napsat::options::options(vector<string>& tokens)
     {"--interactive",                            &interactive},
     {"-c",                                       &check_invariants},
     {"--check-invariants",                       &check_invariants},
+    {"-ssi",                                     &save_state_on_interrupt},
+    {"--save-state-on-interrupt",                &save_state_on_interrupt},
     {"-stat",                                    &print_stats},
     {"--statistics",                             &print_stats},
     {"-live-stat",                               &print_live_stats},

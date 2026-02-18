@@ -527,11 +527,17 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
 
   s += "\n---\n";
   s += "Watch list for " + lit_to_md_string(lit) + ":\n";
+  for (const TSwatch& watch : _binary_watches[lit]) {
+    s += "  Binary clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
+  }
   for (const TSwatch& watch : _watches[lit]) {
     s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
   }
   s += "\n---\n";
   s += "Watch list for " + lit_to_md_string(lit_neg(lit)) + ":\n";
+  for (const TSwatch& watch : _binary_watches[lit_neg(lit)]) {
+    s += "  Binary clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
+  }
   for (const TSwatch& watch : _watches[lit_neg(lit)]) {
     s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
   }
@@ -578,11 +584,11 @@ std::string napsat::NapSAT::clause_to_md_string(Tclause cl) const
     s += "**";
   }
   s += to_string(cl);
-  if (_clauses[cl].deleted) {
-    s += "~~";
-  }
   if (_clauses[cl].external) {
     s += "**";
+  }
+  if (_clauses[cl].deleted) {
+    s += "~~";
   }
   s += ": ";
   ASSERT(clause_size(cl) > 0);

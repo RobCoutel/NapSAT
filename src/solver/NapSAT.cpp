@@ -280,6 +280,13 @@ Tvar napsat::NapSAT::new_variable()
 
 NapSAT::~NapSAT()
 {
+#if USE_STATISTICS
+  if (_statistics) {
+    if (_options.print_stats)
+      get_statistics()->print_statistics(false);
+    delete _statistics;
+  }
+#endif
   for (unsigned i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
 #if USE_OBSERVER
@@ -443,9 +450,7 @@ status NapSAT::solve()
     }
     ASSERT(_n_propagated_lits == _trail.size());
     NOTIFY_OBSERVER(check_invariants);
-    if (_n_root_lvl_lits >= _purge_threshold
-    && ((!_options.weak_chronological_backtracking && !_options.restoring_strong_chronological_backtracking && !_options.graph_backtracking)
-       || solver_level() == LEVEL_ROOT)) {
+    if (_n_root_lvl_lits >= _purge_threshold && solver_level() == LEVEL_ROOT) {
       // in WCB and RSCB, missed lower implications can be a problem when purging clauses.
       // this is the same trick as in CaDiCaL, but we might be able to do better
       purge_clauses();

@@ -230,6 +230,12 @@ namespace napsat
     bool print_live_stats = false;
 
     /**
+     * @brief If true, the solver will save its state to an obsidian vault when failing an assertion.
+      * @alias -ssi
+     */
+    bool save_state_on_interrupt = true;
+
+    /**
      * @brief Enables resolution proof system to build a proof during the execution.
      * @alias -bp
     */

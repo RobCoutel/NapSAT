@@ -22,15 +22,16 @@ void implication_graph_exporter::export_implication_graph(const std::string& fol
 {
   std::string actual_folder_name = folder_name;
 
-  cout << "Exporting implication graph to folder " << folder_name << "..." << endl;
+  LOG_INFO("Exporting implication graph to folder " << folder_name << "...");
   do {
     // ask the user to provide a folder name
     if (!actual_folder_name.empty()) {
       // check if the folder can be created
       try {
         create_folder_if_not_exists(actual_folder_name);
+        break;
       } catch (const std::exception& e) {
-        cerr << "Error: Could not create folder " << actual_folder_name << ". " << e.what() << endl;
+        LOG_ERROR("Error: Could not create folder " << actual_folder_name << ". " << e.what());
         actual_folder_name = "";
         continue;
       }
@@ -41,7 +42,7 @@ void implication_graph_exporter::export_implication_graph(const std::string& fol
       cout << "Folder name cannot be empty. Please try again." << endl;
       continue;
     }
-  } while (actual_folder_name.empty());
+  } while (true);
 
   vector<vector<Tlit>> implying_literals(nvars + 1);
 
@@ -68,6 +69,7 @@ void implication_graph_exporter::export_implication_graph(const std::string& fol
 
 void implication_graph_exporter::create_folder_if_not_exists(const std::string& folder_name)
 {
+  LOG_INFO("Creating folder " << folder_name << "...");
   bool found_obsidian = false;
   if (!std::filesystem::exists(folder_name)) {
     std::filesystem::create_directory(folder_name);
@@ -86,6 +88,7 @@ void implication_graph_exporter::create_folder_if_not_exists(const std::string& 
     std::string location = env::get_obsidian_template_folder();
     std::filesystem::path template_path = location + "/.obsidian";
     if (std::filesystem::exists(template_path)) {
+      LOG_INFO("Copying obsidian template from " << template_path << " to " << folder_name + "/.obsidian");
       std::filesystem::copy(template_path, folder_name + "/.obsidian", std::filesystem::copy_options::recursive);
     } else {
       LOG_ERROR("Could not find the obsidian template folder at " << location);
@@ -103,7 +106,7 @@ void implication_graph_exporter::create_file_for_literal(const std::string& fold
   std::string file_name = folder_name + "/" + to_string(lit_to_int(lit)) + ".md";
   std::ofstream file(file_name);
   if (!file.is_open()) {
-    cerr << "Error: Could not create file " << file_name << endl;
+    LOG_ERROR("Error: Could not create file " << file_name);
     return;
   }
 

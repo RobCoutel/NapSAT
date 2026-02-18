@@ -148,7 +148,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 
   // if the literal is a decision, we will need to update the decision index
   bool squash_level = lit_decision(lit);
-  if (squash_level) {
+  if (squash_level && _options.graph_backtracking) {
     // we need to free the chunk of the decision
     ASSERT(lit_chunks(lit).count() == 1);
     Tchunk ck = *lit_chunks(lit).cbegin();
@@ -251,11 +251,18 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 void NapSAT::reimply_literal(Tlit c2, Tclause reason)
 {
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
+
+  if (clause_size(reason) == 1) {
+    reimply_literal_root(c2, reason);
+    return;
+  }
   TSclause& clause = _clauses[reason];
   Tlit* lits = clause.lits;
   Tlit c1 = lits[1];
 
-  if (_options.restoring_strong_chronological_backtracking && !clause.external) {
+
+  if (_options.restoring_strong_chronological_backtracking && _lit_buffer_size == 0) {
+    // The _lit_buffer_size is not 0 when the clause is just being added by the user
     // Nothing to do. The restoration will be done during backtracking, where the propagation head will be moved back.
     return;
   }
