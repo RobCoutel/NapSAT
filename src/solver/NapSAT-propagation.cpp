@@ -119,9 +119,6 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
       reimply_literal(c2, cl);
       continue;
     }
-    if (lit_propagated(c1)) {
-      print_trail();
-    }
     ASSERT_MSG(!lit_propagated(c1),
                "Literal " + lit_to_string(c1) + " should not be propagated when propagating binary clause " + clause_to_string(cl));
     Tlit* lits = clause_lits(cl);
@@ -295,9 +292,6 @@ void NapSAT::propagate_lit(Tlit lit)
      * GB:   [c₂ ∉ π ∨ γ(c₂) ⊈ η(c₁)] ∧ [b ∉ π ∨ γ(b) ⊈ η(c₁)]
     */
     ASSERT(r != nullptr);
-    if (lit_propagated(c1)) {
-      print_trail();
-    }
     // in debug mode, we still run the propagation, but it should not change anything
     ASSERT_MSG(!lit_propagated(c1) || find(_conflicts.begin(), _conflicts.end(), cl) != _conflicts.end(), lit_to_string(c1) + " requires changes on clause " + clause_to_string(cl));
 

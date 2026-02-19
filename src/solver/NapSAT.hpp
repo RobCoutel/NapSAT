@@ -1829,7 +1829,10 @@ public:
 
     void subsumption_filter(std::vector<bitset>& possibilities);
 
-    void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations, bitset current, bitset processed) const;
+    void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations,
+                                              const bitset& mergeable_chunks,
+                                              bitset current,
+                                              bitset processed) const;
 
     void enhance_backtrack_possibilities_with_lazy_merging(const bitset& combined_chunks,
                                                            std::vector<bitset>& possibilities) const;

@@ -72,24 +72,18 @@ static bool subsumed(const vector<bitset>& a, const bitset& b)
 }
 
 void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combinations,
+                                                          const bitset& mergeable_chunks,
                                                           bitset current,
                                                           bitset processed) const
 {
-  if (combinations.size() > _options.backtrack_possibilities_limit) {
-    return;
-  }
   // check for subsumption
   if (subsumed(combinations, current)) {
     return;
   }
 
+  // Set of chunks that have to be inspected
   bitset diff = current - processed;
-  for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
-    if (var_lazy_reason(_chunks[*i].decision) == CLAUSE_UNDEF) {
-      processed.set(*i, true);
-    }
-  }
-  diff = current - processed;
+  diff &= mergeable_chunks;
 
   if (diff.empty()) {
     combinations.push_back(current);
@@ -97,22 +91,27 @@ void napsat::NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combin
   }
 
   for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
+    Tchunk c = *i;
     bitset next_process = processed;
-    next_process.set(*i, true);
-    bitset merged_chunks = _chunks[*i].missed_implication;
+    next_process.set(c, true);
+    bitset merged_chunks = _chunks[c].missed_implication;
     if (_n_assumptions > 0) {
       // the assumptions cannot be backtracked, and are removed from the possibilities
       merged_chunks -= _locked_chunks;
     }
 
     for (auto j = merged_chunks.cbegin(); j != merged_chunks.cend(); ++j) {
-      bitset next_current = current;
-      if (current.get(*j)) {
+      Tchunk c2 = *j;
+      if (current.get(c2)) {
         // we already have this chunk, any further combination will be subsumed
         continue;
       }
-      next_current.set(*j, true);
-      compute_lazy_merge_chunk_combination(combinations, next_current, next_process);
+      bitset next_current = current;
+      next_current.set(c2, true);
+      compute_lazy_merge_chunk_combination(combinations, mergeable_chunks, next_current, next_process);
+      if (combinations.size() > _options.backtrack_possibilities_limit) {
+        return;
+      }
     }
   }
 }
@@ -122,8 +121,7 @@ void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bit
 {
   // check the chunks among the combined chunks that can be merged
   bitset mergeable_chunks(_n_allocated_chunks);
-  for (auto it = combined_chunks.cbegin(); it != combined_chunks.cend(); ++it) {
-    Tchunk c = *it;
+  for (Tchunk c = 0; c < _n_allocated_chunks; c++) {
     if (_chunks[c].missed_implication.empty()) {
       continue;
     }
@@ -142,17 +140,15 @@ void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bit
     possibilities[original_size - 1] = possibilities.back();
     possibilities.pop_back();
     original_size--;
-    compute_lazy_merge_chunk_combination(possibilities, current, bitset(_n_allocated_chunks));
+    compute_lazy_merge_chunk_combination(possibilities, mergeable_chunks, current, bitset(_n_allocated_chunks));
     // remove the original possibility
   }
-
-  // subsumption_filter(possibilities);
 }
 
 typedef pair<unsigned, bitset> prefix_t;
 struct compare_prefixes {
   bool operator()(const prefix_t& a, const prefix_t& b) const {
-    return a.first < b.first;
+    return a.first > b.first;
   }
 };
 
