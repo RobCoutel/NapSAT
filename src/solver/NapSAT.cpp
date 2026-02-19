@@ -441,7 +441,6 @@ status NapSAT::solve()
         }
         break;
       }
-      NOTIFY_OBSERVER(done, _status == SAT);
     }
     ASSERT(_n_propagated_lits == _trail.size());
     NOTIFY_OBSERVER(check_invariants);
@@ -470,6 +469,7 @@ status NapSAT::solve()
       continue;
     }
     NOTIFY_OBSERVER(check_invariants);
+    synchronize();
 #if USE_OBSERVER
     if (_options.interactive)
       _observer->notify(new napsat::gui::checkpoint());
@@ -482,7 +482,6 @@ status NapSAT::solve()
   }
   if (_status == SAT)
     NOTIFY_OBSERVER(check_invariants);
-  NOTIFY_OBSERVER(done, _status == SAT);
   auto end_time = std::chrono::high_resolution_clock::now();
   long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
   NOTIFY_STAT_N(solve_time, duration);

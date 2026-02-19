@@ -82,8 +82,8 @@ def run_one_job(filename : str, option: str, df: pd.DataFrame):
         for stat_name, value in stats.items():
             if stat_name not in df.columns:
                 df[stat_name] = 0 if isinstance(value, int) else ""
-        if ("Done" not in stats):
-            print(f"Warning: No 'Done' stat in {filename} with option {option}")
+        if ("Solve calls" not in stats):
+            print(f"Warning: No 'Solve calls' stat in {filename} with option {option}")
         # the index +1 cannot be in the df yet
         assert(len(df) == 0 or df.index.min() >= 0)
         df.loc[len(df)] = stats
@@ -107,6 +107,8 @@ if __name__ == "__main__":
         SAT_options.append("-gb -lcm")
         SAT_options.append("-gb -bl")
         SAT_options.append("-gb -lcm -bl")
+        SAT_options.append("-gb -ecm")
+        SAT_options.append("-gb -ecm -bl")
 
     opts_copy = SAT_options.copy()
     for option in opts_copy:
@@ -197,7 +199,7 @@ if __name__ == "__main__":
             mutex.release()
 
             # sleep for avg_time / 100 (expressed in seconds, but the stat is in milliseconds)
-            time.sleep(avg_time / 10**5 if avg_time > 0 else 0.00001)
+            # time.sleep(avg_time / 10**5 if avg_time > 0 else 0.00001)
 
 
     # drop the unnecessary columns from the dataframe
