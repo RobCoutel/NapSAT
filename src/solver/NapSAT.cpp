@@ -337,6 +337,8 @@ napsat::gui::observer* napsat::NapSAT::get_observer() const
 
 bool NapSAT::propagate()
 {
+  if (_options.print_live_stats)
+    get_statistics()->print_statistics(true);
   if (!_conflicts.empty()) {
     repair_conflicts();
     if (_status == UNSAT) {

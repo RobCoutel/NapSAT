@@ -133,7 +133,8 @@ void napsat::NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bit
   size_t original_size = possibilities.size();
   while(original_size > 0) {
     bitset current = possibilities[original_size - 1];
-    if (!current.has_intersection(mergeable_chunks)) {
+    if (possibilities.size() > _options.backtrack_possibilities_limit
+     || !current.has_intersection(mergeable_chunks)) {
       // no mergeable chunk, nothing to do
       original_size--;
       continue;
