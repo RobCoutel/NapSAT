@@ -26,7 +26,6 @@ namespace napsat {
     const auto duration = chrono::duration_cast<chrono::microseconds>(
       now - _creation_time);
     ss << "c Time since creation: " + pretty_time(duration) << endl;
-    // print the core stats first if available
 
     for (const auto& [name, stats] : _stats) {
       ss << "c " << (name.empty() ? "Statistics" : name) << ":" << endl;

@@ -209,7 +209,6 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat._a_learned_clause_size = _statistics->add_stat("Avg learned clause size", cat_aux, statistics::AVERAGE);
     stat._a_bt_choices = _statistics->add_stat("Avg number of backtrack choices", cat_aux, statistics::AVERAGE);
     stat._a_prefix_size = _statistics->add_stat("Avg prefix size", cat_aux, statistics::AVERAGE);
-
   }
 #else
   if (options.print_stats)
@@ -337,8 +336,6 @@ napsat::gui::observer* napsat::NapSAT::get_observer() const
 
 bool NapSAT::propagate()
 {
-  if (_options.print_live_stats)
-    get_statistics()->print_statistics(true);
   if (!_conflicts.empty()) {
     repair_conflicts();
     if (_status == UNSAT) {
