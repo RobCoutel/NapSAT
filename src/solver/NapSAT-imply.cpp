@@ -130,8 +130,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 
   if (!_options.chronological_backtracking && !_options.graph_backtracking) {
     // Non-chronological backtracking
-    Tlevel backtrack_level = LEVEL_ROOT;
-    backtrack(backtrack_level);
+    backtrack(LEVEL_ROOT);
     imply_literal(lit, reason);
     return;
   }
@@ -368,6 +367,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
 
 void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
 {
+  ASSERT(_options.graph_backtracking || _options.chronological_backtracking);
   ASSERT(lit_decision(decision));
   ASSERT(lit_true(decision));
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);

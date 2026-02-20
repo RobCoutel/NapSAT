@@ -237,8 +237,13 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   // }
 
   if (clause_size == 1) {
-    if (lit_undef(lits[0]))
+    if (lit_undef(lits[0])) {
+      if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+        // we need to ensure monotonicity of the trail. For that reason, we have to backtrack everything above the implied level
+        backtrack(LEVEL_ROOT);
+      }
       imply_literal(lits[0], id);
+    }
     if (lit_true(lits[0]) && lit_level(lits[0]) != LEVEL_ROOT) {
       reimply_literal_root(lits[0], id);
       return id;

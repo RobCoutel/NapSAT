@@ -77,16 +77,23 @@ Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
 
 void NapSAT::backtrack(Tlevel level)
 {
+  ASSERT(_options.chronological_backtracking || _options.graph_backtracking || check_trail_monotonicity());
   ASSERT(level <= solver_level());
   if (_status == SAT) {
     _status = UNKNOWN;
   }
-  if (level == solver_level())
+  if (level >= solver_level())
     return;
   NOTIFY_OBSERVER(backtracking_started, level);
   unsigned waiting_count = 0;
 
-  size_t restore_point = _decision_index[level];
+  // the restore point is the location of the lowest decision that gets undone. That is, one level above the backtracking level.
+  const size_t restore_point = _decision_index[level];
+  ASSERT(restore_point <= _trail.size());
+  ASSERT_MSG(lit_decision(_trail[restore_point]),
+    "The restore point should be a decision literal. Restore point: " + to_string(restore_point) + "\nLevel: " + to_string(level));
+  ASSERT_MSG(lit_level(_trail[restore_point]) == level + 1,
+    "The restore point should be at level one above the backtracking level. Restore point: " + to_string(restore_point) + "\nLevel: " + to_string(level));
   size_t j = restore_point;
   _sync_validity_index = min(_sync_validity_index, restore_point);
 
@@ -119,6 +126,8 @@ void NapSAT::backtrack(Tlevel level)
       */
       _backtracked_variables.push_back(var);
     } else { // lit_level(lit) <= level
+      ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking,
+        "The literal " + to_string(lit) + " at level " + lit_to_string(lit_level(lit)) + " at position " + to_string(i) + " should be backtracked. Backtracking level: " + to_string(level));
       _trail[j++] = lit;
       waiting_count += (i >= _n_propagated_lits);
     }

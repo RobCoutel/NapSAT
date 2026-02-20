@@ -113,10 +113,13 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     ASSERT(clause_size(cl) == 2);
 
     if (lit_true(c2)) {
-      Tlit* lits = clause_lits(cl);
-      lits[0] = c2;
-      lits[1] = c1;
-      reimply_literal(c2, cl);
+      if ((_options.chronological_backtracking && lit_level(c2) > lit_level(c1))
+       || (_options.graph_backtracking && !(lit_chunks(c2) <= lit_cross_chunks(c1)))) {
+        Tlit* lits = clause_lits(cl);
+        lits[0] = c2;
+        lits[1] = c1;
+        reimply_literal(c2, cl);
+      }
       continue;
     }
     ASSERT_MSG(!lit_propagated(c1),
@@ -530,6 +533,7 @@ void NapSAT::propagate_lit(Tlit lit)
      *
      * Note that reimply literal ensures δ(λ(c₂) \ {c₂}) > δ(c₁) ∧  δ(ℓ) > δ(c₁) before reimplication
      */
+    ASSERT(_options.chronological_backtracking || _options.graph_backtracking);
     reimply_literal(c2, cl);
 
     /**
