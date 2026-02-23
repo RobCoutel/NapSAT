@@ -136,6 +136,11 @@ namespace napsat::proof
      */
     bool check_resolution_chain(TclauseID id);
 
+        /**
+     * @brief Check if the clause with the given literals is a tautology.
+     */
+    bool check_tautology(Tlit* lits, unsigned size);
+
     /**
      * @brief Print the clause with the given index.
      */

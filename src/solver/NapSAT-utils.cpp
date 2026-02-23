@@ -244,17 +244,30 @@ unsigned NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
   Tlit* i = lits;
   Tlit* j = i;
   Tlit* end = i + size;
+  unsigned new_size = size;
+  bool tautology = false;
   while(i < end) {
     if (lit_marked(*i)) {
+      // check that the clause is not a tautology
+      for (Tlit* k = lits; k < j; k++) {
+        if (*k == lit_neg(*i)) {
+          tautology = true;
+          goto end_loop;
+        }
+      }
       i++;
       continue;
     }
     lit_mark(*i);
     *j++ = *i++;
   }
-  unsigned new_size = j - lits;
+  new_size = j - lits;
+  end_loop:
   for (unsigned k = 0; k < new_size; k++) {
     lit_unmark(lits[k]);
+  }
+  if (tautology) {
+    return 0;
   }
   return new_size;
 }

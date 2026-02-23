@@ -85,6 +85,9 @@ void resolution_proof::input_clause(napsat::Tclause id, const napsat::Tlit* lits
     if (c.lits[i] != c.lits[i-1])
       c.lits[j++] = c.lits[i];
   c.size = min(j, c.size);
+
+  // check that the clause is not a tautology
+  assert(!check_tautology(c.lits, c.size));
 }
 
 void resolution_proof::start_resolution_chain(void)
@@ -186,6 +189,7 @@ bool resolution_proof::check_resolution_chain(unsigned index)
     error_msg += "Resolution chain:\n";
     for (pair<Tlit, unsigned> link : c.resolution_chain) {
       error_msg += to_string(lit_to_int(link.first)) + " -> ";
+      error_msg += "C" + to_string(link.second) + ": ";
       for (unsigned i = 0; i < clauses[link.second].size; i++)
         error_msg += to_string(lit_to_int(clauses[link.second].lits[i])) + " ";
       error_msg += "\n";
@@ -225,6 +229,9 @@ bool resolution_proof::check_resolution_chain(unsigned index)
       return false;
     }
   }
+
+  // check if the clause is a tautology
+  assert(!check_tautology(c.lits, c.size));
   return true;
 }
 
@@ -289,6 +296,21 @@ bool resolution_proof::check_proof(void)
   for (unsigned i = 0; i < clauses.size(); i++)
     clauses[i].marked = false;
   return true;
+}
+
+bool resolution_proof::check_tautology(Tlit* lits, unsigned size)
+{
+  for (unsigned i = 0; i + 1 < size; i++) {
+    if (lits[i] == lit_neg(lits[i+1])) {
+      string error_msg = "The clause is a tautology\n";
+      error_msg += "Clause: ";
+      for (unsigned i = 0; i < size; i++)        error_msg += to_string(lit_to_int(lits[i])) + " ";
+      error_msg += "\n";
+      LOG_ERROR(error_msg);
+      return true;
+    }
+  }
+  return false;
 }
 
 void resolution_proof::print_clause(unsigned index)

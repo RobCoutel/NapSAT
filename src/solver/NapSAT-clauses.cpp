@@ -148,7 +148,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
 
   unsigned clause_size = input_size - n_removed;
 
-  if (id == CLAUSE_UNDEF) {
+  bool non_allocated_clause = id == CLAUSE_UNDEF;
+
+  if (non_allocated_clause) {
     id = next_clause_id(clause_size);
   }
 
@@ -169,18 +171,51 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   else {
     // cannot use memcpy because we skip the literals falsified at level 0
     for (unsigned i = 0, j = 0; i < input_size; i++) {
-      if (lit_level(lits_input[i]) == LEVEL_ROOT)
+      if (lit_level(lits_input[i]) == LEVEL_ROOT) {
+        ASSERT(lit_true(lits_input[i]));
+        ASSERT(external);
         continue;
+      }
       lits[j++] = lits_input[i];
     }
     clause.size = input_size - n_removed;
   }
 
+  // if (external) {
+  //   cout << "Added external clause " << clause_to_string(id) << endl;
+  // } else {
+  //   cout << "Learned clause " << clause_to_string(id) << endl;
+  // }
+
   // Remove duplicate literals
   if (input_size > 1) {
-    clause.size = cleanup_duplicate_literals(lits, clause.size);
+    unsigned new_size = cleanup_duplicate_literals(lits, clause.size);
+
+    // if the size is 0, it means that the clause was a tautology.
+    if (new_size == 0) {
+      ASSERT(external);
+      if (id != CLAUSE_UNDEF) {
+        NOTIFY_OBSERVER(new_clause, id, vector<Tlit>(lits_input, lits_input + input_size), learned, external);
+        NOTIFY_OBSERVER(delete_clause, id);
+        if (_proof && !non_allocated_clause)
+          _proof->deactivate_clause(id);
+        if (_dependency_tracker && !non_allocated_clause)
+          _dependency_tracker->delete_clause(id);
+        _clauses[id].deleted = true;
+        _clauses[id].watched = false;
+        _deleted_clauses.push_back(id);
+      }
+      string warning = "The clause: ";
+      for (unsigned k = 0; k < input_size; k++) {
+        warning += lit_to_string(lits_input[k]) + " ";
+      }
+      warning += "is a tautology and will be ignored.";
+      LOG_WARNING(warning);
+      return CLAUSE_UNDEF;
+    }
+
+    clause.size = new_size;
   }
-  clause_size = clause.size;
 
   if (_proof && external) {
     _proof->input_clause(id, lits_input, input_size);
@@ -229,12 +264,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     for (unsigned i = 0; i < clause_size; i++)
       var_mark_constrained(lit_to_var(lits[i]));
   }
-
-  // if (external) {
-  //   cout << "Added external clause " << clause_to_string(id) << endl;
-  // } else {
-  //   cout << "Learned clause " << clause_to_string(id) << endl;
-  // }
 
   if (clause_size == 1) {
     if (lit_undef(lits[0])) {
