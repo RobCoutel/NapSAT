@@ -128,7 +128,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   if (lit_level(lit) == LEVEL_ROOT)
     return;
 
-  if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+  if (!_options.lazy_strong_chronological_backtracking && !_options.graph_backtracking) {
     // Non-chronological backtracking
     backtrack(LEVEL_ROOT);
     imply_literal(lit, reason);
@@ -193,20 +193,36 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 
       // recompute the level
       Tclause reason = lit_reason(l);
-      Tlit* lits = clause_lits(reason);
-      unsigned size = clause_size(reason);
-      Tlit* r = advanced_level_replacement(lits, size);
-      // if the replacement is the same as before, then the watched literals do not change.
-      // replacement is the highest level literal in the clause
-      ASSERT(lit_is_max_literal(*r, lits + 1, size - 1));
-      if (*r != lits[1]) {
-        // we have to fix the watches
-        std::swap(*r, lits[1]);
-        // note that now *r is the old watched literal
-        stop_watch(*r, reason);
-        watch_lit(lits[1], reason);
+      ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
+      size_t reason_size = clause_size(reason);
+      if (reason_size == 1) {
+        // reason is a unit clause, so the level is root
+        lit_level(l) = LEVEL_ROOT;
+        NOTIFY_OBSERVER(update_level, l, LEVEL_ROOT);
+      } else if(reason_size == 2) {
+        // reason is a binary clause, so the level is the one of the other literal
+        const Tlit* lits = clause_lits(reason);
+        ASSERT(lits[0] == l || lits[1] == l);
+        Tlit other = lits[0] == l ? lits[1] : lits[0];
+        lit_level(l) = lit_level(other);
+        NOTIFY_OBSERVER(update_level, l, lit_level(other));
+      } else {
+        Tlit* lits = clause_lits(reason);
+        unsigned size = clause_size(reason);
+        Tlit* r = advanced_level_replacement(lits, size);
+        // if the replacement is the same as before, then the watched literals do not change.
+        // replacement is the highest level literal in the clause
+        ASSERT(lit_is_max_literal(*r, lits + 1, size - 1));
+        if (*r != lits[1]) {
+          // we have to fix the watches
+          std::swap(*r, lits[1]);
+          // note that now *r is the old watched literal
+          stop_watch(*r, reason);
+          watch_lit(lits[1], reason);
+        }
+        lit_level(l) = lit_level(lits[1]);
+        NOTIFY_OBSERVER(update_level, l, lit_level(lits[1]));
       }
-      lit_level(l) = lit_level(lits[1]);
     }
   }
 

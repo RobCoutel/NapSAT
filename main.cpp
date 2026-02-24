@@ -47,6 +47,7 @@ int main(int argc, char** argv)
   napsat::env::set_invariant_configuration_folder(exec_dir + "/../invariant-configurations/");
   napsat::env::set_obsidian_template_folder(exec_dir + "/../obsidian_template/");
 
+  bool all_models = false;
   if (string(argv[1]) == "-h" || string(argv[1]) == "--help") {
     string man_file = napsat::env::get_man_page_folder() + "man.txt";
     print_man_page(man_file);
@@ -65,6 +66,12 @@ int main(int argc, char** argv)
   else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
     cout << "NapSAT version " << VERSION << endl;
     return 0;
+  } else if (string(argv[1]) == "--all-models") {
+    all_models = true;
+    for (unsigned i = 1; i < (unsigned) argc - 1; i++) {
+      argv[i] = argv[i + 1];
+    }
+    argc--;
   }
 
   vector<string> tokens(argv + 2, argv + argc);
@@ -82,7 +89,23 @@ int main(int argc, char** argv)
   chrono::microseconds parse_duration = chrono::duration_cast<chrono::microseconds>(chrono::high_resolution_clock::now() - start);
   cout << "c Input file parsed in " << pretty_time(parse_duration) << endl;
   start = chrono::high_resolution_clock::now();
-  solve(solver);
+
+  if (all_models) {
+    unsigned n_models = 0;
+    while (solve(solver) == SAT) {
+      synchronize(solver);
+      cout << "Model found: " << n_models << "\r " << std::flush;
+      vector<Tlit> blocking_clause;
+      const vector<Tlit>& trail = get_partial_assignment(solver);
+      for (Tlit lit : trail) {
+        blocking_clause.push_back(lit_neg(lit));
+      }
+      add_clause(solver, blocking_clause.data(), blocking_clause.size());
+      n_models++;
+    }
+  } else {
+    solve(solver);
+  }
   chrono::time_point<chrono::high_resolution_clock> end = chrono::high_resolution_clock::now();
   chrono::microseconds duration = chrono::duration_cast<chrono::microseconds>(end - start);
 

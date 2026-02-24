@@ -172,7 +172,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     // cannot use memcpy because we skip the literals falsified at level 0
     for (unsigned i = 0, j = 0; i < input_size; i++) {
       if (lit_level(lits_input[i]) == LEVEL_ROOT) {
-        ASSERT(lit_true(lits_input[i]));
+        // if the literal were true, we should have deleted the clause already, so it must be false
+        ASSERT_MSG(lit_false(lits_input[i]),
+          "Clause: " + clause_to_string(id) + "\nLiteral: " + lit_to_string(lits_input[i]) + "\nLevel: " + std::to_string(lit_level(lits_input[i])));
         ASSERT(external);
         continue;
       }
@@ -237,7 +239,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   }
   // sort the literals
   sort(lits, lits + clause_size);
-  // cout << "Added clause " << clause_to_string(id) << endl;
 
   #if USE_OBSERVER
   if (_observer) {

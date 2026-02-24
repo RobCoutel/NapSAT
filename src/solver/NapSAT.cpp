@@ -466,7 +466,7 @@ status NapSAT::solve()
       continue;
     }
     NOTIFY_OBSERVER(check_invariants);
-    synchronize();
+    // synchronize();
 #if USE_OBSERVER
     if (_options.interactive)
       _observer->notify(new napsat::gui::checkpoint());

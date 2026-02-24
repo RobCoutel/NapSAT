@@ -64,7 +64,7 @@ Tlit* napsat::NapSAT::advanced_level_replacement(Tlit* lits, unsigned size) cons
   if (!_options.chronological_backtracking && !_options.graph_backtracking) {
     return lits + 1;
   }
-  ASSERT(size >= 2);
+  ASSERT(size > 2);
   ASSERT(lit_false(lits[1]));
   // This must be as efficient as possible!
 
@@ -374,6 +374,8 @@ void NapSAT::propagate_lit(Tlit lit)
      * 2. In GB, we want to find a literal r such that for all literals ℓ' in the clause γ(r) ⊈ η(ℓ') to
      *   - reduce the number of repropagated literals
     */
+    ASSERT_MSG(clause.size > 2,
+      "Clause " + clause_to_string(cl) + " should have more than 2 literals when no good replacement is found");
     if (_options.graph_backtracking) {
       r = advanced_graph_replacement(lits, clause.size);
     } else if (_options.chronological_backtracking) {
