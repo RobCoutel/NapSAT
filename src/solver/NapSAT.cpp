@@ -367,6 +367,10 @@ bool NapSAT::propagate()
       propagate_lit(lit);
     }
 
+    if (_conflicts.empty()) {
+      NOTIFY_STAT(check_invariants);
+    }
+
     if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
       _vars[lit_to_var(lit)].propagated = true;
       _n_propagated_lits++;
@@ -441,7 +445,7 @@ status NapSAT::solve()
     }
     ASSERT(_n_propagated_lits == _trail.size());
     NOTIFY_OBSERVER(check_invariants);
-    if (_n_root_lvl_lits >= _purge_threshold && solver_level() == LEVEL_ROOT) {
+    if (_n_root_lvl_lits >= _purge_threshold && solver_level() == LEVEL_ROOT && _n_propagated_lits == _trail.size()) {
       // in WCB and RSCB, missed lower implications can be a problem when purging clauses.
       // this is the same trick as in CaDiCaL, but we might be able to do better
       purge_clauses();

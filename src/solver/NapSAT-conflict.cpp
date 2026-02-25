@@ -694,12 +694,9 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
     _proof->link_resolution(lit_neg(lit), reason);
   if (_dependency_tracker)
     _dependency_tracker->track_dependency(reason);
-
   const Tlit* reason_lits = clause_lits(reason);
   for (unsigned j = 1; j < clause_size(reason); j++) {
     Tlit reason_lit = reason_lits[j];
-    // if the reason lit is a decision that is reimplied, we need to do it now
-
     if (lit_marked(reason_lit))
       continue;
     lit_mark(reason_lit);
@@ -713,10 +710,9 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
 
 template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
-  // print_trail();
+  ASSERT(_lit_buffer_size > 0);
   ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
   unsigned count = 0;
-
   for (unsigned i = 0; i < _lit_buffer_size; i++) {
     Tlit lit = _lit_buffer[i];
     ASSERT(lit_false(lit));
@@ -739,19 +735,15 @@ void NapSAT::analyze_conflict_impl(T level) {
 
     if (!lit_analyzed(lit, level))
       continue;
-    lit_unmark(lit);
     bump_var_activity(lit_to_var(lit));
-    // We already have the FUIP. No need to check the reason
-    // We just need to finish collecting the literals that are marked.
     if (count == 1) {
-      // this is the UIP
+      // this is the UIP. We want to put it at the front of the buffer
       _lit_buffer[_lit_buffer_size++] = lit_neg(lit);
+      lit_unmark(lit);
       break;
     }
     // mark the literals of the reason
     if (lit_reason(lit) == CLAUSE_UNDEF && lit_lazy_reason(lit) == CLAUSE_UNDEF) {
-      // we unmarked it, but we need it for later
-      lit_mark(lit);
       // this is a decision literal, we cannot go further
       // we are guaranteed that there is a merge later, that will reset the index i. We will need this literal again
       continue;
@@ -1009,20 +1001,26 @@ bool napsat::NapSAT::conflict_can_generate_learned_clause(Tclause conflict, Tlev
   return true;
 }
 
-bool napsat::NapSAT::implication_active_after_backtrack(Tclause conflict, Tlevel level)
+bool napsat::NapSAT::implication_active_after_backtrack(Tclause reason, Tlevel level)
 {
-  return lit_level(clause_lits(conflict)[1]) <= level;
+  for (unsigned i = 1; i < clause_size(reason); i++) {
+    if (lit_level(clause_lits(reason)[i]) > level
+     && lit_lazy_level(clause_lits(reason)[i]) > level) {
+      return false;
+    }
+  }
+  return true;
 }
 
-bool napsat::NapSAT::implication_active_after_backtrack(Tclause conflict, const bitset& chunks)
+bool napsat::NapSAT::implication_active_after_backtrack(Tclause reason, const bitset& chunks)
 {
-  Tlit* lits = clause_lits(conflict);
-  for (unsigned i = 1; i < clause_size(conflict); i++) {
+  Tlit* lits = clause_lits(reason);
+  for (unsigned i = 1; i < clause_size(reason); i++) {
     if (chunks.has_intersection(lit_chunks(lits[i]))) {
       return false;
     }
   }
-  return false;
+  return true;
 }
 
 void napsat::NapSAT::add_and_delete_clause(Tclause cl, const vector<Tlit>& clause)
@@ -1150,10 +1148,14 @@ void napsat::NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>
       for (unsigned j = 1; j < clause_size(lazy_reason); j++) {
         _lit_buffer[_lit_buffer_size++] = reason_lits[j];
       }
+      if (_lit_buffer_size == 1) {
+        _lit_buffer_size = 0;
+        break;
+      }
       // remove the uip from the learned clause
       _lit_buffer[0] = _lit_buffer[--_lit_buffer_size];
 
-        bt = update_bt_after_analysis_of_reimplication(bt);
+      bt = update_bt_after_analysis_of_reimplication(bt);
     } while (true);
     bt = bt_save;
 

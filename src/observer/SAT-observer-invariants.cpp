@@ -285,9 +285,13 @@ bool napsat::gui::observer::check_watched_literals()
       }
       if (last_failed) {
         _error_message += ERROR_HEAD + "clause " + clause_to_string(cl) + " does not satisfy the invariant.\n";
-        _error_message += ERROR_HEAD + " c₁ = " + lit_to_string(lit) + "\n";
-        _error_message += ERROR_HEAD + " c₂ = " + lit_to_string(other) + "\n";
-        _error_message += ERROR_HEAD + " b  = " + lit_to_string(blocker) + ".\n";
+        _error_message += ERROR_HEAD + " c₁ = " + lit_to_string(lit) + ", ";
+        _error_message +=              " δ(c₁) = " + to_string(lit_level(lit)) + "\n";
+        _error_message += ERROR_HEAD + " c₂ = " + lit_to_string(other) + ", ";
+        _error_message +=              " δ(c₂) = " + to_string(lit_level(other)) + "\n";
+        _error_message += ERROR_HEAD + " b  = " + lit_to_string(blocker) + ", ";
+        _error_message +=              " δ(b)  = " + to_string(lit_level(blocker)) + "\n";
+        _error_message += ERROR_HEAD + " λ(c₂)  = " + clause_to_string(lit_lazy_reason(other)) + "\n";
       }
     }
   }

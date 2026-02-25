@@ -1406,6 +1406,8 @@ public:
       Tclause l_reason = lit_lazy_reason(lit);
       if (l_reason == CLAUSE_UNDEF)
         return LEVEL_UNDEF;
+      if (clause_size(l_reason) == 1)
+        return LEVEL_ROOT;
       Tlit* lits = clause_lits(l_reason);
       ASSERT(lit == lits[0]);
       ASSERT(lit_level(lit) > LEVEL_ROOT);

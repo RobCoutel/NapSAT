@@ -113,7 +113,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     ASSERT(clause_size(cl) == 2);
 
     if (lit_true(c2)) {
-      if ((_options.chronological_backtracking && lit_level(c2) > lit_level(c1))
+      if ((_options.lazy_strong_chronological_backtracking && lit_level(c2) > lit_level(c1))
        || (_options.graph_backtracking && !(lit_chunks(c2) <= lit_cross_chunks(c1)))) {
         Tlit* lits = clause_lits(cl);
         lits[0] = c2;
@@ -220,16 +220,15 @@ void NapSAT::propagate_lit(Tlit lit)
     c1 = lit_neg(lit);
     TSwatch& w = *i;
     Tclause cl = w.cl;
-    TSclause& clause = _clauses[cl];
-    ASSERT(clause.watched);
-    ASSERT(clause.size >= 2);
 
     // Checking the validity of the blocker
     ASSERT(lit_cross_chunks(c1) >= lit_chunks(c1));
     Tlit b = w.block;
     if (lit_true(b)
-      && (((!_options.chronological_backtracking || lit_level(b) <= c1_lvl)
-        && (!_options.graph_backtracking         || lit_chunks(b) <= lit_cross_chunks(c1))))) {
+      && ((!_options.lazy_strong_chronological_backtracking
+         || lit_level(b) <= c1_lvl)
+      && (!_options.graph_backtracking
+         || lit_chunks(b) <= lit_cross_chunks(c1)))) {
       /**
        * NCB:  b ∈ π
        * LSCB: b ∈ π ∧ δ(b) ≤ δ(c₁)
@@ -240,6 +239,9 @@ void NapSAT::propagate_lit(Tlit lit)
       continue;
     }
 
+    TSclause& clause = _clauses[cl];
+    ASSERT(clause.watched);
+    ASSERT(clause.size > 2);
     Tlit* lits = clause.lits;
     /**
      * we call c₁ and c₂ the watched literals of the clause
@@ -258,11 +260,12 @@ void NapSAT::propagate_lit(Tlit lit)
 
     /** SKIP CONDITIONS **/
     if (lit_true(c2)
-    && (((!_options.lazy_strong_chronological_backtracking || c2_lvl <= c1_lvl)
-      && (!_options.graph_backtracking                     || lit_chunks(c2) <= lit_cross_chunks(c1))))) {
+      && ((!_options.lazy_strong_chronological_backtracking
+         || lit_level(c2) <= c1_lvl)
+      && (!_options.graph_backtracking
+         || lit_chunks(c2) <= lit_cross_chunks(c1)))) {
       /**
        * NCB:  c₂ ∈ π
-       * WCB:  c₂ ∈ π
        * LSCB: c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)
        * GB:   c₂ ∈ π ∧ γ(c₂) ⊆ η(c₁)
        * the invariants are preserved without any action
@@ -296,14 +299,17 @@ void NapSAT::propagate_lit(Tlit lit)
     */
     ASSERT(r != nullptr);
     // in debug mode, we still run the propagation, but it should not change anything
-    ASSERT_MSG(!lit_propagated(c1) || find(_conflicts.begin(), _conflicts.end(), cl) != _conflicts.end(), lit_to_string(c1) + " requires changes on clause " + clause_to_string(cl));
+    ASSERT_MSG(!lit_propagated(c1) || find(_conflicts.begin(), _conflicts.end(), cl) != _conflicts.end(),
+      lit_to_string(c1) + " requires changes on clause " + clause_to_string(cl));
 
     Tlevel r_lvl = lit_level(*r);
 
     /** TRUE literal **/
     if (lit_true(*r)
-    && (((_options.graph_backtracking || r_lvl <= c1_lvl)
-      && (!_options.graph_backtracking || lit_chunks(*r) <= lit_cross_chunks(c1))))) {
+      && ((!_options.lazy_strong_chronological_backtracking
+         || lit_level(*r) <= c1_lvl)
+      && (!_options.graph_backtracking
+         || lit_chunks(*r) <= lit_cross_chunks(c1)))) {
       /**
        * r ∈ π ∧ δ(r) ≤ δ(c₁)
        * NCB: We know that r ∈ π ⇒ δ(r) ≤ δ(c₁). Therefore after this condition is satisfied in NCB,
@@ -374,8 +380,6 @@ void NapSAT::propagate_lit(Tlit lit)
      * 2. In GB, we want to find a literal r such that for all literals ℓ' in the clause γ(r) ⊈ η(ℓ') to
      *   - reduce the number of repropagated literals
     */
-    ASSERT_MSG(clause.size > 2,
-      "Clause " + clause_to_string(cl) + " should have more than 2 literals when no good replacement is found");
     if (_options.graph_backtracking) {
       r = advanced_graph_replacement(lits, clause.size);
     } else if (_options.chronological_backtracking) {
@@ -460,9 +464,8 @@ void NapSAT::propagate_lit(Tlit lit)
       NOTIFY_OBSERVER(conflict, cl);
       if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
         return;
-      } else {
-        continue;
       }
+      continue;
     }
 
     /** UNIT CLAUSE **/
@@ -504,8 +507,10 @@ void NapSAT::propagate_lit(Tlit lit)
     ASSERT(check_clause_implying(cl));
     ASSERT(lit_is_max_literal(c1, lits + 2, clause.size - 2));
 
-    if (( _options.graph_backtracking || lit_level(c2) <= r_lvl)
-     && (!_options.graph_backtracking || lit_chunks(c2) <= lit_chunks(c1))) {
+    if (( _options.graph_backtracking
+       || lit_level(c2) <= r_lvl)
+     && (!_options.graph_backtracking
+       || lit_chunks(c2) <= lit_chunks(c1))) {
       // This is not a real missed lower implication. The level of the satisfied literal is lower than or equal to the level of the replacement.
       /**
        * Since we changed c₁, we cannot be sure that this is actually a MLI

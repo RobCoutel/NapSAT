@@ -119,10 +119,13 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   unsigned n_removed = 0;
   bool satisfied_at_root = false;
   for (unsigned i = 0; !satisfied_at_root && i < input_size; i++) {
-    if (lit_level(lits_input[i]) == LEVEL_ROOT) {
+    Tlit l = lits_input[i];
+    if (lit_level(l) == LEVEL_ROOT) {
+      // the solver should not introduce redundant literals, so the literal must be false at level 0
+      ASSERT_MSG(external,
+        "The clause: " + clause_to_string(lits_input, input_size) + "\nLiteral: " + lit_to_string(l) + "\nLevel: " + std::to_string(lit_level(l)) + "\nThis should not happen since the solver should not introduce redundant literals.");
       // The solver should not generate redundant literals and clauses
-      // ASSERT(external);
-      satisfied_at_root |= lit_true(lits_input[i]);
+      satisfied_at_root |= lit_true(l);
       n_removed++;
     }
   }
@@ -145,11 +148,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     return CLAUSE_UNDEF;
   }
 
-
   unsigned clause_size = input_size - n_removed;
 
   bool non_allocated_clause = id == CLAUSE_UNDEF;
-
   if (non_allocated_clause) {
     id = next_clause_id(clause_size);
   }
@@ -175,7 +176,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
         // if the literal were true, we should have deleted the clause already, so it must be false
         ASSERT_MSG(lit_false(lits_input[i]),
           "Clause: " + clause_to_string(id) + "\nLiteral: " + lit_to_string(lits_input[i]) + "\nLevel: " + std::to_string(lit_level(lits_input[i])));
-        ASSERT(external);
         continue;
       }
       lits[j++] = lits_input[i];
@@ -188,6 +188,11 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   // } else {
   //   cout << "Learned clause " << clause_to_string(id) << endl;
   // }
+
+  if (clause_size == 0) {
+    _status = UNSAT;
+    return id;
+  }
 
   // Remove duplicate literals
   if (input_size > 1) {
@@ -251,11 +256,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     NOTIFY_STAT(new_clause)
   #endif
 
-  if (clause_size == 0) {
-    _status = UNSAT;
-    return id;
-  }
-
   if (learned) {
     NOTIFY_STAT_N(_a_learned_clause_size, clause_size);
   }
@@ -296,8 +296,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     watch_lit(lits[0], id);
     watch_lit(lits[1], id);
   }
-
-  // cout << "Added clause " << clause_to_string(id) << endl;
 
   // The clause is not unit or conflicting. Nothing special to do
   if (!lit_false(lits[1])) {

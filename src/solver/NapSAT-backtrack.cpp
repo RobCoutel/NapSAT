@@ -170,8 +170,6 @@ void NapSAT::backtrack(Tlevel level)
     // TODO evaluate the performance of this. Is sorting useful?
     // The topological order will automatically be respected because the reimplied literals cannot depend on each other.
     // see Theorem 17 in [Lazy Reimplication in Chronological Backtracking, Robin Coutelier and Mathias Fleury and Laura Kovács]
-    sort(_reimplication_backtrack_buffer.begin(), _reimplication_backtrack_buffer.end(), [this](Tclause a, Tclause b)
-      { return lit_level(clause_lits(a)[1]) < lit_level(clause_lits(b)[1]); });
     for (Tclause lazy_clause : _reimplication_backtrack_buffer) {
       Tlit reimpl_lit = clause_lits(lazy_clause)[0];
       ASSERT(lit_undef(reimpl_lit));

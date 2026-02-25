@@ -77,8 +77,8 @@ vector<string> env::extract_environment_variables(vector<string>& tokens) {
   static unordered_map<string, string*> string_options = {
     {"--man-page-folder",                &man_page_folder},
     {"-m",                               &man_page_folder},
-    {"--invariant-configuration-folder", &invariant_configuration_folder},
     {"--obsidian-template-folder",       &obsidian_template_folder},
+    {"--invariant-configuration-folder", &invariant_configuration_folder},
     {"-icf",                             &invariant_configuration_folder}};
 
   vector<string> to_return;

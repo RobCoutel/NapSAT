@@ -84,6 +84,7 @@ namespace napsat::gui
         value(other.value),
         level(other.level),
         reason(other.reason),
+        lazy_reason(other.lazy_reason),
         active(other.active),
         propagated(other.propagated),
         constrained(other.constrained),

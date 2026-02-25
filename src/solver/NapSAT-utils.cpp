@@ -276,7 +276,6 @@ void NapSAT::var_allocate(Tvar var)
 {
   if (_vars.size() >= var + 1)
     return;
-
   if (_status == SAT) {
     _status = UNKNOWN;
   }
@@ -574,6 +573,10 @@ string NapSAT::clause_to_string(Tclause cl) const
     s += "l";
   }
   s += to_string(cl) + ": ";
+  if (clause_size(cl) == 0) {
+    s += "☐";
+    return s;
+  }
   ASSERT(clause_size(cl) > 0);
   ASSERT(clause_size(cl) < 1000000);
   for (const Tlit* i = clause_lits(cl); i < clause_lits(cl) + clause_size(cl); i++) {

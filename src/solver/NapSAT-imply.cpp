@@ -128,7 +128,13 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   if (lit_level(lit) == LEVEL_ROOT)
     return;
 
-  if (!_options.lazy_strong_chronological_backtracking && !_options.graph_backtracking) {
+  if (_options.lazy_strong_chronological_backtracking) {
+    lit_lazy_reason(lit) = reason;
+    NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(lit), reason);
+    return;
+  }
+
+  if (!_options.graph_backtracking) {
     // Non-chronological backtracking
     backtrack(LEVEL_ROOT);
     imply_literal(lit, reason);
@@ -266,7 +272,6 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 void NapSAT::reimply_literal(Tlit c2, Tclause reason)
 {
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
-
   if (clause_size(reason) == 1) {
     reimply_literal_root(c2, reason);
     return;
@@ -274,89 +279,11 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
   TSclause& clause = _clauses[reason];
   Tlit* lits = clause.lits;
   Tlit c1 = lits[1];
-
-
-  if (_options.restoring_strong_chronological_backtracking && _lit_buffer_size == 0) {
-    // The _lit_buffer_size is not 0 when the clause is just being added by the user
-    // Nothing to do. The restoration will be done during backtracking, where the propagation head will be moved back.
-    return;
-  }
-
-  // The levels are ok. Nothing to do here.
-  if (!_options.graph_backtracking &&
-        lit_level(c2) <= lit_level(c1))
-      return;
-
-  ASSERT_MSG(!_options.restoring_strong_chronological_backtracking,
-              "RSCB reimplication not supported yet. Need to add restore point calculation");
-
-  ASSERT_MSG(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking || clause.external,
-            "Clause " + clause_to_string(reason) + " cannot be used for reimplication without LSCB or GB");
-  ASSERT(lit_true(c2));
   ASSERT(c2 == lits[0]);
-  ASSERT(check_clause_implying(reason));
-  ASSERT(clause.size >= 2);
+  ASSERT(lit_true(c2));
+  ASSERT(lit_false(c1));
 
-  /**
-   * We want to recover some backtrack compatible watch literal invariants
-   * NCB
-   *  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ c₂ ∈ π ∨ b ∈ π
-   *  ∀ij. i < j ⇒ δ(π[i]) ≤ δ(π[j])
-   * RSCB
-   *  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]
-   * LSCB
-   *  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \ {c₂}) ≤ δ(c₁)]
-   *                ∨ [b  ∈ π ∧  δ(b)  ≤ δ(c₁)]
-   * GB
-   *  ¬c₁ ∈ (τ ⋅ ℓ) ⇒ [c₂ ∈ π ∧ γ(c₂) ⊆ γ(c₁) ∪ η(c₁)]
-   *                ∨ [b  ∈ π ∧ γ(b)  ⊆ γ(c₁) ∪ η(c₁)]
-   */
-
-  auto start = std::chrono::high_resolution_clock::now();
-
-  if (_options.graph_backtracking) {
-    lit_cross_chunks(c1) |= lit_chunks(c2);
-
-    if (!lit_decision(c2)) {
-      //nothing to do here
-      return;
-    }
-
-    if (_options.eager_chunk_merging) {
-      ASSERT(lit_lazy_reason(c2) == CLAUSE_UNDEF);
-      eager_decision_reimplication(c2, reason);
-      auto stop = std::chrono::high_resolution_clock::now();
-      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-      NOTIFY_STAT_N(reimply_time, duration.count());
-      return;
-    }
-
-    // Lazy chunk merging
-    if (_options.lazy_chunk_merging && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
-      // compute the chunk set of the clause, excluding the lits[1]
-      bitset chunks(_n_allocated_chunks);
-      for (size_t j = 1; j < clause.size; j++) {
-        ASSERT(lits[j] != c2);
-        chunks |= lit_chunks(lits[j]);
-      }
-
-      ASSERT(lit_chunks(c2).count() == 1);
-      Tchunk decision_chunk = *lit_chunks(c2).cbegin();
-      NOTIFY_STAT(_n_cross_implication_decisions);
-      if (!reimplication_cycle(decision_chunk, chunks)) {
-        lit_lazy_reason(c2) = reason;
-        _chunks[decision_chunk].missed_implication = chunks;
-        NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
-      }
-    }
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    NOTIFY_STAT_N(reimply_time, duration.count());
-    return;
-  }
-
-  ASSERT(lit_is_max_literal(lits[1], lits + 2, clause.size - 2));
-  if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+  if (!_options.lazy_strong_chronological_backtracking && !_options.graph_backtracking) {
     // Non-chronological backtracking
     ASSERT(clause.external);
 
@@ -364,21 +291,59 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
     Tlevel backtrack_level = lit_level(c1);
     backtrack(backtrack_level);
     imply_literal(c2, reason);
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    NOTIFY_STAT_N(reimply_time, duration.count());
     return;
   }
 
-  ASSERT(_options.lazy_strong_chronological_backtracking);
-  if (lit_lazy_level(c2) <= lit_level(c1)) {
+  // The levels are ok. Nothing to do here.
+  if (!_options.graph_backtracking && lit_level(c2) <= lit_level(c1))
+      return;
+  if (_options.lazy_strong_chronological_backtracking) {
+    ASSERT(lit_is_max_literal(lits[1], lits + 2, clause.size - 2));
+    if (lit_lazy_level(c2)  <= lit_level(c1)) {
+      return;
+    }
+    lit_lazy_reason(c2) = reason;
+    NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
     return;
   }
-  lit_lazy_reason(c2) = reason;
-  NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
-  auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-  NOTIFY_STAT_N(reimply_time, duration.count());
+  /* GRAPH BACKTRACKING */
+  ASSERT(_options.graph_backtracking);
+  ASSERT(lit_true(c2));
+  ASSERT(c2 == lits[0]);
+  ASSERT(check_clause_implying(reason));
+  ASSERT(clause.size >= 2);
+
+  lit_cross_chunks(c1) |= lit_chunks(c2);
+
+  if (!lit_decision(c2)) {
+    //nothing to do here
+    return;
+  }
+
+  if (_options.eager_chunk_merging) {
+    ASSERT(lit_lazy_reason(c2) == CLAUSE_UNDEF);
+    eager_decision_reimplication(c2, reason);
+    return;
+  }
+
+  // Lazy chunk merging
+  if (_options.lazy_chunk_merging && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
+    // compute the chunk set of the clause, excluding the lits[1]
+    bitset chunks(_n_allocated_chunks);
+    for (size_t j = 1; j < clause.size; j++) {
+      ASSERT(lits[j] != c2);
+      chunks |= lit_chunks(lits[j]);
+    }
+
+    ASSERT(lit_chunks(c2).count() == 1);
+    Tchunk decision_chunk = *lit_chunks(c2).cbegin();
+    NOTIFY_STAT(_n_cross_implication_decisions);
+    if (!reimplication_cycle(decision_chunk, chunks)) {
+      lit_lazy_reason(c2) = reason;
+      _chunks[decision_chunk].missed_implication = chunks;
+      NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
+    }
+  }
 }
 
 void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
