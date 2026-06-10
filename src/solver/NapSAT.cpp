@@ -1352,7 +1352,7 @@ status NapSAT::solve()
     }
     NOTIFY_OBSERVER(_observer, new napsat::gui::check_invariants());
     if (!propagate()) {
-      if ((_status != UNSAT && _status != TIMEOUT) || !_options.interactive)
+      if ((_status != UNSAT && _status != TIMEOUT) && !_options.interactive)
         break;
       NOTIFY_OBSERVER(_observer, new napsat::gui::done(_status == SAT));
     }
