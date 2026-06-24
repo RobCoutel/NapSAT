@@ -16,6 +16,9 @@
 
 using namespace std;
 
+namespace napsat
+{
+
 unsigned string_length_escaped(string const str)
 {
   unsigned n_escaped = 0;
@@ -80,4 +83,6 @@ string pretty_time(chrono::milliseconds time)
     str += to_string(seconds) + "s ";
   str += to_string(milliseconds) + "ms";
   return str;
+}
+
 }

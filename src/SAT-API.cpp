@@ -99,16 +99,8 @@ bool napsat::is_decided(NapSAT* solver, Tlit lit)
 
 void napsat::print_statistics(NapSAT* solver)
 {
-  assert(solver != nullptr);
-  assert(USE_OBSERVER);
-#if USE_OBSERVER
-  napsat::gui::observer* obs = solver->get_observer();
-  if (obs == nullptr) {
-    std::cout << "No statistic collected. Use -stat in the options to collect them." << std::endl;
-    return;
-  }
-  std::cout << obs->get_statistics();
-#endif
+  // TODO: update with the system from the GB branch
+  assert(false);
 }
 
 void napsat::print_proof(NapSAT* solver)

@@ -26,8 +26,11 @@
 #define GREEN "\033[0;32m"
 #define RED "\033[0;31m"
 
-using namespace napsat;
 using namespace std;
+
+namespace napsat
+{
+
 
 static inline void ltrim(string &s) {
   s.erase(s.begin(), find_if(s.begin(), s.end(), [](unsigned char ch) {
@@ -39,7 +42,7 @@ static inline bool is_prefix(const string &s, const string &prefix) {
   return s.compare(0, prefix.size(), prefix) == 0;
 }
 
-bool napsat::NapSAT::parse_dimacs(const char* filename)
+bool NapSAT::parse_dimacs(const char* filename)
 {
   bool printed_warning = false;
   // the file is a compressed xz file
@@ -71,7 +74,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
     ltrim(line);
     if (line.empty())
       continue;
-    if (_observer && is_prefix(line, "co")) {
+    if (_sentinel && is_prefix(line, "co")) {
       // parse the alias name of the variable
       // the comment should be of the form:
       // >co <var> <alias>
@@ -89,7 +92,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
           unsigned var = stoi(var_string);
           if (var >= _vars.size())
             var_allocate(var + 1);
-          _observer->set_alias(var, alias);
+          sentinel::set_variable_alias(_sentinel, var, alias);
           // done, next line
           continue;
         }
@@ -135,7 +138,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
         int lit = stoi(token);
         if (lit == 0)
           break;
-        add_literal(napsat::literal(abs(lit), lit > 0));
+        add_literal(literal(abs(lit), lit > 0));
       } catch (invalid_argument &e) {
         LOG_ERROR("The token " << token << " is not a number.");
         _status = ERROR;
@@ -150,7 +153,7 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
   return true;
 }
 
-void napsat::NapSAT::bump_var_activity(Tvar var)
+void NapSAT::bump_var_activity(Tvar var)
 {
   _vars.at(var).activity += _var_activity_increment;
   if (_vars.at(var).activity > 1e100) {
@@ -164,7 +167,7 @@ void napsat::NapSAT::bump_var_activity(Tvar var)
     _variable_heap.increase_activity(var, _vars.at(var).activity);
 }
 
-void napsat::NapSAT::bump_clause_activity(Tclause cl)
+void NapSAT::bump_clause_activity(Tclause cl)
 {
   _activities[cl] += _clause_activity_increment;
   _clause_activity_increment *= _options.clause_activity_multiplier;
@@ -177,7 +180,7 @@ void napsat::NapSAT::bump_clause_activity(Tclause cl)
   }
 }
 
-void napsat::NapSAT::delete_clause(Tclause cl)
+void NapSAT::delete_clause(Tclause cl)
 {
   // If the clause is the reason for a literal, it cannot be deleted
   ASSERT(cl < _clauses.size());
@@ -187,17 +190,17 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   clause.deleted = true;
   clause.watched = false;
   _deleted_clauses.push_back(cl);
-  NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
+  NOTIFY(_sentinel, delete_clause, cl);
   if(_proof)
     _proof->deactivate_clause(cl);
 }
 
 static const char esc_char = 27; // the decimal code for escape character is 27
 
-void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
+void NapSAT::watch_lit(Tlit lit, Tclause cl)
 {
 #if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
+  NOTIFY(_sentinel, watch, cl, lit);
 #endif
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(cl < _clauses.size());
@@ -206,11 +209,9 @@ void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
   _watch_lists[lit].push_back(cl);
 }
 
-void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
+void NapSAT::stop_watch(Tlit lit, Tclause cl)
 {
-#if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
-#endif
+  NOTIFY_WATCH(_sentinel, unwatch, cl, lit);
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
   ASSERT(_clauses[cl].size > 2);
@@ -219,12 +220,12 @@ void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
   _watch_lists[lit].erase(location);
 }
 
-unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
+unsigned NapSAT::utility_heuristic(Tlit lit)
 {
   return (lit_true(lit) * (2 * solver_level() - lit_level(lit) + 1)) + (lit_undef(lit) * (solver_level() + 1)) + (lit_false(lit) * (lit_level(lit)));
 }
 
-void napsat::NapSAT::print_lit(Tlit lit)
+void NapSAT::print_lit(Tlit lit)
 {
   if (lit_seen(lit))
     cout << "M";
@@ -318,26 +319,7 @@ void NapSAT::print_trail()
   cout << "\n";
 }
 
-/**
- * @brief Adds spaces to the left of the number to make it have as many digits as the maximum number of digits in the given range.
- */
-static void pad(int n, int max_int)
-{
-  int max_digits = 0;
-  while (max_int > 0) {
-    max_int /= 10;
-    max_digits++;
-  }
-  int digits = 0;
-  while (n > 0) {
-    n /= 10;
-    digits++;
-  }
-  for (int i = 0; i < max_digits - digits; i++)
-    cout << " ";
-}
-
-void napsat::NapSAT::print_trail_simple()
+void NapSAT::print_trail_simple()
 {
   cout << "trail :\n";
   for (Tlevel lvl = solver_level(); lvl <= solver_level(); lvl--) {
@@ -364,7 +346,7 @@ void napsat::NapSAT::print_trail_simple()
 
 const static unsigned TERMINAL_WIDTH = 120;
 
-void napsat::NapSAT::print_clause_set()
+void NapSAT::print_clause_set()
 {
   unsigned longest_clause = 0;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
@@ -404,7 +386,7 @@ void napsat::NapSAT::print_clause_set()
   }
 }
 
-void napsat::NapSAT::print_watch_lists(Tlit lit)
+void NapSAT::print_watch_lists(Tlit lit)
 {
   Tlit i = 1;
   Tlit end = _watch_lists.size();
@@ -432,7 +414,7 @@ void napsat::NapSAT::print_watch_lists(Tlit lit)
   }
 }
 
-bool napsat::NapSAT::parse_command(std::string input)
+bool NapSAT::parse_command(std::string input)
 {
   if (input == "") {
     decide();
@@ -547,7 +529,7 @@ bool napsat::NapSAT::parse_command(std::string input)
   }
   else if (tokens[0] == "HELP") {
     // print the content of the help file
-    string man_file = napsat::env::get_man_page_folder() + "man-sat.txt";
+    string man_file = env::get_man_page_folder() + "man-sat.txt";
     ifstream file(man_file);
     if (file.is_open()) {
       string line;
@@ -564,4 +546,6 @@ bool napsat::NapSAT::parse_command(std::string input)
     return false;
   }
   return true;
+}
+
 }

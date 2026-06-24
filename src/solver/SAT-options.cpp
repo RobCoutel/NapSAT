@@ -14,7 +14,6 @@
 #include "SAT-options.hpp"
 
 #include "../utils/printer.hpp"
-#include "../observer/SAT-notification.hpp"
 
 #include <string>
 #include <iostream>

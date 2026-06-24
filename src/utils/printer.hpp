@@ -16,6 +16,9 @@
 #include <string>
 #include <chrono>
 
+namespace napsat
+{
+
 const char ESC_CHAR = '\033'; // the decimal code for escape character is 27
 const char ESC_END = 'm';
 
@@ -52,6 +55,8 @@ const std::string ERROR_HEAD = "\033[1;31mERROR: \033[0m";
 const std::string WARNING_HEAD = "\033[0;33mWARNING: \033[0m";
 const std::string INFO_HEAD = "\033[34mINFO: \033[0m";
 
-#define LOG_ERROR(msg)   do { std::cerr << ERROR_HEAD << msg << std::endl; } while(0)
-#define LOG_WARNING(msg) do { if(!napsat::env::get_suppress_warning()) std::cout << WARNING_HEAD << msg << std::endl; } while(0)
-#define LOG_INFO(msg)    do { if(!napsat::env::get_suppress_info()) std::cout << INFO_HEAD << msg << std::endl; } while(0)
+#define LOG_ERROR(msg)   do { std::cerr << napsat::ERROR_HEAD << msg << std::endl; } while(0)
+#define LOG_WARNING(msg) do { if(!napsat::env::get_suppress_warning()) std::cout << napsat::WARNING_HEAD << msg << std::endl; } while(0)
+#define LOG_INFO(msg)    do { if(!napsat::env::get_suppress_info()) std::cout << napsat::INFO_HEAD << msg << std::endl; } while(0)
+
+}

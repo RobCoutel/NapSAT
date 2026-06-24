@@ -101,8 +101,8 @@
 #include "../proof/proof.hpp"
 #include "../utils/printer.hpp"
 #include "../utils/heap.hpp"
-#include "../observer/SAT-notification.hpp"
-#include "../observer/SAT-observer.hpp"
+
+#include "Sentinel-API.hpp"
 
 #include <vector>
 #include <set>
@@ -112,19 +112,24 @@
 #include <algorithm>
 
 #if USE_OBSERVER
-#define NOTIFY_OBSERVER(observer, notification) \
+#define NOTIFY(s, type, ...) \
   do {                                          \
-    if (observer) {                             \
-      if(!observer->notify(notification)) {     \
+    if (s) {                             \
+      if(!sentinel::type(s __VA_OPT__(, __VA_ARGS__))) { \
         LOG_ERROR("The notification returned an error when executed by the observer"); \
-        if(observer)                            \
-          observer->notify(new napsat::gui::marker("Notification failed")); \
+        sentinel::message(s, "An error occurred during application of " + std::string(#type) + " notification"); \
         assert(false);                          \
       }                                         \
     }                                           \
   } while(0)
+
+#if NOTIFY_WATCH_CHANGES
+#define NOTIFY_WATCH(s, type, ...) NOTIFY(s, type, __VA_ARGS__)
 #else
-#define NOTIFY_OBSERVER(observer, notification)  ((void)0)
+#define NOTIFY_WATCH(s, type, ...) ((void)0)
+#endif
+#else
+#define NOTIFY(observer, notification)  ((void)0)
 #endif
 namespace napsat
 {
@@ -538,10 +543,10 @@ namespace napsat
     /**  INTERACTIVE SOLVER  **/
 #if USE_OBSERVER
     /**
-     * @brief Observer of the solver. If _observer is not nullptr, the solver
+     * @brief Observer of the solver. If _sentinel is not nullptr, the solver
      * notifies the observer of its progress.
      */
-    napsat::gui::observer* _observer = nullptr;
+    sentinel::SATSentinel* _sentinel = nullptr;
 #endif
     /**
      * @brief True if the solver is interactive.
@@ -647,11 +652,11 @@ namespace napsat
       ASSERT(lit_level(lit) > LEVEL_ROOT);
 #ifndef NDEBUG
       Tlit* lits = _clauses[lit_lazy_reason(lit)].lits;
-      ASSERT_MSG(lit_level(lit) > lit_level(lits[1]),
-                 "Lazy reason " << clause_to_string(lit_lazy_reason(lit)) << " of literal " << lit_to_string(lit) << " is not a missed lower implication");
+      ASSERT(lit_level(lit) > lit_level(lits[1]),
+             "Lazy reason " << clause_to_string(lit_lazy_reason(lit)) << " of literal " << lit_to_string(lit) << " is not a missed lower implication");
       for (unsigned i = 1; i < _clauses[lit_lazy_reason(lit)].size; i++) {
-        ASSERT_MSG(lit_false(lits[i]),
-                   "Literal " << lit_to_string(lits[i]) << " of clause " << clause_to_string(lit_lazy_reason(lit)) << " is not falsified");
+        ASSERT(lit_false(lits[i]),
+               "Literal " << lit_to_string(lits[i]) << " of clause " << clause_to_string(lit_lazy_reason(lit)) << " is not falsified");
         ASSERT(lit_level(lits[i]) <= lit_level(lits[1]));
       }
 #endif
@@ -665,8 +670,6 @@ namespace napsat
     inline void var_set_lazy_reason(Tvar var, Tclause cl)
     {
       _vars[var].missed_lower_implication = cl;
-      NOTIFY_OBSERVER(_observer,
-                      new napsat::gui::missed_lower_implication(var, cl));
     }
 
     /**
@@ -676,9 +679,6 @@ namespace napsat
     inline void lit_set_lazy_reason(Tlit lit, Tclause cl)
     {
       _vars[lit_to_var(lit)].missed_lower_implication = cl;
-      NOTIFY_OBSERVER(_observer,
-                      new napsat::gui::missed_lower_implication(lit_to_var(lit),
-                                                             cl));
     }
 
     /**
@@ -839,15 +839,13 @@ namespace napsat
     inline void var_unassign(Tvar var)
     {
       TSvar& v = _vars[var];
-      NOTIFY_OBSERVER(_observer,
-                      new napsat::gui::unassignment(literal(var, v.state)));
+
+      NOTIFY(_sentinel, unassign, sentinel::Tlit(var, v.state));
       v.state = VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
       v.propagated = false;
       if (v.missed_lower_implication != CLAUSE_UNDEF) {
-        NOTIFY_OBSERVER(_observer,
-                        new napsat::gui::remove_lower_implication(var));
         v.missed_lower_implication = CLAUSE_UNDEF;
       }
       if (!_variable_heap.contains(var))
@@ -871,7 +869,7 @@ namespace napsat
         assert(_vars[i].constrained == 0);
         if (!_options.ignore_unused_variables)
           var_mark_constrained(i);
-        NOTIFY_OBSERVER(_observer, new napsat::gui::new_variable(i));
+        NOTIFY(_sentinel, add_variable, sentinel::Tvar(i));
       }
 
       _watch_lists.resize(2 * var + 2);
@@ -1173,18 +1171,6 @@ namespace napsat
      * @return true if the solver is in observing mode, false otherwise.
      */
     bool is_observing() const;
-
-    /**
-     * @brief Returns a pointer to the observer of the solver.
-     * @return pointer to the observer of the solver.
-     * @note The pointer is nullptr if the solver is not observing.
-     * @note It is the responsibility of the user querying the observer to not
-     * compromise the integrity of the observer. That is, the user must not
-     * delete the observer or modify its state.
-     * @warning This method is just a convenience for the main. It is not meant
-     * to be used in a library.
-     */
-    napsat::gui::observer* get_observer() const;
 
     /**
      * @brief Propagate literals in the queue and resolve conflicts if needed.
