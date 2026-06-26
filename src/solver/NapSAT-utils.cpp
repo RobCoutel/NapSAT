@@ -53,7 +53,7 @@ bool NapSAT::parse_dimacs(const char* filename)
     ostringstream decompressed_data;
     if (!decompress_xz(filename, decompressed_data)) {
       LOG_ERROR("The file " << filename << " could not be decompressed.");
-      _status = ERROR;
+      _status = status::ERROR;
       return false;
     }
     stream = istringstream(decompressed_data.str());
@@ -62,7 +62,7 @@ bool NapSAT::parse_dimacs(const char* filename)
     ifstream file = ifstream(filename);
     if (!file.is_open()) {
       LOG_ERROR("The file " << filename << " could not be opened.");
-      _status = ERROR;
+      _status = status::ERROR;
       return false;
     }
     stream = istringstream(string((istreambuf_iterator<char>(file)), istreambuf_iterator<char>()));
@@ -89,10 +89,10 @@ bool NapSAT::parse_dimacs(const char* filename)
 
       if (!var_string.empty() && !alias.empty() && rest.empty()) {
         try {
-          unsigned var = stoi(var_string);
+          Tvar var = stoi(var_string);
           if (var >= _vars.size())
             var_allocate(var + 1);
-          sentinel::set_variable_alias(_sentinel, var, alias);
+          sentinel::wrapper::set_variable_alias(_sentinel, var, alias);
           // done, next line
           continue;
         }
@@ -115,7 +115,7 @@ bool NapSAT::parse_dimacs(const char* filename)
       if (first_line) {
         unsigned n_var, n_clauses;
         sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
-        if (n_var > _vars.size()) {
+        if (n_var > _vars.size().value) {
           cout << "Allocating " << n_var << " variables" << endl;
         var_allocate(n_var);
       }
@@ -138,16 +138,16 @@ bool NapSAT::parse_dimacs(const char* filename)
         int lit = stoi(token);
         if (lit == 0)
           break;
-        add_literal(literal(abs(lit), lit > 0));
+        add_literal(Tlit(abs(lit), lit > 0));
       } catch (invalid_argument &e) {
         LOG_ERROR("The token " << token << " is not a number.");
-        _status = ERROR;
+        _status = status::ERROR;
         throw invalid_argument("The token " + token + " is not a number.");
         return false;
       }
     }
     finalize_clause();
-    if (_status != UNDEF)
+    if (_status != status::UNDEF)
       return true;
   }
   return true;
@@ -155,16 +155,16 @@ bool NapSAT::parse_dimacs(const char* filename)
 
 void NapSAT::bump_var_activity(Tvar var)
 {
-  _vars.at(var).activity += _var_activity_increment;
-  if (_vars.at(var).activity > 1e100) {
+  _vars[var].activity += _var_activity_increment;
+  if (_vars[var].activity > 1e100) {
     for (Tvar i = 1; i < _vars.size(); i++) {
-      _vars.at(i).activity *= 1e-100;
+      _vars[i].activity *= 1e-100;
     }
     _variable_heap.normalize(1e-100);
     _var_activity_increment *= 1e-100;
   }
   if (_variable_heap.contains(var))
-    _variable_heap.increase_activity(var, _vars.at(var).activity);
+    _variable_heap.increase_activity(var, _vars[var].activity);
 }
 
 void NapSAT::bump_clause_activity(Tclause cl)
@@ -199,13 +199,11 @@ static const char esc_char = 27; // the decimal code for escape character is 27
 
 void NapSAT::watch_lit(Tlit lit, Tclause cl)
 {
-#if NOTIFY_WATCH_CHANGES
-  NOTIFY(_sentinel, watch, cl, lit);
-#endif
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(cl < _clauses.size());
   ASSERT(_clauses[cl].size > 2);
   ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
+  NOTIFY_WATCH(_sentinel, watch, cl, lit);
   _watch_lists[lit].push_back(cl);
 }
 
@@ -222,7 +220,9 @@ void NapSAT::stop_watch(Tlit lit, Tclause cl)
 
 unsigned NapSAT::utility_heuristic(Tlit lit)
 {
-  return (lit_true(lit) * (2 * solver_level() - lit_level(lit) + 1)) + (lit_undef(lit) * (solver_level() + 1)) + (lit_false(lit) * (lit_level(lit)));
+  unsigned solver_lvl = solver_level().value;
+  unsigned lit_lvl = lit_level(lit).value;
+  return (lit_true(lit) * (2 * solver_lvl - lit_lvl + 1)) + (lit_undef(lit) * (solver_lvl + 1)) + (lit_false(lit) * lit_lvl);
 }
 
 void NapSAT::print_lit(Tlit lit)
@@ -239,9 +239,7 @@ void NapSAT::print_lit(Tlit lit)
   }
   if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
     cout << "\033[4m";
-  if (!lit_pol(lit))
-    cout << "-";
-  cout << lit_to_var(lit);
+  cout << lit.to_string();
 
   cout << esc_char << "[0m";
   cout << "\033[0m";
@@ -262,9 +260,7 @@ string NapSAT::lit_to_string(Tlit lit)
   }
   if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
     s += "\033[4m";
-  if (!lit_pol(lit))
-    s += "-";
-  s += to_string(lit_to_var(lit));
+  s += lit.to_string();
 
   s += "\033[0m";
   return s;
@@ -279,7 +275,7 @@ string NapSAT::clause_to_string(Tclause cl)
   if (_clauses[cl].deleted) {
     s += "d";
   }
-  s += to_string(cl) + ": ";
+  s += cl.to_string() + ": ";
   for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses_sizes[cl]; i++) {
     if (i == _clauses[cl].lits + _clauses[cl].size)
       s += "| ";
@@ -307,7 +303,7 @@ void NapSAT::print_trail()
       cout << "-------- waiting queue --------\n";
     }
     ASSERT(!lit_undef(lit));
-    cout << lit_level(lit) << ": ";
+    cout << lit_level(lit).to_string() << ": ";
     for (Tlevel i = 0; i < lit_level(lit); i++) {
       cout << " ";
     }
@@ -323,20 +319,20 @@ void NapSAT::print_trail_simple()
 {
   cout << "trail :\n";
   for (Tlevel lvl = solver_level(); lvl <= solver_level(); lvl--) {
-    cout << lvl << ": ";
+    cout << lvl.to_string() << ": ";
     for (unsigned i = 0; i < _trail.size(); i++) {
       if (i == _propagated_literals)
         cout << "| ";
       Tlit lit = _trail[i];
       if (lit_level(lit) == lvl) {
-        if (lit_pol(lit))
+        if (lit.pol())
           cout << " ";
-        pad(lit_to_var(lit), _vars.size());
+        pad(lit.var().value, _vars.size().value);
         print_lit(lit);
         cout << " ";
       }
       else {
-        pad(0, _vars.size());
+        pad(0, _vars.size().value);
         cout << "  ";
       }
     }
@@ -358,7 +354,7 @@ void NapSAT::print_clause_set()
   unsigned longest_var = 1; // 1 for the sign
   Tvar max_var = _vars.size();
   while (max_var > 0) {
-    max_var /= 10;
+    max_var.value /= 10;
     longest_var++;
   }
 
@@ -392,11 +388,11 @@ void NapSAT::print_watch_lists(Tlit lit)
   Tlit end = _watch_lists.size();
   if (lit != LIT_UNDEF) {
     i = lit;
-    end = lit + 1;
+    end = lit.value + 1;
   }
-  for (; i < end; i++) {
+  for (; i < end; i.value++) {
     cout << "watch list for ";
-    if (lit_pol(i))
+    if (i.pol())
       cout << " ";
     print_lit(i);
     cout << ": ";
@@ -404,12 +400,12 @@ void NapSAT::print_watch_lists(Tlit lit)
     cout << "binary: ";
     for (pair<Tlit, Tclause> p : _binary_clauses[i]) {
       print_lit(p.first);
-      cout << " <- " << p.second << " ";
+      cout << " <- " << p.second.to_string() << " ";
     }
     cout << "\n                non-binary: ";
 
     for (Tclause cl : _watch_lists[i])
-      cout << cl << " ";
+      cout << cl.to_string() << " ";
     cout << "\n";
   }
 }
@@ -449,7 +445,7 @@ bool NapSAT::parse_command(std::string input)
       decide();
     else if (tokens.size() == 2) {
       int lit_int = stoi(tokens[1]);
-      Tlit lit = literal(abs(lit_int), lit_int > 0);
+      Tlit lit = Tlit(abs(lit_int), lit_int > 0);
       if (!lit_undef(lit)) {
         LOG_WARNING("The literal " << lit_to_string(lit) << " is not undefined. This command is ignored.");
         return false;
@@ -468,7 +464,7 @@ bool NapSAT::parse_command(std::string input)
         LOG_WARNING("The literal " << lit_to_string(lit) << " is not undefined. This command is ignored.");
         return false;
       }
-      hint(literal(abs(lit), lit > 0));
+      hint(Tlit(abs(lit), lit > 0));
     }
     else if (tokens.size() == 3) {
       int lit = stoi(tokens[1]);
@@ -477,7 +473,7 @@ bool NapSAT::parse_command(std::string input)
         return false;
       }
       Tlevel level = stoi(tokens[2]);
-      hint(literal(abs(lit), lit > 0), level);
+      hint(Tlit(abs(lit), lit > 0), level);
     }
     else {
       LOG_WARNING("Wrong number of arguments (expected 0 or 1). This command is ignored.");
@@ -488,7 +484,7 @@ bool NapSAT::parse_command(std::string input)
     start_clause();
     for (unsigned i = 1; i < tokens.size(); i++) {
       int lit = stoi(tokens[i]);
-      add_literal(literal(abs(lit), lit > 0));
+      add_literal(Tlit(abs(lit), lit > 0));
     }
     finalize_clause();
   }
@@ -516,13 +512,13 @@ bool NapSAT::parse_command(std::string input)
       LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
       return false;
     }
-    int cl = stoi(tokens[1]);
-    if (cl < 0 || (unsigned) cl >= _clauses.size()) {
-      LOG_WARNING("The clause " << cl << " does not exist. This command is ignored.");
+    Tclause cl = stoi(tokens[1]);
+    if (cl < 0 || cl >= _clauses.size()) {
+      LOG_WARNING("The clause " << cl.to_string() << " does not exist. This command is ignored.");
       return false;
     }
     if (_clauses[cl].deleted) {
-      LOG_WARNING("The clause " << cl << " is already deleted\n");
+      LOG_WARNING("The clause " << cl.to_string() << " is already deleted\n");
       return false;
     }
     delete_clause(cl);

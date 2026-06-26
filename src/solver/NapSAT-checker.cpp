@@ -18,8 +18,6 @@
 #include "custom-assert.hpp"
 #include "../utils/printer.hpp"
 
-#include <unordered_set>
-
 using namespace std;
 using namespace napsat;
 
@@ -37,14 +35,14 @@ bool napsat::NapSAT::trail_variable_consistency()
     if (!var_undef(var)) {
       bool found = false;
       for (Tlit lit : _trail) {
-        if (lit_to_var(lit) == var) {
+        if (lit.var() == var) {
           found = true;
           break;
         }
       }
       if (!found) {
         success = false;
-        LOG_ERROR("Invariant violation: variable " << var << " is assigned " << var_true(var) << " but its literal " << literal(var, var_true(var)) << " is in the trail");
+        LOG_ERROR("Invariant violation: variable " << var.to_string() << " is assigned " << var_true(var) << " but its literal " << Tlit(var, var_true(var)).to_string() << " is in the trail");
       }
     }
   }
@@ -85,7 +83,7 @@ bool napsat::NapSAT::watch_lists_complete()
 bool napsat::NapSAT::watch_lists_minimal()
 {
   bool success = true;
-  for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
+  for (Tlit lit = 0; lit < _watch_lists.size(); lit.value++) {
     for (Tclause cl : _watch_lists[lit]) {
       TSclause clause = _clauses[cl];
       if (clause.size < 2) {
@@ -94,7 +92,7 @@ bool napsat::NapSAT::watch_lists_minimal()
       }
       if (clause.deleted) {
         success = false;
-        LOG_ERROR("Invariant violation: Watch lists minimal: clause " << cl << " is in the watch list of literal " << lit_to_string(lit) << " but it is a deleted clause");
+        LOG_ERROR("Invariant violation: Watch lists minimal: clause " << cl.to_string() << " is in the watch list of literal " << lit_to_string(lit) << " but it is a deleted clause");
         LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit_to_string(lit) << " but it is a deleted clause");
       }
       if (!clause.watched) {
@@ -110,13 +108,13 @@ bool napsat::NapSAT::watch_lists_minimal()
   }
 
   // Check that that are not multiple copies of the same clause in the watch lists
-  std::unordered_set<Tclause> seen_clauses;
-  for (Tlit lit = 0; lit < _watch_lists.size(); lit++) {
+  std::set<Tclause> seen_clauses;
+  for (Tlit lit = 0; lit < _watch_lists.size(); lit.value++) {
     seen_clauses.clear();
     for (Tclause cl : _watch_lists[lit]) {
       if (seen_clauses.find(cl) != seen_clauses.end()) {
         success = false;
-        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit << " multiple times");
+        LOG_ERROR("Invariant violation: " << clause_to_string(cl) << " is in the watch list of literal " << lit.to_string() << " multiple times");
 
         break;
       }

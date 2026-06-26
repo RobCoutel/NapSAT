@@ -82,12 +82,12 @@ namespace napsat::proof
     /**
      * @brief Dictionary holding the clause index for each clause ID provided
      * by the solver. It maps Tclause to TclauseID. */
-    std::vector<TclauseID> clause_matches;
+    indexed_vector<TclauseID, Tclause> clause_matches;
 
     /**
      * @brief Internal ID of the empty clause if it exists. It is the starting
      * point of the backward verification of the proof. */
-    TclauseID empty_clause_id = CLAUSE_UNDEF;
+    TclauseID empty_clause_id = 0xFFFFFFFF;
 
     /**
      * @brief List of literals at root level.

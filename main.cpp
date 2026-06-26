@@ -84,16 +84,16 @@ int main(int argc, char** argv)
 
   cout << "c Time spent solving " << pretty_time(duration) << endl;
 
-  if (get_status(solver) == napsat::SAT) {
+  if (get_status(solver) == napsat::status::SAT) {
     cout << "s SATISFIABLE" << endl;
     cout << "v ";
     for (Tlit lit : get_partial_assignment(solver))
-      cout << (lit_pol(lit) ? "" : "-") << lit_to_var(lit) << " ";
+      cout << lit.to_string() << " ";
     cout << endl;
   }
-  else if (get_status(solver) == napsat::UNSAT)
+  else if (get_status(solver) == napsat::status::UNSAT)
     cout << "s UNSATISFIABLE" << endl;
-  else if (get_status(solver) == napsat::TIMEOUT)
+  else if (get_status(solver) == napsat::status::TIMEOUT)
     cout << "s TIMEOUT" << endl;
   else
     cout << "UNKNOWN" << endl;
@@ -101,10 +101,10 @@ int main(int argc, char** argv)
   if (options.print_stats) {
     print_statistics(solver);
   }
-  if (options.check_proof && get_status(solver) == napsat::UNSAT && !check_proof(solver)) {
+  if (options.check_proof && get_status(solver) == napsat::status::UNSAT && !check_proof(solver)) {
     cout << WARNING_HEAD << "The proof is invalid." << endl;
   }
-  if (options.print_proof && get_status(solver) == napsat::UNSAT) {
+  if (options.print_proof && get_status(solver) == napsat::status::UNSAT) {
     print_proof(solver);
   }
 

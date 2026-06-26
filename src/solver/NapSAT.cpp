@@ -47,10 +47,10 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   }
 #endif
 
-  Tvar var = lit_to_var(lit);
+  Tvar var = lit.var();
   _trail.push_back(lit);
   TSvar& svar = _vars[var];
-  svar.state = lit_pol(lit);
+  svar.state = lit.pol() ? Tval::VAR_TRUE : Tval::VAR_FALSE;
   svar.propagated = false;
   svar.reason = reason;
 
@@ -78,9 +78,9 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     }
     NOTIFY(_sentinel, assign, lit, reason);
   }
-  if (lit_pol(lit) != svar.phase_cache)
+  if (lit.pol() != svar.phase_cache)
     _agility += 1 - _options.agility_decay;
-  svar.phase_cache = lit_pol(lit);
+  svar.phase_cache = lit.pol();
 
   if (svar.level == LEVEL_ROOT) {
     _n_root_lvl_lits++;
@@ -156,7 +156,7 @@ Tlit* napsat::NapSAT::search_replacement(Tlit* lits, unsigned size)
 
 Tclause napsat::NapSAT::propagate_binary_clauses(Tlit lit)
 {
-  lit = lit_neg(lit);
+  lit = ~lit;
   ASSERT(lit_false(lit));
 
   for (pair<Tlit, Tclause> bin : _binary_clauses[lit]) {
@@ -211,7 +211,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
   /**
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
   */
-  lit = lit_neg(lit);
+  lit = ~lit;
   ASSERT(lit_false(lit));
 
   // level of the propagation
@@ -324,7 +324,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
     Tlevel replacement_lvl = lit_level(*replacement);
 
     ASSERT(_options.chronological_backtracking || (!lit_true(*replacement) || replacement_lvl <= lvl),
-      "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit) + "\nReplacement: " + lit_to_string(*replacement) + "\nLevel: " + to_string(lvl));
+      "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit) + "\nReplacement: " + lit_to_string(*replacement) + "\nLevel: " + lvl.to_string());
     /** TRUE literal **/
     if (lit_true(*replacement) && replacement_lvl <= lvl) {
       /**
@@ -388,9 +388,7 @@ Tclause NapSAT::propagate_lit(Tlit lit)
       // swap the literals
       lits[1] = *replacement;
       *replacement = lit;
-#if NOTIFY_WATCH_CHANGES
-      NOTIFY(_sentinel, unwatch, cl, lit);
-#endif
+      NOTIFY_WATCH(_sentinel, unwatch, cl, lit);
       // remove the clause from the watch list
       // bring the last watched clause to the current position
       *i = *(end - 1);
@@ -528,7 +526,7 @@ void napsat::NapSAT::backtrack(Tlevel level)
 
   for (unsigned i = restore_point; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
-    Tvar var = lit_to_var(lit);
+    Tvar var = lit.var();
     if (lit_level(lit) > level) {
       ASSERT(_options.lazy_strong_chronological_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
       if (lit_lazy_level(lit) <= level) {
@@ -565,10 +563,10 @@ void napsat::NapSAT::backtrack(Tlevel level)
     var_unassign(var);
   }
   _trail.resize(j);
-  _decision_index.resize(level);
+  _decision_index.resize(level.value);
 
   ASSERT(_options.chronological_backtracking || waiting_count == 0,
-             "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(level) + "\nRestore point: " + to_string(restore_point));
+             "Waiting count: " + to_string(waiting_count) + "\nLevel: " + level.to_string() + "\nRestore point: " + to_string(restore_point));
   _propagated_literals = _trail.size() - waiting_count;
   ASSERT(_options.chronological_backtracking || _propagated_literals == restore_point,
     "Propagated literals: " + to_string(_propagated_literals) + "\nRestore point: " + to_string(restore_point));
@@ -577,9 +575,9 @@ void napsat::NapSAT::backtrack(Tlevel level)
   if (_options.restoring_strong_chronological_backtracking) {
     while (_propagated_literals > restore_point) {
       Tlit lit = _trail[_propagated_literals - 1];
-      Tvar var = lit_to_var(lit);
+      Tvar var = lit.var();
       ASSERT(_vars[var].propagated,
-                  "Literal: " + lit_to_string(lit) + "\nLevel: " + to_string(lit_level(lit)));
+                  "Literal: " + lit_to_string(lit) + "\nLevel: " + lit_level(lit).to_string());
       _vars[var].propagated = false;
       _propagated_literals--;
       NOTIFY(_sentinel, unpropagate, lit);
@@ -659,7 +657,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
       Tlit lit = clause.lits[j];
       ASSERT(lit_false(lit),
         "Reason: " + clause_to_string(cl));
-      bump_var_activity(lit_to_var(lit));
+      bump_var_activity(lit.var());
       if (lit_seen(lit))
         continue;
       if (lit_level(lit) == conflict_level) {
@@ -682,7 +680,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
       i--;
     }
     ASSERT(count > 0);
-    pivot = lit_neg(_trail[i]);
+    pivot = ~_trail[i];
     count--;
     lit_unmark_seen(pivot);
     cl = lit_reason(pivot);
@@ -698,7 +696,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
     if (count == 0 && lit_lazy_reason(pivot) != CLAUSE_UNDEF) {
       ASSERT(_options.lazy_strong_chronological_backtracking);
       ASSERT(lit_lazy_reason(pivot) == cl);
-      ASSERT(lit_neg(pivot) == _clauses[cl].lits[0]);
+      ASSERT(~pivot == _clauses[cl].lits[0]);
 
       // make sure the conflict level cannot be increased by the content of the new clause
       for (unsigned j = 1; j < _clauses[cl].size; j++)
@@ -775,7 +773,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
     Tlit lit = _literal_buffer[j];
     ASSERT(lit_false(lit));
     ASSERT(lit_level(lit) <= conflict_level,
-               "Literal: " + lit_to_string(lit) + " at level: " + to_string(lit_level(lit)) + " conflict level: " + to_string(conflict_level) + " Clause: " + clause_to_string(conflict));
+               "Literal: " + lit_to_string(lit) + " at level: " + lit_level(lit).to_string() + " conflict level: " + conflict_level.to_string() + " Clause: " + clause_to_string(conflict));
     if (lit_level(lit) == LEVEL_ROOT)
       continue;
     _literal_buffer[k++] = lit;
@@ -784,7 +782,7 @@ void NapSAT::analyze_conflict(Tclause conflict)
 
   if (_next_literal_index == 0) {
     // empty clause
-    _status = UNSAT;
+    _status = status::UNSAT;
     if (_proof)
       _proof->finalize_resolution(_clauses.size(), _literal_buffer, _next_literal_index);
     return;
@@ -834,7 +832,7 @@ void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
     ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
     Tclause reason = lit_reason(lit);
     ASSERT(reason != CLAUSE_UNDEF);
-    _proof->link_resolution(lit_neg(lit), reason);
+    _proof->link_resolution(~lit, reason);
 
     for (unsigned j = 1; j < _clauses[reason].size; j++) {
       Tlit lit = _clauses[reason].lits[j];
@@ -867,7 +865,7 @@ void NapSAT::repair_conflict(Tclause conflict)
   ASSERT(_options.chronological_backtracking || _clauses[conflict].external
   || (lit_level(lits[0]) == solver_level()
    && lit_level(lits[1]) == solver_level()),
-    "Conflict: " + clause_to_string(conflict) + "\nDecision level: " + to_string(solver_level()));
+    "Conflict: " + clause_to_string(conflict) + "\nDecision level: " + solver_level().to_string());
 #ifndef NDEBUG
   for (unsigned i = 0; i < _clauses[conflict].size; i++) {
     ASSERT(lit_false(lits[i]));
@@ -875,11 +873,11 @@ void NapSAT::repair_conflict(Tclause conflict)
   }
 #endif
 
-  if (_status == SAT)
-    _status = UNDEF;
+  if (_status == status::SAT)
+    _status = status::UNDEF;
 
   if (lit_level(lits[0]) == LEVEL_ROOT) {
-    _status = UNSAT;
+    _status = status::UNSAT;
     if (_proof) {
       _proof->start_resolution_chain();
       _proof->link_resolution(LIT_UNDEF, conflict);
@@ -900,7 +898,7 @@ void NapSAT::repair_conflict(Tclause conflict)
     if (!lit_undef(lits[0])) {
       // the problem is unsat
       // The literal could have been propagated by the reimplication
-      _status = UNSAT;
+      _status = status::UNSAT;
       return;
     }
     imply_literal(lits[0], conflict);
@@ -1025,9 +1023,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
 {
   ASSERT(lits_input != nullptr);
   for (unsigned i = 0; i < input_size; i++)
-    bump_var_activity(lit_to_var(lits_input[i]));
+    bump_var_activity(lits_input[i].var());
   Tlit* lits;
-  Tclause cl;
+  Tclause cl = CLAUSE_UNDEF;
   TSclause* clause;
   if (learned)
     _n_learned_clauses++;
@@ -1120,25 +1118,18 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
   }
 
   _activities[cl] = _max_clause_activity;
-  #if USE_OBSERVER
-  if (_sentinel) {
-    sentinel::Tlit* lits_sent = new sentinel::Tlit[clause_size];
-    for (unsigned i = 0; i < clause_size; i++)
-      lits_sent[i] = sentinel::Tlit(lits[i]);
-    sentinel::add_clause(_sentinel, cl, lits_sent, clause_size, external);
-  }
-  #endif
+  NOTIFY(_sentinel, add_clause, cl, lits, clause_size, external);
 
   if (clause_size == 0) {
     clause->watched = false;
-    _status = UNSAT;
+    _status = status::UNSAT;
     return cl;
   }
 
   if (external && _options.ignore_unused_variables) {
     // mark all the variables in the clause as constrained
     for (unsigned i = 0; i < clause_size; i++)
-      var_mark_constrained(lit_to_var(lits[i]));
+      var_mark_constrained(lits[i].var());
   }
 
   if (clause_size == 1) {
@@ -1151,8 +1142,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, unsigned inp
       return cl;
     }
     if (lit_false(lits[0])) {
-      if (_status == SAT)
-        _status = UNDEF;
+      if (_status == status::SAT)
+        _status = status::UNDEF;
       repair_conflict(cl);
     }
     return cl;
@@ -1247,7 +1238,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _trail.reserve(n_var);
   _watch_lists.resize(2 * n_var + 2);
 
-  _clauses = vector<TSclause>();
+  _clauses = indexed_vector<TSclause, Tclause>();
   _clauses.reserve(n_clauses);
   _activities.reserve(n_clauses);
 
@@ -1263,7 +1254,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 
 NapSAT::~NapSAT()
 {
-  for (unsigned i = 0; i < _clauses.size(); i++)
+  for (Tclause i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
 #if USE_OBSERVER
   if (_sentinel)
@@ -1293,7 +1284,7 @@ bool NapSAT::propagate()
 {
   // ASSERT(watch_lists_complete());
   // ASSERT(watch_lists_minimal());
-  if (_status != UNDEF)
+  if (_status != status::UNDEF)
     return false;
   while (_propagated_literals < _trail.size()) {
     Tlit lit = _trail[_propagated_literals];
@@ -1301,24 +1292,24 @@ bool NapSAT::propagate()
     if (conflict == CLAUSE_UNDEF)
       conflict = propagate_lit(lit);
     if (conflict == CLAUSE_UNDEF) {
-      _vars[lit_to_var(lit)].propagated = true;
+      _vars[lit.var()].propagated = true;
       _propagated_literals++;
       NOTIFY(_sentinel, propagate, lit);
       continue;
     }
     _n_conflicts++;
     if (_options.conflict_limit != -1 && _n_conflicts > _options.conflict_limit) {
-      _status = TIMEOUT;
+      _status = status::TIMEOUT;
       return false;
     }
     repair_conflict(conflict);
-    if (_status == UNSAT)
+    if (_status == status::UNSAT)
       return false;
     if (_agility < _options.agility_threshold)
       restart();
   }
-  if (_trail.size() == _vars.size() - 1) {
-    _status = SAT;
+  if (_trail.size() == _vars.size().value - 1) {
+    _status = status::SAT;
     return false;
   }
   return true;
@@ -1327,18 +1318,18 @@ bool NapSAT::propagate()
 status NapSAT::solve()
 {
   auto start_time = std::chrono::steady_clock::now();
-  if (_status != UNDEF)
+  if (_status != status::UNDEF)
     return _status;
   while (true) {
     auto current_time = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> elapsed_time = current_time - start_time;
     if (elapsed_time.count() > _options.timeout * 1000) {
-      _status = TIMEOUT;
-      return TIMEOUT;
+      _status = status::TIMEOUT;
+      return status::TIMEOUT;
     }
     ASSERT(!_sentinel || sentinel::check_invariants(_sentinel));
     if (!propagate()) {
-      if ((_status != UNSAT && _status != TIMEOUT) && !_options.interactive)
+      if ((_status != status::UNSAT && _status != status::TIMEOUT) && !_options.interactive)
         break;
     }
     ASSERT(!_sentinel || sentinel::check_invariants(_sentinel));
@@ -1349,7 +1340,7 @@ status NapSAT::solve()
       // this is the same trick as in CaDiCaL, but we might be able to do better
       purge_clauses();
       _purge_threshold = _n_root_lvl_lits + _purge_inc;
-      if (_status == UNSAT)
+      if (_status == status::UNSAT)
         return _status;
       // in chronological backtracking, the purge might have implied some literals
       // therefore we cannot take a decision before we propagate
@@ -1362,7 +1353,7 @@ status NapSAT::solve()
     else
 #endif
       decide();
-    if (_status == SAT || _status == UNSAT)
+    if (_status == status::SAT || _status == status::UNSAT)
       break;
   }
   ASSERT(!_sentinel || sentinel::check_invariants(_sentinel));
@@ -1380,12 +1371,12 @@ bool NapSAT::decide()
   while (!_variable_heap.empty() && !var_undef(_variable_heap.top()))
     _variable_heap.pop();
   if (_variable_heap.empty()) {
-    _status = SAT;
+    _status = status::SAT;
     return false;
   }
   Tvar var = _variable_heap.top();
   ASSERT(var_constrained(var));
-  Tlit lit = literal(var, _vars[var].phase_cache);
+  Tlit lit = Tlit(var, _vars[var].phase_cache);
   imply_literal(lit, CLAUSE_UNDEF);
   return true;
 }
@@ -1407,9 +1398,9 @@ void NapSAT::start_clause()
 void NapSAT::add_literal(Tlit lit)
 {
   ASSERT(_writing_clause);
-  Tvar var = lit_to_var(lit);
+  Tvar var = lit.var();
   var_allocate(var);
-  ASSERT(_next_literal_index < _vars.size());
+  ASSERT(_next_literal_index < _vars.size().value);
   _literal_buffer[_next_literal_index++] = lit;
 }
 
@@ -1425,8 +1416,8 @@ napsat::Tclause napsat::NapSAT::add_clause(const Tlit* lits, unsigned size)
 {
   Tvar max_var = 0;
   for (unsigned i = 0; i < size; i++)
-    if (lit_to_var(lits[i]) > max_var)
-      max_var = lit_to_var(lits[i]);
+    if (lits[i].var() > max_var)
+      max_var = lits[i].var();
   var_allocate(max_var);
   Tclause cl = internal_add_clause(lits, size, false, true);
   return cl;
@@ -1446,20 +1437,20 @@ unsigned napsat::NapSAT::get_clause_size(Tclause cl) const
 
 void NapSAT::hint(Tlit lit)
 {
-  ASSERT(lit_to_var(lit) < _vars.size());
+  ASSERT(lit.var() < _vars.size());
   ASSERT(!_writing_clause);
   ASSERT(lit_undef(lit));
   imply_literal(lit, CLAUSE_LAZY);
 }
 
-void NapSAT::hint(Tlit lit, unsigned int level)
+void NapSAT::hint(Tlit lit, Tlevel level)
 {
-  ASSERT(lit_to_var(lit) < _vars.size());
+  ASSERT(lit.var() < _vars.size());
   ASSERT(!_writing_clause);
   ASSERT(lit_undef(lit));
   ASSERT(level <= solver_level() + 1);
   hint(lit);
-  _vars[lit_to_var(lit)].level = level;
+  _vars[lit.var()].level = level;
 }
 
 void NapSAT::synchronize()
@@ -1481,9 +1472,9 @@ unsigned NapSAT::sync_color(Tvar var)
   ASSERT(var < _vars.size() && var > 0);
   if (_vars[var].state == _vars[var].state_last_sync)
     return 0;
-  if (VAR_UNDEF == _vars[var].state)
+  if (Tval::VAR_UNDEF == _vars[var].state)
     return 1;
-  if (VAR_UNDEF == _vars[var].state_last_sync)
+  if (Tval::VAR_UNDEF == _vars[var].state_last_sync)
     return 2;
   return 3;
 }
@@ -1506,13 +1497,13 @@ Tlevel NapSAT::decision_level() const
 void napsat::NapSAT::print_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT);
+  ASSERT(_status == status::UNSAT);
   _proof->print_proof();
 }
 
 bool napsat::NapSAT::check_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT);
+  ASSERT(_status == status::UNSAT);
   return _proof->check_proof();
 }

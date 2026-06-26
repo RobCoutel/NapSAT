@@ -103,6 +103,7 @@
 #include "../utils/heap.hpp"
 
 #include "Sentinel-API.hpp"
+#include "Sentinel-wrapper.hpp"
 
 #include <vector>
 #include <set>
@@ -115,9 +116,9 @@
 #define NOTIFY(s, type, ...) \
   do {                                          \
     if (s) {                             \
-      if(!sentinel::type(s __VA_OPT__(, __VA_ARGS__))) { \
+      if(!sentinel::wrapper::type(s __VA_OPT__(, __VA_ARGS__))) { \
         LOG_ERROR("The notification returned an error when executed by the observer"); \
-        sentinel::message(s, "An error occurred during application of " + std::string(#type) + " notification"); \
+        sentinel::wrapper::message(s, "An error occurred during application of " + std::string(#type) + " notification"); \
         assert(false);                          \
       }                                         \
     }                                           \
@@ -153,9 +154,9 @@ namespace napsat
         activity(0.0),
         seen(false),
         propagated(false),
-        state(VAR_UNDEF),
+        state(Tval::VAR_UNDEF),
         phase_cache(0),
-        state_last_sync(VAR_UNDEF),
+        state_last_sync(Tval::VAR_UNDEF),
         constrained(0)
       {}
       /**
@@ -190,7 +191,7 @@ namespace napsat
       /**
        * @brief State of the variable. Can be VAR_TRUE, VAR_FALSE or VAR_UNDEF.
        */
-      Tval state : 2;
+      Tval state; // only takes two bits
       /**
        * @brief Last value assigned to the variable.
        * @note Used to compute the agility of the solver
@@ -201,7 +202,7 @@ namespace napsat
        * @brief Last value assigned to the variable before the last
        * synchronization.
        */
-      Tval state_last_sync : 2;
+      Tval state_last_sync; // only takes two bits
 
       /**
        * @brief True if at least one clause constraints this variable.
@@ -289,15 +290,15 @@ namespace napsat
     /**
      * @brief Options of the solver.
     */
-    napsat::options _options;
+    options _options;
     /**
      * @brief Status of the solver.
      */
-    status _status = UNDEF;
+    status _status = status::UNDEF;
     /**
      * @brief List of variables in the clause set.
      */
-    std::vector<TSvar> _vars;
+    indexed_vector<TSvar, Tvar> _vars;
     /**
      * @brief Trail of assigned literals.
      * @details The trail is divided into two parts π = τ ⋅ ω
@@ -314,7 +315,7 @@ namespace napsat
     /**
      * @brief Set of clauses
      */
-    std::vector<TSclause> _clauses;
+    indexed_vector<TSclause, Tclause> _clauses;
     /**
      * @brief List of deleted clauses. The memory of these clauses is available
      * for reuse.
@@ -329,24 +330,24 @@ namespace napsat
      * @remark This information was previously stored in the TSclause structure
      * but it was moved here to reduce the size of the TSclause structure.
     */
-    std::vector<unsigned> _clauses_sizes;
+    indexed_vector<unsigned, Tclause> _clauses_sizes;
 
     /**
      * @brief _watch_lists[i] is the first clause of the watch list of the
      * literal i.
      */
-    std::vector<std::vector<Tclause>> _watch_lists;
+    indexed_vector<std::vector<Tclause>, Tlit> _watch_lists;
     /**
      * @brief _binary_clauses[l] is the contains the pairs <lit, cl> where lit
      * is a literal to be propagated if l is falsified, and <cl> is the clause
      * that propagates lit.
     */
-    std::vector<std::vector<std::pair<Tlit, Tclause>>> _binary_clauses;
+    indexed_vector<std::vector<std::pair<Tlit, Tclause>>, Tlit> _binary_clauses;
     /**
      * @brief _decision_index[i] is the index of the decision made after level i.
      * @remark _decision_index[0] is the index of the first decision.
      */
-    std::vector<unsigned> _decision_index;
+    indexed_vector<unsigned, Tlevel> _decision_index;
     /**
      * @brief Position of the last literal on the trail that was left unchanged
      * since the last synchronization.
@@ -382,7 +383,7 @@ namespace napsat
     /**
      * @brief For a clause C, _activities[C] is the activity of the clause.
     */
-    std::vector<double> _activities;
+    indexed_vector<double, Tclause> _activities;
 
     /**
      * @brief Priority queue of variables. The variables are ordered by their
@@ -571,7 +572,7 @@ namespace napsat
      */
     inline Tlevel lit_level(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].level;
+      return _vars[lit.var()].level;
     }
 
     /**
@@ -581,7 +582,7 @@ namespace napsat
      */
     inline bool lit_true(Tlit lit) const
     {
-      return !(_vars[lit_to_var(lit)].state ^ lit_pol(lit));
+      return lit.satisfied(_vars[lit.var()].state);
     }
 
     /**
@@ -591,7 +592,7 @@ namespace napsat
      */
     inline bool lit_false(Tlit lit) const
     {
-      return !(_vars[lit_to_var(lit)].state ^ lit_pol(lit) ^ 1);
+      return lit.falsified(_vars[lit.var()].state);
     }
 
     /**
@@ -601,7 +602,7 @@ namespace napsat
      */
     inline bool lit_undef(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].state >> 1;
+      return lit.undefined(_vars[lit.var()].state);
     }
 
     /**
@@ -612,7 +613,7 @@ namespace napsat
      */
     inline Tclause lit_reason(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].reason;
+      return _vars[lit.var()].reason;
     }
 
     /**
@@ -636,7 +637,7 @@ namespace napsat
      */
     inline Tclause lit_lazy_reason(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].missed_lower_implication;
+      return _vars[lit.var()].missed_lower_implication;
     }
 
     /**
@@ -678,7 +679,7 @@ namespace napsat
      */
     inline void lit_set_lazy_reason(Tlit lit, Tclause cl)
     {
-      _vars[lit_to_var(lit)].missed_lower_implication = cl;
+      _vars[lit.var()].missed_lower_implication = cl;
     }
 
     /**
@@ -690,7 +691,7 @@ namespace napsat
      */
     inline bool is_lazy_reason_of(Tclause cl, Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].missed_lower_implication == cl;
+      return _vars[lit.var()].missed_lower_implication == cl;
     }
 
     /**
@@ -701,7 +702,7 @@ namespace napsat
      */
     inline bool is_reason_of(Tclause cl, Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].reason == cl;
+      return _vars[lit.var()].reason == cl;
     }
 
     /**
@@ -755,7 +756,7 @@ namespace napsat
      */
     inline bool lit_propagated(Tlit lit) const
     {
-      return var_propagated(lit_to_var(lit));
+      return var_propagated(lit.var());
     }
 
     /**
@@ -763,7 +764,7 @@ namespace napsat
      */
     inline void lit_mark_seen(Tlit lit)
     {
-      _vars[lit_to_var(lit)].seen = true;
+      _vars[lit.var()].seen = true;
     }
 
     /**
@@ -771,7 +772,7 @@ namespace napsat
      */
     inline void lit_unmark_seen(Tlit lit)
     {
-      _vars[lit_to_var(lit)].seen = false;
+      _vars[lit.var()].seen = false;
     }
 
     /**
@@ -779,7 +780,7 @@ namespace napsat
      */
     inline bool lit_seen(Tlit lit) const
     {
-      return _vars[lit_to_var(lit)].seen;
+      return _vars[lit.var()].seen;
     }
 
     /**
@@ -814,7 +815,7 @@ namespace napsat
      */
     inline bool var_undef(Tvar var) const
     {
-      return _vars[var].state == VAR_UNDEF;
+      return _vars[var].state == Tval::VAR_UNDEF;
     }
 
     /**
@@ -822,7 +823,7 @@ namespace napsat
      */
     inline bool var_true(Tvar var) const
     {
-      return _vars[var].state == VAR_TRUE;
+      return _vars[var].state == Tval::VAR_TRUE;
     }
 
     /**
@@ -830,7 +831,7 @@ namespace napsat
      */
     inline bool var_false(Tvar var) const
     {
-      return _vars[var].state == VAR_FALSE;
+      return _vars[var].state == Tval::VAR_FALSE;
     }
 
     /**
@@ -840,8 +841,8 @@ namespace napsat
     {
       TSvar& v = _vars[var];
 
-      NOTIFY(_sentinel, unassign, sentinel::Tlit(var, v.state));
-      v.state = VAR_UNDEF;
+      NOTIFY(_sentinel, unassign, Tlit(var, v.state == Tval::VAR_TRUE));
+      v.state = Tval::VAR_UNDEF;
       v.reason = CLAUSE_UNDEF;
       v.level = LEVEL_UNDEF;
       v.propagated = false;
@@ -860,22 +861,22 @@ namespace napsat
      */
     inline void var_allocate(Tvar var)
     {
-      if (_vars.size() >= var + 1)
+      if (_vars.size() >= var.value + 1)
         return;
 
-      unsigned old_size = _vars.size();
-      _vars.resize(var + 1);
-      for (Tvar i = old_size; i <= var; i++) {
-        assert(_vars[i].constrained == 0);
+      Tvar old_size = _vars.size();
+      _vars.resize(var.value + 1);
+      for (Tvar v = old_size; v <= var; v++) {
+        assert(_vars[v].constrained == 0);
         if (!_options.ignore_unused_variables)
-          var_mark_constrained(i);
-        NOTIFY(_sentinel, add_variable, sentinel::Tvar(i));
+          var_mark_constrained(v);
+        NOTIFY(_sentinel, add_variable, v);
       }
 
-      _watch_lists.resize(2 * var + 2);
-      _binary_clauses.resize(2 * var + 2);
+      _watch_lists.resize(2 * var.value + 2);
+      _binary_clauses.resize(2 * var.value + 2);
       // reallocate the literal buffer to make sure it is big enough
-      Tlit* new_literal_buffer = new Tlit[_vars.size()];
+      Tlit* new_literal_buffer = new Tlit[_vars.size().value];
       assert(_literal_buffer);
       std::memcpy(new_literal_buffer, _literal_buffer,
                   _next_literal_index * sizeof(Tlit));
@@ -1275,7 +1276,7 @@ namespace napsat
      * @pre The level must be lower than or equal to the current decision level.
      * @todo Not supported yet.
      */
-    void hint(Tlit lit, unsigned int level);
+    void hint(Tlit lit, Tlevel level);
 
     /**
      * @brief Notify the solver that the trail was synchronized by the user.
@@ -1321,7 +1322,7 @@ namespace napsat
     inline bool is_decided(Tlit lit) const
     {
       ASSERT(!lit_undef(lit));
-      return _vars[lit_to_var(lit)].reason == CLAUSE_UNDEF;
+      return _vars[lit.var()].reason == CLAUSE_UNDEF;
     }
 
     /**

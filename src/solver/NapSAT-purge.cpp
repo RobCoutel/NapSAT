@@ -25,7 +25,7 @@ using namespace std;
 void napsat::NapSAT::repair_watch_lists()
 {
   /** REPAIR BINARY WATCH LIST **/
-  for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
+  for (Tlit lit = 2; lit < _watch_lists.size(); lit.value++) {
     for (unsigned j = 0; j < _binary_clauses[lit].size(); j++) {
       Tclause cl = _binary_clauses[lit][j].second;
       ASSERT(cl != CLAUSE_UNDEF,
@@ -37,7 +37,7 @@ void napsat::NapSAT::repair_watch_lists()
     }
   }
   /** REPAIR WATCH LISTS **/
-  for (Tlit lit = 2; lit < _watch_lists.size(); lit++) {
+  for (Tlit lit = 2; lit < _watch_lists.size(); lit.value++) {
     vector<Tclause>& watch_list = _watch_lists[lit];
     Tclause* i = watch_list.data();
     Tclause* end = i + watch_list.size();
@@ -47,16 +47,15 @@ void napsat::NapSAT::repair_watch_lists()
       if (clause.deleted || !clause.watched
        || (clause.lits[0] != lit && clause.lits[1] != lit)
        || clause.size <= 2) {
-#if NOTIFY_WATCH_CHANGES
-        if(!clause.deleted && clause.size != 2)
-          NOTIFY(_sentinel, unwatch, *i, lit);
-#endif
+        if(!clause.deleted && clause.size != 2) {
+          NOTIFY_WATCH(_sentinel, unwatch, *i, lit);
+        }
         *i = *(--end);
         continue;
       }
       i++;
     }
-    watch_list.resize(end - watch_list.data());
+    watch_list.resize((size_t) (end - watch_list.data()));
   }
 }
 
@@ -71,7 +70,7 @@ void napsat::NapSAT::purge_root_watch_lists()
     if (lit_level(lit) != LEVEL_ROOT)
       continue;
 
-    lit = lit_neg(lit);
+    lit = ~lit;
     vector<Tclause>& watch_list = _watch_lists[lit];
     Tclause* j = watch_list.data();
     Tclause* k = j;
@@ -90,9 +89,7 @@ void napsat::NapSAT::purge_root_watch_lists()
         *(k++) = cl;
         continue;
       }
-#if NOTIFY_WATCH_CHANGES
-      NOTIFY(_sentinel, unwatch, cl, lit);
-#endif
+      NOTIFY_WATCH(_sentinel, unwatch, cl, lit);
       // if the clause is already deleted, do not bother
       if (clause.deleted)
         continue;
