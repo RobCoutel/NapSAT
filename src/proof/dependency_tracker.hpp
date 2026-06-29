@@ -93,7 +93,7 @@ namespace napsat
 
       std::set<Tclause> _current_tracking;
 
-      std::vector<clause_dependencies> _clauses;
+      indexed_vector<clause_dependencies, Tclause> _clauses;
     };
   }
 }

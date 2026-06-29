@@ -17,6 +17,7 @@
 #include <iostream>
 #include <cstring>
 #include <functional>
+#include <chrono>
 
 using namespace napsat;
 using namespace std;
@@ -46,7 +47,7 @@ void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
     ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
     Tclause reason = lit_reason(lit);
     ASSERT(reason != CLAUSE_UNDEF);
-    _proof->link_resolution(lit_neg(lit), reason);
+    _proof->link_resolution(~lit, reason);
 
     for (unsigned j = 1; j < clause_size(reason); j++) {
       Tlit lit = clause_lits(reason)[j];
@@ -72,9 +73,9 @@ void NapSAT::restart()
     while (i > 0) {
       i--;
       Tlit lit = _trail[i];
-      _vars[lit_to_var(lit)].propagated = false;
+      _vars[lit.var()].propagated = false;
       if (i < _n_propagated_lits) {
-        NOTIFY_OBSERVER(remove_propagation, lit);
+        NOTIFY(unpropagate, lit);
       }
     }
     _n_propagated_lits = 0;
@@ -217,22 +218,27 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
 
   // We have to create the observer before allocating the variables. Otherwise, the notifications will not be sent
 #if USE_OBSERVER
-  if (options.interactive || options.observing || options.check_invariants) {
-    _observer = new napsat::gui::observer(options);
+  if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
+    bool check_only = options.check_invariants && !options.interactive && !options.observing;
+
+    sentinel::SentinelOptions sentinel_options;
+    load_invariant_configuration(sentinel_options);
+    sentinel_options.crash_on_error = check_only;
+    _sentinel = sentinel::create_sentinel(sentinel_options);
+    for (sentinel::WatchInvariant* invariant : _watch_invariants)
+      sentinel::add_watch_invariant(_sentinel, invariant);
     // make a functional object that will parse the command
     if (options.interactive) {
-      std::function<bool(const std::string&)> command_parser = [this](const std::string& command) {
-        return this->parse_command(command);
-      };
-      _observer->set_command_parser(command_parser);
+      sentinel::Tparser* parser = new sentinel::Tparser([this](const std::string& command) {
+        return parse_command(command);
+      });
+      set_command_parser(_sentinel, parser);
     }
-    _observer->set_save_state_function([this]() { this->save_state(); });
-    if (options.interactive || options.observing || options.check_invariants)
-#if USE_STATISTICS
-    _observer->set_statistics(_statistics);
-#endif
-    NOTIFY_OBSERVER(marker, "Start");
+    if (!check_only)
+      sentinel::message(_sentinel, "Starting NapSAT solver", 0);
   }
+  else
+    _sentinel = nullptr;
 #else
   if (options.interactive || options.observing || options.check_invariants) {
     LOG_WARNING("Observer not available in this build");
@@ -250,7 +256,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _trail.reserve(n_var);
   _watches.resize(2 * n_var + 2);
 
-  _clauses = vector<TSclause>();
+  _clauses = indexed_vector<TSclause, Tclause>();
   _clauses.reserve(n_clauses);
   _activities.reserve(n_clauses);
 
@@ -279,11 +285,11 @@ Tvar napsat::NapSAT::new_variable()
 
 NapSAT::~NapSAT()
 {
-  for (unsigned i = 0; i < _clauses.size(); i++)
+  for (Tclause i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
 #if USE_OBSERVER
-  if (_observer)
-    delete _observer;
+  if (_sentinel)
+    sentinel::delete_sentinel(_sentinel);
 #endif
   if (_proof)
     delete _proof;
@@ -310,7 +316,7 @@ napsat::statistics* napsat::NapSAT::get_statistics() const
 bool napsat::NapSAT::is_observing() const
 {
 #if USE_OBSERVER
-  return _observer != nullptr;
+  return _sentinel != nullptr;
 #else
   return false;
 #endif
@@ -325,27 +331,18 @@ bool napsat::NapSAT::has_statistics() const
 #endif
 }
 
-napsat::gui::observer* napsat::NapSAT::get_observer() const
-{
-#if USE_OBSERVER
-  return _observer;
-#else
-  return nullptr;
-#endif
-}
-
 bool NapSAT::propagate()
 {
   if (!_conflicts.empty()) {
     repair_conflicts();
-    if (_status == UNSAT) {
+    if (_status == status::UNSAT) {
       return false;
     }
   }
   ASSERT(_conflicts.empty());
   // ASSERT(check_watch_lists_complete());
   // ASSERT(check_watch_lists_minimal());
-  if (_status != UNKNOWN)
+  if (_status != status::UNKNOWN)
     return false;
   while (_n_propagated_lits < _trail.size()) {
     Tlit lit = _trail[_n_propagated_lits];
@@ -353,7 +350,7 @@ bool NapSAT::propagate()
     if (lit_propagated(lit)) {
       _n_propagated_lits++;
       NOTIFY_STAT(_n_skipped_propagation);
-      NOTIFY_OBSERVER(propagation, lit);
+      NOTIFY(propagation, lit);
       continue;
     }
 #endif
@@ -372,9 +369,9 @@ bool NapSAT::propagate()
     }
 
     if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
-      _vars[lit_to_var(lit)].propagated = true;
+      _vars[lit.var()].propagated = true;
       _n_propagated_lits++;
-      NOTIFY_OBSERVER(propagation, lit);
+      NOTIFY(propagate, lit);
     }
 
     ASSERT(_conflicts.empty() || !_options.partial_conflict_repair || _n_propagated_lits < _trail.size() || _n_propagated_lits == _trail.size());
@@ -404,7 +401,7 @@ bool NapSAT::propagate()
       }
       repair_conflicts();
 
-      if (_status == UNSAT) {
+      if (_status == status::UNSAT) {
         return false;
       }
       if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
@@ -416,8 +413,8 @@ bool NapSAT::propagate()
     }
   }
 
-  if (_trail.size() == _vars.size() - 1) {
-    _status = SAT;
+  if (_trail.size() == _vars.size().value - 1) {
+    _status = status::SAT;
     return false;
   }
   return true;
@@ -426,17 +423,17 @@ bool NapSAT::propagate()
 status NapSAT::solve()
 {
   auto start_time = std::chrono::high_resolution_clock::now();
-  if (_status != UNKNOWN) {
-    ASSERT(_status != SAT || _trail.size() == _vars.size() - 1);
-    NOTIFY_OBSERVER(done, _status == SAT);
+  if (_status != status::UNKNOWN) {
+    ASSERT(_status != status::SAT || _trail.size() == _vars.size().value - 1);
+    NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status));
     return _status;
   }
   while (true) {
     if (!propagate()) {
-      if (_status == UNSAT) {
+      if (_status == status::UNSAT) {
         if (_options.interactive && _n_assumptions > 0) {
-          _observer->notify(new napsat::gui::checkpoint());
-          if (_status == UNKNOWN) {
+          NOTIFY(checkpoint);
+          if (_status == status::UNKNOWN) {
             continue;
           }
         }
@@ -444,16 +441,16 @@ status NapSAT::solve()
       }
     }
     ASSERT(_n_propagated_lits == _trail.size());
-    NOTIFY_OBSERVER(check_invariants);
+    NOTIFY(check_invariants);
     if (_n_root_lvl_lits >= _purge_threshold && solver_level() == LEVEL_ROOT && _n_propagated_lits == _trail.size()) {
       // in WCB and RSCB, missed lower implications can be a problem when purging clauses.
       // this is the same trick as in CaDiCaL, but we might be able to do better
       purge_clauses();
       _purge_threshold = _n_root_lvl_lits + _purge_inc;
-      if (_status == UNSAT) {
+      if (_status == status::UNSAT) {
         if (_options.interactive && _n_assumptions > 0) {
-          _observer->notify(new napsat::gui::checkpoint());
-          if (_status == UNKNOWN) {
+          NOTIFY(checkpoint);
+          if (_status == status::UNKNOWN) {
             continue;
           }
         }
@@ -462,33 +459,33 @@ status NapSAT::solve()
         NOTIFY_STAT_N(solve_time, duration);
         if (_options.print_live_stats)
           get_statistics()->print_statistics(true);
-        NOTIFY_OBSERVER(done, _status == SAT);
+        NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status));
         return _status;
       }
       // in chronological backtracking, the purge might have implied some literals
       // therefore we cannot take a decision before we propagate
       continue;
     }
-    NOTIFY_OBSERVER(check_invariants);
+    NOTIFY(check_invariants);
     // synchronize();
 #if USE_OBSERVER
     if (_options.interactive)
-      _observer->notify(new napsat::gui::checkpoint());
+      NOTIFY(checkpoint);
     else
 #endif
       decide();
-    ASSERT(_status != UNSAT);
-    if (_status == SAT)
+    ASSERT(_status != status::UNSAT);
+    if (_status == status::SAT)
       break;
   }
-  if (_status == SAT)
-    NOTIFY_OBSERVER(check_invariants);
+  if (_status == status::SAT)
+    NOTIFY(check_invariants);
   auto end_time = std::chrono::high_resolution_clock::now();
   long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
   NOTIFY_STAT_N(solve_time, duration);
   if (_options.print_live_stats)
     get_statistics()->print_statistics(true);
-  NOTIFY_OBSERVER(done, _status == SAT);
+  NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status));
   return _status;
 }
 
@@ -513,7 +510,7 @@ bool NapSAT::decide()
   while (!_variable_heap.empty() && !var_undef(_variable_heap.top()))
     _variable_heap.pop();
   if (_variable_heap.empty()) {
-    _status = SAT;
+    _status = status::SAT;
     return false;
   }
   Tvar var = _variable_heap.top();
@@ -523,7 +520,7 @@ bool NapSAT::decide()
   // bool value = (rand() % 2) == 0;
   // Tlit lit = literal(var, value);
   // Tlit lit = literal(var, false);
-  Tlit lit = literal(var, _vars[var].synced);
+  Tlit lit = Tlit(var, _vars[var].synced);
   imply_literal(lit, CLAUSE_UNDEF);
   return true;
 }
@@ -545,9 +542,9 @@ void NapSAT::start_clause()
 void NapSAT::add_literal(Tlit lit)
 {
   ASSERT(_writing_clause);
-  Tvar var = lit_to_var(lit);
+  Tvar var = lit.var();
   var_allocate(var);
-  ASSERT(_lit_buffer_size < _vars.size());
+  ASSERT(_lit_buffer_size < _vars.size().value);
   _lit_buffer[_lit_buffer_size++] = lit;
 }
 
@@ -564,8 +561,8 @@ napsat::Tclause napsat::NapSAT::add_clause(const Tlit* lits, unsigned size)
 {
   Tvar max_var = 0;
   for (unsigned i = 0; i < size; i++)
-    if (lit_to_var(lits[i]) > max_var)
-      max_var = lit_to_var(lits[i]);
+    if (lits[i].var() > max_var)
+      max_var = lits[i].var();
   var_allocate(max_var);
   Tclause cl = internal_add_clause(lits, size, false, true);
   return cl;
@@ -585,15 +582,15 @@ unsigned napsat::NapSAT::get_clause_size(Tclause cl) const
 
 void NapSAT::hint(Tlit lit)
 {
-  ASSERT(lit_to_var(lit) < _vars.size());
+  ASSERT(lit.var() < _vars.size());
   ASSERT(!_writing_clause);
   ASSERT(lit_undef(lit));
   imply_literal(lit, CLAUSE_LAZY);
 }
 
-void NapSAT::hint(Tlit lit, unsigned int level)
+void NapSAT::hint(Tlit lit, Tlevel level)
 {
-  ASSERT(lit_to_var(lit) < _vars.size());
+  ASSERT(lit.var() < _vars.size());
   ASSERT(!_writing_clause);
   ASSERT(lit_undef(lit));
   ASSERT(level <= solver_level() + 1);
@@ -607,7 +604,7 @@ void NapSAT::synchronize()
 
   for (size_t i = _sync_validity_index; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
-    Tvar var = lit_to_var(lit);
+    Tvar var = lit.var();
     ASSERT(!var_undef(var));
     if (var_synced(var)) {
       continue;
@@ -636,13 +633,13 @@ const std::vector<Tlit>& NapSAT::trail() const
 void napsat::NapSAT::print_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT);
+  ASSERT(_status == status::UNSAT);
   _proof->print_proof();
 }
 
 bool napsat::NapSAT::check_proof()
 {
   ASSERT(_proof);
-  ASSERT(_status == UNSAT);
+  ASSERT(_status == status::UNSAT);
   return _proof->check_proof();
 }

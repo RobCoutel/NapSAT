@@ -107,7 +107,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   ASSERT(lits_input != nullptr);
   if (external) {
     for (unsigned i = 0; i < input_size; i++)
-      bump_var_activity(lit_to_var(lits_input[i]));
+      bump_var_activity(lits_input[i].var());
   }
 
   if (learned)
@@ -122,7 +122,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     Tlit l = lits_input[i];
     if (lit_level(l) == LEVEL_ROOT) {
       // the solver should not introduce redundant literals, so the literal must be false at level 0
-      ASSERT_MSG(external,
+      ASSERT(external,
         "The clause: " + clause_to_string(lits_input, input_size) + "\nLiteral: " + lit_to_string(l) + "\nLevel: " + std::to_string(lit_level(l)) + "\nThis should not happen since the solver should not introduce redundant literals.");
       // The solver should not generate redundant literals and clauses
       satisfied_at_root |= lit_true(l);
@@ -134,8 +134,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   // If it is satisfied already here, it means another clauses propagates the literal at level 0
   if (satisfied_at_root) {
     if (id != CLAUSE_UNDEF) {
-      NOTIFY_OBSERVER(new_clause, id, vector<Tlit>(lits_input, lits_input + input_size), learned, external);
-      NOTIFY_OBSERVER(delete_clause, id);
+      NOTIFY(add_clause, id, lits_input, input_size, external);
+      NOTIFY(delete_clause, id);
       _clauses[id].deleted = true;
       _clauses[id].watched = false;
       if (_proof)
@@ -174,7 +174,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     for (unsigned i = 0, j = 0; i < input_size; i++) {
       if (lit_level(lits_input[i]) == LEVEL_ROOT) {
         // if the literal were true, we should have deleted the clause already, so it must be false
-        ASSERT_MSG(lit_false(lits_input[i]),
+        ASSERT(lit_false(lits_input[i]),
           "Clause: " + clause_to_string(id) + "\nLiteral: " + lit_to_string(lits_input[i]) + "\nLevel: " + std::to_string(lit_level(lits_input[i])));
         continue;
       }
@@ -190,7 +190,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   // }
 
   if (clause_size == 0) {
-    _status = UNSAT;
+    _status = status::UNSAT;
     return id;
   }
 
@@ -202,8 +202,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     if (new_size == 0) {
       ASSERT(external);
       if (id != CLAUSE_UNDEF) {
-        NOTIFY_OBSERVER(new_clause, id, vector<Tlit>(lits_input, lits_input + input_size), learned, external);
-        NOTIFY_OBSERVER(delete_clause, id);
+        NOTIFY(add_clause, id, lits_input, input_size, external);
+        NOTIFY(delete_clause, id);
         if (_proof && !non_allocated_clause)
           _proof->deactivate_clause(id);
         if (_dependency_tracker && !non_allocated_clause)
@@ -245,16 +245,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   // sort the literals
   sort(lits, lits + clause_size);
 
-  #if USE_OBSERVER
-  if (_observer) {
-    vector<Tlit> lits_vector;
-    for (unsigned i = 0; i < clause_size; i++)
-      lits_vector.push_back(lits[i]);
-    NOTIFY_OBSERVER(new_clause, id, lits_vector, learned, external);
-  }
-  #else
-    NOTIFY_STAT(new_clause)
-  #endif
+  NOTIFY(add_clause, id, lits_input, input_size, external);
+  NOTIFY_STAT(new_clause);
 
   if (learned) {
     NOTIFY_STAT_N(_a_learned_clause_size, clause_size);
@@ -263,7 +255,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   if (external && _options.ignore_unused_variables) {
     // mark all the variables in the clause as constrained
     for (unsigned i = 0; i < clause_size; i++)
-      var_mark_constrained(lit_to_var(lits[i]));
+      var_mark_constrained(lits[i].var());
   }
 
   if (clause_size == 1) {
@@ -279,8 +271,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
       return id;
     }
     if (lit_false(lits[0])) {
-      if (_status == SAT)
-        _status = UNKNOWN;
+      if (_status == status::SAT)
+        _status = status::UNKNOWN;
 
       _conflicts.push_back(id);
       _lit_buffer_size = 0;
@@ -318,8 +310,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   if (lit_false(lits[0])) {
     ASSERT(check_clause_falsified(id));
     _conflicts.push_back(id);
-    if (_status == SAT)
-      _status = UNKNOWN;
+    if (_status == status::SAT)
+      _status = status::UNKNOWN;
     if (!_options.graph_backtracking) {
       // except in graph backtracking, there is no reason to not handle the conflict eagerly
       // in GB, we want to select the best chunks at the end of the procedure.
@@ -353,7 +345,7 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   clause.deleted = true;
   clause.watched = false;
   _deleted_clauses.push_back(cl);
-  NOTIFY_OBSERVER(delete_clause, cl);
+  NOTIFY(delete_clause, cl);
   if(_proof)
     _proof->deactivate_clause(cl);
   if (_dependency_tracker)

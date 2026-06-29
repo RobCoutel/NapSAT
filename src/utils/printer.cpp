@@ -18,6 +18,8 @@ using namespace std;
 
 const char ESC_LOCK_START = "🔒"[0];
 const char ESC_LOCK_END = "🔒"[4];
+namespace napsat
+{
 
 unsigned string_length_escaped(string const str)
 {
@@ -103,4 +105,6 @@ string pretty_time(chrono::microseconds time)
     str += to_string(seconds) + "s ";
   str += to_string(microseconds) + "ms";
   return str;
+}
+
 }

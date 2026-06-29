@@ -26,9 +26,8 @@ void NapSAT::var_unassign(Tvar var)
   ASSERT(!var_undef(var));
 
   TSvar& v = _vars[var];
-  NOTIFY_OBSERVER(unassignment, literal(var, v.state));
+  NOTIFY(unassign, Tlit(var, v.state));
   if (v.missed_lower_implication != CLAUSE_UNDEF) {
-    NOTIFY_OBSERVER(remove_lower_implication, var);
     v.missed_lower_implication = CLAUSE_UNDEF;
   }
   if (!_variable_heap.contains(var))
@@ -40,13 +39,13 @@ void NapSAT::var_unassign(Tvar var)
       Tchunk ck = *v.chunks.cbegin();
       TSchunk& chunk = _chunks[ck];
       _free_chunks.push_back(ck);
-      chunk.decision = LIT_UNDEF;
+      chunk.decision = Tvar();
       chunk.missed_implication.clear();
     }
     v.chunks.clear();
     v.cross_chunks.clear();
   }
-  v.state = VAR_UNDEF;
+  v.state = Tval::VAR_UNDEF;
   v.reason = CLAUSE_UNDEF;
   v.level = LEVEL_UNDEF;
   v.propagated = false;
@@ -58,7 +57,7 @@ Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
 #ifndef NDEBUG
   // The first literal of the clause is at the highest level
   for (unsigned i = 1; i < size; i++) {
-    ASSERT_MSG(lit_level(learned_lits[i]) <= lit_level(learned_lits[0]), "Inconsistent literal levels for learned clause " + clause_to_string(learned_lits, size));
+    ASSERT(lit_level(learned_lits[i]) <= lit_level(learned_lits[0]), "Inconsistent literal levels for learned clause " + clause_to_string(learned_lits, size));
   }
 #endif
   if (size == 0) {
@@ -77,22 +76,20 @@ Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
 
 void NapSAT::backtrack(Tlevel level)
 {
-  ASSERT(_options.chronological_backtracking || _options.graph_backtracking || check_trail_monotonicity());
   ASSERT(level <= solver_level());
-  if (_status == SAT) {
-    _status = UNKNOWN;
+  if (_status == status::SAT) {
+    _status = status::UNKNOWN;
   }
   if (level >= solver_level())
     return;
-  NOTIFY_OBSERVER(backtracking_started, level);
   unsigned waiting_count = 0;
 
   // the restore point is the location of the lowest decision that gets undone. That is, one level above the backtracking level.
   const size_t restore_point = _decision_index[level];
   ASSERT(restore_point <= _trail.size());
-  ASSERT_MSG(lit_decision(_trail[restore_point]),
+  ASSERT(lit_decision(_trail[restore_point]),
     "The restore point should be a decision literal. Restore point: " + to_string(restore_point) + "\nLevel: " + to_string(level));
-  ASSERT_MSG(lit_level(_trail[restore_point]) == level + 1,
+  ASSERT(lit_level(_trail[restore_point]) == level + 1,
     "The restore point should be at level one above the backtracking level. Restore point: " + to_string(restore_point) + "\nLevel: " + to_string(level));
   size_t j = restore_point;
   _sync_validity_index = min(_sync_validity_index, restore_point);
@@ -101,7 +98,7 @@ void NapSAT::backtrack(Tlevel level)
 
   for (unsigned i = restore_point; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
-    Tvar var = lit_to_var(lit);
+    Tvar var = lit.var();
     if (lit_level(lit) > level) {
       ASSERT(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
       if (lit_lazy_level(lit) <= level) {
@@ -126,15 +123,14 @@ void NapSAT::backtrack(Tlevel level)
       */
       _backtracked_variables.push_back(var);
     } else { // lit_level(lit) <= level
-      ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking,
-        "The literal " + to_string(lit) + " at level " + lit_to_string(lit_level(lit)) + " at position " + to_string(i) + " should be backtracked. Backtracking level: " + to_string(level));
+      ASSERT(_options.chronological_backtracking || _options.graph_backtracking,
+        "The literal " + lit_to_string(lit) + " at level " + lit_level(lit).to_string() + " at position " + to_string(i) + " should be backtracked. Backtracking level: " + to_string(level));
       _trail[j++] = lit;
       waiting_count += (i >= _n_propagated_lits);
     }
     if (lit_lazy_reason(lit) != CLAUSE_UNDEF && lit_lazy_level(lit) > level) {
       // the lazy reason is not valid anymore
       lit_lazy_reason(lit) = CLAUSE_UNDEF;
-      NOTIFY_OBSERVER(remove_lower_implication, var);
     }
   }
   // Here we unassign the literals as mentioned above
@@ -146,21 +142,21 @@ void NapSAT::backtrack(Tlevel level)
   _trail.resize(j);
   _decision_index.resize(level);
 
-  ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking || waiting_count == 0,
+  ASSERT(_options.chronological_backtracking || _options.graph_backtracking || waiting_count == 0,
              "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(level) + "\nRestore point: " + to_string(restore_point));
   _n_propagated_lits = _trail.size() - waiting_count;
-  ASSERT_MSG(_options.chronological_backtracking || _options.graph_backtracking || _n_propagated_lits == restore_point,
+  ASSERT(_options.chronological_backtracking || _options.graph_backtracking || _n_propagated_lits == restore_point,
     "Propagated literals: " + to_string(_n_propagated_lits) + "\nRestore point: " + to_string(restore_point));
   // in RSCB we need to move the propagation head back to the location of the first literal that moved
   // that is, the location of the first literal that was unassigned.
   if (_options.restoring_strong_chronological_backtracking) {
     while (_n_propagated_lits > restore_point) {
       Tlit lit = _trail[_n_propagated_lits - 1];
-      Tvar var = lit_to_var(lit);
+      Tvar var = lit.var();
       ASSERT(var_propagated(var));
       _vars[var].propagated = false;
       _n_propagated_lits--;
-      NOTIFY_OBSERVER(remove_propagation, lit);
+      NOTIFY(unpropagate, lit);
     }
   }
   if (_reimplication_backtrack_buffer.size() > 0) {
@@ -189,7 +185,8 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   ASSERT(!backtracked_chunks.empty());
   ASSERT(_backtracked_variables.empty());
   // Mapping to the new level of literals after backtracking
-  vector<Tlevel> level_transformation(solver_level() + 1);
+  indexed_vector<Tlevel, Tlevel> level_transformation;
+  level_transformation.resize(solver_level() + 1);
   Tlevel real_level = 1;
   Tlevel min_level = LEVEL_UNDEF;
   for (Tlevel lvl = 1; lvl <= solver_level(); lvl++) {
@@ -199,7 +196,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
       min_level = min(min_level, lvl);
       level_transformation[lvl] = LEVEL_ERROR;
     } else {
-      level_transformation[lvl] = real_level++;
+      level_transformation[lvl] = real_level.value++;
     }
   }
 
@@ -211,7 +208,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   // print_trail();
   while (i < end) {
     Tlit lit = *i;
-    Tvar var = lit_to_var(lit);
+    Tvar var = lit.var();
     bitset& chunks = var_chunks(var);
     Tlevel lit_lvl = var_level(var);
 
@@ -234,7 +231,6 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
       if (missed_implication.has_intersection(backtracked_chunks)) {
         lit_lazy_reason(lit) = CLAUSE_UNDEF;
         missed_implication.clear();
-        NOTIFY_OBSERVER(remove_lower_implication, var);
       }
     }
 
@@ -249,10 +245,10 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
 
     if (backtracked) {
       if(lit_decision(lit)) {
-        last_backtracked_decision = lit_to_var(lit);
+        last_backtracked_decision = lit.var();
       }
       // we need to unassign the variable
-      var_unassign(lit_to_var(lit));
+      var_unassign(lit.var());
       _sync_validity_index = min(_sync_validity_index, (size_t) (j - _trail.data()));
       unsigned loc = j - _trail.data();
       _n_propagated_lits   -= loc < _n_propagated_lits;
@@ -270,7 +266,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
       // We need to fix the level of the literal
       var_level(var) = level_transformation[var_level(var)];
       ASSERT(var_level(var) != LEVEL_ERROR);
-      NOTIFY_OBSERVER(update_level, lit, var_level(var));
+      NOTIFY(update_level, lit, var_level(var));
     }
     *(j++) = *(i++);
   }
@@ -279,10 +275,10 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   _trail.resize(j - _trail.data());
 
   ASSERT(_n_propagated_lits <= _trail.size());
-  if (_observer) {
+  if (_sentinel) {
     while(new_propagation_head < _n_propagated_lits) {
       _n_propagated_lits--;
-      NOTIFY_OBSERVER(remove_propagation, _trail[_n_propagated_lits]);
+      NOTIFY(unpropagate, _trail[_n_propagated_lits]);
     }
   } else {
     _n_propagated_lits = new_propagation_head;

@@ -107,10 +107,11 @@
 #include "../utils/heap.hpp"
 #include "../utils/bitset.hpp"
 #include "../utils/luby-counter.hpp"
-#include "../observer/SAT-notification.hpp"
-#include "../observer/SAT-observer.hpp"
 #include "../observer/SAT-stat.hpp"
 #include "../exporter/implication_graph_exporter.hpp"
+
+#include "Sentinel-API.hpp"
+#include "Sentinel-wrapper.hpp"
 
 #include <vector>
 #include <set>
@@ -132,23 +133,27 @@
 #define NOTIFY_STAT(type)       ((void)0)
 #define NOTIFY_STAT_N(type, n)  ((void)0)
 #endif
-
 #if USE_OBSERVER
-#define NOTIFY_OBSERVER(NAME,...)             \
-  do {                                        \
-    if (_observer) {                          \
-      if(!_observer->notify(new napsat::gui::NAME(__VA_ARGS__))) { \
+#define NOTIFY(type, ...) \
+  do {                                          \
+    if (_sentinel) {                             \
+      if(!sentinel::wrapper::type(_sentinel __VA_OPT__(, __VA_ARGS__))) { \
         LOG_ERROR("The notification returned an error when executed by the observer"); \
-        if(_observer)                         \
-          _observer->notify(new napsat::gui::marker("Notification failed")); \
-        assert(false);                        \
-      }                                       \
-    }                                         \
-    NOTIFY_STAT(NAME);                        \
+        sentinel::wrapper::message(_sentinel, "An error occurred during application of " + std::string(#type) + " notification"); \
+        assert(false);                          \
+      }                                         \
+    }                                           \
   } while(0)
+
+#if NOTIFY_WATCH_CHANGES
+#define NOTIFY_WATCH(type, ...) NOTIFY(type, __VA_ARGS__)
 #else
-#define NOTIFY_OBSERVER(NAME,...)  NOTIFY_STAT(NAME)
+#define NOTIFY_WATCH(type, ...) ((void)0)
 #endif
+#else
+#define NOTIFY(observer, notification)  ((void)0)
+#endif
+
 #define SAVE_STATE                                                            \
 do {                                                                          \
   bool save = false;                                                          \
@@ -172,7 +177,7 @@ do {                                                                          \
   if (save) {                                                                 \
     exporter::implication_graph_exporter::export_implication_graph(           \
       "",                                                                     \
-      _vars.size() - 1,                                                       \
+      _vars.size().value - 1,                                                 \
       _trail,                                                                 \
       [this](Tlit lit) {                                                      \
         Tclause reason = this->lit_reason(lit);                               \
@@ -189,7 +194,7 @@ do {                                                                          \
       [this](Tlit lit) { return lit_to_md_info_string(lit); }                 \
     );                                                                        \
   }                                                                           \
-} while(0);
+} while(0)
 
 
 namespace napsat
@@ -218,7 +223,7 @@ namespace napsat
      * @brief Returns the number of variables in the solver.
      * @return the number of variables in the solver.
      */
-    inline unsigned var_count() const noexcept { return _vars.size(); }
+    inline Tvar var_count() const noexcept { return _vars.size(); }
 
     /**
      * @brief Parse a DIMACS file and add the clauses to the clause set.
@@ -244,18 +249,6 @@ namespace napsat
      * @brief Returns true if the solver has statistics.
      */
     bool has_statistics() const;
-
-    /**
-     * @brief Returns a pointer to the observer of the solver.
-     * @return pointer to the observer of the solver.
-     * @note The pointer is nullptr if the solver is not observing.
-     * @note It is the responsibility of the user querying the observer to not
-     * compromise the integrity of the observer. That is, the user must not
-     * delete the observer or modify its state.
-     * @warning This method is just a convenience for the main. It is not meant
-     * to be used in a library.
-     */
-    gui::observer* get_observer() const;
 
     /**
      * @brief Returns a pointer to the statistics of the solver;
@@ -422,7 +415,7 @@ namespace napsat
      * @pre The level must be lower than or equal to the current decision level.
      * @todo Not supported yet.
      */
-    void hint(Tlit lit, unsigned int level);
+    void hint(Tlit lit, Tlevel level);
 
     /**
      * @brief Notify the solver that the trail was synchronized by the user.
@@ -484,7 +477,7 @@ namespace napsat
      */
     inline void suggest_polarity(Tlit lit, bool polarity)
     {
-      unsigned var = lit_to_var(lit);
+      Tvar var = lit.var();
       ASSERT(var < _vars.size());
       _vars[var].phase_cache = polarity ? 1 : 0;
     }
@@ -542,7 +535,7 @@ public:
       TSvar() :
         marked(false),
         propagated(false),
-        state(VAR_UNDEF),
+        state(Tval::VAR_UNDEF),
         phase_cache(0),
         synced(0),
         constrained(0),
@@ -741,11 +734,11 @@ public:
     /**
      * @brief Status of the solver.
      */
-    status _status = UNKNOWN;
+    status _status = status::UNKNOWN;
     /**
      * @brief List of variables in the clause set.
      */
-    std::vector<TSvar> _vars;
+    indexed_vector<TSvar, Tvar> _vars;
     /**
      * @brief Trail of assigned literals.
      * @details The trail is divided into two parts π = τ ⋅ ω
@@ -762,7 +755,7 @@ public:
     /**
      * @brief Set of clauses
      */
-    std::vector<TSclause> _clauses;
+    indexed_vector<TSclause, Tclause> _clauses;
     /**
      * @brief List of deleted clauses. The memory of these clauses is available
      * for reuse.
@@ -777,24 +770,24 @@ public:
      * @remark This information was previously stored in the TSclause structure
      * but it was moved here to reduce the size of the TSclause structure.
     */
-    std::vector<unsigned> _clauses_sizes;
+    indexed_vector<unsigned, Tclause> _clauses_sizes;
 
     /**
      * @brief _watches[i] is the first clause of the watch list of the
      * literal i.
      */
-    std::vector<std::vector<TSwatch>> _watches;
+    indexed_vector<std::vector<TSwatch>, Tlit> _watches;
     /**
      * @brief _binary_watches[l] is the contains the pairs <lit, cl> where lit
      * is a literal to be propagated if l is falsified, and <cl> is the clause
      * that propagates lit.
     */
-    std::vector<std::vector<TSwatch>> _binary_watches;
+    indexed_vector<std::vector<TSwatch>, Tlit> _binary_watches;
     /**
      * @brief _decision_index[i] is the index of the decision made after level i.
      * @remark _decision_index[0] is the index of the first decision.
      */
-    std::vector<unsigned> _decision_index;
+    indexed_vector<unsigned, Tlevel> _decision_index;
 
     /**
      * @brief List of conflicts detected during propagation
@@ -839,12 +832,12 @@ public:
     /**
      * @brief For a clause C, _activities[C] is the activity of the clause.
     */
-    std::vector<double> _activities;
+    indexed_vector<double, Tclause> _activities;
     /**
      * @brief Priority queue of variables. The variables are ordered by their
      * activity.
      */
-    utils::heap _variable_heap;
+    napsat::utils::heap _variable_heap;
 
     /**  CLAUSE DELETION  **/
     /**
@@ -979,13 +972,13 @@ public:
      * @details A chunk is a set of variables reachable from a decision in the
      * implication graph.
      */
-    std::vector<TSchunk> _chunks;
+    indexed_vector<TSchunk, Tvar> _chunks;
 
     /**
      * @brief Contains the free chunks that can be reused.
      * @details Free chunks happen after backtracking, when a chunk is removed.
      */
-    std::vector<Tchunk> _free_chunks;
+    indexed_vector<Tchunk, Tvar> _free_chunks;
 
     /**
      * @brief Callback function called upon conflict analysis to heuristically determine
@@ -1029,14 +1022,14 @@ public:
      * @brief Proof builder of the solver. If _proof is not nullptr, the solver
      * builds a resolution proof for unsatisfiability.
     */
-    proof::resolution_proof* _proof = nullptr;
+    napsat::proof::resolution_proof* _proof = nullptr;
 
     /**
      * @brief Dependency tracker of the solver. If _dependency_tracker is not
      * nullptr, the solver tracks dependencies of learned clauses.
      * @details The dependency tracker is used to compute the UNSAT cores
      */
-    proof::dependency_tracker* _dependency_tracker = nullptr;
+    napsat::proof::dependency_tracker* _dependency_tracker = nullptr;
 
     /**  SMT SYNCHRONIZATION  **/
     /**
@@ -1047,18 +1040,8 @@ public:
 
     /**  INTERACTIVE SOLVER  **/
 #if USE_OBSERVER
-    /**
-     * @brief Observer of the solver. If _observer is not nullptr, the solver
-     * notifies the observer of its progress.
-     */
-    gui::observer* _observer = nullptr;
+    sentinel::SATSentinel* _sentinel = nullptr;
 #endif
-    /**
-     * @brief True if the solver is interactive.
-     * @details The solver is interactive if it stops between decisions to let
-     * the user make a decision, hint or learn a clause.
-     */
-    bool _interactive = false;
 
 #if USE_STATISTICS
     statistics* _statistics = nullptr;
@@ -1138,21 +1121,21 @@ public:
      */
     inline bool var_undef(Tvar var) const {
       ASSERT(var < _vars.size());
-      return  _vars[var].state == VAR_UNDEF;
+      return  _vars[var].state == Tval::VAR_UNDEF;
     }
     /**
      * @brief Returns true if the variable is assigned true.
      */
     inline bool var_true(Tvar var) const {
       ASSERT(var < _vars.size());
-      return _vars[var].state == VAR_TRUE;
+      return _vars[var].state == Tval::VAR_TRUE;
     }
     /**
      * @brief Returns true if the variable is assigned false.
      */
     inline bool var_false(Tvar var) const {
       ASSERT(var < _vars.size());
-      return _vars[var].state == VAR_FALSE;
+      return _vars[var].state == Tval::VAR_FALSE;
     }
     /**
      * @brief Returns the value of the given variable.
@@ -1160,7 +1143,7 @@ public:
      * @param var variable to evaluate.
      * @return value of the variable.
      */
-    inline unsigned var_value(Tvar var) const {
+    inline Tval var_value(Tvar var) const {
       ASSERT(var < _vars.size());
       return _vars[var].state;
     }
@@ -1170,21 +1153,21 @@ public:
      * @param lit literal to evaluate.
      * @return true if the literal is satisfied, false otherwise.
     */
-    inline bool lit_true(Tlit lit) const { return !(var_value(lit_to_var(lit)) ^ lit_pol(lit)); }
+    inline bool lit_true(Tlit lit) const { return lit.satisfied(_vars[lit.var()].state); }
 
     /**
      * @brief Returns true if a literal is falsified.
      * @param lit literal to evaluate.
      * @return true if the literal is falsified, false otherwise.
      */
-    inline bool lit_false(Tlit lit) const { return !(var_value(lit_to_var(lit)) ^ lit_pol(lit) ^ 1); }
+    inline bool lit_false(Tlit lit) const { return lit.falsified(_vars[lit.var()].state); }
 
     /**
      * @brief Returns true if the literal is undefined.
      * @param lit literal to evaluate.
      * @return true if the literal is undefined, false otherwise.
      */
-    inline bool lit_undef(Tlit lit) const { return var_value(lit_to_var(lit)) >> 1; }
+    inline bool lit_undef(Tlit lit) const { return lit.undefined(_vars[lit.var()].state); }
 
     /**
      * @brief Returns the level of the given variable.
@@ -1199,7 +1182,7 @@ public:
      * @param lit literal to evaluate.
      * @return level of the literal.
      */
-    inline Tlevel lit_level(Tlit lit) const { return var_level(lit_to_var(lit)); }
+    inline Tlevel lit_level(Tlit lit) const { return var_level(lit.var()); }
 
   private:
     /**
@@ -1218,7 +1201,7 @@ public:
      * @param lit literal to evaluate.
      * @return reference to the level of the literal.
      */
-    inline Tlevel& lit_level(Tlit lit) { return var_level(lit_to_var(lit)); }
+    inline Tlevel& lit_level(Tlit lit) { return var_level(lit.var()); }
 
     /**
      * @brief Returns that clause that implied the variable if such a clause exists.
@@ -1240,8 +1223,8 @@ public:
      * @param lit literal to evaluate.
      * @return reason of the literal.
      */
-    inline Tclause lit_reason(Tlit lit) const { return var_reason(lit_to_var(lit)); }
-    inline Tclause& lit_reason(Tlit lit) { return var_reason(lit_to_var(lit)); }
+    inline Tclause lit_reason(Tlit lit) const { return var_reason(lit.var()); }
+    inline Tclause& lit_reason(Tlit lit) { return var_reason(lit.var()); }
 
     inline double var_activity(Tvar var) const {
       ASSERT(var < _vars.size());
@@ -1267,18 +1250,18 @@ public:
      * @param lit literal to evaluate.
      * @return true if the literal is a decision literal, false otherwise.
      */
-    inline bool lit_decision(Tlit lit) const { return var_decision(lit_to_var(lit)); }
+    inline bool lit_decision(Tlit lit) const { return var_decision(lit.var()); }
 
     inline size_t var_order(Tvar var) const {
       ASSERT(var < _vars.size());
       return _vars[var].order;
     }
-    inline size_t lit_order(Tlit lit) const { return var_order(lit_to_var(lit)); }
+    inline size_t lit_order(Tlit lit) const { return var_order(lit.var()); }
     inline size_t& var_order(Tvar var) {
       ASSERT(var < _vars.size());
       return _vars[var].order;
     }
-    inline size_t& lit_order(Tlit lit) { return var_order(lit_to_var(lit)); }
+    inline size_t& lit_order(Tlit lit) { return var_order(lit.var()); }
 
     /**
      * @brief Returns the decision literal at the given level.
@@ -1316,7 +1299,7 @@ public:
     /**
      * @brief Returns true if the literal was propagated and false otherwise.
      */
-    inline bool lit_propagated(Tlit lit) const { return var_propagated(lit_to_var(lit)); }
+    inline bool lit_propagated(Tlit lit) const { return var_propagated(lit.var()); }
 
     /**
      * @brief Returns true if the variable is marked
@@ -1325,7 +1308,7 @@ public:
     /**
      * @brief Returns true if the literal is marked as marked
      */
-    inline bool lit_marked(Tlit lit) const { return var_marked(lit_to_var(lit)); }
+    inline bool lit_marked(Tlit lit) const { return var_marked(lit.var()); }
     /**
      * @brief Marks the variable
      */
@@ -1333,7 +1316,7 @@ public:
     /**
      * @brief Marks the literal
      */
-    inline void lit_mark(Tlit lit) { var_mark(lit_to_var(lit)); }
+    inline void lit_mark(Tlit lit) { var_mark(lit.var()); }
     /**
      * @brief Unmark the variable
      */
@@ -1341,38 +1324,38 @@ public:
     /**
      * @brief Unmark the literal
      */
-    inline void lit_unmark(Tlit lit) { var_unmark(lit_to_var(lit)); }
+    inline void lit_unmark(Tlit lit) { var_unmark(lit.var()); }
 
     inline bool var_synced(Tvar var) const {
       const TSvar& v = _vars[var];
-      return v.state != VAR_UNDEF && v.synced == v.state % 2;
+      return v.state != Tval::VAR_UNDEF && v.synced == v.state % 2;
     }
-    inline bool lit_synced(Tlit lit) const { return var_synced(lit_to_var(lit)); }
+    inline bool lit_synced(Tlit lit) const { return var_synced(lit.var()); }
     inline void var_sync(Tvar var) {
       ASSERT(!var_undef(var));
       _vars[var].synced = _vars[var].state % 2;
       NOTIFY_STAT(_n_sync);
     }
-    inline void lit_sync(Tlit lit) { var_sync(lit_to_var(lit)); }
+    inline void lit_sync(Tlit lit) { var_sync(lit.var()); }
 
     inline bool var_locked(Tvar var) const { return _vars[var].locked; }
-    inline bool lit_locked(Tlit lit) const { return var_locked(lit_to_var(lit)); }
+    inline bool lit_locked(Tlit lit) const { return var_locked(lit.var()); }
     inline void var_lock(Tvar var) {
       ASSERT(!var_undef(var));
       ASSERT(!_vars[var].locked);
       _vars[var].locked = true;
-      NOTIFY_OBSERVER(lock_assumption, literal(var, var_true(var)));
+      NOTIFY(lock_assumption, Tlit(var, var_value(var)));
       _n_assumptions++;
     }
-    inline void lit_lock(Tlit lit) { var_lock(lit_to_var(lit)); }
+    inline void lit_lock(Tlit lit) { var_lock(lit.var()); }
     inline void var_unlock(Tvar var) {
       ASSERT(!var_undef(var));
       ASSERT(_vars[var].locked);
       _vars[var].locked = false;
-      NOTIFY_OBSERVER(unlock_assumption, literal(var, var_true(var)));
+      NOTIFY(unlock_assumption, Tlit(var, var_value(var)));
       _n_assumptions--;
     }
-    inline void lit_unlock(Tlit lit) { var_unlock(lit_to_var(lit)); }
+    inline void lit_unlock(Tlit lit) { var_unlock(lit.var()); }
 
     /**  LAZY REIMPLICATION  **/
     /**
@@ -1392,8 +1375,8 @@ public:
      * @param lit literal to evaluate.
      * @return a missed lower implication of the literal.
      */
-    inline Tclause lit_lazy_reason(Tlit lit) const { return _vars[lit_to_var(lit)].missed_lower_implication; }
-    inline Tclause& lit_lazy_reason(Tlit lit) { return _vars[lit_to_var(lit)].missed_lower_implication; }
+    inline Tclause lit_lazy_reason(Tlit lit) const { return _vars[lit.var()].missed_lower_implication; }
+    inline Tclause& lit_lazy_reason(Tlit lit) { return _vars[lit.var()].missed_lower_implication; }
 
     /**
      * @brief Returns the level of the lazy reimplication of a literal.
@@ -1431,8 +1414,8 @@ public:
      * @param lit literal to evaluate.
      * @return chunk of the variable of the literal.
      */
-    inline const bitset& lit_chunks(Tlit lit) const { return var_chunks(lit_to_var(lit)); }
-    inline bitset& lit_chunks(Tlit lit) { return var_chunks(lit_to_var(lit)); }
+    inline const bitset& lit_chunks(Tlit lit) const { return var_chunks(lit.var()); }
+    inline bitset& lit_chunks(Tlit lit) { return var_chunks(lit.var()); }
 
     /**
      * @brief Returns the decision level of the decision starting a chunk
@@ -1454,8 +1437,8 @@ public:
      * @param lit literal to evaluate.
      * @return cross-chunk dependencies of the variable of the literal.
      */
-    inline const bitset& lit_cross_chunks(Tlit lit) const { return var_cross_chunks(lit_to_var(lit)); }
-    inline bitset& lit_cross_chunks(Tlit lit) { return var_cross_chunks(lit_to_var(lit)); }
+    inline const bitset& lit_cross_chunks(Tlit lit) const { return var_cross_chunks(lit.var()); }
+    inline bitset& lit_cross_chunks(Tlit lit) { return var_cross_chunks(lit.var()); }
 
     /** CLAUSES **/
     /**
@@ -1924,7 +1907,7 @@ public:
 
       std::string to_string() const {
         std::string res = "chunks: " + chunks.to_string();
-        res += "(" + std::to_string(lowest_level) + "-" + std::to_string(highest_level) + ")";
+        res += "(" + lowest_level.to_string() + "-" + highest_level.to_string() + ")";
         res += " = " + std::to_string(total_weight);
         if (finished)
           res += " (finished)";
@@ -2340,12 +2323,6 @@ public:
     void bump_var_activity(Tvar var);
 
     /**
-     * @brief Prints a literal on the standard output.
-     * @param lit literal to print.
-     */
-    void print_lit(Tlit lit) const;
-
-    /**
      * @brief Parses a command and executes it.
      * @details A valid command is a command of the type
      * DECIDE [literal]       (to decide a literal, if literal is not provided,
@@ -2446,18 +2423,6 @@ public:
      * are consistent with their position in the trail.
      */
     bool check_decision_index_consistency() const;
-
-    /**
-     * @brief Returns true if the order of variables is monotonic in the trail
-     */
-    bool check_trail_order_consistency();
-
-    /**
-     * @brief Returns true if the decision levels of the literals in the trail
-     * are monotonic.
-     */
-    bool check_trail_monotonicity();
-
     /**
      * @brief returns true if the clause cl is in the watch list of the literal
      * lit.
@@ -2516,5 +2481,18 @@ public:
      * @warning This function is very expensive and should only be used for debugging
      */
     bool check_lit_needs_fixing(Tlit lit) const;
+
+    /**
+     * @brief Returns true if the watch lists of the solver are minimal.
+     * @warning This function is very expensive and should only be used for debugging
+     */
+    bool watch_lists_minimal();
+
+    std::vector<sentinel::WatchInvariant*> _watch_invariants;
+
+    /**
+     * @brief Loads the invariant configuration from a file. The invariant configuration is a set of invariants that are checked by the sentinel during the execution of the solver. The configuration file is a text file with one invariant per line. Each invariant is a string that describes the invariant to check.
+     */
+    void load_invariant_configuration(sentinel::SentinelOptions& s_options);
   };
 }

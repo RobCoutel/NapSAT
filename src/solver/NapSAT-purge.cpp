@@ -25,10 +25,10 @@ using namespace std;
 void napsat::NapSAT::repair_watch_lists()
 {
   /** REPAIR BINARY WATCH LIST **/
-  for (Tlit lit = 2; lit < _watches.size(); lit++) {
+  for (Tlit lit = 2; lit < _watches.size(); lit.value++) {
     for (unsigned j = 0; j < _binary_watches[lit].size(); j++) {
       Tclause cl = _binary_watches[lit][j].cl;
-      ASSERT_MSG(cl != CLAUSE_UNDEF,
+      ASSERT(cl != CLAUSE_UNDEF,
         "Error: binary clause " << lit_to_string(lit) << " <- " << lit_to_string(_binary_watches[lit][j].block) << " is undefined");
       if (_clauses[cl].deleted) {
         _binary_watches[lit].erase(_binary_watches[lit].begin() + j);
@@ -37,7 +37,7 @@ void napsat::NapSAT::repair_watch_lists()
     }
   }
   /** REPAIR WATCH LISTS **/
-  for (Tlit lit = 2; lit < _watches.size(); lit++) {
+  for (Tlit lit = 2; lit < _watches.size(); lit.value++) {
     vector<TSwatch>& watch_list = _watches[lit];
     TSwatch* i = watch_list.data();
     TSwatch* end = i + watch_list.size();
@@ -47,16 +47,15 @@ void napsat::NapSAT::repair_watch_lists()
       if (clause.deleted || !clause.watched
        || (clause.lits[0] != lit && clause.lits[1] != lit)
        || clause.size <= 2) {
-#if NOTIFY_WATCH_CHANGES
-        if(!clause.deleted && clause.size != 2)
-          NOTIFY_OBSERVER(unwatch, i->cl, lit);
-#endif
+        if(!clause.deleted && clause.size != 2) {
+          NOTIFY_WATCH(unwatch, i->cl, lit);
+        }
         *i = *(--end);
         continue;
       }
       i++;
     }
-    watch_list.resize(end - watch_list.data());
+    watch_list.resize((size_t) (end - watch_list.data()));
   }
 }
 
@@ -71,7 +70,7 @@ void napsat::NapSAT::purge_root_watch_lists()
     if (lit_level(lit) != LEVEL_ROOT)
       continue;
 
-    lit = lit_neg(lit);
+    lit = ~lit;
     vector<TSwatch>& watch_list = _watches[lit];
     TSwatch* j = watch_list.data();
     TSwatch* k = j;
@@ -91,14 +90,12 @@ void napsat::NapSAT::purge_root_watch_lists()
         *(k++) = *j;
         continue;
       }
-#if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(unwatch, cl, lit);
-#endif
+      NOTIFY_WATCH(unwatch, cl, lit);
       // if the clause is already deleted, do not bother
       if (clause.deleted)
         continue;
 
-      ASSERT_MSG(clause.size > 2,
+      ASSERT(clause.size > 2,
         "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
       if (lit_true(w.block) && lit_level(w.block) == LEVEL_ROOT) {
         // delete the clause. repair_watch_lists will take care of the rest
@@ -177,7 +174,7 @@ void napsat::NapSAT::purge_clauses()
         }
         // remove the literal and push it to the back
         // we push it to the back so that we can print the clause even after the literal is removed
-        NOTIFY_OBSERVER(remove_literal, cl, *i);
+        NOTIFY(shrink_clause, cl, *i);
         Tlit tmp = *i;
         *i = *end;
         *end = tmp;
@@ -201,18 +198,18 @@ void napsat::NapSAT::purge_clauses()
       else if (lit_propagated(lits[1])) {
 #ifndef NDEBUG
         for (unsigned i = 2; i < clause.size; i++) {
-          ASSERT_MSG(lit_false(lits[i]),
+          ASSERT(lit_false(lits[i]),
             "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]));
-          ASSERT_MSG(lit_level(lits[i]) == LEVEL_ROOT,
-            "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]) + "\nLevel: " + std::to_string(lit_level(lits[i])));
+          ASSERT(lit_level(lits[i]) == LEVEL_ROOT,
+            "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]) + "\nLevel: " + lit_level(lits[i]).to_string());
         }
 #endif
-        NOTIFY_OBSERVER(remove_literal, cl, lits[1]);
+        NOTIFY(shrink_clause, cl, lits[1]);
         clause.size--;
       }
     }
 
-    ASSERT_MSG(!clause.deleted,
+    ASSERT(!clause.deleted,
                "Clause: " + clause_to_string(cl) + " was deleted.");
     if (_proof && previous_size != clause.size) {
       _proof->start_resolution_chain();
@@ -230,9 +227,9 @@ void napsat::NapSAT::purge_clauses()
 
     if (clause.size == 2) {
       _binary_watches[lits[0]].push_back(TSwatch(cl, lits[1]));
-      NOTIFY_OBSERVER(block, cl, lits[1], lits[0]);
+      NOTIFY(block, cl, lits[1], lits[0]);
       _binary_watches[lits[1]].push_back(TSwatch(cl, lits[0]));
-      NOTIFY_OBSERVER(block, cl, lits[0], lits[1]);
+      NOTIFY(block, cl, lits[0], lits[1]);
       NOTIFY_STAT(_n_binary_clause_simplified);
     }
     if (clause.size == 1) {
@@ -252,7 +249,7 @@ void napsat::NapSAT::purge_clauses()
   }
   // remove the deleted clauses
   repair_watch_lists();
-  NOTIFY_OBSERVER(check_invariants);
+  NOTIFY(check_invariants);
   ASSERT(check_watch_lists_complete());
   ASSERT(check_watch_lists_minimal());
 }

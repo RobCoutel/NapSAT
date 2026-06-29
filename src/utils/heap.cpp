@@ -17,14 +17,15 @@
 #include <vector>
 #include <cstring>
 
+using namespace napsat;
 using namespace napsat::utils;
 
 void heap::swap(unsigned i, unsigned j)
 {
   assert(i < _heap.size());
   assert(j < _heap.size());
-  unsigned key_i = _heap[i];
-  unsigned key_j = _heap[j];
+  Tvar key_i = _heap[i];
+  Tvar key_j = _heap[j];
   _heap[i] = key_j;
   _heap[j] = key_i;
   _index[key_i] = j;
@@ -60,13 +61,13 @@ void heap::heapify_up(unsigned i)
   }
 }
 
-void heap::insert(unsigned key, double activity)
+void heap::insert(Tvar key, double activity)
 {
   if (_index.size() <= key) {
-    unsigned old_size = _index.size();
+    Tvar old_size = _index.size();
     _index.resize(key + 1);
     _activity.resize(key + 1);
-    for (unsigned i = old_size; i < _index.size(); i++)
+    for (Tvar i = old_size; i < _index.size(); i++)
       _index[i] = LOCATION_UNDEF;
   }
   assert(_index[key] == LOCATION_UNDEF);
@@ -76,7 +77,7 @@ void heap::insert(unsigned key, double activity)
   heapify_up(_heap.size() - 1);
 }
 
-void heap::remove(unsigned key)
+void heap::remove(Tvar key)
 {
   assert(key < _index.size());
   assert(_index[key] != LOCATION_UNDEF);
@@ -88,7 +89,7 @@ void heap::remove(unsigned key)
     heapify_down(i);
 }
 
-void napsat::utils::heap::update(unsigned key, double activity)
+void napsat::utils::heap::update(Tvar key, double activity)
 {
   assert(_index[key] != LOCATION_UNDEF);
   _activity[key] = activity;
@@ -98,16 +99,16 @@ void napsat::utils::heap::update(unsigned key, double activity)
 
 void napsat::utils::heap::normalize(double factor)
 {
-  for (unsigned i = 0; i < _activity.size(); i++)
+  for (Tvar i = 0; i < _activity.size(); i++)
     _activity[i] *= factor;
 }
 
-bool napsat::utils::heap::contains(unsigned key)
+bool napsat::utils::heap::contains(Tvar key)
 {
   return key < _index.size() && _index[key] != LOCATION_UNDEF;
 }
 
-void napsat::utils::heap::increase_activity(unsigned key, double activity)
+void napsat::utils::heap::increase_activity(Tvar key, double activity)
 {
   assert(_index[key] != LOCATION_UNDEF);
   assert(_activity[key] <= activity);
@@ -115,10 +116,10 @@ void napsat::utils::heap::increase_activity(unsigned key, double activity)
   heapify_up(_index[key]);
 }
 
-unsigned heap::pop()
+Tvar heap::pop()
 {
   assert(_heap.size() > 0);
-  unsigned key = _heap[0];
+  Tvar key = _heap[0];
   swap(0, _heap.size() - 1);
   _heap.pop_back();
   if (_heap.size() > 0)
@@ -127,7 +128,7 @@ unsigned heap::pop()
   return key;
 }
 
-unsigned heap::top()
+Tvar heap::top()
 {
   assert(_heap.size() > 0);
   return _heap[0];

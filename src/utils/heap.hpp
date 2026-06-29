@@ -12,6 +12,8 @@
 */
 #pragma once
 
+#include "SAT-types.hpp"
+
 #include <vector>
 
 #define LOCATION_UNDEF 0xffffffff
@@ -27,15 +29,15 @@ namespace napsat::utils
     /**
      * @brief The heap.
     */
-    std::vector<unsigned> _heap;
+    std::vector<napsat::Tvar> _heap;
     /**
      * @brief The index of each element in the heap.
     */
-    std::vector<unsigned> _index;
+    indexed_vector<unsigned, Tvar> _index;
     /**
      * @brief The activity of each element in the heap.
     */
-    std::vector<double> _activity;
+    indexed_vector<double, Tvar> _activity;
 
     inline unsigned parent(unsigned i)
     {
@@ -80,7 +82,7 @@ namespace napsat::utils
      * @pre The heap does not contain the given key.
      * @details Complexity: O(log n) where n is the size of the heap.
     */
-    void insert(unsigned key, double activity);
+    void insert(Tvar key, double activity);
 
     /**
      * @brief Removes an element from the heap.
@@ -88,7 +90,7 @@ namespace napsat::utils
      * @pre The heap contains the given key.
      * @details Complexity: O(log n) where n is the size of the heap.
     */
-    void remove(unsigned key);
+    void remove(Tvar key);
 
     /**
      * @brief Increases the activity of an element in the heap.
@@ -99,7 +101,7 @@ namespace napsat::utils
      * @details Complexity: O(log n) where n is the size of the heap.
      * @details This function is slightly faster than calling update if the activity is known to increase.
     */
-    void increase_activity(unsigned key, double activity);
+    void increase_activity(Tvar key, double activity);
 
     /**
      * @brief Updates the activity of an element in the heap.
@@ -108,7 +110,7 @@ namespace napsat::utils
      * @pre The heap contains the given key.
      * @details Complexity: O(log n) where n is the size of the heap.
     */
-    void update(unsigned key, double activity);
+    void update(Tvar key, double activity);
 
     /**
      * @brief Down scales the activity of all elements in the heap.
@@ -123,7 +125,7 @@ namespace napsat::utils
      * @return True if the heap contains the given key, false otherwise.
      * @details Complexity: O(1).
     */
-    bool contains(unsigned key);
+    bool contains(Tvar key);
 
     /**
      * @brief Checks if the heap is empty.
@@ -138,7 +140,7 @@ namespace napsat::utils
      * @pre The heap is not empty.
      * @details Complexity: O(log n) where n is the size of the heap.
     */
-    unsigned pop();
+    Tvar pop();
 
     /**
      * @brief Returns the key of the element at the top of the heap.
@@ -146,7 +148,7 @@ namespace napsat::utils
      * @pre The heap is not empty.
      * @details Complexity: O(1).
     */
-    unsigned top();
+    Tvar top();
 
     /**
      * @brief Returns the size of the heap.

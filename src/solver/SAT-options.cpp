@@ -14,7 +14,6 @@
 #include "SAT-options.hpp"
 
 #include "../utils/printer.hpp"
-#include "../observer/SAT-notification.hpp"
 
 #include <string>
 #include <iostream>
@@ -244,7 +243,11 @@ napsat::options::options(vector<string>& tokens)
     {"--backtrack-possibilities-limit",   &backtrack_possibilities_limit},
     {"--sync-weight",                     &sync_weight},
     {"--conflict-limit",                  &conflict_limit},
-    {"--chunk-level-penalty",             &chunk_level_penalty}
+    {"--chunk-level-penalty",             &chunk_level_penalty},
+    {"--timeout",                         &timeout},
+    {"-t",                                &timeout},
+    {"--conflict-limit",                  &conflict_limit},
+    {"-cl",                               &conflict_limit},
   };
 
   /**

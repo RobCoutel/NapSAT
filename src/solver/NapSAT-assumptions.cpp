@@ -18,7 +18,7 @@ using namespace std;
 
 bool NapSAT::assume(Tlit assumption)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   // In CB and NCB, assumptions are added as decisions at the bottom of the trail.
   bool success = true;
   if (_options.graph_backtracking) {
@@ -40,7 +40,7 @@ bool NapSAT::add_assumption(const std::vector<Tlit>& assumptions)
 
 bool NapSAT::forget_assumption(Tlit assumption)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   if (_options.graph_backtracking) {
     if (!lit_locked(assumption)) {
       // the assumption was not added
@@ -52,8 +52,8 @@ bool NapSAT::forget_assumption(Tlit assumption)
     _locked_chunks -= lit_chunks(assumption);
     lit_unlock(assumption);
   }
-  if (_status == UNSAT) {
-    _status = UNKNOWN;
+  if (_status == status::UNSAT) {
+    _status = status::UNKNOWN;
     repair_conflicts();
   }
   return true;
@@ -61,27 +61,27 @@ bool NapSAT::forget_assumption(Tlit assumption)
 
 void NapSAT::forget_assumption()
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   if (_options.graph_backtracking) {
     // unlock all locked chunks
     for (auto it = _locked_chunks.cbegin(); it != _locked_chunks.cend(); ++it) {
       Tvar var = _chunks[*it].decision;
-      Tlit lit = literal(var, lit_pol(var));
+      Tlit lit(var, var_value(var));
       ASSERT(lit_decision(lit));
       lit_unlock(lit);
     }
     _locked_chunks.clear();
   }
-  if (_status == UNSAT) {
-    _status = UNKNOWN;
+  if (_status == status::UNSAT) {
+    _status = status::UNKNOWN;
     repair_conflicts();
   }
 }
 
 std::vector<Tlit> napsat::NapSAT::unsat_core() const
 {
-  ASSERT(_status == UNSAT);
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_status == status::UNSAT);
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   // look at each conflict clause, and find the ones that are failed by locked
   // chunks only. Return the corresponding literals.
   std::vector<Tlit> failed;
@@ -110,9 +110,9 @@ std::vector<Tlit> napsat::NapSAT::unsat_core() const
 
 std::vector<Tclause> napsat::NapSAT::clause_unsat_core()
 {
-  ASSERT(_status == UNSAT);
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
-  ASSERT_MSG(_dependency_tracker, "Clause unsat core requires a dependency tracker.");
+  ASSERT(_status == status::UNSAT);
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_dependency_tracker, "Clause unsat core requires a dependency tracker.");
   // look at each conflict clause, and find the ones that are failed by locked
   // chunks only. Return the corresponding clauses.
   std::set<Tclause> failed;
@@ -177,13 +177,13 @@ std::vector<Tclause> napsat::NapSAT::clause_unsat_core()
 
 bool NapSAT::add_assumption_N_CB(Tlit lit)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   return false;
 }
 
 void NapSAT::add_assumption_GB_true(Tlit lit)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   ASSERT(lit_true(lit));
   ASSERT(_options.graph_backtracking);
   // check if the literal is already a decision
@@ -232,18 +232,17 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
   _decision_index[level] = pos;
 
   lit_lazy_reason(lit) = lit_reason(lit);
-  NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(lit), lit_reason(lit));
   lit_reason(lit) = CLAUSE_UNDEF;
-  NOTIFY_OBSERVER(update_reason, lit, CLAUSE_UNDEF);
+  NOTIFY(update_reason, lit, CLAUSE_UNDEF);
   lit_level(lit) = level+1;
-  NOTIFY_OBSERVER(update_level, lit, level+1);
+  NOTIFY(update_level, lit, level+1);
 
   lit_chunks(lit).clear();
   unsigned ck = _free_chunks.back();
   _free_chunks.pop_back();
 
   lit_chunks(lit).set(ck, true);
-  _chunks[ck].decision = lit;
+  _chunks[ck].decision = lit.var();
   _chunks[ck].missed_implication = lit_chunk;
   _locked_chunks.set(ck, true);
 
@@ -260,7 +259,7 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
     // update level
     if (lit_level(l) >= level) {
       lit_level(l)++;
-      NOTIFY_OBSERVER(update_level, l, lit_level(l));
+      NOTIFY(update_level, l, lit_level(l));
     }
     // update chunks if necessary
     if (lit_chunk >= lit_chunks(l)) {
@@ -276,17 +275,17 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
         recomputed_level = std::max(recomputed_level, lit_level(rl));
       }
       if (lit_level(l) != recomputed_level) {
-        NOTIFY_OBSERVER(update_level, l, recomputed_level);
+        NOTIFY(update_level, l, recomputed_level);
       }
       lit_level(l) = recomputed_level;
-      NOTIFY_OBSERVER(update_level, l, recomputed_level);
+      NOTIFY(update_level, l, recomputed_level);
     }
   }
 }
 
 bool NapSAT::add_assumption_GB_false(Tlit lit)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   ASSERT(lit_false(lit));
   ASSERT(_options.graph_backtracking);
 
@@ -297,8 +296,8 @@ bool NapSAT::add_assumption_GB_false(Tlit lit)
 
 bool NapSAT::add_assumption_GB_false(std::vector<Tlit>& lits)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
-  _status = UNKNOWN;
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  _status = status::UNKNOWN;
   ASSERT(!lits.empty());
   ASSERT(_options.graph_backtracking);
   ASSERT(all_of(lits.begin(), lits.end(),
@@ -339,7 +338,7 @@ bool NapSAT::add_assumption_GB_false(std::vector<Tlit>& lits)
 
 void NapSAT::add_assumption_GB_undef(Tlit lit)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   ASSERT(lit_undef(lit));
   ASSERT(_options.graph_backtracking);
   // convert the literal into a decision at the current level
@@ -352,10 +351,10 @@ void NapSAT::add_assumption_GB_undef(Tlit lit)
 
 void NapSAT::remove_assumption_N_CB(Tlit lit)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
 }
 
 void NapSAT::remove_assumption_GB(Tlit lit)
 {
-  ASSERT_MSG(_options.graph_backtracking, "Only implemented for graph backtracking.");
+  ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
 }

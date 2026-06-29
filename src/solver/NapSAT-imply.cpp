@@ -46,13 +46,13 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
 
   _trail.push_back(lit);
 
-  Tvar var = lit_to_var(lit);
+  Tvar var = lit.var();
   TSvar& svar = _vars[var];
   svar.order = _current_order++;
-  svar.state = lit_pol(lit);
+  svar.state = lit.pol() ? Tval::VAR_TRUE : Tval::VAR_FALSE;
   svar.propagated = false;
   svar.reason = reason;
-  svar.phase_cache = lit_pol(lit);
+  svar.phase_cache = lit.pol();
 
   // for the logic, look at the comment in NapSAT.hpp
 
@@ -60,20 +60,20 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     // Decision
     _decision_index.push_back(_trail.size() - 1);
     svar.level = solver_level();
-    NOTIFY_OBSERVER(decision, lit);
+    NOTIFY(assign, lit);
     if (_options.graph_backtracking) {
       if (_free_chunks.empty()) {
         allocate_chunks(2 * _n_allocated_chunks);
       }
       Tchunk chunk_number = _free_chunks.back();
-      ASSERT (_n_allocated_chunks == _chunks.size());
-      ASSERT_MSG(chunk_number < _n_allocated_chunks,
+      ASSERT (_n_allocated_chunks == _chunks.size().value);
+      ASSERT(chunk_number < _n_allocated_chunks,
         "Chunk number: " + std::to_string(chunk_number) +
         "\nNumber of allocated chunks: " + std::to_string(_n_allocated_chunks));
       _free_chunks.pop_back();
       svar.chunks.set(chunk_number, true);
       _chunks[chunk_number].decision = var;
-      ASSERT_MSG(_chunks.size() == solver_level() + _free_chunks.size(),
+      ASSERT(_chunks.size().value == solver_level().value + _free_chunks.size().value,
         "Chunks size: " + std::to_string(_chunks.size()) +
         "\nSolver level: " + std::to_string(solver_level()) +
         "\nFree chunks size: " + std::to_string(_free_chunks.size()));
@@ -81,7 +81,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   }
   else if (reason == CLAUSE_LAZY) {
     // Theory propagation
-    ASSERT_MSG(false, "Lazy reason is not implemented yet");
+    ASSERT(false, "Lazy reason is not implemented yet");
   }
   else {
     // Implied literal
@@ -106,7 +106,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
         svar.level = lit_level(lits[1]);
       }
     }
-    NOTIFY_OBSERVER(implication, lit, reason, svar.level);
+    NOTIFY(assign, lit, reason);
   }
 
   if (svar.level == LEVEL_ROOT) {
@@ -130,7 +130,6 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 
   if (_options.lazy_strong_chronological_backtracking) {
     lit_lazy_reason(lit) = reason;
-    NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(lit), reason);
     return;
   }
 
@@ -159,16 +158,16 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
     Tchunk ck = *lit_chunks(lit).cbegin();
     _locked_chunks.set(ck, false);
     _free_chunks.push_back(ck);
-    _chunks[ck].decision = VAR_UNDEF;
+    _chunks[ck].decision = Tvar();
     _chunks[ck].missed_implication.clear();
     _decision_index.resize(_decision_index.size() - 1);
   }
 
   // update the level of the literal to root
   lit_level(lit) = LEVEL_ROOT;
-  NOTIFY_OBSERVER(update_level, lit, LEVEL_ROOT);
+  NOTIFY(update_level, lit, LEVEL_ROOT);
   lit_reason(lit) = reason;
-  NOTIFY_OBSERVER(update_reason, lit, reason);
+  NOTIFY(update_reason, lit, reason);
 
   // this does nothing outside of GB, but it does not hurt either
   bitset old_chunks = lit_chunks(lit);
@@ -182,12 +181,12 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
       if (squash_level) {
         if (lit_level(l) > old_level) {
           lit_level(l)--;
-          NOTIFY_OBSERVER(update_level, l, lit_level(l));
+          NOTIFY(update_level, l, lit_level(l));
         }
       }
 
       if (lit_decision(l)) {
-        ASSERT_MSG(lit_level(l) >= old_level,
+        ASSERT(lit_level(l) >= old_level,
                    "Literal " + lit_to_string(l) + " at position " + std::to_string(i) +
                    " should have level greater than " + std::to_string(old_level) +
                    " but has level " + std::to_string(lit_level(l)));
@@ -204,14 +203,14 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
       if (reason_size == 1) {
         // reason is a unit clause, so the level is root
         lit_level(l) = LEVEL_ROOT;
-        NOTIFY_OBSERVER(update_level, l, LEVEL_ROOT);
+        NOTIFY(update_level, l, LEVEL_ROOT);
       } else if(reason_size == 2) {
         // reason is a binary clause, so the level is the one of the other literal
         const Tlit* lits = clause_lits(reason);
         ASSERT(lits[0] == l || lits[1] == l);
         Tlit other = lits[0] == l ? lits[1] : lits[0];
         lit_level(l) = lit_level(other);
-        NOTIFY_OBSERVER(update_level, l, lit_level(other));
+        NOTIFY(update_level, l, lit_level(other));
       } else {
         Tlit* lits = clause_lits(reason);
         unsigned size = clause_size(reason);
@@ -227,7 +226,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
           watch_lit(lits[1], reason);
         }
         lit_level(l) = lit_level(lits[1]);
-        NOTIFY_OBSERVER(update_level, l, lit_level(lits[1]));
+        NOTIFY(update_level, l, lit_level(lits[1]));
       }
     }
   }
@@ -239,13 +238,13 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
       if (squash_level) {
         if (lit_level(l) > old_level) {
           lit_level(l)--;
-          NOTIFY_OBSERVER(update_level, l, lit_level(l));
+          NOTIFY(update_level, l, lit_level(l));
         }
         lit_cross_chunks(l).set(*old_chunks.cbegin(), false);
       }
 
       if (lit_decision(l)) {
-        ASSERT_MSG(lit_level(l) >= old_level,
+        ASSERT(lit_level(l) >= old_level,
                    "Literal " + lit_to_string(l) + " at position " + std::to_string(i) +
                    " should have level greater than " + std::to_string(old_level) +
                    " but has level " + std::to_string(lit_level(l)));
@@ -260,7 +259,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
         lit_level(l) = implication_level(lit_reason(l));
         recompute_chunks(l);
         if (lit_level(l) != prev_level) {
-          NOTIFY_OBSERVER(update_level, l, lit_level(l));
+          NOTIFY(update_level, l, lit_level(l));
         }
       }
     }
@@ -303,7 +302,6 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
       return;
     }
     lit_lazy_reason(c2) = reason;
-    NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
     return;
   }
   /* GRAPH BACKTRACKING */
@@ -341,7 +339,6 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
     if (!reimplication_cycle(decision_chunk, chunks)) {
       lit_lazy_reason(c2) = reason;
       _chunks[decision_chunk].missed_implication = chunks;
-      NOTIFY_OBSERVER(missed_lower_implication, lit_to_var(c2), reason);
     }
   }
 }
@@ -398,7 +395,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   lit_reason(decision) = reason;
   ASSERT(lit_chunks(decision).count() == 1);
   _free_chunks.push_back(*lit_chunks(decision).cbegin());
-  NOTIFY_OBSERVER(update_reason, decision, reason);
+  NOTIFY(update_reason, decision, reason);
   // update the decision level and bitset
   lit_level(decision) = implication_level(reason);
   lit_chunks(decision) = reason_chunks;
@@ -410,9 +407,9 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
 
 #if USE_OBSERVER
   // we need to change the trail completely. Notify the observer.
-  if (_observer) {
+  if (_sentinel) {
     for (size_t i = _trail.size(); i-- > decision_position;) {
-      NOTIFY_OBSERVER(unassignment, _trail[i]);
+      NOTIFY(unassign, _trail[i]);
     }
   }
 #endif
@@ -520,16 +517,12 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
 
 #if USE_OBSERVER
   // we need to change the trail completely. Notify the observer.
-  if (_observer) {
+  if (_sentinel) {
     for (size_t i = decision_position; i < _trail.size(); i++) {
       Tlit lit = _trail[i];
-      if (lit_decision(lit)) {
-        NOTIFY_OBSERVER(decision, lit);
-      } else {
-        NOTIFY_OBSERVER(implication, lit, lit_reason(lit), lit_level(lit));
-      }
+      NOTIFY(assign, lit, lit_reason(lit));
       if (i < _n_propagated_lits) {
-        NOTIFY_OBSERVER(propagation, lit);
+        NOTIFY(propagate, lit);
       }
     }
   }

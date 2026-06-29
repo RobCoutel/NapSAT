@@ -18,7 +18,7 @@
 #include "custom-assert.hpp"
 #include "../utils/printer.hpp"
 
-#include <unordered_set>
+#include <fstream>
 
 using namespace std;
 using namespace napsat;
@@ -67,7 +67,7 @@ bool napsat::NapSAT::check_clause_falsified(Tclause cl) const
 
 bool napsat::NapSAT::check_lit_needs_fixing(Tlit lit) const
 {
-  lit = lit_neg(lit);
+  lit = ~lit;
   for (const TSwatch& bw : _binary_watches[lit]) {
     if (!lit_true(bw.block))
       return true;
@@ -119,14 +119,14 @@ bool napsat::NapSAT::check_trail_variable_consistency() const
     if (!var_undef(var)) {
       bool found = false;
       for (Tlit lit : _trail) {
-        if (lit_to_var(lit) == var) {
+        if (lit.var() == var) {
           found = true;
           break;
         }
       }
       if (!found) {
         success = false;
-        LOG_ERROR("Invariant violation: variable " << var << " is assigned " << var_true(var) << " but its literal " << literal(var, var_true(var)) << " is in the trail");
+        LOG_ERROR("Invariant violation: variable " << var << " is assigned " << var_true(var) << " but its literal " << Tlit(var, var_true(var)) << " is in the trail");
       }
     }
   }
@@ -136,7 +136,7 @@ bool napsat::NapSAT::check_trail_variable_consistency() const
 bool napsat::NapSAT::check_decision_index_consistency() const
 {
   bool success = true;
-  for (size_t i = 0; i < _decision_index.size(); i++) {
+  for (Tlevel i = 0; i < _decision_index.size(); i++) {
     if (_decision_index[i] >= _trail.size()) {
       success = false;
       LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << i << ", index " << _decision_index[i] << " is out of bounds (trail size: " << _trail.size() << ")");
@@ -149,12 +149,12 @@ bool napsat::NapSAT::check_decision_index_consistency() const
     }
     if (lit_level(lit) != i + 1) {
       success = false;
-      LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << i + 1 << ", index " << _decision_index[i] << " points to literal " << lit_to_string(lit) << " which is at level " << lit_level(lit));
+      LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << (i + 1) << ", index " << _decision_index[i] << " points to literal " << lit_to_string(lit) << " which is at level " << lit_level(lit));
     }
   }
   if (!success) {
     // print the _decision_index for debugging
-    for (size_t i = 0; i < _decision_index.size(); i++) {
+    for (Tlevel i = 0; i < _decision_index.size(); i++) {
       cout << "_decision_index[" << i << "] = " << _decision_index[i] << endl;
     }
   }
@@ -164,7 +164,7 @@ bool napsat::NapSAT::check_decision_index_consistency() const
 bool napsat::NapSAT::check_is_watched(Tlit lit, Tclause cl) const
 {
   ASSERT(cl != CLAUSE_UNDEF);
-  ASSERT_MSG(lit != LIT_UNDEF, "check_is_watched(" << lit_to_string(lit) << ", " << clause_to_string(cl) << ")");
+  ASSERT(lit != LIT_UNDEF, "check_is_watched(" << lit_to_string(lit) << ", " << clause_to_string(cl) << ")");
   if (_clauses[cl].size == 2) {
     // check the binary clause list
     for (const TSwatch &w : _binary_watches[lit])
@@ -205,7 +205,7 @@ bool napsat::NapSAT::check_watch_lists_complete() const
 bool napsat::NapSAT::check_watch_lists_minimal() const
 {
   bool success = true;
-  for (Tlit lit = 0; lit < _watches.size(); lit++) {
+  for (Tlit lit = 0; lit < _watches.size(); lit.value++) {
     for (TSwatch w : _watches[lit]) {
       Tclause cl = w.cl;
       TSclause clause = _clauses[cl];
@@ -232,7 +232,7 @@ bool napsat::NapSAT::check_watch_lists_minimal() const
 
   // Check that that are not multiple copies of the same clause in the watch lists
   std::unordered_set<Tclause> seen_clauses;
-  for (Tlit lit = 0; lit < _watches.size(); lit++) {
+  for (Tlit lit = 0; lit < _watches.size(); lit.value++) {
     seen_clauses.clear();
     for (TSwatch w : _watches[lit]) {
       Tclause cl = w.cl;
@@ -253,38 +253,112 @@ bool napsat::NapSAT::check_watch_lists_minimal() const
   return success;
 }
 
-bool napsat::NapSAT::check_trail_order_consistency()
+void napsat::NapSAT::load_invariant_configuration(sentinel::SentinelOptions& s_options)
 {
-  bool success = true;
-  for (size_t i = 1; i < _trail.size(); i++) {
-    Tlit lit = _trail[i];
-    Tlit prev_lit = _trail[i - 1];
-    if (lit_order(lit) < lit_order(prev_lit)) {
-      success = false;
-      LOG_ERROR("Invariant violation: Trail order consistency: literal " << lit_to_string(lit) << " at position " << i << " has order " << lit_order(lit) << " which is less than the order of the previous literal " << lit_to_string(prev_lit) << " which is " << lit_order(prev_lit));
-    }
+  string filename = napsat::env::get_invariant_configuration_folder();
+  if (_options.lazy_strong_chronological_backtracking)
+    filename += "lazy-strong-chronological-backtracking";
+  else if (_options.restoring_strong_chronological_backtracking)
+    filename += "restoring-strong-chronological-backtracking";
+  else if (_options.weak_chronological_backtracking)
+    filename += "weak-chronological-backtracking";
+  // else if (_options.graph_backtracking)
+  //   filename += "graph-backtracking";
+  else
+    filename += "non-chronological-backtracking";
+  filename += ".conf";
+  ifstream file(filename);
+  if (!file.is_open()) {
+    LOG_ERROR("The invariant configuration could not be loaded from file: " + filename);
+    return;
   }
-  if (!success) {
-    print_trail();
-  }
-  return success;
-}
+  unordered_map<string, bool*> invariants({
+    {"trail_sanity", &s_options.check_no_conflicts},
+    {"trail_monotonicity", &s_options.check_trail_monotonicity},
+    {"implied_levels", &s_options.check_implied_levels},
+    {"no_missed_implications", &s_options.check_no_missed_implications},
+    {"topological_order", &s_options.check_topological_order},
+    {"assignment_coherence", &s_options.check_assignment_coherence},
+#if NOTIFY_WATCH_CHANGES
+    {"weak_watched_literals", &s_options.check_weak_watched_literals},
+    {"strong_watched_literals", &s_options.check_strong_watched_literals},
+#endif
+  });
 
-bool napsat::NapSAT::check_trail_monotonicity()
-{
-  bool success = true;
-  int current_level = 0;
-  for (size_t i = 0; i < _trail.size(); i++) {
-    Tlit lit = _trail[i];
-    int lit_level_i = lit_level(lit);
-    if (lit_level_i < current_level) {
-      success = false;
-      LOG_ERROR("Invariant violation: Trail monotonicity: literal " << lit_to_string(lit) << " at position " << i << " is at level " << lit_level_i << " which is less than the current level " << current_level);
-    }
-    current_level = lit_level_i;
+#if NOTIFY_WATCH_CHANGES
+  unordered_map<string, sentinel::WatchInvariant*> custom_invariants({
+    {"blocked_backtrack_compatible_weak_watched_literals",
+      new sentinel::WatchInvariant("Weak watched literal (with blocker)",
+                                   [this](sentinel::Tlit c1,
+                                          sentinel::Tlit c2,
+                                          sentinel::Tlit blocker,
+                                          std::string& err_msg) {
+          Tlit n_c1 = Tlit(c1.value);
+          Tlit n_c2 = Tlit(c2.value);
+          Tlit n_blocker = Tlit(blocker.value);
+          bool success =
+                   !(lit_false(n_c1) && lit_propagated(n_c1))
+                || !(lit_false(n_c2) && lit_propagated(n_c2))
+                || (lit_true(n_blocker) && lit_level(n_blocker) <= lit_level(n_c1));
+          if (!success) {
+            err_msg += lit_to_string(~n_c1) + " ∈ τ ⇒ [" + lit_to_string(~n_c2) + " ∉ τ ∨ (" + lit_to_string(n_blocker) + " ∈ π ∧ δ(" + lit_to_string(n_blocker) + ") ≤ δ(" + lit_to_string(n_c1) + "))]\n";
+            err_msg += (lit_false(n_c1) && lit_propagated(n_c1) ? "true" : "false");
+            err_msg += " ⇒ ";
+            err_msg += (lit_false(n_c2) && lit_propagated(n_c2) ? "true" : "false");
+            err_msg += " ∨ (";
+            err_msg += (lit_true(n_blocker) ? "true" : "false");
+            err_msg += " ∧ ";
+            err_msg += (lit_level(n_blocker) <= lit_level(n_c1) ? "true" : "false");
+            err_msg += ")\n";
+          }
+          return success;
+        },
+        "¬c₁ ∈ τ ⇒ [(¬c₂ ∉ τ) ∨ (b ∈ π ∧ δ(b) ≤ δ(c₁))]")},
+    {"blocked_backtrack_compatible_strong_watched_literals",
+      new sentinel::WatchInvariant("Backtrack compatible strong watched literals (with blocker)",
+                                   [this](sentinel::Tlit c1,
+                                          sentinel::Tlit c2,
+                                          sentinel::Tlit blocker,
+                                          std::string& err_msg) {
+          Tlit n_c1 = Tlit(c1.value);
+          Tlit n_c2 = Tlit(c2.value);
+          Tlit n_blocker = Tlit(blocker.value);
+          return  !(lit_false(n_c1) && lit_propagated(n_c1))
+                || (lit_true(n_c2) && lit_level(n_c2) <= lit_level(n_c1))
+                || (lit_true(n_blocker) && lit_level(n_blocker) <= lit_level(n_c1));
+        },
+        "¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)) ∨ (b ∈ π ∧ δ(b) ≤ δ(c₁))]")},
+    {"blocked_lazy_backtrack_compatible_strong_watched_literals",
+      new sentinel::WatchInvariant("Lazy backtrack compatible strong watched literals (with blocker)",
+                                   [this](sentinel::Tlit c1,
+                                          sentinel::Tlit c2,
+                                          sentinel::Tlit blocker,
+                                          std::string& err_msg) {
+          Tlit n_c1 = Tlit(c1.value);
+          Tlit n_c2 = Tlit(c2.value);
+          Tlit n_blocker = Tlit(blocker.value);
+          return  !(lit_false(n_c1) || !lit_propagated(n_c1))
+                || (lit_true(n_c2) && lit_lazy_level(n_c2) <= lit_level(n_c1))
+                || (lit_true(n_blocker) && lit_lazy_level(n_blocker) <= lit_level(n_c1));
+        },
+        "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \\ {c₂}) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]")
+  }});
+#endif
+
+  // reset all invariants to false
+  for (auto &invariant : invariants)
+    *(invariant.second) = false;
+
+
+  // read the file
+  string line;
+  while (getline(file, line)) {
+    if (invariants.find(line) != invariants.end())
+      *(invariants[line]) = true;
+    else if (custom_invariants.find(line) != custom_invariants.end())
+      _watch_invariants.push_back(custom_invariants[line]);
+    else
+      LOG_INFO("Unknown invariant: " + line + "\nWatched literal invariants are not supported in this build. Check the SAT-config.hpp file to enable them.");
   }
-  if (!success) {
-    print_trail();
-  }
-  return success;
+  file.close();
 }

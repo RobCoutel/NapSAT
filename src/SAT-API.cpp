@@ -211,7 +211,7 @@ Tval get_variable_value(const NapSAT* solver, Tvar var)
 unsigned variables_count(const NapSAT* solver)
 {
   assert(solver != nullptr);
-  return solver->var_count();
+  return solver->var_count().value;
 }
 
 }

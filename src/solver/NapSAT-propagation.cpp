@@ -104,7 +104,7 @@ Tlit* napsat::NapSAT::advanced_graph_replacement(Tlit* lits, unsigned size) cons
 
 void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
 {
-  c1 = lit_neg(c1);
+  c1 = ~c1;
   ASSERT(lit_false(c1));
 
   for (TSwatch& w : _binary_watches[c1]) {
@@ -122,7 +122,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
       }
       continue;
     }
-    ASSERT_MSG(!lit_propagated(c1),
+    ASSERT(!lit_propagated(c1),
                "Literal " + lit_to_string(c1) + " should not be propagated when propagating binary clause " + clause_to_string(cl));
     Tlit* lits = clause_lits(cl);
     if (lit_undef(c2)) {
@@ -147,10 +147,10 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     if (lit_level(lits[0]) < lit_level(lits[1])) {
       std::swap(lits[0], lits[1]);
     }
-    ASSERT_MSG(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]),
+    ASSERT(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]),
                "Clause " + clause_to_string(cl) + " is not correctly ordered after propagation of " + lit_to_string(c1));
     _conflicts.push_back(cl);
-    NOTIFY_OBSERVER(conflict, cl);
+    NOTIFY(message, "Conflict detected while propagating binary clause " + clause_to_string(cl) + " after propagation of " + lit_to_string(c1), 3);
     if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
       return;
     }
@@ -162,7 +162,7 @@ void NapSAT::propagate_lit(Tlit lit)
   /**
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
    */
-  Tlit c1 = lit_neg(lit);
+  Tlit c1 = ~lit;
   ASSERT(lit_false(c1));
 
   // level of the propagation
@@ -217,7 +217,7 @@ void NapSAT::propagate_lit(Tlit lit)
   ASSERT(lit_chunks(c1) <= lit_cross_chunks(c1));
 
   while (i < end) {
-    c1 = lit_neg(lit);
+    c1 = ~lit;
     TSwatch& w = *i;
     Tclause cl = w.cl;
 
@@ -272,7 +272,7 @@ void NapSAT::propagate_lit(Tlit lit)
        */
       w.block = c2;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(block, cl, c2, c1);
+      NOTIFY(block, cl, c2, c1);
 #endif
       i++;
       continue;
@@ -299,7 +299,7 @@ void NapSAT::propagate_lit(Tlit lit)
     */
     ASSERT(r != nullptr);
     // in debug mode, we still run the propagation, but it should not change anything
-    ASSERT_MSG(!lit_propagated(c1) || find(_conflicts.begin(), _conflicts.end(), cl) != _conflicts.end(),
+    ASSERT(!lit_propagated(c1) || find(_conflicts.begin(), _conflicts.end(), cl) != _conflicts.end(),
       lit_to_string(c1) + " requires changes on clause " + clause_to_string(cl));
 
     Tlevel r_lvl = lit_level(*r);
@@ -320,7 +320,7 @@ void NapSAT::propagate_lit(Tlit lit)
       */
       w.block = *r;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(block, cl, *r, c1);
+      NOTIFY(block, cl, *r, c1);
 #endif
       i++;
       continue;
@@ -344,7 +344,7 @@ void NapSAT::propagate_lit(Tlit lit)
       lits[1] = *r;
       *r = c1;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(unwatch, cl, c1);
+      NOTIFY(unwatch, cl, c1);
 #endif
       // remove the clause from the watch list
       // bring the last watched clause to the current position
@@ -407,7 +407,7 @@ void NapSAT::propagate_lit(Tlit lit)
       lits[1] = *r;
       *r = c1;
 #if NOTIFY_WATCH_CHANGES
-      NOTIFY_OBSERVER(unwatch, cl, c1);
+      NOTIFY(unwatch, cl, c1);
 #endif
       c1 = lits[1]; // update c1 with the replacement literal
       // remove the clause from the watch list
@@ -461,7 +461,7 @@ void NapSAT::propagate_lit(Tlit lit)
       }
       watch_list.resize(end - watch_list.data());
       _conflicts.push_back(cl);
-      NOTIFY_OBSERVER(conflict, cl);
+      NOTIFY(message, "Conflict detected while propagating clause " + clause_to_string(cl) + " after propagation of " + lit_to_string(~lit), 3);
       if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair) {
         return;
       }

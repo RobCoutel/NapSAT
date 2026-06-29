@@ -8,6 +8,9 @@ CC := g++
 BUILD_DIR ?= ./build
 SRC_DIRS ?= ./src
 TEST_DIRS ?= ./tests
+SATSENTINEL_DIR ?= ./SATSentinel
+SATSENTINEL_BUILD_DIR := $(SATSENTINEL_DIR)/build
+SATSENTINEL_LIB := $(SATSENTINEL_BUILD_DIR)/SATSentinel.a
 
 SRCS := $(shell find $(SRC_DIRS) -name "*.cpp")
 TEST_SRCS := $(shell find $(TEST_DIRS) -name "*.cpp")
@@ -23,7 +26,9 @@ DEPS := $(OBJS:.o=.d)
 MODULES_DIR ?= ..
 MODULES :=
 
-INC_DIRS += ./include/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
+BUILD_MODE ?= release
+
+INC_DIRS += ./include/ $(SATSENTINEL_DIR)/include/ $(SATSENTINEL_DIR)/src/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 LINK_FLAGS := -llzma -lbz2
 TEST_LINK_FLAGS := -lCatch2Main -lCatch2
@@ -38,17 +43,27 @@ $(BUILD_DIR)/%.o: %.cpp $(HEAD)
 	$(CC) -c $< -o $@ $(REL_FLAGS) $(CFLAGS)
 
 # release
-$(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
+$(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ) $(SATSENTINEL_LIB)
 	$(CC) $^ -o $@ $(CFLAGS) $(REL_FLAGS) $(LINK_FLAGS)
 
 # library
 $(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
 	ar rcs $@ $^
 
+$(SATSENTINEL_LIB):
+	$(MAKE) -C $(SATSENTINEL_DIR) lib BUILD_MODE=$(BUILD_MODE)
+
+.PHONY: SATSentinel
+
+SATSentinel:
+	$(MAKE) -C $(SATSENTINEL_DIR) lib BUILD_MODE=$(BUILD_MODE)
+
+$(SATSENTINEL_LIB): SATSentinel
+
 # tests
 tests: REL_FLAGS = $(DBG_FLAGS) $(TEST_LINK_FLAGS)
-tests: $(OBJS) $(TEST_OBJS)
-	$(CC) -o $(BUILD_DIR)/NapSAT-tests $(OBJS) $(TEST_OBJS) $(CFLAGS) $(DBG_FLAGS) $(LINK_FLAGS) $(TEST_LINK_FLAGS)
+tests: $(OBJS) $(TEST_OBJS) $(SATSENTINEL_LIB)
+	$(CC) $^ -o $(BUILD_DIR)/NapSAT-tests $(CFLAGS) $(DBG_FLAGS) $(LINK_FLAGS) $(TEST_LINK_FLAGS)
 
 .PHONY: debug
 
@@ -60,10 +75,12 @@ all: $(BUILD_DIR)/$(EXEC)
 debug: REL_FLAGS = $(DBG_FLAGS)
 debug: $(BUILD_DIR)/$(TARGET_LIB)
 debug: $(BUILD_DIR)/$(EXEC)
+debug: BUILD_MODE = debug
 
 .PHONY: install
 install:
 	apt-get install liblzma libbz2
+	git submodule update --init --recursive
 
 install-test:
 	apt-get install catch2
@@ -85,6 +102,7 @@ bench:
 
 clean:
 	$(RM) -r $(BUILD_DIR)
+	$(RM) -r $(SATSENTINEL_BUILD_DIR)
 
 -include $(DEPS)
 

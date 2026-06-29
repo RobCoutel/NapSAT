@@ -44,7 +44,7 @@ void implication_graph_exporter::export_implication_graph(const std::string& fol
     }
   } while (true);
 
-  vector<vector<Tlit>> implying_literals(nvars + 1);
+  indexed_vector<vector<Tlit>, Tvar> implying_literals(nvars + 1);
 
   for (size_t i = 0; i < assignment.size(); i++) {
     Tlit lit = assignment[i];
@@ -56,14 +56,14 @@ void implication_graph_exporter::export_implication_graph(const std::string& fol
     size_t reason_size = get_reason_size(lit);
     for (size_t j = 1; j < reason_size; j++) {
       Tlit implied_lit = reason[j];
-      implying_literals[lit_to_var(implied_lit)].push_back(lit);
+      implying_literals[implied_lit.var()].push_back(lit);
     }
   }
 
   for (size_t i = 0; i < assignment.size(); i++) {
     Tlit lit = assignment[i];
     string content = lit_info(lit);
-    create_file_for_literal(actual_folder_name, lit, content, implying_literals[lit_to_var(lit)]);
+    create_file_for_literal(actual_folder_name, lit, content, implying_literals[lit.var()]);
   }
 }
 
@@ -103,7 +103,7 @@ void implication_graph_exporter::create_file_for_literal(const std::string& fold
                                                         const std::string& content,
                                                         const std::vector<Tlit>& implying_literals)
 {
-  std::string file_name = folder_name + "/" + to_string(lit_to_int(lit)) + ".md";
+  std::string file_name = folder_name + "/" + lit.to_string() + ".md";
   std::ofstream file(file_name);
   if (!file.is_open()) {
     LOG_ERROR("Error: Could not create file " << file_name);
@@ -125,7 +125,7 @@ void implication_graph_exporter::create_file_for_literal(const std::string& fold
   if (!implying_literals.empty()) {
     file << "\nImplying the following literals : \n";
     for (Tlit implied_lit : implying_literals) {
-      file << "- [[" << lit_to_int(implied_lit) << "]]\n";
+      file << "- [[" << implied_lit.to_string() << "]]\n";
     }
   }
 
