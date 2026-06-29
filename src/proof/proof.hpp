@@ -72,7 +72,7 @@ namespace napsat::proof
      * @brief Buffer used to store the current resolution chain inputted by the
      * user. The chain is cleared when the function finalize_resolution is
      * called. */
-    std::vector<std::pair<napsat::Tlit, napsat::Tclause>> current_resolution_chain;
+    std::vector<std::pair<napsat::Tlit, TclauseID>> current_resolution_chain;
 
     /**
      * @brief The clauses in the proof.

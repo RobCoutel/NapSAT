@@ -649,7 +649,7 @@ namespace napsat
     inline Tlevel lit_lazy_level(Tlit lit)
     {
       if (lit_lazy_reason(lit) == CLAUSE_UNDEF)
-        return LEVEL_UNDEF;
+        return lit_level(lit);
       ASSERT(lit_level(lit) > LEVEL_ROOT);
 #ifndef NDEBUG
       Tlit* lits = _clauses[lit_lazy_reason(lit)].lits;
@@ -1430,5 +1430,12 @@ namespace napsat
      * corresponding literal.
      */
     bool watch_lists_minimal();
+
+    std::vector<sentinel::WatchInvariant*> _watch_invariants;
+
+    /**
+     * @brief Loads the invariant configuration from a file. The invariant configuration is a set of invariants that are checked by the sentinel during the execution of the solver. The configuration file is a text file with one invariant per line. Each invariant is a string that describes the invariant to check.
+     */
+    void load_invariant_configuration(sentinel::SentinelOptions& s_options);
   };
 }

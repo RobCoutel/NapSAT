@@ -18,6 +18,8 @@
 #include "custom-assert.hpp"
 #include "../utils/printer.hpp"
 
+#include <fstream>
+
 using namespace std;
 using namespace napsat;
 
@@ -127,4 +129,114 @@ bool napsat::NapSAT::watch_lists_minimal()
   }
 
   return success;
+}
+
+void napsat::NapSAT::load_invariant_configuration(sentinel::SentinelOptions& s_options)
+{
+  string filename = napsat::env::get_invariant_configuration_folder();
+  if (_options.lazy_strong_chronological_backtracking)
+    filename += "lazy-strong-chronological-backtracking";
+  else if (_options.restoring_strong_chronological_backtracking)
+    filename += "restoring-strong-chronological-backtracking";
+  else if (_options.weak_chronological_backtracking)
+    filename += "weak-chronological-backtracking";
+  // else if (_options.graph_backtracking)
+  //   filename += "graph-backtracking";
+  else
+    filename += "non-chronological-backtracking";
+  filename += ".conf";
+  ifstream file(filename);
+  if (!file.is_open()) {
+    LOG_ERROR("The invariant configuration could not be loaded from file: " + filename);
+    return;
+  }
+  unordered_map<string, bool*> invariants({
+    {"trail_sanity", &s_options.check_no_conflicts},
+    {"trail_monotonicity", &s_options.check_trail_monotonicity},
+    {"implied_levels", &s_options.check_implied_levels},
+    {"no_missed_implications", &s_options.check_no_missed_implications},
+    {"topological_order", &s_options.check_topological_order},
+    {"assignment_coherence", &s_options.check_assignment_coherence},
+#if NOTIFY_WATCH_CHANGES
+    {"weak_watched_literals", &s_options.check_weak_watched_literals},
+    {"strong_watched_literals", &s_options.check_strong_watched_literals},
+#endif
+  });
+
+#if NOTIFY_WATCH_CHANGES
+  unordered_map<string, sentinel::WatchInvariant*> custom_invariants({
+    {"blocked_backtrack_compatible_weak_watched_literals",
+      new sentinel::WatchInvariant("Weak watched literal (with blocker)",
+                                   [this](sentinel::Tlit c1,
+                                          sentinel::Tlit c2,
+                                          sentinel::Tlit blocker,
+                                          std::string& err_msg) {
+          Tlit n_c1 = Tlit(c1.value);
+          Tlit n_c2 = Tlit(c2.value);
+          Tlit n_blocker = Tlit(blocker.value);
+          bool success =
+                   !(lit_false(n_c1) && lit_propagated(n_c1))
+                || !(lit_false(n_c2) && lit_propagated(n_c2))
+                || (lit_true(n_blocker) && lit_level(n_blocker) <= lit_level(n_c1));
+          if (!success) {
+            err_msg += lit_to_string(~n_c1) + " ∈ τ ⇒ [" + lit_to_string(~n_c2) + " ∉ τ ∨ (" + lit_to_string(n_blocker) + " ∈ π ∧ δ(" + lit_to_string(n_blocker) + ") ≤ δ(" + lit_to_string(n_c1) + "))]\n";
+            err_msg += (lit_false(n_c1) && lit_propagated(n_c1) ? "true" : "false");
+            err_msg += " ⇒ ";
+            err_msg += (lit_false(n_c2) && lit_propagated(n_c2) ? "true" : "false");
+            err_msg += " ∨ (";
+            err_msg += (lit_true(n_blocker) ? "true" : "false");
+            err_msg += " ∧ ";
+            err_msg += (lit_level(n_blocker) <= lit_level(n_c1) ? "true" : "false");
+            err_msg += ")\n";
+          }
+          return success;
+        },
+        "¬c₁ ∈ τ ⇒ [(¬c₂ ∉ τ) ∨ (b ∈ π ∧ δ(b) ≤ δ(c₁))]")},
+    {"blocked_backtrack_compatible_strong_watched_literals",
+      new sentinel::WatchInvariant("Backtrack compatible strong watched literals (with blocker)",
+                                   [this](sentinel::Tlit c1,
+                                          sentinel::Tlit c2,
+                                          sentinel::Tlit blocker,
+                                          std::string& err_msg) {
+          Tlit n_c1 = Tlit(c1.value);
+          Tlit n_c2 = Tlit(c2.value);
+          Tlit n_blocker = Tlit(blocker.value);
+          return  !(lit_false(n_c1) && lit_propagated(n_c1))
+                || (lit_true(n_c2) && lit_level(n_c2) <= lit_level(n_c1))
+                || (lit_true(n_blocker) && lit_level(n_blocker) <= lit_level(n_c1));
+        },
+        "¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)) ∨ (b ∈ π ∧ δ(b) ≤ δ(c₁))]")},
+    {"blocked_lazy_backtrack_compatible_strong_watched_literals",
+      new sentinel::WatchInvariant("Lazy backtrack compatible strong watched literals (with blocker)",
+                                   [this](sentinel::Tlit c1,
+                                          sentinel::Tlit c2,
+                                          sentinel::Tlit blocker,
+                                          std::string& err_msg) {
+          Tlit n_c1 = Tlit(c1.value);
+          Tlit n_c2 = Tlit(c2.value);
+          Tlit n_blocker = Tlit(blocker.value);
+          return  !(lit_false(n_c1) || !lit_propagated(n_c1))
+                || (lit_true(n_c2) && lit_lazy_level(n_c2) <= lit_level(n_c1))
+                || (lit_true(n_blocker) && lit_lazy_level(n_blocker) <= lit_level(n_c1));
+        },
+        "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \\ {c₂}) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]")
+  }});
+#endif
+
+  // reset all invariants to false
+  for (auto &invariant : invariants)
+    *(invariant.second) = false;
+
+
+  // read the file
+  string line;
+  while (getline(file, line)) {
+    if (invariants.find(line) != invariants.end())
+      *(invariants[line]) = true;
+    else if (custom_invariants.find(line) != custom_invariants.end())
+      _watch_invariants.push_back(custom_invariants[line]);
+    else
+      LOG_INFO("Unknown invariant: " + line + "\nWatched literal invariants are not supported in this build. Check the SAT-config.hpp file to enable them.");
+  }
+  file.close();
 }

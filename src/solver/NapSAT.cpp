@@ -332,7 +332,8 @@ Tclause NapSAT::propagate_lit(Tlit lit)
        * NCB: We know that r ∈ π ⇒ δ(r) ≤ δ(c₁). Therefore after this condition is satisfied in NCB,
        *      we know that r ∉ π
        * ¬c₁ ∈ τ ⇒ c₂ ∈ π ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)] is satisfied if we set b = r
-      */
+       */
+      cout << "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit) + "\nReplacement: " + lit_to_string(*replacement) + "\nLevel: " + lvl.to_string() << endl;
       clause.blocker = *replacement;
       NOTIFY_WATCH(_sentinel, block, cl, *replacement, lit);
       NOTIFY_WATCH(_sentinel, block, cl, *replacement, lit2);
@@ -1205,8 +1206,11 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     bool check_only = options.check_invariants && !options.interactive && !options.observing;
 
     sentinel::SentinelOptions sentinel_options;
+    load_invariant_configuration(sentinel_options);
     sentinel_options.crash_on_error = check_only;
     _sentinel = sentinel::create_sentinel(sentinel_options);
+    for (sentinel::WatchInvariant* invariant : _watch_invariants)
+      sentinel::add_watch_invariant(_sentinel, invariant);
     // make a functional object that will parse the command
     if (options.interactive) {
       sentinel::Tparser* parser = new sentinel::Tparser([this](const std::string& command) {

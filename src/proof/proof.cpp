@@ -26,7 +26,7 @@
 
 using namespace std;
 
-void napsat::proof::resolution_proof::apply_resolution(vector<Tlit>& base, unsigned resolvent_index, Tlit pivot)
+void napsat::proof::resolution_proof::apply_resolution(vector<Tlit>& base, TclauseID resolvent_index, Tlit pivot)
 {
   auto pivot_location = find(base.begin(), base.end(), pivot); // TODO can use binary search if too slow
   assert(pivot_location != base.end());
@@ -103,7 +103,7 @@ void napsat::proof::resolution_proof::finalize_resolution(napsat::Tclause id, co
 
   c.resolution_chain = std::vector<pair<Tlit, TclauseID>>();
   for (const auto& cl : current_resolution_chain) {
-    c.resolution_chain.push_back(make_pair(cl.first, clause_matches[cl.second]));
+    c.resolution_chain.push_back(make_pair(cl.first, cl.second));
   }
   current_resolution_chain.clear();
 
@@ -142,7 +142,7 @@ static void binary_insert(vector<napsat::Tlit>& lits, napsat::Tlit lit)
   lits.insert(lits.begin() + left, lit);
 }
 
-bool napsat::proof::resolution_proof::check_resolution_chain(unsigned index)
+bool napsat::proof::resolution_proof::check_resolution_chain(TclauseID index)
 {
   clause &c = clauses[index];
   if (c.resolution_chain.size() == 0) {
