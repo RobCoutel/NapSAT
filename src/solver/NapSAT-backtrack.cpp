@@ -45,7 +45,7 @@ void NapSAT::var_unassign(Tvar var)
     v.chunks.clear();
     v.cross_chunks.clear();
   }
-  v.state = Tval::VAR_UNDEF;
+  v.state = Tval::UNDEF;
   v.reason = CLAUSE_UNDEF;
   v.level = LEVEL_UNDEF;
   v.propagated = false;
@@ -220,6 +220,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
       unsigned loc = min(i, j) - _trail.data();
       _vars[var].propagated = false;
       NOTIFY_STAT(_n_propagation_replayed);
+      NOTIFY(unpropagate, lit);
       new_propagation_head = min(new_propagation_head, loc);
     }
 
@@ -275,14 +276,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   _trail.resize(j - _trail.data());
 
   ASSERT(_n_propagated_lits <= _trail.size());
-  if (_sentinel) {
-    while(new_propagation_head < _n_propagated_lits) {
-      _n_propagated_lits--;
-      NOTIFY(unpropagate, _trail[_n_propagated_lits]);
-    }
-  } else {
-    _n_propagated_lits = new_propagation_head;
-  }
+  _n_propagated_lits = new_propagation_head;
 
   ASSERT(all_of(_trail.begin(), _trail.end(), [this,backtracked_chunks](Tlit l){
     return !lit_chunks(l).has_intersection(backtracked_chunks); }));

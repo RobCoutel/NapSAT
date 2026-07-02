@@ -9,6 +9,9 @@
 #include "SAT-types.hpp"
 #include "Sentinel-API.hpp"
 
+#include <functional>
+#include <string>
+
 
 
 namespace sentinel::wrapper
@@ -24,6 +27,12 @@ namespace sentinel::wrapper
   }
   inline sentinel::Tlevel convert(napsat::Tlevel level) {
     return sentinel::Tlevel(level.value);
+  }
+  inline napsat::Tvar convert(sentinel::Tvar var) {
+    return napsat::Tvar(var.value);
+  }
+  inline napsat::Tclause convert(sentinel::Tclause clause) {
+    return napsat::Tclause(clause.value);
   }
 
   inline sentinel::SATSentinel* create_sentinel(const sentinel::SentinelOptions& options) {
@@ -111,5 +120,17 @@ namespace sentinel::wrapper
 
   inline void set_command_parser(sentinel::SATSentinel* sentinel, sentinel::Tparser* parser) {
     sentinel::set_command_parser(sentinel, parser);
+  }
+
+  inline void set_variable_detail_callback(sentinel::SATSentinel* sentinel, std::function<std::string(napsat::Tvar)> callback) {
+    sentinel::set_variable_detail_callback(sentinel, [callback](sentinel::Tvar var) {
+      return callback(convert(var));
+    });
+  }
+
+  inline void set_clause_detail_callback(sentinel::SATSentinel* sentinel, std::function<std::string(napsat::Tclause)> callback) {
+    sentinel::set_clause_detail_callback(sentinel, [callback](sentinel::Tclause cl) {
+      return callback(convert(cl));
+    });
   }
 }

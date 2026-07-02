@@ -25,11 +25,14 @@ TEST_CASE( "[NapSAT-assumption] Unit Test : Add from empty" ) {
   options opts(args);
 
   NapSAT solver(10, 10, opts);
-  REQUIRE(solver.assume(literal(1, true)) == true);
-  REQUIRE(solver.assume(literal(2, false)) == true);
-  REQUIRE(solver.assume(literal(1, true)) == true);
-  solver.forget_assumption(literal(1, true));
-  REQUIRE(solver.assume(literal(1, false)) == true);
+  Tlit l1(1, true);
+  Tlit l2(2, false);
+
+  REQUIRE(solver.assume(l1));
+  REQUIRE(solver.assume(l2));
+  REQUIRE(solver.assume(l1));
+  solver.forget_assumption(Tlit(1, true));
+  REQUIRE(solver.assume(~l1));
 }
 
 TEST_CASE( "[NapSAT-assumption] Unit Test : Contradicting assumptions" ) {
@@ -38,10 +41,10 @@ TEST_CASE( "[NapSAT-assumption] Unit Test : Contradicting assumptions" ) {
   options opts(args);
 
   NapSAT solver(10, 10, opts);
-  REQUIRE(solver.assume(literal(1, true)) == true);
-  REQUIRE(solver.assume(literal(2, false)) == true);
-  REQUIRE(solver.assume(literal(1, false)) == false);
-  REQUIRE(solver.forget_assumption(literal(1, true)) == true);
+  REQUIRE(solver.assume(Tlit(1, true)) == true);
+  REQUIRE(solver.assume(Tlit(2, false)) == true);
+  REQUIRE(solver.assume(Tlit(1, false)) == false);
+  REQUIRE(solver.forget_assumption(Tlit(1, true)) == true);
 }
 
 TEST_CASE( "[NapSAT-assumption] Unit Test : Conflict after assumption unlock" ) {
@@ -51,10 +54,10 @@ TEST_CASE( "[NapSAT-assumption] Unit Test : Conflict after assumption unlock" ) 
   options opts(args);
 
   NapSAT solver(10, 10, opts);
-  REQUIRE(solver.assume(literal(1, true)) == true);
-  REQUIRE(solver.assume(literal(2, false)) == true);
-  REQUIRE(solver.forget_assumption(literal(1, true)) == true);
-  REQUIRE(solver.assume(literal(1, false)) == true);
+  REQUIRE(solver.assume(Tlit(1, true)) == true);
+  REQUIRE(solver.assume(Tlit(2, false)) == true);
+  REQUIRE(solver.forget_assumption(Tlit(1, true)) == true);
+  REQUIRE(solver.assume(Tlit(1, false)) == true);
 }
 
 TEST_CASE( "[NapSAT-assumption] Unit Test : True implied assumption" ) {
@@ -94,41 +97,42 @@ TEST_CASE( "[NapSAT-assumption] Unit Test : True implied assumption" ) {
   args.push_back("-gb");
   options opts(args);
 
+  Tlit l1(1, true);
+  Tlit l2(2, true);
+  Tlit l3(3, true);
+  Tlit l4(4, true);
+
   NapSAT solver(10, 10, opts);
-  solver.decide(literal(1, true));
+  solver.decide(l1);
   solver.start_clause();
-    solver.add_literal(literal(1, false));
-    solver.add_literal(literal(2, true));
+    solver.add_literal(~l1);
+    solver.add_literal(l2);
   solver.finalize_clause();
 
   solver.start_clause();
-    solver.add_literal(literal(1, false));
-    solver.add_literal(literal(2, false));
-    solver.add_literal(literal(3, true));
-  solver.finalize_clause();
-
-  solver.propagate();
-
-  solver.start_clause();
-    solver.add_literal(literal(1, false));
-    solver.add_literal(literal(4, true));
+    solver.add_literal(~l1);
+    solver.add_literal(~l2);
+    solver.add_literal(l3);
   solver.finalize_clause();
 
   solver.propagate();
 
-  REQUIRE(solver.assume(literal(2, true)) == true);
-  solver.print_trail();
-  REQUIRE(solver.assume(literal(4, true)) == true);
-  solver.print_trail();
+  solver.start_clause();
+    solver.add_literal(~l1);
+    solver.add_literal(l4);
+  solver.finalize_clause();
+
+  solver.propagate();
+
+  REQUIRE(solver.assume(l2));
+  REQUIRE(solver.assume(l4));
 
   solver.start_clause();
-    solver.add_literal(literal(1, false));
-    solver.add_literal(literal(2, false));
-    solver.add_literal(literal(3, false));
-    solver.add_literal(literal(4, false));
+    solver.add_literal(~l1);
+    solver.add_literal(~l2);
+    solver.add_literal(~l3);
+    solver.add_literal(~l4);
   solver.finalize_clause();
-  solver.print_trail();
-  REQUIRE(solver.propagate() == true);
-  solver.print_trail();
-  REQUIRE(solver.assume(literal(1, true)) == false);
+  REQUIRE(solver.propagate());
+  REQUIRE(!solver.assume(l1));
 }

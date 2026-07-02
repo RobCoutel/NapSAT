@@ -50,7 +50,7 @@ static void teardown(NapSAT* solver) {
 TEST_CASE( "[SAT-Integration] Integration Test : Satisfiable" ) {
   SECTION ("Empty") {
     NapSAT* solver = setup("../tests/cnf/sat-empty.cnf");
-    REQUIRE(solve(solver) == SAT);
+    REQUIRE(solve(solver) == status::SAT);
     teardown(solver);
   }
 
@@ -59,32 +59,32 @@ TEST_CASE( "[SAT-Integration] Integration Test : Satisfiable" ) {
 TEST_CASE( "[SAT-Integration] Integration Test : Unsatisfiable" ) {
   SECTION("Unsatisfiable 1") {
     NapSAT* solver = setup("../tests/cnf/unsat-01.cnf");
-    REQUIRE(solve(solver) == UNSAT);
+    REQUIRE(solve(solver) == status::UNSAT);
     teardown(solver);
   }
   SECTION("Unsatisfiable 2") {
     NapSAT* solver = setup("../tests/cnf/unsat-02.cnf");
-    REQUIRE(solve(solver) == UNSAT);
+    REQUIRE(solve(solver) == status::UNSAT);
     teardown(solver);
   }
   SECTION("Unsatisfiable 3") {
     NapSAT* solver = setup("../tests/cnf/unsat-03.cnf");
-    REQUIRE(solve(solver) == UNSAT);
+    REQUIRE(solve(solver) == status::UNSAT);
     teardown(solver);
   }
   SECTION("Unsatisfiable 4") {
     NapSAT* solver = setup("../tests/cnf/unsat-04.cnf");
-    REQUIRE(solve(solver) == UNSAT);
+    REQUIRE(solve(solver) == status::UNSAT);
     teardown(solver);
   }
   SECTION("Unsatisfiable 5") {
     NapSAT* solver = setup("../tests/cnf/unsat-05.cnf");
-    REQUIRE(solve(solver) == UNSAT);
+    REQUIRE(solve(solver) == status::UNSAT);
     teardown(solver);
   }
   SECTION("Unsatisfiable 6") {
     NapSAT* solver = setup("../tests/cnf/unsat-06.cnf");
-    REQUIRE(solve(solver) == UNSAT);
+    REQUIRE(solve(solver) == status::UNSAT);
     teardown(solver);
   }
 }
@@ -92,12 +92,12 @@ TEST_CASE( "[SAT-Integration] Integration Test : Unsatisfiable" ) {
 TEST_CASE( "[SAT-Integration] Integration Test : Decompress" ) {
   SECTION ("Decompress 1") {
     NapSAT* solver = setup("../tests/cnf/test-compress-01.cnf.xz");
-    REQUIRE(solve(solver) == UNSAT);
+    REQUIRE(solve(solver) == status::UNSAT);
     teardown(solver);
   }
   SECTION ("Decompress 2") {
     NapSAT* solver = setup("../tests/cnf/sat-01.cnf.xz");
-    REQUIRE(solve(solver) == SAT);
+    REQUIRE(solve(solver) == status::SAT);
     teardown(solver);
   }
 }

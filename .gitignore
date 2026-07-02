@@ -27,3 +27,4 @@ executables/*
 .idea
 scripts/dataset/
 scripts/random-instances/
+CLAUDE.md

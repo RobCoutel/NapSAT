@@ -159,6 +159,10 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
 
 void NapSAT::propagate_lit(Tlit lit)
 {
+  propagate_binary_clauses(lit);
+  if (!_options.exhaustive_conflict_repair && !_options.partial_conflict_repair && !_conflicts.empty()) {
+    return;
+  }
   /**
    * The mathematical notations and the contract of this function are defined in NapSAT.hpp
    */
@@ -553,4 +557,5 @@ void NapSAT::propagate_lit(Tlit lit)
   }
 
   watch_list.resize(end - watch_list.data());
+  NOTIFY(propagate, lit);
 }

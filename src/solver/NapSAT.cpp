@@ -224,9 +224,16 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     sentinel::SentinelOptions sentinel_options;
     load_invariant_configuration(sentinel_options);
     sentinel_options.crash_on_error = check_only;
+    sentinel_options.gui = options.sentinel_gui;
     _sentinel = sentinel::create_sentinel(sentinel_options);
     for (sentinel::WatchInvariant* invariant : _watch_invariants)
       sentinel::add_watch_invariant(_sentinel, invariant);
+    sentinel::wrapper::set_variable_detail_callback(_sentinel, [this](Tvar var) {
+      return var_to_gui_info_string(var);
+    });
+    sentinel::wrapper::set_clause_detail_callback(_sentinel, [this](Tclause cl) {
+      return clause_to_gui_info_string(cl);
+    });
     // make a functional object that will parse the command
     if (options.interactive) {
       sentinel::Tparser* parser = new sentinel::Tparser([this](const std::string& command) {
@@ -350,7 +357,7 @@ bool NapSAT::propagate()
     if (lit_propagated(lit)) {
       _n_propagated_lits++;
       NOTIFY_STAT(_n_skipped_propagation);
-      NOTIFY(propagation, lit);
+      NOTIFY(propagate, lit);
       continue;
     }
 #endif
@@ -359,10 +366,7 @@ bool NapSAT::propagate()
     }
     lit_cross_chunks(lit) |= lit_chunks(lit);
 
-    propagate_binary_clauses(lit);
-    if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
-      propagate_lit(lit);
-    }
+    propagate_lit(lit);
 
     if (_conflicts.empty()) {
       NOTIFY_STAT(check_invariants);

@@ -535,7 +535,7 @@ public:
       TSvar() :
         marked(false),
         propagated(false),
-        state(Tval::VAR_UNDEF),
+        state(Tval::UNDEF),
         phase_cache(0),
         synced(0),
         constrained(0),
@@ -1121,21 +1121,21 @@ public:
      */
     inline bool var_undef(Tvar var) const {
       ASSERT(var < _vars.size());
-      return  _vars[var].state == Tval::VAR_UNDEF;
+      return  _vars[var].state == Tval::UNDEF;
     }
     /**
      * @brief Returns true if the variable is assigned true.
      */
     inline bool var_true(Tvar var) const {
       ASSERT(var < _vars.size());
-      return _vars[var].state == Tval::VAR_TRUE;
+      return _vars[var].state == Tval::TRUE;
     }
     /**
      * @brief Returns true if the variable is assigned false.
      */
     inline bool var_false(Tvar var) const {
       ASSERT(var < _vars.size());
-      return _vars[var].state == Tval::VAR_FALSE;
+      return _vars[var].state == Tval::FALSE;
     }
     /**
      * @brief Returns the value of the given variable.
@@ -1328,7 +1328,7 @@ public:
 
     inline bool var_synced(Tvar var) const {
       const TSvar& v = _vars[var];
-      return v.state != Tval::VAR_UNDEF && v.synced == v.state % 2;
+      return v.state != Tval::UNDEF && v.synced == v.state % 2;
     }
     inline bool lit_synced(Tlit lit) const { return var_synced(lit.var()); }
     inline void var_sync(Tvar var) {
@@ -2357,6 +2357,27 @@ public:
     std::string lit_to_md_string(Tlit lit) const;
 
     std::string lit_to_md_info_string(Tlit lit) const;
+
+    /**
+     * @brief Returns a plain-text, non-colored summary of a variable's internal
+     * metadata: assignment, level, reason, chunk/cross-chunk membership (when
+     * graph backtracking is enabled), and watch lists. Suitable for display in
+     * the SATSentinel GUI's variable-detail popup (see set_variable_detail_callback).
+     * @param var variable to describe.
+     * @return plain-text description of the variable.
+     */
+    std::string var_to_gui_info_string(Tvar var) const;
+
+    /**
+     * @brief Returns a plain-text, non-colored summary of a clause's internal
+     * metadata: flags (learned/external/deleted/watched), size, activity,
+     * chunk membership (when graph backtracking is enabled), and literals
+     * with their current value and level. Suitable for display in the
+     * SATSentinel GUI's clause-detail popup (see set_clause_detail_callback).
+     * @param cl clause to describe.
+     * @return plain-text description of the clause.
+     */
+    std::string clause_to_gui_info_string(Tclause cl) const;
 
     /**
      * @brief Returns a string of a clause. The clause is printed in the form

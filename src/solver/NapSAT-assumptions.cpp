@@ -18,6 +18,13 @@ using namespace std;
 
 bool NapSAT::assume(Tlit assumption)
 {
+  if (lit_locked(assumption)) {
+    if (lit_true(assumption))
+      return true;
+    if (lit_false(assumption))
+      return false;
+    ASSERT(false);
+  }
   ASSERT(_options.graph_backtracking, "Only implemented for graph backtracking.");
   // In CB and NCB, assumptions are added as decisions at the bottom of the trail.
   bool success = true;
@@ -217,7 +224,6 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
     level += lit_decision(l) ? 1 : 0;
   }
   ASSERT(pos < _trail.size());
-  cout << "Adding assumption " << lit << " as decision at level " << level << " position " << pos << endl;
 
   /**
    * To fix the trail, we need to
@@ -307,10 +313,14 @@ bool NapSAT::add_assumption_GB_false(std::vector<Tlit>& lits)
   // find the cheapest set of chunks to backtrack to in order to free all literals in L
   _conflicts_chunks.clear();
   for (Tlit l : lits) {
-    _conflicts_chunks.push_back(lit_chunks(l));
+    _conflicts_chunks.push_back(lit_chunks(l) - _locked_chunks);
+    if (_conflicts_chunks.back().empty()) {
+      return false;
+    }
   }
   vector<bitset> possibilities;
   compute_backtrack_possibilities(possibilities);
+  cout << "Found " << possibilities.size() << " possibilities to backtrack to in order to add assumptions." << endl;
   if (possibilities.empty()) {
     return false;
   }

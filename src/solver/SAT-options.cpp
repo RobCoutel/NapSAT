@@ -198,6 +198,8 @@ napsat::options::options(vector<string>& tokens)
     {"--observing",                              &observing},
     {"-i",                                       &interactive},
     {"--interactive",                            &interactive},
+    {"--sentinel-gui",                           &sentinel_gui},
+    {"-gui",                                     &sentinel_gui},
     {"-c",                                       &check_invariants},
     {"--check-invariants",                       &check_invariants},
     {"-ssi",                                     &save_state_on_interrupt},

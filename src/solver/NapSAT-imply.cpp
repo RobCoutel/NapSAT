@@ -49,7 +49,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
   Tvar var = lit.var();
   TSvar& svar = _vars[var];
   svar.order = _current_order++;
-  svar.state = lit.pol() ? Tval::VAR_TRUE : Tval::VAR_FALSE;
+  svar.state = lit.pol() ? Tval::TRUE : Tval::FALSE;
   svar.propagated = false;
   svar.reason = reason;
   svar.phase_cache = lit.pol();

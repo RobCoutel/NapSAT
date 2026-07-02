@@ -262,8 +262,8 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::SentinelOptions& s_o
     filename += "restoring-strong-chronological-backtracking";
   else if (_options.weak_chronological_backtracking)
     filename += "weak-chronological-backtracking";
-  // else if (_options.graph_backtracking)
-  //   filename += "graph-backtracking";
+  else if (_options.graph_backtracking)
+    filename += "graph-backtracking";
   else
     filename += "non-chronological-backtracking";
   filename += ".conf";
@@ -342,7 +342,22 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::SentinelOptions& s_o
                 || (lit_true(n_blocker) && lit_lazy_level(n_blocker) <= lit_level(n_c1));
         },
         "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \\ {c₂}) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]")
-  }});
+  },
+  {"blocked_graph_backtrack_compatible_strong_watched_literals",
+      new sentinel::WatchInvariant("Graph backtrack compatible strong watched literals (with blocker)",
+                                   [this](sentinel::Tlit c1,
+                                          sentinel::Tlit c2,
+                                          sentinel::Tlit blocker,
+                                          std::string& err_msg) {
+          Tlit n_c1 = Tlit(c1.value);
+          Tlit n_c2 = Tlit(c2.value);
+          Tlit n_blocker = Tlit(blocker.value);
+          return  !(lit_false(n_c1) && lit_propagated(n_c1))
+                || (lit_true(n_c2) && lit_chunks(n_c2) <= lit_cross_chunks(n_c1))
+                || (lit_true(n_blocker) && lit_chunks(n_blocker) <= lit_cross_chunks(n_c1));
+        },
+        "¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∧ γ(c₂) ⊆ η(c₁)) ∨ (b ∈ π ∧ γ(b) ⊆ η(c₁))]")}
+  });
 #endif
 
   // reset all invariants to false

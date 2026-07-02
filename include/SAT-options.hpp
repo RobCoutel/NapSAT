@@ -201,6 +201,13 @@ namespace napsat
     bool observing = false;
 
     /**
+     * @brief Enables the solver to use a GUI observer. The GUI observer will print information about the solver in a graphical interface.
+     * @requires -i or -o is true
+     * @alias -gui
+     */
+    bool sentinel_gui = false;
+
+    /**
      * @brief Enables the solver to check some invariants through the observers.
      * @subsumed -o and -i
      * @warning Checking the invariants will slow down the solver significantly.

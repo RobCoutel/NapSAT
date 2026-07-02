@@ -13,6 +13,8 @@
 
 #include "../src/utils/printer.hpp"
 
+using namespace napsat;
+
 TEST_CASE ( "[Printer] Unit Test : Escaped length" ) {
   SECTION ("Empty") {
     REQUIRE(string_length_escaped("") == 0);

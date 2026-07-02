@@ -47,10 +47,10 @@ namespace napsat
    * @details The value can be VAR_TRUE, VAR_FALSE or VAR_UNDEF.
    */
   enum class Tval : std::uint8_t {
-    VAR_FALSE = 0,
-    VAR_TRUE  = 1,
-    VAR_UNDEF = 2,
-    VAR_ERROR = 3
+    FALSE = 0,
+    TRUE  = 1,
+    UNDEF = 2,
+    ERROR = 3
   };
   // define the bitwise operators for Tval
   inline std::uint8_t operator^(std::uint8_t a, Tval b) {
@@ -108,8 +108,8 @@ namespace napsat
     Tlit() : value(0) {}
     Tlit(unsigned value) : value(value) {}
     Tlit(Tvar var, unsigned pol) : value(var.value << 1 | pol) { assert(pol == 0 || pol == 1); }
-    Tlit(Tvar var, Tval val) : value(var.value << 1 | (val == Tval::VAR_TRUE ? 1 : 0)) {
-      assert(val == Tval::VAR_TRUE || val == Tval::VAR_FALSE);
+    Tlit(Tvar var, Tval val) : value(var.value << 1 | (val == Tval::TRUE ? 1 : 0)) {
+      assert(val == Tval::TRUE || val == Tval::FALSE);
     }
     inline bool operator==(const Tlit& other) const { return value == other.value; }
     inline bool operator!=(const Tlit& other) const { return value != other.value; }

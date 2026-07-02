@@ -27,10 +27,14 @@ MODULES_DIR ?= ..
 MODULES :=
 
 BUILD_MODE ?= release
+GUI ?= 0
 
 INC_DIRS += ./include/ $(SATSENTINEL_DIR)/include/ $(SATSENTINEL_DIR)/src/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 LINK_FLAGS := -llzma -lbz2
+ifeq ($(GUI),1)
+  LINK_FLAGS += -lglfw -lGL -ldl -lpthread
+endif
 TEST_LINK_FLAGS := -lCatch2Main -lCatch2
 
 CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++20 -Wall --pedantic
@@ -51,12 +55,12 @@ $(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
 	ar rcs $@ $^
 
 $(SATSENTINEL_LIB):
-	$(MAKE) -C $(SATSENTINEL_DIR) lib BUILD_MODE=$(BUILD_MODE)
+	$(MAKE) -C $(SATSENTINEL_DIR) lib BUILD_MODE=$(BUILD_MODE) GUI=$(GUI)
 
 .PHONY: SATSentinel
 
 SATSentinel:
-	$(MAKE) -C $(SATSENTINEL_DIR) lib BUILD_MODE=$(BUILD_MODE)
+	$(MAKE) -C $(SATSENTINEL_DIR) lib BUILD_MODE=$(BUILD_MODE) GUI=$(GUI)
 
 $(SATSENTINEL_LIB): SATSentinel
 
@@ -77,10 +81,13 @@ debug: $(BUILD_DIR)/$(TARGET_LIB)
 debug: $(BUILD_DIR)/$(EXEC)
 debug: BUILD_MODE = debug
 
-.PHONY: install
+.PHONY: install install-gui install-test
 install:
 	apt-get install liblzma libbz2
 	git submodule update --init --recursive
+
+install-gui:
+	$(MAKE) -C $(SATSENTINEL_DIR) install-gui
 
 install-test:
 	apt-get install catch2

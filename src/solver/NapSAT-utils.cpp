@@ -544,6 +544,127 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
   return s;
 }
 
+std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
+{
+  auto plain_lit = [](Tlit l) { return l.to_string(); };
+  auto plain_clause = [this](Tclause cl) -> string {
+    if (cl == CLAUSE_UNDEF)
+      return "undef";
+    string s = to_string(cl) + ": ";
+    const Tlit* lits = clause_lits(cl);
+    for (const Tlit* i = lits; i < lits + clause_size(cl); i++)
+      s += i->to_string() + " ";
+    return s;
+  };
+
+  string s = "";
+  if (var_decision(var))
+    s += "tags: decision\n";
+  else if (!var_undef(var))
+    s += "tags: implied\n";
+  else
+    s += "tags: unassigned\n";
+
+  bool in_conflict = false;
+  for (Tclause conflict : _conflicts) {
+    const Tlit* lits = clause_lits(conflict);
+    for (const Tlit* i = lits; i < lits + clause_size(conflict); i++) {
+      if (i->var() == var) {
+        in_conflict = true;
+        break;
+      }
+    }
+    if (in_conflict)
+      break;
+  }
+  if (in_conflict)
+    s += "tags: conflicting\n";
+
+  s += "value: " + (string) (var_true(var) ? "true" : var_false(var) ? "false" : "undef") + "\n";
+  s += "level: " + var_level(var).to_string() + "\n";
+  s += "reason: " + plain_clause(var_reason(var)) + "\n";
+  Tclause lazy_reason = lit_lazy_reason(Tlit(var, 1));
+  if (lazy_reason != CLAUSE_UNDEF)
+    s += "lazy reason: " + plain_clause(lazy_reason) + "\n";
+  s += "propagated: " + (string) (var_propagated(var) ? "true" : "false") + "\n";
+  s += "synced: "     + (string) (var_synced(var) ? "true" : "false") + "\n";
+  s += "locked: "     + (string) (var_locked(var) ? "true" : "false") + "\n";
+  s += "marked: "     + (string) (var_marked(var) ? "true" : "false") + "\n";
+  s += "vsids: "       + to_string(var_activity(var)) + "\n";
+
+  unsigned n_clauses = 0;
+  for (TSclause cl : _clauses) {
+    if (cl.deleted)
+      continue;
+    const Tlit* lits = cl.lits;
+    for (const Tlit* i = lits; i < lits + cl.size; i++) {
+      if (i->var() == var) {
+        n_clauses++;
+        break;
+      }
+    }
+  }
+  s += "n_clauses: " + to_string(n_clauses) + "\n";
+
+  if (_options.graph_backtracking) {
+    s += "chunks: " + var_chunks(var).to_string() + "\n";
+    s += "cross-chunks: " + (var_cross_chunks(var) - var_chunks(var)).to_string() + "\n";
+    s += "backtrack cost: " + to_string(literal_cost(Tlit(var, 1))) + "\n";
+  }
+
+  for (unsigned pol = 0; pol < 2; pol++) {
+    Tlit lit = Tlit(var, pol);
+    s += "\nWatch list for " + plain_lit(lit) + ":\n";
+    for (const TSwatch& watch : _binary_watches[lit])
+      s += "  Binary clause " + plain_clause(watch.cl) + " with blocking literal " + plain_lit(watch.block) + "\n";
+    for (const TSwatch& watch : _watches[lit])
+      s += "  Clause " + plain_clause(watch.cl) + " with blocking literal " + plain_lit(watch.block) + "\n";
+  }
+
+  return s;
+}
+
+std::string napsat::NapSAT::clause_to_gui_info_string(Tclause cl) const
+{
+  if (cl == CLAUSE_UNDEF)
+    return "undef";
+  if (cl >= _clauses.size())
+    return "invalid clause";
+
+  const TSclause& c = _clauses[cl];
+
+  string s = "tags:";
+  if (c.deleted)
+    s += " deleted";
+  if (c.learned)
+    s += " learned";
+  if (c.external)
+    s += " external";
+  if (c.watched)
+    s += " watched";
+  s += "\n";
+
+  s += "size: " + to_string(c.size) + "\n";
+  if (c.learned)
+    s += "activity: " + to_string(_activities[cl]) + "\n";
+
+  if (_options.graph_backtracking)
+    s += "chunks: " + clause_chunks(cl).to_string() + "\n";
+
+  s += "\nLiterals:\n";
+  const Tlit* lits = clause_lits(cl);
+  for (unsigned i = 0; i < c.size; i++) {
+    Tlit lit = lits[i];
+    string value = lit_true(lit) ? "true" : lit_false(lit) ? "false" : "undef";
+    s += "  " + lit.to_string();
+    if (i < 2)
+      s += " (watched)";
+    s += ": " + value + " @ " + lit_level(lit).to_string() + "\n";
+  }
+
+  return s;
+}
+
 string NapSAT::clause_to_string(Tclause cl) const
 {
   string s = "";
@@ -654,7 +775,7 @@ void NapSAT::print_trail() const
         cout << " ";
       }
     }
-    cout << lit << " --> ρ = ";
+    cout << lit_to_string(lit) << " --> ρ = ";
     print_clause(lit_reason(lit));
     if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
       cout << " / (λ = ";
