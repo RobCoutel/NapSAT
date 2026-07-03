@@ -35,7 +35,7 @@ namespace sentinel::wrapper
     return napsat::Tclause(clause.value);
   }
 
-  inline sentinel::SATSentinel* create_sentinel(const sentinel::SentinelOptions& options) {
+  inline sentinel::SATSentinel* create_sentinel(const sentinel::Options& options) {
     return sentinel::create_sentinel(options);
   }
 

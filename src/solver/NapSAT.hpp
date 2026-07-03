@@ -570,6 +570,12 @@ public:
        */
       double activity = 0.0;
       /**
+       * @brief Weight of the variable. Used by the default backtrack cost
+       * estimator (see NapSAT::literal_cost) when no external weight
+       * function was set through napsat::set_weight_function.
+       */
+      double weight = 1.0;
+      /**
        * @brief Boolean indicating if the variable was already marked. It is used
        * in conflict analysis.
        * @details Variables must remain marked locally. That is, upon exiting
@@ -1233,6 +1239,15 @@ public:
     inline double& var_activity(Tvar var) {
       ASSERT(var < _vars.size());
       return _vars[var].activity;
+    }
+
+    inline double var_weight(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].weight;
+    }
+    inline double& var_weight(Tvar var) {
+      ASSERT(var < _vars.size());
+      return _vars[var].weight;
     }
 
     /**
@@ -2514,6 +2529,6 @@ public:
     /**
      * @brief Loads the invariant configuration from a file. The invariant configuration is a set of invariants that are checked by the sentinel during the execution of the solver. The configuration file is a text file with one invariant per line. Each invariant is a string that describes the invariant to check.
      */
-    void load_invariant_configuration(sentinel::SentinelOptions& s_options);
+    void load_invariant_configuration(sentinel::Options& s_options);
   };
 }

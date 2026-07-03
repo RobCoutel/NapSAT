@@ -727,10 +727,10 @@ void NapSAT::analyze_conflict_impl(T level) {
   // We need to clear the literal buffer now.
   // The information is held in the "marked" markers
   _lit_buffer_size = 0;
-  ASSERT(count > 0);
+  ASSERT(count > 1);
   unsigned i = _trail.size();
 
-  while (i > 0) {
+  while (count > 1 && i > 0) {
     Tlit lit = _trail[--i];
     if (!lit_marked(lit))
       continue;
@@ -887,6 +887,7 @@ void NapSAT::fix_watched_literals(Tclause conflict)
 
 void NapSAT::repair_conflicts()
 {
+  synchronize();
   NOTIFY_STAT(_n_conflict_repair);
   auto start = chrono::high_resolution_clock::now();
   /**
@@ -1313,6 +1314,11 @@ void NapSAT::graph_repair()
     analyzed = weights.back();
     ASSERT(analyzed.finished);
     weights.pop_back();
+    cout << "Analyzed: " << analyzed.chunks.to_string() << " with weight " << analyzed.total_weight << endl;
+    cout << "Other weights: " << endl;
+    for (const Tweight& w : weights) {
+      cout << "  " << w.chunks.to_string() << " with weight " << w.total_weight << endl;
+    }
 
 #ifndef NDEBUG
     double penalty = _options.chunk_level_penalty * (_trail.size() - _decision_index[analyzed.lowest_level - 1]);

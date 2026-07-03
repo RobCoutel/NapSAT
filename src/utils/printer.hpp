@@ -59,6 +59,16 @@ std::string pretty_float(double f, unsigned n = 2);
  */
 std::string pretty_time(std::chrono::microseconds time);
 
+/**
+ * @brief Justifies a string to a given width by adding spaces to the left and right of the string.
+ * @param str The string to justify.
+ * @param width The width to justify to.
+ * @param fill The character to fill the spaces with.
+ * @param prefix A string to prepend to the justified string.
+ * @return The justified string.
+ */
+std::string justify_string(const std::string& str, unsigned width, char fill = ' ', const std::string& prefix = "");
+
 const std::string ERROR_HEAD = "\033[1;31mERROR: \033[0m";
 const std::string WARNING_HEAD = "\033[0;33mWARNING: \033[0m";
 const std::string INFO_HEAD = "\033[34mINFO: \033[0m";

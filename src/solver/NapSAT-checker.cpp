@@ -253,7 +253,7 @@ bool napsat::NapSAT::check_watch_lists_minimal() const
   return success;
 }
 
-void napsat::NapSAT::load_invariant_configuration(sentinel::SentinelOptions& s_options)
+void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
 {
   string filename = napsat::env::get_invariant_configuration_folder();
   if (_options.lazy_strong_chronological_backtracking)

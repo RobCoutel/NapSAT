@@ -47,6 +47,7 @@ bool NapSAT::parse_dimacs(const char* filename)
 #if USE_OBSERVER
   bool printed_warning = false;
 #endif
+  bool printed_weight_warning = false;
   // the file is a compressed xz file
   // first decompress it and store it in a temporary file
   istringstream stream;
@@ -119,6 +120,40 @@ bool NapSAT::parse_dimacs(const char* filename)
       continue;
     }
 #endif
+    if (is_prefix(line, "cw")) {
+      // parse the weight of the variable, used by literal_cost when no
+      // external weight function was set through napsat::set_weight_function
+      // the comment should be of the form:
+      // >cw <var> <weight>
+      istringstream ss(line);
+      string weight_string, var_string, rest;
+
+      ss.ignore(2);
+      ss >> var_string;
+      ss >> weight_string;
+      ss >> rest;
+
+      if (!var_string.empty() && !weight_string.empty() && rest.empty()) {
+        try {
+          Tvar var = stoi(var_string);
+          double weight = stod(weight_string);
+          if (var >= _vars.size())
+            var_allocate(var + 1);
+          var_weight(var) = weight;
+          // done, next line
+          continue;
+        }
+        catch (invalid_argument &e) {
+          // fall through printing the warning
+        }
+      }
+      if (!printed_weight_warning) {
+        LOG_WARNING("The comments starting with \'cw\' are interpreted as weights for variables. The format of the comment should be: \'cw <var> <weight>\' with weight a floating point number");
+        printed_weight_warning = true;
+      }
+      // treat it as a regular comment, continue
+      continue;
+    }
     if (is_prefix(line, "c"))
       continue;
     if (is_prefix(line, "%"))
@@ -609,7 +644,7 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
   if (_options.graph_backtracking) {
     s += "chunks: " + var_chunks(var).to_string() + "\n";
     s += "cross-chunks: " + (var_cross_chunks(var) - var_chunks(var)).to_string() + "\n";
-    s += "backtrack cost: " + to_string(literal_cost(Tlit(var, 1))) + "\n";
+    s += "backtrack cost: " + to_string(literal_cost(Tlit(var, var_value(var)))) + "\n";
   }
 
   for (unsigned pol = 0; pol < 2; pol++) {
@@ -1047,17 +1082,7 @@ bool NapSAT::parse_command(std::string input)
   }
   else if (tokens[0] == "HELP") {
     // print the content of the help file
-    string man_file = env::get_man_page_folder() + "man-sat.txt";
-    ifstream file(man_file);
-    if (file.is_open()) {
-      string line;
-      while (getline(file, line))
-        cout << line << endl;
-      file.close();
-    }
-    else {
-      LOG_ERROR("The manual page could not be loaded.");
-    }
+    // TODO: make this work with modernized parser
   }
   else {
     LOG_WARNING("unknown command \"" << tokens[0] << "\"; try \"HELP\" to get the list of commands");

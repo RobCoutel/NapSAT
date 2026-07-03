@@ -21,20 +21,6 @@
 using namespace std;
 using namespace napsat;
 
-static void print_man_page(string man_file)
-{
-  ifstream file(man_file);
-  if (file.is_open()) {
-    string line;
-    while (getline(file, line))
-      cout << line << endl;
-    file.close();
-  }
-  else {
-    LOG_ERROR(": The manual page could not be loaded.");
-  }
-}
-
 int main(int argc, char** argv)
 {
   if (argc < 2) {
@@ -43,24 +29,12 @@ int main(int argc, char** argv)
   }
 
   string exec_dir = string(dirname(argv[0]));
-  env::set_man_page_folder(exec_dir + "/../");
   env::set_invariant_configuration_folder(exec_dir + "/../invariant-configurations/");
   env::set_obsidian_template_folder(exec_dir + "/../obsidian_template/");
 
   bool all_models = false;
   if (string(argv[1]) == "-h" || string(argv[1]) == "--help") {
-    string man_file = env::get_man_page_folder() + "man.txt";
-    print_man_page(man_file);
-    return 0;
-  }
-  else if (string(argv[1]) == "-hs" || string(argv[1]) == "--help-sat-commands") {
-    string man_file = env::get_man_page_folder() + "man-sat.txt";
-    print_man_page(man_file);
-    return 0;
-  }
-  else if (string(argv[1]) == "-hn" || string(argv[1]) == "--help-navigation") {
-    string man_file = env::get_man_page_folder() + "man-nav.txt";
-    print_man_page(man_file);
+    cout << options::get_help_text();
     return 0;
   }
   else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {

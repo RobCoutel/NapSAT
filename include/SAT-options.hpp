@@ -11,22 +11,25 @@
  *
  * To add a new option, you must:
  * - Add a new field in the options class.
- * - Add an entry in the SAT-options.cpp file "bool_options", "string_options" or "double_options" unordered_map.
- * - Add a comment above the field in this file with the following information:
- *   - @brief A description of the option.
- *   - @default The default value of the option for static (environment) options.
- * You also may:
- * - Add an alias to the option with @alias. The alias should also be entered in the unordered_maps in the SAT-options.cpp file.
- * - mention if an option is subsumed by another option with the tag @subsumed and the option that subsumes it.
- * - mention a warning that the user may need to know with the tag @warning.
- * - specific ranges of values or other constraints with the tag @requires.
- *
- * Finally, you should run the script/generate-option-documentation.py script from the root of the directory.
+ * - Register it in options::build_option_parser (src/solver/SAT-options.cpp) via
+ *   parser.add_bool/add_double/add_string(...), chaining .alias(...) for every CLI alias.
+ * - Declare any fixed-priority incompatibility with .subsumes(...) and any AND-requirement on
+ *   another option with .require(other, expected_value).
+ * - Add a comment above the field in this file describing the option; the runtime -h/--help output
+ *   is generated from the strings passed to build_option_parser, not from these comments, but they
+ *   remain useful documentation for readers of this header.
  */
 #pragma once
 
 #include <string>
 #include <vector>
+
+#include "SAT-config.hpp"
+#include "../src/utils/options.hpp"
+
+#if USE_OBSERVER
+#include "Sentinel-options.hpp"
+#endif
 
 namespace napsat
 {
@@ -44,11 +47,6 @@ namespace napsat
      * @brief Given a list of tokens, extract the environment variables. The function will return a the list of tokens without the environment variables.
      */
     static std::vector<std::string> extract_environment_variables(std::vector<std::string>& tokens);
-
-    /**
-     * @brief Returns the directory of the manual pages.
-     */
-    static std::string get_man_page_folder();
 
     /**
      * @brief Returns the directory of the invariant configurations.
@@ -70,11 +68,6 @@ namespace napsat
      */
     static bool get_suppress_info();
 
-    /**
-     * @brief Sets the directory of the manual pages
-     * @param dir The directory of the manual pages.
-     */
-    static void set_man_page_folder(std::string dir);
 
     /**
      * @brief Sets the directory of the invariant configurations.
@@ -103,6 +96,10 @@ namespace napsat
 
   class options {
   public:
+
+    sentinel::Options sentinel_options;
+
+
     /** Start Documentation **/
     /** SOLVER BEHAVIOR **/
     /**
@@ -201,13 +198,6 @@ namespace napsat
     bool observing = false;
 
     /**
-     * @brief Enables the solver to use a GUI observer. The GUI observer will print information about the solver in a graphical interface.
-     * @requires -i or -o is true
-     * @alias -gui
-     */
-    bool sentinel_gui = false;
-
-    /**
      * @brief Enables the solver to check some invariants through the observers.
      * @subsumed -o and -i
      * @warning Checking the invariants will slow down the solver significantly.
@@ -269,18 +259,6 @@ namespace napsat
      */
     bool record_dependencies = false;
 
-    /**
-     * @brief File containing the commands to be executed by the solver.
-     * @requires interactive is on
-     * @alias -commands
-    */
-    std::string commands_file = "";
-
-    /**
-     * @brief Folder where the solver will save the LaTeX files. (see $ NapSAT --help-navigation for more information)
-     * @alias -s
-    */
-    std::string save_folder = "";
 
     /** VARIABLE ACTIVITY **/
     /**
@@ -400,6 +378,27 @@ namespace napsat
      * @brief Constructor
     */
     explicit options(std::vector<std::string>& tokens);
+
+    /**
+     * @brief Runtime-generated help text describing every solver option (and, nested within it,
+     * every sentinel/observer option). Replaces the old scripts/generate-option-documentation.py
+     * + man.txt pipeline.
+     */
+    static std::string get_help_text();
+
+  private:
+    /**
+     * @brief Registers every option of `target` (aliases, defaults, incompatibilities,
+     * requirements) into `parser`. Shared by the constructor and get_help_text().
+     */
+    static void build_option_parser(options& target, OptionParser& parser);
+
+    /**
+     * @brief Extracts the brace-delimited group of tokens following -o/--observing (if any), e.g.
+     * `-o {--gui -commands file.txt}`, stripping the group out of `tokens` in place and returning
+     * its contents (braces stripped) for the sentinel option parser to consume.
+     */
+    static std::vector<std::string> extract_sentinel_tokens(std::vector<std::string>& tokens);
   };
 
 } // namespace napsat

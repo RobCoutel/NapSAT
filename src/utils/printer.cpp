@@ -12,6 +12,9 @@
 #include "printer.hpp"
 
 #include <iostream>
+#include <string>
+#include <vector>
+#include <algorithm>
 #include <cassert>
 
 using namespace std;
@@ -105,6 +108,90 @@ string pretty_time(chrono::microseconds time)
     str += to_string(seconds) + "s ";
   str += to_string(microseconds) + "ms";
   return str;
+}
+
+std::string justify_string(const std::string& str, unsigned width, char fill, const std::string& prefix)
+{
+  assert(width > prefix.length());
+  width -= prefix.length();
+  string justified_str = "";
+  // separate the string into words
+  vector<string> words;
+  string word = "";
+  for (char c : str) {
+    if (c == ' ' || c == '\n') {
+      if (c == '\n') {
+        word += c;
+      }
+      if (!word.empty()) {
+        words.push_back(word);
+        word = "";
+      }
+    } else {
+      word += c;
+    }
+  }
+
+  // reverse the words to process them in reverse order
+  std::reverse(words.begin(), words.end());
+
+  // check how many words can fit in the given width
+  while (!words.empty()) {
+    unsigned line_length = 0;
+    vector<string> line_words;
+    do  {
+      line_length += words.back().length() + (line_words.empty() ? 0 : 1);
+      line_words.push_back(words.back());
+      words.pop_back();
+      string& last_word = line_words.back();
+      if (last_word.back() == '\n') {
+        break;
+      }
+    } while (!words.empty() && line_length + words.back().length() < width);
+
+    unsigned extra_spaces = width - line_length;
+
+    // if this is the last line, or there is a line break, don't justify it
+    string& last_word = line_words.back();
+    if (words.empty() || last_word.back() == '\n' || line_words.size() < extra_spaces) {
+      extra_spaces = 0;
+    }
+
+    if (extra_spaces > 0) {
+      // we might have some extra spaces to fill. Fill the line
+      // 1. If the word ends with a punctuation mark, we don't add extra spaces after it.
+      // 2. Pick the longest words first to add extra spaces after them.
+      std::vector<unsigned> line_words_sorted;
+      for (unsigned i = 0; i < line_words.size() - 1; i++) {
+        line_words_sorted.push_back(i);
+      }
+      std::sort(line_words_sorted.begin(), line_words_sorted.end(), [&line_words](unsigned a, unsigned b) {
+        bool a_punct = ispunct(line_words[a].back());
+        bool b_punct = ispunct(line_words[b].back());
+        if (a_punct && !b_punct) return false;
+        if (!a_punct && b_punct) return true;
+        return line_words[a].length() > line_words[b].length();
+      });
+
+      for (unsigned w_idx : line_words_sorted) {
+        if (extra_spaces == 0)
+          break;
+        string& w = line_words[w_idx];
+        w += fill;
+        extra_spaces--;
+      }
+    }
+
+    justified_str += prefix;
+    for (size_t i = 0; i < line_words.size(); i++) {
+      justified_str += line_words[i];
+      if (i < line_words.size() - 1)
+        justified_str += " ";
+    }
+    if (!words.empty() && last_word.back() != '\n')
+      justified_str += "\n";
+  }
+  return justified_str;
 }
 
 }
