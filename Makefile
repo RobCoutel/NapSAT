@@ -41,17 +41,36 @@ CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++20 -Wall --pedantic
 REL_FLAGS ?= -O3 -DNDEBUG
 DBG_FLAGS ?= -O0 -g -g3 -gdwarf-2 -ftrapv
 
+# Fingerprint of the flags that affect compilation (optimization/debug
+# flags, defines, ...). Made a prerequisite of every .o below so that
+# switching between release/debug/tests forces a rebuild of the affected
+# objects instead of silently reusing stale ones compiled with different
+# flags (e.g. NDEBUG toggling invariant checks in custom-assert.hpp).
+BUILD_FLAGS := GUI=$(GUI) REL_FLAGS=$(REL_FLAGS) CFLAGS=$(CFLAGS)
+FLAGS_FILE := $(BUILD_DIR)/.build-flags
+
 # c source
-$(BUILD_DIR)/%.o: %.cpp $(HEAD)
+$(BUILD_DIR)/%.o: %.cpp $(HEAD) $(FLAGS_FILE)
 	$(MKDIR_P) $(dir $@)
 	$(CC) -c $< -o $@ $(REL_FLAGS) $(CFLAGS)
+
+$(FLAGS_FILE): FORCE
+	@$(MKDIR_P) $(dir $@)
+	@echo '$(BUILD_FLAGS)' | cmp -s - $@ || echo '$(BUILD_FLAGS)' > $@
+
+.PHONY: FORCE
+FORCE:
 
 # release
 $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ) $(SATSENTINEL_LIB)
 	$(CC) $^ -o $@ $(CFLAGS) $(REL_FLAGS) $(LINK_FLAGS)
 
 # library
+# Remove the archive before rebuilding: `ar rcs` never drops members that
+# are no longer part of $^, so a stale .a could otherwise keep referencing
+# objects built with a previous, incompatible set of flags.
 $(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
+	$(RM) $@
 	ar rcs $@ $^
 
 $(SATSENTINEL_LIB):

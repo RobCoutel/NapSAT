@@ -62,7 +62,7 @@ void napsat::NapSAT::repair_watch_lists()
 
 void napsat::NapSAT::purge_root_watch_lists()
 {
-  ASSERT(_options.weak_chronological_backtracking || _options.restoring_strong_chronological_backtracking);
+  ASSERT(_options.chronological_backtracking);
   // in weak chronological backtracking, a missed lower implication can create a clause that has a watched literal falsified at level 0 while not being satisfied at level 0
   // Therefore we need to clean the watch lists
   for (unsigned i = 0; i < _n_propagated_lits; i++) {
@@ -138,7 +138,7 @@ void napsat::NapSAT::purge_clauses()
   // We assume that all the literals are propagated
   ASSERT(_n_propagated_lits == _trail.size());
 
-  if (_options.weak_chronological_backtracking || _options.restoring_strong_chronological_backtracking)
+  if (_options.chronological_backtracking)
     purge_root_watch_lists();
 
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {

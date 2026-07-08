@@ -105,6 +105,8 @@ Tclause napsat::NapSAT::next_clause_id(size_t size)
 Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsigned input_size, bool learned, bool external, Tclause id)
 {
   ASSERT(lits_input != nullptr);
+  ASSERT(id == CLAUSE_UNDEF || id < _clauses.size());
+  ASSERT(id == CLAUSE_UNDEF || _clauses[id].deleted);
   if (external) {
     for (unsigned i = 0; i < input_size; i++)
       bump_var_activity(lits_input[i].var());
@@ -244,7 +246,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
   }
   // sort the literals
   sort(lits, lits + clause_size);
-
+  // print the clause
   NOTIFY(add_clause, id, lits_input, input_size, external);
   NOTIFY_STAT(new_clause);
 

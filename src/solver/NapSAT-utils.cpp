@@ -616,11 +616,11 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
     s += "tags: conflicting\n";
 
   s += "value: " + (string) (var_true(var) ? "true" : var_false(var) ? "false" : "undef") + "\n";
-  s += "level: " + var_level(var).to_string() + "\n";
-  s += "reason: " + plain_clause(var_reason(var)) + "\n";
+  s += "δ: " + var_level(var).to_string() + "\n";
+  s += "ρ: " + plain_clause(var_reason(var)) + "\n";
   Tclause lazy_reason = lit_lazy_reason(Tlit(var, 1));
-  if (lazy_reason != CLAUSE_UNDEF)
-    s += "lazy reason: " + plain_clause(lazy_reason) + "\n";
+  if (lazy_reason != CLAUSE_UNDEF || _options.lazy_strong_chronological_backtracking)
+    s += "λ: " + plain_clause(lazy_reason) + "\n";
   s += "propagated: " + (string) (var_propagated(var) ? "true" : "false") + "\n";
   s += "synced: "     + (string) (var_synced(var) ? "true" : "false") + "\n";
   s += "locked: "     + (string) (var_locked(var) ? "true" : "false") + "\n";
@@ -642,9 +642,9 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
   s += "n_clauses: " + to_string(n_clauses) + "\n";
 
   if (_options.graph_backtracking) {
-    s += "chunks: " + var_chunks(var).to_string() + "\n";
-    s += "cross-chunks: " + (var_cross_chunks(var) - var_chunks(var)).to_string() + "\n";
-    s += "backtrack cost: " + to_string(literal_cost(Tlit(var, var_value(var)))) + "\n";
+    s += "γ: " + var_chunks(var).to_string() + "\n";
+    s += "η: " + (var_cross_chunks(var) - var_chunks(var)).to_string() + "\n";
+    s += "ζ: " + to_string(literal_cost(Tlit(var, var_value(var)))) + "\n";
   }
 
   for (unsigned pol = 0; pol < 2; pol++) {
@@ -679,12 +679,14 @@ std::string napsat::NapSAT::clause_to_gui_info_string(Tclause cl) const
     s += " watched";
   s += "\n";
 
+  if (_options.graph_backtracking) {
+    s += "γ(" + cl.to_string() + ") = " + clause_chunks(cl).to_string() + "\n";
+  }
+
   s += "size: " + to_string(c.size) + "\n";
   if (c.learned)
     s += "activity: " + to_string(_activities[cl]) + "\n";
 
-  if (_options.graph_backtracking)
-    s += "chunks: " + clause_chunks(cl).to_string() + "\n";
 
   s += "\nLiterals:\n";
   const Tlit* lits = clause_lits(cl);

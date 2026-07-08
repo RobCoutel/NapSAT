@@ -74,9 +74,9 @@ static bool subsumed(const vector<bitset>& a, const bitset& b)
 }
 
 void NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combinations,
-                                                          const bitset& mergeable_chunks,
-                                                          bitset current,
-                                                          bitset processed) const
+                                                  const bitset& mergeable_chunks,
+                                                  bitset current,
+                                                  bitset processed) const
 {
   // check for subsumption
   if (subsumed(combinations, current)) {
@@ -119,12 +119,12 @@ void NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combinations,
 }
 
 void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bitset& combined_chunks,
-                                                                       vector<bitset>& possibilities) const
+                                                               vector<bitset>& possibilities) const
 {
   // check the chunks among the combined chunks that can be merged
   bitset mergeable_chunks(_n_allocated_chunks);
   for (Tchunk c = 0; c < _n_allocated_chunks; c++) {
-    if (_chunks[c].missed_implication.empty()) {
+    if (!_chunks[c].is_reimplied) {
       continue;
     }
     mergeable_chunks.set(c, true);
@@ -398,7 +398,7 @@ bool NapSAT::learned_clause_is_redundant()
   ASSERT(all_of(_lit_buffer, _lit_buffer + _lit_buffer_size, [this](Tlit l){
     return lit_marked(l); }));
 
-  if (!_options.exhaustive_conflict_repair && _options.graph_backtracking) {
+  if (_options.graph_backtracking) {
     Tclause redundant = clause_subsumed_in_formula(_lit_buffer, _lit_buffer_size);
     if (redundant != CLAUSE_UNDEF) {
       NOTIFY_STAT(_n_fw_subsumption_in_set);
@@ -714,6 +714,7 @@ template <typename T>
 void NapSAT::analyze_conflict_impl(T level) {
   ASSERT(_lit_buffer_size > 0);
   ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
+  NOTIFY(message, "Analyzing conflict " + clause_to_string(_lit_buffer, _lit_buffer_size) + " at level " + level.to_string(), 8);
   unsigned count = 0;
   for (unsigned i = 0; i < _lit_buffer_size; i++) {
     Tlit lit = _lit_buffer[i];
@@ -723,14 +724,15 @@ void NapSAT::analyze_conflict_impl(T level) {
     }
     lit_mark(lit);
   }
+  ASSERT(count > 0);
 
   // We need to clear the literal buffer now.
   // The information is held in the "marked" markers
   _lit_buffer_size = 0;
-  ASSERT(count > 1);
   unsigned i = _trail.size();
 
-  while (count > 1 && i > 0) {
+  while (count > 1) {
+    ASSERT(i > 0);
     Tlit lit = _trail[--i];
     if (!lit_marked(lit))
       continue;
@@ -757,12 +759,22 @@ void NapSAT::analyze_conflict_impl(T level) {
   ASSERT(count == 1);
 
 
+  Tlit uip;
+  // make space to push the UIP literal at the front of the buffer
+  _lit_buffer_size = 1;
   // collect all the marked literals
   for (size_t i = 0; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     if (!lit_marked(lit))
       continue;
     lit_unmark(lit);
+
+    if (lit_analyzed(lit, level)) {
+      ASSERT(uip == LIT_UNDEF, "There should be only one UIP literal");
+      uip = lit;
+      continue;
+    }
+
     bump_var_activity(lit.var());
     if(lit_is_required_in_learned_clause(lit)) {
       _lit_buffer[_lit_buffer_size++] = ~lit;
@@ -773,6 +785,8 @@ void NapSAT::analyze_conflict_impl(T level) {
         _dependency_tracker->track_dependency(lit_reason(lit));
     }
   }
+  ASSERT(uip != LIT_UNDEF, "There should be a UIP literal");
+  _lit_buffer[0] = ~uip;
 
   // clean up the literals at level 0
   if (_proof)
@@ -900,9 +914,7 @@ void NapSAT::repair_conflicts()
    *    δ(c₁) = δ(C)
    */
   ASSERT(!_conflicts.empty());
-  ASSERT(_options.exhaustive_conflict_repair
-      || _options.partial_conflict_repair
-      || _conflicts.size() == 1
+  ASSERT(_conflicts.size() == 1
       || any_of(_conflicts.begin(), _conflicts.end(), [this](Tclause c){
     return _clauses[c].external;
   }));
@@ -1085,6 +1097,7 @@ void NapSAT::compute_subsumed_clauses(const vector<pair<Tclause, vector<Tlit>>>&
 
 const bitset& NapSAT::update_bt_after_analysis_of_reimplication(const bitset& chunks)
 {
+  // check whether the chunks still intersect
   return chunks;
 }
 
@@ -1094,7 +1107,7 @@ Tlevel NapSAT::update_bt_after_analysis_of_reimplication(Tlevel level)
   for (unsigned j = 0; j < _lit_buffer_size; j++) {
     new_level = max(new_level, lit_level(_lit_buffer[j]));
   }
-  ASSERT(new_level < level);
+  ASSERT(new_level < level, "The new backtrack level " + to_string(new_level) + " is not lower than the current level " + to_string(level));
   return new_level;
 }
 
@@ -1314,11 +1327,6 @@ void NapSAT::graph_repair()
     analyzed = weights.back();
     ASSERT(analyzed.finished);
     weights.pop_back();
-    cout << "Analyzed: " << analyzed.chunks.to_string() << " with weight " << analyzed.total_weight << endl;
-    cout << "Other weights: " << endl;
-    for (const Tweight& w : weights) {
-      cout << "  " << w.chunks.to_string() << " with weight " << w.total_weight << endl;
-    }
 
 #ifndef NDEBUG
     double penalty = _options.chunk_level_penalty * (_trail.size() - _decision_index[analyzed.lowest_level - 1]);

@@ -131,6 +131,9 @@ std::string justify_string(const std::string& str, unsigned width, char fill, co
       word += c;
     }
   }
+  if (!word.empty()) {
+    words.push_back(word);
+  }
 
   // reverse the words to process them in reverse order
   std::reverse(words.begin(), words.end());
@@ -139,21 +142,19 @@ std::string justify_string(const std::string& str, unsigned width, char fill, co
   while (!words.empty()) {
     unsigned line_length = 0;
     vector<string> line_words;
+    bool eol = false;
     do  {
       line_length += words.back().length() + (line_words.empty() ? 0 : 1);
       line_words.push_back(words.back());
       words.pop_back();
       string& last_word = line_words.back();
-      if (last_word.back() == '\n') {
-        break;
-      }
-    } while (!words.empty() && line_length + words.back().length() < width);
+      eol = last_word.back() == '\n' || words.empty();
+    } while (!eol && line_length + words.back().length() < width);
 
     unsigned extra_spaces = width - line_length;
 
     // if this is the last line, or there is a line break, don't justify it
-    string& last_word = line_words.back();
-    if (words.empty() || last_word.back() == '\n' || line_words.size() < extra_spaces) {
+    if (words.empty() || eol || line_words.size() < extra_spaces) {
       extra_spaces = 0;
     }
 
@@ -163,6 +164,7 @@ std::string justify_string(const std::string& str, unsigned width, char fill, co
       // 2. Pick the longest words first to add extra spaces after them.
       std::vector<unsigned> line_words_sorted;
       for (unsigned i = 0; i < line_words.size() - 1; i++) {
+        // we cannot add a space after the last word, so we skip it
         line_words_sorted.push_back(i);
       }
       std::sort(line_words_sorted.begin(), line_words_sorted.end(), [&line_words](unsigned a, unsigned b) {
@@ -184,11 +186,11 @@ std::string justify_string(const std::string& str, unsigned width, char fill, co
 
     justified_str += prefix;
     for (size_t i = 0; i < line_words.size(); i++) {
-      justified_str += line_words[i];
-      if (i < line_words.size() - 1)
+      if (i)
         justified_str += " ";
+      justified_str += line_words[i];
     }
-    if (!words.empty() && last_word.back() != '\n')
+    if (!eol)
       justified_str += "\n";
   }
   return justified_str;

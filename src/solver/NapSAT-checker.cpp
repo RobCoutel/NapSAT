@@ -258,10 +258,8 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
   string filename = napsat::env::get_invariant_configuration_folder();
   if (_options.lazy_strong_chronological_backtracking)
     filename += "lazy-strong-chronological-backtracking";
-  else if (_options.restoring_strong_chronological_backtracking)
-    filename += "restoring-strong-chronological-backtracking";
-  else if (_options.weak_chronological_backtracking)
-    filename += "weak-chronological-backtracking";
+  else if (_options.chronological_backtracking)
+    filename += "chronological-backtracking";
   else if (_options.graph_backtracking)
     filename += "graph-backtracking";
   else
@@ -337,7 +335,7 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
           Tlit n_c1 = Tlit(c1.value);
           Tlit n_c2 = Tlit(c2.value);
           Tlit n_blocker = Tlit(blocker.value);
-          return  !(lit_false(n_c1) || !lit_propagated(n_c1))
+          return  !(lit_false(n_c1) && lit_propagated(n_c1))
                 || (lit_true(n_c2) && lit_lazy_level(n_c2) <= lit_level(n_c1))
                 || (lit_true(n_blocker) && lit_lazy_level(n_blocker) <= lit_level(n_c1));
         },

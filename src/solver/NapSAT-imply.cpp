@@ -160,6 +160,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
     _free_chunks.push_back(ck);
     _chunks[ck].decision = Tvar();
     _chunks[ck].missed_implication.clear();
+    _chunks[ck].is_reimplied = false;
     _decision_index.resize(_decision_index.size() - 1);
   }
 
@@ -339,6 +340,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
     if (!reimplication_cycle(decision_chunk, chunks)) {
       lit_lazy_reason(c2) = reason;
       _chunks[decision_chunk].missed_implication = chunks;
+      _chunks[decision_chunk].is_reimplied = true;
     }
   }
 }

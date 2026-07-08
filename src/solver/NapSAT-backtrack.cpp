@@ -41,6 +41,7 @@ void NapSAT::var_unassign(Tvar var)
       _free_chunks.push_back(ck);
       chunk.decision = Tvar();
       chunk.missed_implication.clear();
+      chunk.is_reimplied = false;
     }
     v.chunks.clear();
     v.cross_chunks.clear();
@@ -149,7 +150,7 @@ void NapSAT::backtrack(Tlevel level)
     "Propagated literals: " + to_string(_n_propagated_lits) + "\nRestore point: " + to_string(restore_point));
   // in RSCB we need to move the propagation head back to the location of the first literal that moved
   // that is, the location of the first literal that was unassigned.
-  if (_options.restoring_strong_chronological_backtracking) {
+  if (_options.chronological_backtracking) {
     while (_n_propagated_lits > restore_point) {
       Tlit lit = _trail[_n_propagated_lits - 1];
       Tvar var = lit.var();
@@ -228,10 +229,11 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
     Tclause lazy_reason = lit_lazy_reason(lit);
     if (lazy_reason != CLAUSE_UNDEF) {
       ASSERT(lit_decision(lit));
-      bitset& missed_implication = _chunks[*var_chunks(var).cbegin()].missed_implication;
-      if (missed_implication.has_intersection(backtracked_chunks)) {
+      TSchunk& chunk = _chunks[*var_chunks(var).cbegin()];
+      if (chunk.missed_implication.has_intersection(backtracked_chunks)) {
         lit_lazy_reason(lit) = CLAUSE_UNDEF;
-        missed_implication.clear();
+        chunk.missed_implication.clear();
+        chunk.is_reimplied = false;
       }
     }
 

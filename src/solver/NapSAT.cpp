@@ -100,20 +100,12 @@ static inline void print_bt_option(const options &options) {
   string bt = "non-chronological";
   if (options.chronological_backtracking)
     bt = "chronological";
-  else if (options.weak_chronological_backtracking)
-    bt = "weak-chronological";
-  else if (options.restoring_strong_chronological_backtracking)
-    bt = "restoring-strong-chronological";
   else if (options.lazy_strong_chronological_backtracking)
     bt = "lazy-strong-chronological";
   else if (options.graph_backtracking)
     bt = "graph";
 
   LOG_INFO("Using backtracking strategy: " + bt);
-  if (options.exhaustive_conflict_repair)
-    LOG_INFO(" - with exhaustive conflict repair");
-  if (options.partial_conflict_repair)
-    LOG_INFO(" - with partial conflict repair");
 
   if (options.graph_backtracking) {
     if (options.lazy_chunk_merging)
@@ -369,32 +361,13 @@ bool NapSAT::propagate()
       NOTIFY_STAT(check_invariants);
     }
 
-    if (_conflicts.empty() || _options.exhaustive_conflict_repair || _options.partial_conflict_repair) {
+    if (_conflicts.empty()) {
       _vars[lit.var()].propagated = true;
       _n_propagated_lits++;
       NOTIFY(propagate, lit);
     }
 
-    ASSERT(_conflicts.empty() || !_options.partial_conflict_repair || _n_propagated_lits < _trail.size() || _n_propagated_lits == _trail.size());
-
-    bool stop_propagation = false;
-    if (_options.partial_conflict_repair && !_conflicts.empty()) {
-      // if all literals in the first conflict are propagated, we can stop
-      const Tclause& first_conflict = _conflicts.front();
-      const Tlit* lits = clause_lits(first_conflict);
-      unsigned size = clause_size(first_conflict);
-      stop_propagation = true;
-      for (unsigned i = 0; i < size; i++) {
-        if (!lit_propagated(lits[i])) {
-          stop_propagation = false;
-          break;
-        }
-      }
-    }
-
-    if (!_conflicts.empty()
-    && (!_options.exhaustive_conflict_repair || _n_propagated_lits == _trail.size())
-    && (!_options.partial_conflict_repair || stop_propagation)) {
+    if (!_conflicts.empty()) {
       _conflict_count++;
       if (_options.conflict_limit >= 0 && _conflict_count > _options.conflict_limit) {
         LOG_INFO("Conflict limit reached: " + std::to_string(_options.conflict_limit));

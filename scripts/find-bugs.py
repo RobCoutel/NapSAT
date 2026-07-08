@@ -12,19 +12,16 @@ directorySat = "/home/robin/OneDrive/University/Library/SAT.CNF/sat/"
 # Path to the directory containing the unsat instances
 directoryUnSat = "/home/robin/OneDrive/University/Library/SAT.CNF/unsat/"
 # Path to the executable
-SAT_exec = "/home/robin/programs/vampire/NapSAT/build/NapSAT"
+SAT_exec = "build/NapSAT"
 
 SAT_options = ["", "-rscb", "-lscb", "-gb", "-gb -lcm", "-gb -bl", "-gb -bl -lcm"]
-opts = []
-for option in SAT_options:
-    opts.append(option)
-    opts.append(option + " -ecr")
-    opts.append(option + " -pcr")
-SAT_options = opts
 
-additional_options = "-c -sw -cp -ssi off"
+additional_options = "-o \"{--check-only}\" -sw -cp -ssi off"
 
 N_THREADS = os.cpu_count() - 1
+
+failed = False
+failed_mutex = threading.Lock()
 
 def search_pattern(filename: str, pattern: str):
     '''
@@ -32,6 +29,7 @@ def search_pattern(filename: str, pattern: str):
     If the pattern is found, the filename is printed.
     If some text is printed on stderr, the filename is printed.
     '''
+    global failed
     for option in SAT_options:
         args = [SAT_exec, filename] + option.split() + additional_options.split()
         output = Popen(args, shell=False, stdout=PIPE, stderr=PIPE)
@@ -42,10 +40,15 @@ def search_pattern(filename: str, pattern: str):
             print("\n" + filename + " : " + option + " : Pattern found: " + pattern)
             print(out)
         if err != "":
+            with failed_mutex:
+                failed = True
+            print(out)
             print("\n" + filename + " : " + option + " : " + "ERROR")
             print("\n".join(err.split("\n")[:3]))
+            break
 
 def search_output(root_directory, pattern):
+    global failed
     bench_files = {}
     for root, dirs, files in os.walk(root_directory):
         for file in files:
@@ -78,9 +81,13 @@ def search_output(root_directory, pattern):
     ) as progress, concurrent.futures.ThreadPoolExecutor(max_workers=N_THREADS) as executor:
         futures = []
         for directory in dir:
+            if failed:
+                break
             bench_files[directory].sort()
             folder_name = os.path.basename(directory)
             for filename in bench_files[directory]:
+                if failed:
+                    break
                 full_path = os.path.join(directory, filename)
                 future = executor.submit(wrapped_search_pattern, full_path, pattern, directory, folder_name)
                 future.directory = directory
@@ -89,6 +96,11 @@ def search_output(root_directory, pattern):
             directory = future.directory
             if directory in tasks:
                 progress.update(tasks[directory], advance=1)
+            if failed:
+                executor.shutdown(wait=False, cancel_futures=True)
+                break
+
+    return failed
 
 # the first argument is the directory to search in
 # the second argument is binary to execute
@@ -108,7 +120,10 @@ if __name__ == "__main__":
         additional_options = " ".join(additional_options_bis)
 
     if directory == "":
-        search_output(directorySat, "s UNSATISFIABLE")
-        search_output(directoryUnSat, "s SATISFIABLE")
+        if not search_output(directorySat, "s UNSATISFIABLE"):
+            search_output(directoryUnSat, "s SATISFIABLE")
     else:
         search_output(directory, "ERROR")
+
+    if failed:
+        sys.exit(1)

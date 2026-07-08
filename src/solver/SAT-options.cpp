@@ -200,21 +200,13 @@ vector<string> napsat::options::extract_sentinel_tokens(vector<string>& tokens)
 void napsat::options::build_option_parser(napsat::options& t, napsat::OptionParser& p)
 {
   p.set_category("SOLVER BEHAVIOR");
-  p.add_bool("--chronological-backtracking", t.chronological_backtracking,
-    "Enables chronological backtracking. Not meant to be used standalone; enabled by any "
-    "chronological backtracking variant.").alias("-cb");
-  auto& wcb = p.add_bool("--weak-chronological-backtracking", t.weak_chronological_backtracking,
-    "Enables weak chronological backtracking. Deprecated, will be removed in a future version.")
-    .alias("-wcb");
-  auto& rscb = p.add_bool("--restoring-chronological-backtracking", t.restoring_strong_chronological_backtracking,
-    "Enables restoring chronological backtracking: literals moved during backtracking are "
-    "re-propagated.").alias("-rscb");
+  auto& cb = p.add_bool("--chronological-backtracking", t.chronological_backtracking,
+    "Enables chronological backtracking as described in \n  [2018 - Chronological Backtracking - Nadel and Ryvchin]").alias("-cb");
   auto& lscb = p.add_bool("--lazy-strong-chronological-backtracking", t.lazy_strong_chronological_backtracking,
-    "Enables strong chronological backtracking with the lazy reimplication scheme.")
+    "Enables strong chronological backtracking with the lazy reimplication scheme as described in \n  [2024 - Lazy Reimplication in Chronological Backtracking - Coutelier et al.].")
     .alias("-lscb").alias("-scb");
   auto& gb = p.add_bool("--graph-backtracking", t.graph_backtracking,
-    "Enables graph backtracking: upon a conflict, only literals reachable from the conflicting "
-    "level in the implication graph are undone.").alias("-gb");
+    "Enables graph backtracking: upon a conflict, selects the lightest set of literals to be unassigned. As described in \n  [2026 - Generalizing CDCL with Graph Backtracking - Coutelier et al.]").alias("-gb");
   auto& lcm = p.add_bool("--lazy-chunk-merging", t.lazy_chunk_merging,
     "Logs missed implications for decisions so that chunks can be merged lazily when needed.")
     .alias("-lcm");
@@ -269,11 +261,6 @@ void napsat::options::build_option_parser(napsat::options& t, napsat::OptionPars
   p.add_double("--clause-activity-threshold-decay", t.clause_activity_threshold_decay,
     "Decay factor of the clause activity threshold.").range(0.0, 1.0, /*fatal=*/true);
   p.add_bool("--restarts", t.restarts, "Enables Luby restarts.");
-  auto& ecr = p.add_bool("--exhaustive-conflict-repair", t.exhaustive_conflict_repair,
-    "Searches all conflicts until the end of propagation before triggering conflict analysis.")
-    .alias("-ecr");
-  auto& pcr = p.add_bool("--partial-conflict-repair", t.partial_conflict_repair,
-    "Enables partial conflict repair.").alias("-pcr");
   auto& bl = p.add_bool("--backtrack-learned", t.backtrack_learned,
     "Backtracks the chunks that were analyzed to learn the clause, instead of always backtracking "
     "the smallest possible set of chunks.").alias("-bl");
@@ -302,9 +289,7 @@ void napsat::options::build_option_parser(napsat::options& t, napsat::OptionPars
   /****************************************************************************/
   /**                          OPTION COMPATIBILITY                          **/
   /****************************************************************************/
-  lscb.subsumes(rscb);
-  lscb.subsumes(wcb);
-  rscb.subsumes(wcb);
+  lscb.subsumes(cb);
 
   bl.require(gb, true);
   lcm.require(gb, true);
@@ -320,8 +305,6 @@ void napsat::options::build_option_parser(napsat::options& t, napsat::OptionPars
   vsids_c.require(gb, true);
   vsids_c.require(max_c, false);
   vsids_c.require(sum_c, false);
-
-  ecr.subsumes(pcr);
 }
 
 napsat::options::options(vector<string>& tokens)
@@ -337,15 +320,7 @@ napsat::options::options(vector<string>& tokens)
   /****************************************************************************/
   /**                    DERIVED VALUES / MANUAL SPECIAL CASES               **/
   /****************************************************************************/
-  if (weak_chronological_backtracking) {
-    LOG_WARNING("weak chronological backtracking is deprecated and will be removed in a future version.");
-    LOG_WARNING("Please use restoring strong chronological backtracking instead.");
-    LOG_INFO("Switching to restoring strong chronological backtracking.");
-    restoring_strong_chronological_backtracking = true;
-    weak_chronological_backtracking = false;
-  }
-
-  chronological_backtracking = weak_chronological_backtracking || restoring_strong_chronological_backtracking || lazy_strong_chronological_backtracking;
+  chronological_backtracking |= lazy_strong_chronological_backtracking;
 
   if (graph_backtracking && chronological_backtracking) {
     LOG_WARNING("graph backtracking subsumes chronological backtracking.");

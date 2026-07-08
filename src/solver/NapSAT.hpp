@@ -958,7 +958,17 @@ public:
 
     struct TSchunk
     {
+      /**
+       * @brief Decision variable that started the chunk.
+       */
       Tvar decision;
+      /**
+       * @brief True if the chunk is reimplied by other chunks. This is used in Lazy Chunk Merging (see -lcm option).
+       */
+      bool is_reimplied = false;
+      /**
+       * @brief Set of chunks that reimply this chunk. This is used in Lazy Chunk Merging (see -lcm option).
+       */
       bitset missed_implication;
       /**
        * @brief Over approximation of the chunk. When a literal is added to the chunk,
@@ -1403,7 +1413,7 @@ public:
     {
       Tclause l_reason = lit_lazy_reason(lit);
       if (l_reason == CLAUSE_UNDEF)
-        return LEVEL_UNDEF;
+        return lit_level(lit);
       if (clause_size(l_reason) == 1)
         return LEVEL_ROOT;
       Tlit* lits = clause_lits(l_reason);
