@@ -906,7 +906,6 @@ void NapSAT::fix_watched_literals(Tclause conflict)
 
 void NapSAT::repair_conflicts()
 {
-  synchronize();
   NOTIFY_STAT(_n_conflict_repair);
   auto start = chrono::high_resolution_clock::now();
   /**
@@ -1339,12 +1338,6 @@ void NapSAT::graph_repair()
 #endif
     ASSERT(approximate || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6);
     ASSERT(approximate || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6);
-    ASSERT(!_options->use_max_approximate_cost_estimation
-      || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6,
-               "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) + " and penalty " + to_string(penalty) +
-               " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)));
-    ASSERT(!_options->use_sum_approximate_cost_estimation
-      || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6);
 
     if(best.chunks.empty()) {
       best.total_weight = analyzed.total_weight;

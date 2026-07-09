@@ -37,7 +37,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
    * while not strictly necessary, this condition is useful to reduce the
    * number of repropagations.
    */
-  ASSERT(lit_undef(lit));
+  ASSERT(lit_undef(lit), "Literal " + lit_to_string(lit) + " is already defined with value ");
   ASSERT(reason == CLAUSE_UNDEF || check_clause_unit(reason));
 
   if (_current_order == ORDER_RESET) {
@@ -61,6 +61,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     _decision_index.push_back(_trail.size() - 1);
     svar.level = solver_level();
     NOTIFY(assign, lit);
+    NOTIFY_STAT(decision);
     if (_options->graph_backtracking) {
       if (_free_chunks.empty()) {
         allocate_chunks(2 * _n_allocated_chunks);
@@ -107,6 +108,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
       }
     }
     NOTIFY(assign, lit, reason);
+    NOTIFY_STAT(implication);
   }
 
   if (svar.level == LEVEL_ROOT) {
@@ -525,6 +527,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
       NOTIFY(assign, lit, lit_reason(lit));
       if (i < _n_propagated_lits) {
         NOTIFY(propagate, lit);
+
       }
     }
   }

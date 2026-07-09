@@ -553,5 +553,4 @@ void NapSAT::propagate_lit(Tlit lit)
   }
 
   watch_list.resize(end - watch_list.data());
-  NOTIFY(propagate, lit);
 }

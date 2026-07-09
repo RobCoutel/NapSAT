@@ -346,6 +346,7 @@ void napsat::NapSAT::delete_clause(Tclause cl)
   clause.watched = false;
   _deleted_clauses.push_back(cl);
   NOTIFY(delete_clause, cl);
+  NOTIFY_STAT(delete_clause);
   if(_proof)
     _proof->deactivate_clause(cl);
   if (_dependency_tracker)

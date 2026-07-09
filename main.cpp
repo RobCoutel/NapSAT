@@ -96,9 +96,6 @@ int main(int argc, char** argv)
   else
     cout << "UNKNOWN" << endl;
 
-  if (options->print_stats) {
-    print_statistics(solver);
-  }
   if (options->check_proof && get_status(solver) == status::UNSAT && !check_proof(solver)) {
     LOG_ERROR("The proof is invalid.");
   }

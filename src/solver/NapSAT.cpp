@@ -163,19 +163,12 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::Options* opti
     stat._n_conflict_repair = _statistics->add_stat("Conflict repair", cat_core);
     stat.implication = _statistics->add_stat("Implication", cat_core);
     stat.propagation = _statistics->add_stat("Propagation", cat_core);
-    stat.unassignment= _statistics->add_stat("Unassignment", cat_core);
-    stat.check_invariants = _statistics->add_stat("Check invariants", cat_aux);
     stat.missed_lower_implication = _statistics->add_stat("Missed lower implication", cat_core);
     stat._n_sync = _statistics->add_stat("Sync", cat_core);
     stat._n_restart = _statistics->add_stat("Restart", cat_core);
     stat.lock_assumption = _statistics->add_stat("Lock assumption", cat_core);
     stat.unlock_assumption = _statistics->add_stat("Unlock assumption", cat_core);
 
-    stat.remove_literal = _statistics->add_stat("Remove literal", cat_inp);
-    stat.marker = _statistics->add_stat("Marker", cat_aux);
-    stat.watch = _statistics->add_stat("Watch", cat_alg);
-    stat.unwatch = _statistics->add_stat("Unwatch", cat_alg);
-    stat.block = _statistics->add_stat("Block", cat_alg);
     stat._n_propagation_replayed = _statistics->add_stat("Replayed Propagation", cat_alg);
     stat._n_skipped_propagation = _statistics->add_stat("Skipped Propagation", cat_alg);
     stat._n_fw_subsumption = _statistics->add_stat("Forward subsumption", cat_alg);
@@ -194,8 +187,6 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::Options* opti
     stat.backtracking_started = _statistics->add_stat("Backtracking started", cat_aux);
     stat.update_level = _statistics->add_stat("Update level", cat_aux);
     stat.update_reason = _statistics->add_stat("Update reason", cat_aux);
-    stat.remove_propagation = _statistics->add_stat("Remove propagation", cat_aux);
-    stat.remove_lower_implication = _statistics->add_stat("Remove lower implication", cat_aux);
     stat._n_binary_clause_simplified = _statistics->add_stat("Binary clause simplified", cat_aux);
     stat._n_binary_clause_added = _statistics->add_stat("Binary clause added", cat_aux);
     stat._n_clause_learned = _statistics->add_stat("Learned clause", cat_aux);
@@ -215,8 +206,8 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::Options* opti
 
   // We have to create the observer before allocating the variables. Otherwise, the notifications will not be sent
 #if USE_OBSERVER
-  if (_options->interactive || _options->observing || _options->check_invariants || _options->print_stats) {
-    bool check_only = _options->check_invariants && !_options->interactive && !_options->observing;
+  if (_options->interactive || _options->observing || _options->check_invariants) {
+    bool check_only = !_options->interactive && !_options->observing;
 
     ASSERT(_options->sentinel_options);
     load_invariant_configuration(*_options->sentinel_options);
@@ -369,13 +360,14 @@ bool NapSAT::propagate()
     propagate_lit(lit);
 
     if (_conflicts.empty()) {
-      NOTIFY_STAT(check_invariants);
+      NOTIFY(check_invariants);
     }
 
     if (_conflicts.empty()) {
       _vars[lit.var()].propagated = true;
       _n_propagated_lits++;
       NOTIFY(propagate, lit);
+      NOTIFY_STAT(propagation);
     }
 
     if (!_conflicts.empty()) {
@@ -410,7 +402,7 @@ status NapSAT::solve()
   auto start_time = std::chrono::high_resolution_clock::now();
   if (_status != status::UNKNOWN) {
     ASSERT(_status != status::SAT || _trail.size() == _vars.size().value - 1);
-    NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status));
+    NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status), 1);
     return _status;
   }
   while (true) {

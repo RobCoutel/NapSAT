@@ -368,8 +368,10 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
   while (getline(file, line)) {
     if (invariants.find(line) != invariants.end())
       *(invariants[line]) = true;
+#if NOTIFY_WATCH_CHANGES
     else if (custom_invariants.find(line) != custom_invariants.end())
       _watch_invariants.push_back(custom_invariants[line]);
+#endif
     else
       LOG_INFO("Unknown invariant: " + line + "\nWatched literal invariants are not supported in this build. Check the SAT-config.hpp file to enable them.");
   }

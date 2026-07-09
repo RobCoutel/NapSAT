@@ -49,6 +49,10 @@ DBG_FLAGS ?= -O0 -g -g3 -gdwarf-2 -ftrapv
 BUILD_FLAGS := GUI=$(GUI) REL_FLAGS=$(REL_FLAGS) CFLAGS=$(CFLAGS)
 FLAGS_FILE := $(BUILD_DIR)/.build-flags
 
+# Rules below add targets before `all`; pin the default goal explicitly so
+# `make` with no arguments still builds the release binary.
+.DEFAULT_GOAL := all
+
 # c source
 $(BUILD_DIR)/%.o: %.cpp $(HEAD) $(FLAGS_FILE)
 	$(MKDIR_P) $(dir $@)
