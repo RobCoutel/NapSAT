@@ -442,6 +442,11 @@ bool NapSAT::root_level_conflict()
   return false;
 }
 
+void NapSAT::prove_root_conflict_with_lazy_merging()
+{
+  ASSERT(false);
+}
+
 void NapSAT::calculate_bitset_weights(vector<Tweight>& weights)
 {
   double lowest_weight = numeric_limits<double>::max();
@@ -1256,6 +1261,7 @@ void NapSAT::graph_repair()
 
   if (possibilities.empty()) {
     // we cannot repair the conflicts
+    // TODO: We still need to generate the empty clause for the proof
     _status = status::UNSAT;
     return;
   }

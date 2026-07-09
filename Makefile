@@ -124,6 +124,26 @@ bench: $(BUILD_DIR)/$(EXEC)
 bench:
 	mv $(BUILD_DIR)/$(EXEC) $(BUILD_DIR)/$(EXEC)-$(COMMIT_COUNT)
 
+.PHONY: fuzz fuzz-ub perf-bench
+
+# Metamorphic + cross-strategy fuzzing (see scripts/fuzz.py, KNOWN-ISSUES.md).
+fuzz: debug
+	python3 scripts/fuzz.py func
+
+# Crash/UB fuzzing needs a sanitizer build; DBG_FLAGS uses `?=` so an
+# exported override wins over the default and flows through the recursive
+# SATSentinel sub-make too.
+fuzz-ub:
+	DBG_FLAGS="-O0 -g -g3 -gdwarf-2 -ftrapv -fsanitize=address,undefined -fno-sanitize-recover=all" $(MAKE) debug
+	python3 scripts/fuzz.py ub
+
+# Propagations/sec benchmark against tests/cnf/bench (see scripts/bench.py).
+# Named perf-bench, not bench, to avoid clobbering the existing `bench`
+# target above (renames the built binary to build/NapSAT-<commit-count> for
+# manual A/B comparisons).
+perf-bench: all
+	python3 scripts/bench.py run tests/cnf/bench --out perf-bench.json
+
 .PHONY: clean
 
 clean:

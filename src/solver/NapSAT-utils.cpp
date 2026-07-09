@@ -101,14 +101,17 @@ bool NapSAT::parse_dimacs(const char* filename)
 
       if (!var_string.empty() && !alias.empty() && rest.empty()) {
         try {
-          Tvar var = stoi(var_string);
+          size_t pos;
+          Tvar var = stoi(var_string, &pos);
+          if (pos != var_string.size())
+            throw invalid_argument(var_string);
           if (var >= _vars.size())
             var_allocate(var + 1);
           sentinel::wrapper::set_variable_alias(_sentinel, var, alias);
           // done, next line
           continue;
         }
-        catch (invalid_argument &e) {
+        catch (const exception &e) {
           // fall through printing the warning
         }
       }
@@ -135,15 +138,20 @@ bool NapSAT::parse_dimacs(const char* filename)
 
       if (!var_string.empty() && !weight_string.empty() && rest.empty()) {
         try {
-          Tvar var = stoi(var_string);
-          double weight = stod(weight_string);
+          size_t pos;
+          Tvar var = stoi(var_string, &pos);
+          if (pos != var_string.size())
+            throw invalid_argument(var_string);
+          double weight = stod(weight_string, &pos);
+          if (pos != weight_string.size())
+            throw invalid_argument(weight_string);
           if (var >= _vars.size())
             var_allocate(var + 1);
           var_weight(var) = weight;
           // done, next line
           continue;
         }
-        catch (invalid_argument &e) {
+        catch (const exception &e) {
           // fall through printing the warning
         }
       }
@@ -179,17 +187,20 @@ bool NapSAT::parse_dimacs(const char* filename)
     while(getline(ss, token, ' ')) {
       if (token.empty())
         continue;
+      int lit;
       try {
-        int lit = stoi(token);
-        if (lit == 0)
-          break;
-        add_literal(Tlit(abs(lit), lit > 0));
-      } catch (invalid_argument &e) {
+        size_t pos;
+        lit = stoi(token, &pos);
+        if (pos != token.size())
+          throw invalid_argument(token);
+      } catch (const exception &e) {
         LOG_ERROR("The token " << token << " is not a number.");
         _status = status::ERROR;
-        throw invalid_argument("The token " + token + " is not a number.");
         return false;
       }
+      if (lit == 0)
+        break;
+      add_literal(Tlit(abs(lit), lit > 0));
     }
     finalize_clause();
     if (_status != status::UNKNOWN)
