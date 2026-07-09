@@ -35,8 +35,8 @@
   } while(0)
 
 #else
-#define ASSERT(cond) assert(cond);
+#define ASSERT(cond, ...) assert(cond);
 #endif
 #else
-#define ASSERT(cond) ((void)0)
+#define ASSERT(cond, ...) ((void)0)
 #endif
