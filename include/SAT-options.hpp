@@ -95,7 +95,7 @@ namespace napsat
     static void set_suppress_info(bool si);
   };
 
-  class options {
+  class Options {
   public:
 
     ::sentinel::Options* sentinel_options = nullptr;
@@ -341,12 +341,14 @@ namespace napsat
     /**
      * @brief Constructor
     */
-    options() = default;
+    Options() = default;
+
+    Options(const Options&) = delete;
 
     /**
      * @brief Constructor
     */
-    explicit options(std::vector<std::string>& tokens);
+    explicit Options(std::vector<std::string>& tokens);
 
     /**
      * @brief Runtime-generated help text describing every solver option (and, nested within it,
@@ -355,12 +357,22 @@ namespace napsat
      */
     static std::string get_help_text();
 
+    /**
+     * @brief Returns a string representation of the options, suitable for logging or debugging.
+     */
+    std::string get_options_string() const;
+
   private:
     /**
+     * @brief Parser for the options.
+     */
+    OptionParser _parser;
+
+       /**
      * @brief Registers every option of `target` (aliases, defaults, incompatibilities,
      * requirements) into `parser`. Shared by the constructor and get_help_text().
      */
-    static void build_option_parser(options& target, OptionParser& parser);
+    void build_option_parser();
 
     /**
      * @brief Extracts the brace-delimited group of tokens following -o/--observing (if any), e.g.

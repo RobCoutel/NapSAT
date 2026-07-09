@@ -88,7 +88,7 @@ bool napsat::NapSAT::check_lit_needs_fixing(Tlit lit) const
 
 bool napsat::NapSAT::lit_is_max_literal(Tlit lit, const Tlit* lits, size_t size) const
 {
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     const bitset& chunks = lit_chunks(lit);
     for (size_t i = 0; i < size; i++) {
       const bitset& chunks_i = lit_chunks(lits[i]);
@@ -256,11 +256,11 @@ bool napsat::NapSAT::check_watch_lists_minimal() const
 void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
 {
   string filename = napsat::env::get_invariant_configuration_folder();
-  if (_options.lazy_strong_chronological_backtracking)
+  if (_options->lazy_strong_chronological_backtracking)
     filename += "lazy-strong-chronological-backtracking";
-  else if (_options.chronological_backtracking)
+  else if (_options->chronological_backtracking)
     filename += "chronological-backtracking";
-  else if (_options.graph_backtracking)
+  else if (_options->graph_backtracking)
     filename += "graph-backtracking";
   else
     filename += "non-chronological-backtracking";

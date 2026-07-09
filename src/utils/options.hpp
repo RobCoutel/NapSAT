@@ -149,6 +149,8 @@ namespace napsat
     /** @brief Full help text for every registered option, grouped by category. */
     std::string help_text(const std::string& header = "") const;
 
+    const std::vector<Option*> get_options() const { return _index_order; }
+
   private:
     Option& register_option(std::unique_ptr<Option> option);
 

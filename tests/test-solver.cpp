@@ -68,7 +68,7 @@ static NapSAT* setup(const char* filename, const string& extra_options = "") {
   while (iss >> token)
     args.push_back(token);
   args = env::extract_environment_variables(args);
-  options options(args);
+  Options* options = new Options(args);
   NapSAT* solver = create_solver(0, 0, options);
   REQUIRE(solver != nullptr);
 

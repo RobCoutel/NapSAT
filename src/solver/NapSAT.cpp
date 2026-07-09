@@ -65,7 +65,7 @@ void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
 void NapSAT::restart()
 {
   NOTIFY_STAT(_n_restart);
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     unsigned tmp = _n_propagated_lits;
     backtrack(LEVEL_ROOT);
     _n_propagated_lits = min(tmp, _n_propagated_lits);
@@ -91,7 +91,7 @@ double napsat::NapSAT::literal_cost(Tlit lit) const {
   return var_weight(lit.var());
 }
 
-static inline void print_bt_option(const options &options) {
+static inline void print_bt_option(const Options &options) {
 #ifndef NDEBUG
     LOG_INFO("Running NapSAT (debug)");
 #else
@@ -121,19 +121,24 @@ static inline void print_bt_option(const options &options) {
     else if (options.use_sum_approximate_cost_estimation)
       LOG_INFO(" - with sum approximate cost estimation");
     LOG_INFO(" - with backtrack possibilities limit: " + std::to_string(options.backtrack_possibilities_limit));
+
+    LOG_INFO(options.get_options_string());
   }
 }
 
 /*****************************************************************************/
 /*                            Public interface                               */
 /*****************************************************************************/
-napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& options) :
+napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::Options* options) :
   _options(options)
 {
-  print_bt_option(_options);
+  if (!options) {
+    _options = new Options();
+  }
+  print_bt_option(*_options);
 #if USE_STATISTICS
-  if (options.print_stats || options.print_live_stats) {
-    _statistics = new napsat::statistics(options);
+  if (_options->print_stats || _options->print_live_stats) {
+    _statistics = new napsat::statistics(_options);
     const std::string cat_time = "1. Runtime";
     const std::string cat_core = "2. Core statistics";
     const std::string cat_alg  = "3. Algorithmic";
@@ -204,18 +209,18 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
     stat._a_prefix_size = _statistics->add_stat("Avg prefix size", cat_aux, statistics::AVERAGE);
   }
 #else
-  if (options.print_stats)
+  if (_options->print_stats)
     LOG_WARNING("The option --print-stats is not available in this build");
 #endif
 
   // We have to create the observer before allocating the variables. Otherwise, the notifications will not be sent
 #if USE_OBSERVER
-  if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
-    bool check_only = options.check_invariants && !options.interactive && !options.observing;
+  if (_options->interactive || _options->observing || _options->check_invariants || _options->print_stats) {
+    bool check_only = _options->check_invariants && !_options->interactive && !_options->observing;
 
-    ASSERT(options.sentinel_options);
-    load_invariant_configuration(*_options.sentinel_options);
-    _sentinel = sentinel::create_sentinel(*_options.sentinel_options);
+    ASSERT(_options->sentinel_options);
+    load_invariant_configuration(*_options->sentinel_options);
+    _sentinel = sentinel::create_sentinel(*_options->sentinel_options);
     for (sentinel::WatchInvariant* invariant : _watch_invariants)
       sentinel::add_watch_invariant(_sentinel, invariant);
     sentinel::wrapper::set_variable_detail_callback(_sentinel, [this](Tvar var) {
@@ -225,7 +230,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
       return clause_to_gui_info_string(cl);
     });
     // make a functional object that will parse the command
-    if (options.interactive) {
+    if (_options->interactive) {
       sentinel::Tparser* parser = new sentinel::Tparser([this](const std::string& command) {
         return parse_command(command);
       });
@@ -237,13 +242,13 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   else
     _sentinel = nullptr;
 #else
-  if (options.interactive || options.observing || options.check_invariants) {
+  if (_options->interactive || _options->observing || _options->check_invariants) {
     LOG_WARNING("Observer not available in this build");
-    if (options.interactive)
+    if (_options->interactive)
       LOG_WARNING("The option --interactive is not available in this build");
-    if (options.observing)
+    if (_options->observing)
       LOG_WARNING("The option --observing is not available in this build");
-    if (options.check_invariants)
+    if (_options->check_invariants)
       LOG_WARNING("The option --check-invariants is not available in this build");
   }
 #endif
@@ -262,13 +267,13 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   _lit_buffer_size = 0;
   var_allocate(n_var + 1);
 
-  if (options.build_proof)
+  if (_options->build_proof)
     _proof = new napsat::proof::resolution_proof();
 
-  if (options.record_dependencies)
+  if (_options->record_dependencies)
     _dependency_tracker = new napsat::proof::dependency_tracker();
 
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     allocate_chunks(4032);
   }
 }
@@ -282,6 +287,11 @@ Tvar napsat::NapSAT::new_variable()
 
 NapSAT::~NapSAT()
 {
+  ASSERT(_options);
+  if (_options->print_stats) {
+    get_statistics()->print_statistics(true);
+  }
+  delete _options;
   for (Tclause i = 0; i < _clauses.size(); i++)
     delete[] _clauses[i].lits;
 #if USE_OBSERVER
@@ -298,7 +308,7 @@ NapSAT::~NapSAT()
 
 bool napsat::NapSAT::is_interactive() const
 {
-  return _options.interactive;
+  return _options->interactive;
 }
 
 napsat::statistics* napsat::NapSAT::get_statistics() const
@@ -370,8 +380,8 @@ bool NapSAT::propagate()
 
     if (!_conflicts.empty()) {
       _conflict_count++;
-      if (_options.conflict_limit >= 0 && _conflict_count > _options.conflict_limit) {
-        LOG_INFO("Conflict limit reached: " + std::to_string(_options.conflict_limit));
+      if (_options->conflict_limit >= 0 && _conflict_count > _options->conflict_limit) {
+        LOG_INFO("Conflict limit reached: " + std::to_string(_options->conflict_limit));
         return false;
       }
       repair_conflicts();
@@ -379,10 +389,10 @@ bool NapSAT::propagate()
       if (_status == status::UNSAT) {
         return false;
       }
-      if (_options.delete_clauses && _n_learned_clauses >= _next_clause_elimination){
+      if (_options->delete_clauses && _n_learned_clauses >= _next_clause_elimination){
         simplify_clause_set();
       }
-      if (_options.restarts && _luby_counter.increment()) {
+      if (_options->restarts && _luby_counter.increment()) {
         restart();
       }
     }
@@ -406,7 +416,7 @@ status NapSAT::solve()
   while (true) {
     if (!propagate()) {
       if (_status == status::UNSAT) {
-        if (_options.interactive && _n_assumptions > 0) {
+        if (_options->interactive && _n_assumptions > 0) {
           NOTIFY(checkpoint);
           if (_status == status::UNKNOWN) {
             continue;
@@ -423,7 +433,7 @@ status NapSAT::solve()
       purge_clauses();
       _purge_threshold = _n_root_lvl_lits + _purge_inc;
       if (_status == status::UNSAT) {
-        if (_options.interactive && _n_assumptions > 0) {
+        if (_options->interactive && _n_assumptions > 0) {
           NOTIFY(checkpoint);
           if (_status == status::UNKNOWN) {
             continue;
@@ -432,7 +442,7 @@ status NapSAT::solve()
         auto end_time = std::chrono::high_resolution_clock::now();
         long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
         NOTIFY_STAT_N(solve_time, duration);
-        if (_options.print_live_stats)
+        if (_options->print_live_stats)
           get_statistics()->print_statistics(true);
         NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status));
         return _status;
@@ -444,7 +454,7 @@ status NapSAT::solve()
     NOTIFY(check_invariants);
     // synchronize();
 #if USE_OBSERVER
-    if (_options.interactive)
+    if (_options->interactive)
       NOTIFY(checkpoint);
     else
 #endif
@@ -458,7 +468,7 @@ status NapSAT::solve()
   auto end_time = std::chrono::high_resolution_clock::now();
   long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
   NOTIFY_STAT_N(solve_time, duration);
-  if (_options.print_live_stats)
+  if (_options->print_live_stats)
     get_statistics()->print_statistics(true);
   NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status));
   return _status;
@@ -466,11 +476,11 @@ status NapSAT::solve()
 
 status napsat::NapSAT::solve(unsigned conflict_limit)
 {
-  double old_conflict_limit = _options.conflict_limit;
-  _options.conflict_limit = conflict_limit;
+  double old_conflict_limit = _options->conflict_limit;
+  _options->conflict_limit = conflict_limit;
   _conflict_count = 0;
   status result = solve();
-  _options.conflict_limit = old_conflict_limit;
+  _options->conflict_limit = old_conflict_limit;
   return result;
 }
 

@@ -18,7 +18,7 @@ namespace napsat
    * clauses, however, the number of variables and clauses can be increased later
    * when adding new clauses.
   */
-  NapSAT* create_solver(unsigned n_var, unsigned n_clauses, options& opt);
+  NapSAT* create_solver(unsigned n_var, unsigned n_clauses, Options* opt = nullptr);
 
   /**
    * @brief Delete a SAT solver.

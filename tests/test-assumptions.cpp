@@ -22,7 +22,7 @@ using namespace napsat;
 TEST_CASE( "[NapSAT-assumption] Unit Test : Add from empty" ) {
   vector<string> args;
   args.push_back("-gb");
-  options opts(args);
+  Options* opts = new Options(args);
 
   NapSAT solver(10, 10, opts);
   Tlit l1(1, true);
@@ -38,7 +38,7 @@ TEST_CASE( "[NapSAT-assumption] Unit Test : Add from empty" ) {
 TEST_CASE( "[NapSAT-assumption] Unit Test : Contradicting assumptions" ) {
   vector<string> args;
   args.push_back("-gb");
-  options opts(args);
+  Options* opts = new Options(args);
 
   NapSAT solver(10, 10, opts);
   REQUIRE(solver.assume(Tlit(1, true)) == true);
@@ -51,7 +51,7 @@ TEST_CASE( "[NapSAT-assumption] Unit Test : Conflict after assumption unlock" ) 
 
   vector<string> args;
   args.push_back("-gb");
-  options opts(args);
+  Options* opts = new Options(args);
 
   NapSAT solver(10, 10, opts);
   REQUIRE(solver.assume(Tlit(1, true)) == true);
@@ -95,7 +95,7 @@ TEST_CASE( "[NapSAT-assumption] Unit Test : True implied assumption" ) {
    */
   vector<string> args;
   args.push_back("-gb");
-  options opts(args);
+  Options* opts = new Options(args);
 
   Tlit l1(1, true);
   Tlit l2(2, true);

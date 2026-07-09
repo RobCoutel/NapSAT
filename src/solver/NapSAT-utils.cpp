@@ -226,7 +226,7 @@ void NapSAT::bump_var_activity(Tvar var)
 void NapSAT::bump_clause_activity(Tclause cl)
 {
   _activities[cl] += _clause_activity_increment;
-  _clause_activity_increment *= _options.clause_activity_multiplier;
+  _clause_activity_increment *= _options->clause_activity_multiplier;
   _max_clause_activity += _clause_activity_increment;
   if (_max_clause_activity > 1e100) {
     for (Tclause i = 0; i < _clauses.size(); i++)
@@ -330,7 +330,7 @@ void NapSAT::var_allocate(Tvar var)
   _vars.resize(var + 1);
   for (Tvar i = old_size; i <= var; i++) {
     assert(_vars[i].constrained == 0);
-    if (!_options.ignore_unused_variables)
+    if (!_options->ignore_unused_variables)
       var_mark_constrained(i);
     _vars[i].chunks.resize(_n_allocated_chunks);
     _vars[i].cross_chunks.resize(_n_allocated_chunks);
@@ -377,7 +377,7 @@ unsigned NapSAT::utility_heuristic(Tlit lit)
   // now in a lattice, where all literals are not necessarily comparable.
   // We can however approximate the utility with the number of non-zero chunks of the literal.
   unsigned level_weight;
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     level_weight = lit_chunks(lit).count();
   } else {
     level_weight = lit_level(lit).value;
@@ -435,7 +435,7 @@ size_t napsat::NapSAT::find_literal_in_trail(Tlit lit) const
   if (lit_decision(lit)) {
     return left - _trail.data();
   }
-  if (!_options.chronological_backtracking && !_options.graph_backtracking
+  if (!_options->chronological_backtracking && !_options->graph_backtracking
    && level < solver_level()) {
     right = decision_lit_ptr(level + 1);
   }
@@ -564,7 +564,7 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
   if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
     s += "$\\lambda(\\ell)$: " + clause_to_md_string(lit_lazy_reason(lit)) + "\n";
   }
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     s += "$\\gamma(\\ell)$: " + lit_chunks(lit).to_string() + "\n";
     s += "$\\eta(\\ell)$: " + (lit_cross_chunks(lit) - lit_chunks(lit)).to_string() + "\n";
     s += "$\\zeta(\\ell)$: " + to_string(literal_cost(lit)) + "\n";
@@ -630,7 +630,7 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
   s += "δ: " + var_level(var).to_string() + "\n";
   s += "ρ: " + plain_clause(var_reason(var)) + "\n";
   Tclause lazy_reason = lit_lazy_reason(Tlit(var, 1));
-  if (lazy_reason != CLAUSE_UNDEF || _options.lazy_strong_chronological_backtracking)
+  if (lazy_reason != CLAUSE_UNDEF || _options->lazy_strong_chronological_backtracking)
     s += "λ: " + plain_clause(lazy_reason) + "\n";
   s += "propagated: " + (string) (var_propagated(var) ? "true" : "false") + "\n";
   s += "synced: "     + (string) (var_synced(var) ? "true" : "false") + "\n";
@@ -652,7 +652,7 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
   }
   s += "n_clauses: " + to_string(n_clauses) + "\n";
 
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     s += "γ: " + var_chunks(var).to_string() + "\n";
     s += "η: " + (var_cross_chunks(var) - var_chunks(var)).to_string() + "\n";
     s += "ζ: " + to_string(literal_cost(Tlit(var, var_value(var)))) + "\n";
@@ -690,7 +690,7 @@ std::string napsat::NapSAT::clause_to_gui_info_string(Tclause cl) const
     s += " watched";
   s += "\n";
 
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     s += "γ(" + cl.to_string() + ") = " + clause_chunks(cl).to_string() + "\n";
   }
 
@@ -830,7 +830,7 @@ void NapSAT::print_trail() const
       print_clause(lit_lazy_reason(lit));
       cout << ")";
     }
-    if (_options.graph_backtracking) {
+    if (_options->graph_backtracking) {
       cout << " (γ = " << lit_chunks(lit).to_string() << ", ";
       cout <<   "η = " << (lit_cross_chunks(lit) - lit_chunks(lit)).to_string();
       if (lit_decision(lit) && lit_lazy_reason(lit) != CLAUSE_UNDEF) {
@@ -846,7 +846,7 @@ void NapSAT::print_trail() const
   for (Tclause conflict : _conflicts) {
     cout << "conflict: ";
     print_clause(conflict);
-    if (_options.graph_backtracking)
+    if (_options->graph_backtracking)
       cout << " (" << clause_chunks(conflict).to_string() << ")";
     cout << "\n";
   }

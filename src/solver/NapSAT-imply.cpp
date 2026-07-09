@@ -61,7 +61,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     _decision_index.push_back(_trail.size() - 1);
     svar.level = solver_level();
     NOTIFY(assign, lit);
-    if (_options.graph_backtracking) {
+    if (_options->graph_backtracking) {
       if (_free_chunks.empty()) {
         allocate_chunks(2 * _n_allocated_chunks);
       }
@@ -94,7 +94,7 @@ void NapSAT::imply_literal(Tlit lit, Tclause reason)
     if (clause_size(reason) == 1) {
       svar.level = LEVEL_ROOT;
     } else {
-      if (_options.graph_backtracking) {
+      if (_options->graph_backtracking) {
         // In graph backtracking we do not have any information about the levels
         // we need to compute it by going through the clause
         svar.level = implication_level(reason);
@@ -128,12 +128,12 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   if (lit_level(lit) == LEVEL_ROOT)
     return;
 
-  if (_options.lazy_strong_chronological_backtracking) {
+  if (_options->lazy_strong_chronological_backtracking) {
     lit_lazy_reason(lit) = reason;
     return;
   }
 
-  if (!_options.graph_backtracking) {
+  if (!_options->graph_backtracking) {
     // Non-chronological backtracking
     backtrack(LEVEL_ROOT);
     imply_literal(lit, reason);
@@ -152,7 +152,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
 
   // if the literal is a decision, we will need to update the decision index
   bool squash_level = lit_decision(lit);
-  if (squash_level && _options.graph_backtracking) {
+  if (squash_level && _options->graph_backtracking) {
     // we need to free the chunk of the decision
     ASSERT(lit_chunks(lit).count() == 1);
     Tchunk ck = *lit_chunks(lit).cbegin();
@@ -175,7 +175,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   lit_chunks(lit).clear();
 
   // fix the trail
-  if (!_options.graph_backtracking) {
+  if (!_options->graph_backtracking) {
     for (size_t i = pos + 1; i < _trail.size(); i++) {
       Tlit l = _trail[i];
 
@@ -232,7 +232,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
     }
   }
 
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     for (size_t i = pos + 1; i < _trail.size(); i++) {
       Tlit l = _trail[i];
 
@@ -283,7 +283,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
   ASSERT(lit_true(c2));
   ASSERT(lit_false(c1));
 
-  if (!_options.lazy_strong_chronological_backtracking && !_options.graph_backtracking) {
+  if (!_options->lazy_strong_chronological_backtracking && !_options->graph_backtracking) {
     // Non-chronological backtracking
     ASSERT(clause.external);
 
@@ -295,9 +295,9 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
   }
 
   // The levels are ok. Nothing to do here.
-  if (!_options.graph_backtracking && lit_level(c2) <= lit_level(c1))
+  if (!_options->graph_backtracking && lit_level(c2) <= lit_level(c1))
       return;
-  if (_options.lazy_strong_chronological_backtracking) {
+  if (_options->lazy_strong_chronological_backtracking) {
     ASSERT(lit_is_max_literal(lits[1], lits + 2, clause.size - 2));
     if (lit_lazy_level(c2)  <= lit_level(c1)) {
       return;
@@ -306,7 +306,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
     return;
   }
   /* GRAPH BACKTRACKING */
-  ASSERT(_options.graph_backtracking);
+  ASSERT(_options->graph_backtracking);
   ASSERT(lit_true(c2));
   ASSERT(c2 == lits[0]);
   ASSERT(check_clause_implying(reason));
@@ -319,14 +319,14 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
     return;
   }
 
-  if (_options.eager_chunk_merging) {
+  if (_options->eager_chunk_merging) {
     ASSERT(lit_lazy_reason(c2) == CLAUSE_UNDEF);
     eager_decision_reimplication(c2, reason);
     return;
   }
 
   // Lazy chunk merging
-  if (_options.lazy_chunk_merging && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
+  if (_options->lazy_chunk_merging && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
     // compute the chunk set of the clause, excluding the lits[1]
     bitset chunks(_n_allocated_chunks);
     for (size_t j = 1; j < clause.size; j++) {
@@ -347,7 +347,7 @@ void NapSAT::reimply_literal(Tlit c2, Tclause reason)
 
 void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
 {
-  ASSERT(_options.graph_backtracking || _options.chronological_backtracking);
+  ASSERT(_options->graph_backtracking || _options->chronological_backtracking);
   ASSERT(lit_decision(decision));
   ASSERT(lit_true(decision));
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
@@ -443,7 +443,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
       lit_level(lit)--;
       _decision_index[lit_level(lit) - 1] = write;
     } else {
-      if (_options.graph_backtracking) {
+      if (_options->graph_backtracking) {
         keep = !lit_chunks(lit).get(decision_chunk);
       } else {
         // check if there is a marked literal in the reason of lit with a level greater or equal to the decision level. If there is, then we need to move lit as well.
@@ -456,7 +456,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
         }
       }
       lit_level(lit) = implication_level(lit_reason(lit));
-      if (_options.graph_backtracking && !keep) {
+      if (_options->graph_backtracking && !keep) {
         recompute_chunks(lit);
       }
     }
@@ -498,7 +498,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
       _decision_index[lit_level(lit) - 1] = read;
     } else {
       lit_level(lit) = implication_level(lit_reason(lit));
-      if (_options.graph_backtracking) {
+      if (_options->graph_backtracking) {
         recompute_chunks(lit);
       }
     }

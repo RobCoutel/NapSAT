@@ -33,7 +33,7 @@ void NapSAT::var_unassign(Tvar var)
   if (!_variable_heap.contains(var))
     _variable_heap.insert(var, v.activity);
 
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     if (v.reason == CLAUSE_UNDEF) {
       ASSERT(v.chunks.count() == 1);
       Tchunk ck = *v.chunks.cbegin();
@@ -54,7 +54,7 @@ void NapSAT::var_unassign(Tvar var)
 
 Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
 {
-  ASSERT(!_options.graph_backtracking);
+  ASSERT(!_options->graph_backtracking);
 #ifndef NDEBUG
   // The first literal of the clause is at the highest level
   for (unsigned i = 1; i < size; i++) {
@@ -65,7 +65,7 @@ Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
     // If the learned clause is empty, we can backtrack to the root level
     return LEVEL_UNDEF;
   }
-  if (_options.chronological_backtracking) {
+  if (_options->chronological_backtracking) {
     return lit_level(learned_lits[0]) - 1;
   }
   if (size == 1) {
@@ -101,10 +101,10 @@ void NapSAT::backtrack(Tlevel level)
     Tlit lit = _trail[i];
     Tvar var = lit.var();
     if (lit_level(lit) > level) {
-      ASSERT(_options.lazy_strong_chronological_backtracking || _options.graph_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
+      ASSERT(_options->lazy_strong_chronological_backtracking || _options->graph_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
       if (lit_lazy_level(lit) <= level) {
         // look if the literal can be reimplied at a lower level
-        ASSERT(_options.lazy_strong_chronological_backtracking || _options.lazy_chunk_merging);
+        ASSERT(_options->lazy_strong_chronological_backtracking || _options->lazy_chunk_merging);
         Tclause lazy_reason = lit_lazy_reason(lit);
         ASSERT(lazy_reason != CLAUSE_UNDEF);
         ASSERT(clause_lits(lazy_reason)[0] == lit);
@@ -124,7 +124,7 @@ void NapSAT::backtrack(Tlevel level)
       */
       _backtracked_variables.push_back(var);
     } else { // lit_level(lit) <= level
-      ASSERT(_options.chronological_backtracking || _options.graph_backtracking,
+      ASSERT(_options->chronological_backtracking || _options->graph_backtracking,
         "The literal " + lit_to_string(lit) + " at level " + lit_level(lit).to_string() + " at position " + to_string(i) + " should be backtracked. Backtracking level: " + to_string(level));
       _trail[j++] = lit;
       waiting_count += (i >= _n_propagated_lits);
@@ -143,14 +143,14 @@ void NapSAT::backtrack(Tlevel level)
   _trail.resize(j);
   _decision_index.resize(level);
 
-  ASSERT(_options.chronological_backtracking || _options.graph_backtracking || waiting_count == 0,
+  ASSERT(_options->chronological_backtracking || _options->graph_backtracking || waiting_count == 0,
              "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(level) + "\nRestore point: " + to_string(restore_point));
   _n_propagated_lits = _trail.size() - waiting_count;
-  ASSERT(_options.chronological_backtracking || _options.graph_backtracking || _n_propagated_lits == restore_point,
+  ASSERT(_options->chronological_backtracking || _options->graph_backtracking || _n_propagated_lits == restore_point,
     "Propagated literals: " + to_string(_n_propagated_lits) + "\nRestore point: " + to_string(restore_point));
   // in RSCB we need to move the propagation head back to the location of the first literal that moved
   // that is, the location of the first literal that was unassigned.
-  if (_options.chronological_backtracking) {
+  if (_options->chronological_backtracking) {
     while (_n_propagated_lits > restore_point) {
       Tlit lit = _trail[_n_propagated_lits - 1];
       Tvar var = lit.var();
@@ -161,7 +161,7 @@ void NapSAT::backtrack(Tlevel level)
     }
   }
   if (_reimplication_backtrack_buffer.size() > 0) {
-    ASSERT(_options.lazy_strong_chronological_backtracking || _options.lazy_chunk_merging);
+    ASSERT(_options->lazy_strong_chronological_backtracking || _options->lazy_chunk_merging);
     // adds the literals on the lazy reimplication buffer to the trail by order of increasing level
     // Sort the literals by increasing level. It is not necessary, but it probably is more effective
     // TODO evaluate the performance of this. Is sorting useful?
@@ -181,7 +181,7 @@ static Tvar last_backtracked_decision = 0;
 
 void NapSAT::backtrack(const bitset& backtracked_chunks)
 {
-  ASSERT(_options.graph_backtracking);
+  ASSERT(_options->graph_backtracking);
   ASSERT(!backtracked_chunks.empty());
   ASSERT(!backtracked_chunks.empty());
   ASSERT(_backtracked_variables.empty());

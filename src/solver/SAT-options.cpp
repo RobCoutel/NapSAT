@@ -153,7 +153,7 @@ void env::set_suppress_info(bool si) {
 /*                                    LOCAL OPTIONS                                               */
 /**************************************************************************************************/
 
-vector<string> napsat::options::extract_sentinel_tokens(vector<string>& tokens)
+vector<string> napsat::Options::extract_sentinel_tokens(vector<string>& tokens)
 {
   vector<string> sentinel_tokens;
   for (unsigned i = 0; i < tokens.size(); i++) {
@@ -200,92 +200,92 @@ vector<string> napsat::options::extract_sentinel_tokens(vector<string>& tokens)
   return sentinel_tokens;
 }
 
-void napsat::options::build_option_parser(napsat::options& t, napsat::OptionParser& p)
+void napsat::Options::build_option_parser()
 {
-  p.set_category("SOLVER BEHAVIOR");
-  auto& cb = p.add_bool("--chronological-backtracking", t.chronological_backtracking,
+  _parser.set_category("SOLVER BEHAVIOR");
+  auto& cb = _parser.add_bool("--chronological-backtracking", chronological_backtracking,
     "Enables chronological backtracking as described in \n  [2018 - Chronological Backtracking - Nadel and Ryvchin]").alias("-cb");
-  auto& lscb = p.add_bool("--lazy-strong-chronological-backtracking", t.lazy_strong_chronological_backtracking,
+  auto& lscb = _parser.add_bool("--lazy-strong-chronological-backtracking", lazy_strong_chronological_backtracking,
     "Enables strong chronological backtracking with the lazy reimplication scheme as described in \n  [2024 - Lazy Reimplication in Chronological Backtracking - Coutelier et al.].")
     .alias("-lscb").alias("-scb");
-  auto& gb = p.add_bool("--graph-backtracking", t.graph_backtracking,
+  auto& gb = _parser.add_bool("--graph-backtracking", graph_backtracking,
     "Enables graph backtracking: upon a conflict, selects the lightest set of literals to be unassigned. As described in \n  [2026 - Generalizing CDCL with Graph Backtracking - Coutelier et al.]").alias("-gb");
-  auto& lcm = p.add_bool("--lazy-chunk-merging", t.lazy_chunk_merging,
+  auto& lcm = _parser.add_bool("--lazy-chunk-merging", lazy_chunk_merging,
     "Logs missed implications for decisions so that chunks can be merged lazily when needed.")
     .alias("-lcm");
-  auto& ecm = p.add_bool("--eager-chunk-merging", t.eager_chunk_merging,
+  auto& ecm = _parser.add_bool("--eager-chunk-merging", eager_chunk_merging,
     "Eagerly merges chunks as soon as a missed implication is detected for a decision.")
     .alias("-ecm");
-  auto& bsc = p.add_bool("--backtrack-smallest-chunk", t.backtrack_smallest_chunk,
+  auto& bsc = _parser.add_bool("--backtrack-smallest-chunk", backtrack_smallest_chunk,
     "Searches the smallest UIP and chooses the backtracked chunk accordingly.").alias("-bsc");
-  auto& bfc = p.add_bool("--backtrack-first-chunk", t.backtrack_first_chunk,
+  auto& bfc = _parser.add_bool("--backtrack-first-chunk", backtrack_first_chunk,
     "Backtracks the first chunk in the conflict clause.").alias("-bfc");
-  p.add_bool("--delete-clauses", t.delete_clauses, "Enables deletion of learned clauses.")
+  _parser.add_bool("--delete-clauses", delete_clauses, "Enables deletion of learned clauses.")
     .alias("-del");
-  p.add_bool("--ignore-unused-variables", t.ignore_unused_variables,
+  _parser.add_bool("--ignore-unused-variables", ignore_unused_variables,
     "If true, unused variables are not assigned a value.")
     .alias("-iuv").alias("--ignore-unused_variables");
 
-  p.set_category("OBSERVER");
-  p.add_bool("--interactive", t.interactive,
+  _parser.set_category("OBSERVER");
+  _parser.add_bool("--interactive", interactive,
     "Before each decision, the solver waits for a user command before continuing.").alias("-i");
-  p.add_bool("--observing", t.observing,
+  _parser.add_bool("--observing", observing,
     "Attaches an observer to the solver, which prints information about its execution. Sentinel "
     "options can be passed grouped in braces right after this flag, e.g. -o \"{--gui -commands "
     "file.txt}\" (quote the group, since an unquoted '{' is a syntax error in zsh).")
     .alias("-o");
-  p.add_bool("--check-invariants", t.check_invariants,
+  _parser.add_bool("--check-invariants", check_invariants,
     "Checks solver invariants through the observer.").alias("-c");
-  p.add_bool("--save-state-on-interrupt", t.save_state_on_interrupt,
+  _parser.add_bool("--save-state-on-interrupt", save_state_on_interrupt,
     "Saves the solver state to an obsidian vault when an assertion fails.").alias("-ssi");
-  p.add_bool("--statistics", t.print_stats,
+  _parser.add_bool("--statistics", print_stats,
     "Prints statistics at the end of the execution.").alias("-stat");
-  p.add_bool("--live-statistics", t.print_live_stats,
+  _parser.add_bool("--live-statistics", print_live_stats,
     "Prints statistics live during the execution.").alias("-live-stat");
-  p.add_bool("--proof", t.build_proof, "Builds a resolution proof during the execution.")
+  _parser.add_bool("--proof", build_proof, "Builds a resolution proof during the execution.")
     .alias("-bp");
-  p.add_bool("--check-proof", t.check_proof, "Checks the resolution proof during the execution.")
+  _parser.add_bool("--check-proof", check_proof, "Checks the resolution proof during the execution.")
     .alias("-cp");
-  p.add_bool("--print-proof", t.print_proof, "Prints the resolution proof during the execution.")
+  _parser.add_bool("--print-proof", print_proof, "Prints the resolution proof during the execution.")
     .alias("-pp");
-  p.add_bool("--record-dependencies", t.record_dependencies,
+  _parser.add_bool("--record-dependencies", record_dependencies,
     "For each learned clause, records which input clauses it depends on. Required to produce "
     "clause UNSAT cores; disables deletion of input clauses.");
 
-  p.set_category("VARIABLE ACTIVITY");
-  p.add_double("--var-activity-decay", t.var_activity_decay,
+  _parser.set_category("VARIABLE ACTIVITY");
+  _parser.add_double("--var-activity-decay", var_activity_decay,
     "Decay factor of the variable activity increment.");
 
-  p.set_category("CLAUSE DELETION");
-  p.add_double("--clause-elimination-multiplier", t.clause_elimination_multiplier,
+  _parser.set_category("CLAUSE DELETION");
+  _parser.add_double("--clause-elimination-multiplier", clause_elimination_multiplier,
     "Multiplier of the clause-count threshold before elimination is triggered again.");
-  p.add_double("--clause-activity-multiplier", t.clause_activity_multiplier,
+  _parser.add_double("--clause-activity-multiplier", clause_activity_multiplier,
     "Multiplier for the activity increment of clauses.");
-  p.add_double("--clause-activity-threshold-decay", t.clause_activity_threshold_decay,
+  _parser.add_double("--clause-activity-threshold-decay", clause_activity_threshold_decay,
     "Decay factor of the clause activity threshold.").range(0.0, 1.0, /*fatal=*/true);
-  p.add_bool("--restarts", t.restarts, "Enables Luby restarts.");
-  auto& bl = p.add_bool("--backtrack-learned", t.backtrack_learned,
+  _parser.add_bool("--restarts", restarts, "Enables Luby restarts.");
+  auto& bl = _parser.add_bool("--backtrack-learned", backtrack_learned,
     "Backtracks the chunks that were analyzed to learn the clause, instead of always backtracking "
     "the smallest possible set of chunks.").alias("-bl");
-  auto& max_c = p.add_bool("--use-max-approximate-cost-estimation", t.use_max_approximate_cost_estimation,
+  auto& max_c = _parser.add_bool("--use-max-approximate-cost-estimation", use_max_approximate_cost_estimation,
     "Uses an approximate max-based cost estimation when weighting bitsets during conflict analysis.")
     .alias("-max-approx-cost");
-  auto& sum_c = p.add_bool("--use-sum-approximate-cost-estimation", t.use_sum_approximate_cost_estimation,
+  auto& sum_c = _parser.add_bool("--use-sum-approximate-cost-estimation", use_sum_approximate_cost_estimation,
     "Uses an approximate sum-based cost estimation when weighting bitsets during conflict analysis.")
     .alias("-sum-approx-cost");
-  auto& vsids_c = p.add_bool("--use-vsids-approximate-cost-estimation", t.use_vsids_approximate_cost_estimation,
+  auto& vsids_c = _parser.add_bool("--use-vsids-approximate-cost-estimation", use_vsids_approximate_cost_estimation,
     "Uses a VSIDS-activity-based approximate cost estimation when weighting bitsets during conflict "
     "analysis.").alias("-vsids-approx-cost");
-  p.add_double("--chunk-level-penalty", t.chunk_level_penalty,
+  _parser.add_double("--chunk-level-penalty", chunk_level_penalty,
     "Penalty for the level of chunks in the cost heuristic used by graph backtracking.");
-  p.add_double("--backtrack-possibilities-limit", t.backtrack_possibilities_limit,
+  _parser.add_double("--backtrack-possibilities-limit", backtrack_possibilities_limit,
     "Limit on the number of backtrack possibilities considered by graph backtracking before "
     "heuristically cutting off.");
-  p.add_double("--sync-weight", t.sync_weight,
+  _parser.add_double("--sync-weight", sync_weight,
     "Weight of synced variables in the graph-backtracking utility heuristic.");
-  p.add_double("--timeout", t.timeout,
+  _parser.add_double("--timeout", timeout,
     "Timeout of the solver in milliseconds.").alias("-t");
-  p.add_double("--conflict-limit", t.conflict_limit,
+  _parser.add_double("--conflict-limit", conflict_limit,
     "Number of conflicts before the solver exits with UNKNOWN. -1 disables the limit.")
     .alias("-cl");
 
@@ -310,17 +310,16 @@ void napsat::options::build_option_parser(napsat::options& t, napsat::OptionPars
   vsids_c.require(sum_c, false);
 }
 
-napsat::options::options(vector<string>& tokens)
+napsat::Options::Options(vector<string>& tokens)
 {
   vector<string> sentinel_tokens = extract_sentinel_tokens(tokens);
 #if USE_OBSERVER
   sentinel_options = new ::sentinel::Options(sentinel_tokens);
 #endif
 
-  OptionParser parser;
-  build_option_parser(*this, parser);
-  parser.parse(tokens);
-  parser.resolve();
+  build_option_parser();
+  _parser.parse(tokens);
+  _parser.resolve();
 
   /****************************************************************************/
   /**                    DERIVED VALUES / MANUAL SPECIAL CASES               **/
@@ -336,16 +335,9 @@ napsat::options::options(vector<string>& tokens)
   interactive |= sentinel_options && !sentinel_options->commands_file.empty();
 
   build_proof = build_proof || print_proof || check_proof;
-
-  if ((print_stats || print_live_stats) && !observing && !interactive) {
-    LOG_WARNING("print-stats/print-live-stats requires observing or interactive mode to be enabled.");
-    LOG_WARNING("The option is ignored.");
-    print_stats = false;
-    print_live_stats = false;
-  }
 }
 
-string napsat::options::get_help_text()
+string napsat::Options::get_help_text()
 {
   static const string title =
     "################################################################################\n"
@@ -359,14 +351,28 @@ string napsat::options::get_help_text()
     "Usage: NapSAT <input_file/-h/-hs/-hn> [options]\n\n"
     "  -h  or --help                 Print this helper\n";
 
-  options dummy;
-  OptionParser parser;
-  build_option_parser(dummy, parser);
+  Options dummy;
+  dummy.build_option_parser();
   return title
        + justify_string(usage, 80)
-       + parser.help_text() + "\n"
+       + dummy._parser.help_text() + "\n"
 #if USE_OBSERVER
        + ::sentinel::Options::get_help_text()
 #endif
        ;
+}
+
+std::string napsat::Options::get_options_string() const
+{
+  // go through all options. If the value is not the default value, add it to the string.
+  std::ostringstream oss;
+
+  for (const auto& option : _parser.get_options()) {
+    if (option->current_to_string() == option->default_to_string())
+      continue;
+
+    oss << option->get_name() << " " << option->current_to_string() << " ";
+  }
+
+  return oss.str();
 }

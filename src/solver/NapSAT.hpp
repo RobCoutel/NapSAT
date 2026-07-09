@@ -157,7 +157,7 @@
 #define SAVE_STATE                                                            \
 do {                                                                          \
   bool save = false;                                                          \
-  if (_options.save_state_on_interrupt) {                                     \
+  if (_options->save_state_on_interrupt) {                                     \
     while (true) {                                                            \
       std::string input;                                                      \
       std::cout << "Enter [y/n] to save or not the implication graph: ";      \
@@ -211,7 +211,7 @@ namespace napsat
      * @param n_clauses initial number of clauses. Can be increased later by
      * adding clauses.
      */
-    NapSAT(unsigned n_var, unsigned n_clauses, options& options);
+    NapSAT(unsigned n_var, unsigned n_clauses, Options* options = nullptr);
 
     /**
      * @brief Create a new variable in the solver.
@@ -735,7 +735,7 @@ public:
     /**
      * @brief Options of the solver.
     */
-    options _options;
+    Options* _options;
     /**
      * @brief Status of the solver.
      */

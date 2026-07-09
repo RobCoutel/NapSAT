@@ -27,7 +27,7 @@ namespace napsat
 
 void NapSAT::purge_conflict_buffer()
 {
-  ASSERT(!_options.graph_backtracking);
+  ASSERT(!_options->graph_backtracking);
   size_t write_index = 0;
   for (size_t read_index = 0; read_index < _conflicts.size(); read_index++) {
     Tclause conflict = _conflicts[read_index];
@@ -111,7 +111,7 @@ void NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combinations,
       bitset next_current = current;
       next_current.set(c2, true);
       compute_lazy_merge_chunk_combination(combinations, mergeable_chunks, next_current, next_process);
-      if (combinations.size() > _options.backtrack_possibilities_limit) {
+      if (combinations.size() > _options->backtrack_possibilities_limit) {
         return;
       }
     }
@@ -133,7 +133,7 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bitset& com
   size_t original_size = possibilities.size();
   while(original_size > 0) {
     bitset current = possibilities[original_size - 1];
-    if (possibilities.size() > _options.backtrack_possibilities_limit
+    if (possibilities.size() > _options->backtrack_possibilities_limit
      || !current.has_intersection(mergeable_chunks)) {
       // no mergeable chunk, nothing to do
       original_size--;
@@ -166,7 +166,7 @@ void NapSAT::compute_backtrack_possibilities(vector<bitset>& possibilities) cons
   prefixes.push(make_pair(_conflicts_chunks.size(), bitset(_n_allocated_chunks)));
   while (!prefixes.empty()) {
     // check if the prefix is subsumed by an existing possibility
-    if (possibilities.size() > _options.backtrack_possibilities_limit) {
+    if (possibilities.size() > _options->backtrack_possibilities_limit) {
       NOTIFY_STAT(_n_backtrack_limit_reached);
       break;
     }
@@ -314,7 +314,7 @@ void NapSAT::fix_conflicts_and_learned_in_order(const vector<pair<Tclause, vecto
       Tlit* lits = clause_lits(conflict);
       if (clause_size(conflict) >= 2) {
         fix_watched_literals(conflict);
-        if (_options.graph_backtracking
+        if (_options->graph_backtracking
          && lit_true(lits[0]) && lit_false(lits[1])) {
           lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
         }
@@ -398,7 +398,7 @@ bool NapSAT::learned_clause_is_redundant()
   ASSERT(all_of(_lit_buffer, _lit_buffer + _lit_buffer_size, [this](Tlit l){
     return lit_marked(l); }));
 
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     Tclause redundant = clause_subsumed_in_formula(_lit_buffer, _lit_buffer_size);
     if (redundant != CLAUSE_UNDEF) {
       NOTIFY_STAT(_n_fw_subsumption_in_set);
@@ -501,7 +501,7 @@ void NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
 
     lowest_level = min(lowest_level, w.lowest_level);
 
-    if (_options.use_vsids_approximate_cost_estimation) {
+    if (_options->use_vsids_approximate_cost_estimation) {
       // use VSIDS activity as a proxy for literal cost
       for (auto it = w.chunks.cbegin(); it != w.chunks.cend(); ++it) {
         size_t chunk_id = *it;
@@ -511,7 +511,7 @@ void NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
     }
   }
 
-  if (_options.use_vsids_approximate_cost_estimation) {
+  if (_options->use_vsids_approximate_cost_estimation) {
     sort(weights.begin(), weights.end(),
             [](const Tweight& a, const Tweight& b) { return b < a; });
     return;
@@ -564,7 +564,7 @@ void NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
     double max_cost = 0.0;
     for (auto it = w.chunks.cbegin(); it != w.chunks.cend(); ++it) {
       size_t chunk_id = *it;
-      if (_options.use_sum_approximate_cost_estimation) {
+      if (_options->use_sum_approximate_cost_estimation) {
         w.total_weight += chunk_weights[chunk_id];
         continue;
       }
@@ -605,7 +605,7 @@ double NapSAT::calculate_weight(const bitset& chunks)
 
 bool NapSAT::conflict_is_UIP_cut(Tclause conflict, const bitset& chunks)
 {
-  ASSERT(_options.graph_backtracking);
+  ASSERT(_options->graph_backtracking);
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(_clauses[conflict].size > 0);
   ASSERT(!chunks.empty());
@@ -625,7 +625,7 @@ bool NapSAT::conflict_is_UIP_cut(Tclause conflict, const bitset& chunks)
 
 bool NapSAT::conflict_is_UIP_cut(Tclause conflict, Tlevel bt)
 {
-  ASSERT(!_options.graph_backtracking);
+  ASSERT(!_options->graph_backtracking);
   ASSERT(conflict != CLAUSE_UNDEF);
   ASSERT(_clauses[conflict].size > 0);
 
@@ -674,13 +674,13 @@ bool NapSAT::lit_is_required_in_learned_clause(Tlit lit)
 
 bool NapSAT::lit_analyzed(Tlit lit, Tlevel level)
 {
-  ASSERT(!_options.graph_backtracking);
+  ASSERT(!_options->graph_backtracking);
   return lit_level(lit) == level;
 }
 
 bool NapSAT::lit_analyzed(Tlit lit, const bitset& chunks)
 {
-  ASSERT(_options.graph_backtracking);
+  ASSERT(_options->graph_backtracking);
   return lit_chunks(lit).has_intersection(chunks);
 }
 
@@ -941,14 +941,14 @@ void NapSAT::repair_conflicts()
     return;
 
   /** FIND REPAIR POSITIONS **/
-  if (_options.graph_backtracking) {
+  if (_options->graph_backtracking) {
     graph_repair();
   } else {
     level_repair();
   }
   if (_status != status::UNSAT)
     _conflicts.clear();
-  _var_activity_increment /= _options.var_activity_decay;
+  _var_activity_increment /= _options->var_activity_decay;
 
   auto end = chrono::high_resolution_clock::now();
   long long duration = chrono::duration_cast<chrono::microseconds>(end - start).count();
@@ -982,7 +982,7 @@ bool NapSAT::conflict_can_generate_learned_clause(Tclause conflict, const bitset
 
   conflict_chunks &= bt;
   unsigned chunk_count = conflict_chunks.count();
-  if (!_options.lazy_chunk_merging) {
+  if (!_options->lazy_chunk_merging) {
     return chunk_count == 1;
   }
 
@@ -1008,7 +1008,7 @@ bool NapSAT::conflict_can_generate_learned_clause(Tclause conflict, const bitset
 
 bool NapSAT::conflict_can_generate_learned_clause(Tclause conflict, Tlevel level)
 {
-  if (!_options.chronological_backtracking) {
+  if (!_options->chronological_backtracking) {
     return true;
   }
 
@@ -1283,12 +1283,12 @@ void NapSAT::graph_repair()
   Tweight best;
   Tweight analyzed;
 
-  if (_options.chunk_level_penalty != 0.0) {
+  if (_options->chunk_level_penalty != 0.0) {
     // add an extra cost on the lowest levels
     for (Tweight& w : weights) {
       ASSERT(w.total_weight == 0);
       ASSERT(w.lowest_level > 0);
-      w.total_weight = _options.chunk_level_penalty * (_trail.size() - _decision_index[w.lowest_level - 1]);
+      w.total_weight = _options->chunk_level_penalty * (_trail.size() - _decision_index[w.lowest_level - 1]);
     }
   }
 
@@ -1312,9 +1312,9 @@ void NapSAT::graph_repair()
     }
     ASSERT(!weights.empty());
 
-    bool approximate = _options.use_max_approximate_cost_estimation;
-    approximate     |= _options.use_sum_approximate_cost_estimation;
-    approximate     |= _options.use_vsids_approximate_cost_estimation;
+    bool approximate = _options->use_max_approximate_cost_estimation;
+    approximate     |= _options->use_sum_approximate_cost_estimation;
+    approximate     |= _options->use_vsids_approximate_cost_estimation;
 
     const auto start = chrono::high_resolution_clock::now();
 
@@ -1335,15 +1335,15 @@ void NapSAT::graph_repair()
     weights.pop_back();
 
 #ifndef NDEBUG
-    double penalty = _options.chunk_level_penalty * (_trail.size() - _decision_index[analyzed.lowest_level - 1]);
+    double penalty = _options->chunk_level_penalty * (_trail.size() - _decision_index[analyzed.lowest_level - 1]);
 #endif
     ASSERT(approximate || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6);
     ASSERT(approximate || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6);
-    ASSERT(!_options.use_max_approximate_cost_estimation
+    ASSERT(!_options->use_max_approximate_cost_estimation
       || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6,
                "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) + " and penalty " + to_string(penalty) +
                " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)));
-    ASSERT(!_options.use_sum_approximate_cost_estimation
+    ASSERT(!_options->use_sum_approximate_cost_estimation
       || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6);
 
     if(best.chunks.empty()) {
@@ -1378,10 +1378,10 @@ void NapSAT::graph_repair()
   } while (!weights.empty());
 
   ASSERT(best.total_weight <= analyzed.total_weight);
-  if (_options.backtrack_learned || learned_clauses.empty()) {
+  if (_options->backtrack_learned || learned_clauses.empty()) {
     backtrack(analyzed.chunks);
     // add assertion to make sure we are indeed at the highest level
-    if (!_options.backtrack_learned) {
+    if (!_options->backtrack_learned) {
       NOTIFY_STAT(_n_backtrack_forced_chunks);
     }
   } else {

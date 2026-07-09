@@ -41,7 +41,7 @@ namespace napsat {
       stat(std::string name, stat_type type) : _name(std::move(name)), _type(type) {}
     };
 
-    explicit statistics(napsat::options &options);
+    explicit statistics(const napsat::Options* options);
 
     stat* add_stat(std::string name, const std::string& category = "", stat_type type = COUNT);
 
@@ -50,7 +50,7 @@ namespace napsat {
     void print_statistics(bool clear) const;
 
   private:
-    napsat::options _options;
+    const napsat::Options* _options;
 
     /**
      * @brief The time when the observer was created.

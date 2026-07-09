@@ -10,7 +10,7 @@
 using namespace std;
 
 namespace napsat {
-  napsat::statistics::statistics(napsat::options& options) : _options(options) {
+  napsat::statistics::statistics(const napsat::Options* options) : _options(options) {
     _creation_time = chrono::high_resolution_clock::now();
   }
 

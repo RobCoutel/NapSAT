@@ -100,6 +100,7 @@ $(SATSENTINEL_LIB): SATSentinel
 tests: REL_FLAGS = $(DBG_FLAGS) $(TEST_LINK_FLAGS)
 tests: $(OBJS) $(TEST_OBJS) $(SATSENTINEL_LIB)
 	$(CC) $^ -o $(BUILD_DIR)/NapSAT-tests $(CFLAGS) $(DBG_FLAGS) $(LINK_FLAGS) $(TEST_LINK_FLAGS)
+	build/NapSAT-tests
 
 .PHONY: debug
 

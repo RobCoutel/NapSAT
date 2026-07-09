@@ -61,7 +61,7 @@ Tlit* napsat::NapSAT::advanced_level_replacement(Tlit* lits, unsigned size) cons
    * - The second literal ¬ℓ of the clause is falsified but not yet propagated
    *    ℓ ∈ ω
    */
-  if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+  if (!_options->chronological_backtracking && !_options->graph_backtracking) {
     return lits + 1;
   }
   ASSERT(size > 2);
@@ -113,8 +113,8 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     ASSERT(clause_size(cl) == 2);
 
     if (lit_true(c2)) {
-      if ((_options.lazy_strong_chronological_backtracking && lit_level(c2) > lit_level(c1))
-       || (_options.graph_backtracking && !(lit_chunks(c2) <= lit_cross_chunks(c1)))) {
+      if ((_options->lazy_strong_chronological_backtracking && lit_level(c2) > lit_level(c1))
+       || (_options->graph_backtracking && !(lit_chunks(c2) <= lit_cross_chunks(c1)))) {
         Tlit* lits = clause_lits(cl);
         lits[0] = c2;
         lits[1] = c1;
@@ -135,11 +135,11 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
       continue;
     }
     // Conflict
-    ASSERT(_options.chronological_backtracking || _options.graph_backtracking
+    ASSERT(_options->chronological_backtracking || _options->graph_backtracking
            || lit_level(c2) == lit_level(c1));
            // make sure that the highest literal is at the first position
     if (lit_level(c1) < lit_level(c2)) {
-      ASSERT (_options.chronological_backtracking || _options.graph_backtracking);
+      ASSERT (_options->chronological_backtracking || _options->graph_backtracking);
       lits[0] = c2;
       lits[1] = c1;
       // we do not need to update the next watched clause because the clause is binary
@@ -147,7 +147,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
     if (lit_level(lits[0]) < lit_level(lits[1])) {
       std::swap(lits[0], lits[1]);
     }
-    ASSERT(_options.graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]),
+    ASSERT(_options->graph_backtracking || lit_level(lits[0]) >= lit_level(lits[1]),
                "Clause " + clause_to_string(cl) + " is not correctly ordered after propagation of " + lit_to_string(c1));
     _conflicts.push_back(cl);
     NOTIFY(message, "Conflict detected while propagating binary clause " + clause_to_string(cl) + " after propagation of " + lit_to_string(c1), 3);
@@ -227,9 +227,9 @@ void NapSAT::propagate_lit(Tlit lit)
     ASSERT(lit_cross_chunks(c1) >= lit_chunks(c1));
     Tlit b = w.block;
     if (lit_true(b)
-      && ((!_options.lazy_strong_chronological_backtracking
+      && ((!_options->lazy_strong_chronological_backtracking
          || lit_level(b) <= c1_lvl)
-      && (!_options.graph_backtracking
+      && (!_options->graph_backtracking
          || lit_chunks(b) <= lit_cross_chunks(c1)))) {
       /**
        * NCB:  b ∈ π
@@ -262,9 +262,9 @@ void NapSAT::propagate_lit(Tlit lit)
 
     /** SKIP CONDITIONS **/
     if (lit_true(c2)
-      && ((!_options.lazy_strong_chronological_backtracking
+      && ((!_options->lazy_strong_chronological_backtracking
          || lit_level(c2) <= c1_lvl)
-      && (!_options.graph_backtracking
+      && (!_options->graph_backtracking
          || lit_chunks(c2) <= lit_cross_chunks(c1)))) {
       /**
        * NCB:  c₂ ∈ π
@@ -308,9 +308,9 @@ void NapSAT::propagate_lit(Tlit lit)
 
     /** TRUE literal **/
     if (lit_true(*r)
-      && ((!_options.lazy_strong_chronological_backtracking
+      && ((!_options->lazy_strong_chronological_backtracking
          || lit_level(*r) <= c1_lvl)
-      && (!_options.graph_backtracking
+      && (!_options->graph_backtracking
          || lit_chunks(*r) <= lit_cross_chunks(c1)))) {
       /**
        * r ∈ π ∧ δ(r) ≤ δ(c₁)
@@ -382,9 +382,9 @@ void NapSAT::propagate_lit(Tlit lit)
      * 2. In GB, we want to find a literal r such that for all literals ℓ' in the clause γ(r) ⊈ η(ℓ') to
      *   - reduce the number of repropagated literals
     */
-    if (_options.graph_backtracking) {
+    if (_options->graph_backtracking) {
       r = advanced_graph_replacement(lits, clause.size);
-    } else if (_options.chronological_backtracking) {
+    } else if (_options->chronological_backtracking) {
       r = advanced_level_replacement(lits, clause.size);
     }
     ASSERT(lit_false(*r));
@@ -403,7 +403,7 @@ void NapSAT::propagate_lit(Tlit lit)
        * We know that δ(r) > δ(c₁)
        * We swap the literals such that c₁ ← r
       */
-      ASSERT(_options.chronological_backtracking || _options.graph_backtracking);
+      ASSERT(_options->chronological_backtracking || _options->graph_backtracking);
       // In strong chronological backtracking, we need to swap the literals such that the highest falsified literal is at the second position. In weak chronological backtracking, it is not necessary, but it is still useful to determine the level of the conflict or the implication.
       // swap the literals
       lits[1] = *r;
@@ -446,7 +446,7 @@ void NapSAT::propagate_lit(Tlit lit)
        * We cannot safely add ℓ to the propagated set τ.
        */
       ASSERT(lit_level(lits[1]) == r_lvl);
-      if (_options.graph_backtracking) {
+      if (_options->graph_backtracking) {
         // we want to make sure that if we do not backtrack the watched literals, they will still be repropagated and fixed
         for (size_t j = 2; j < clause.size; j++) {
           lit_cross_chunks(c1) |= lit_chunks(lits[j]);
@@ -503,13 +503,13 @@ void NapSAT::propagate_lit(Tlit lit)
      * GB:    γ(c₂) ⊈ η(?)
      * We shall now only consider SCB
     */
-    ASSERT(_options.graph_backtracking || _options.chronological_backtracking);
+    ASSERT(_options->graph_backtracking || _options->chronological_backtracking);
     ASSERT(check_clause_implying(cl));
     ASSERT(lit_is_max_literal(c1, lits + 2, clause.size - 2));
 
-    if (( _options.graph_backtracking
+    if (( _options->graph_backtracking
        || lit_level(c2) <= r_lvl)
-     && (!_options.graph_backtracking
+     && (!_options->graph_backtracking
        || lit_chunks(c2) <= lit_chunks(c1))) {
       // This is not a real missed lower implication. The level of the satisfied literal is lower than or equal to the level of the replacement.
       /**
@@ -540,7 +540,7 @@ void NapSAT::propagate_lit(Tlit lit)
      *
      * Note that reimply literal ensures δ(λ(c₂) \ {c₂}) > δ(c₁) ∧  δ(ℓ) > δ(c₁) before reimplication
      */
-    ASSERT(_options.chronological_backtracking || _options.graph_backtracking);
+    ASSERT(_options->chronological_backtracking || _options->graph_backtracking);
     reimply_literal(c2, cl);
 
     /**

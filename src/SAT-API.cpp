@@ -17,7 +17,7 @@
 
 namespace napsat {
 
-NapSAT* create_solver(unsigned n_var, unsigned n_clauses, options& opt)
+NapSAT* create_solver(unsigned n_var, unsigned n_clauses, Options* opt)
 {
   return new NapSAT(n_var, n_clauses, opt);
 }

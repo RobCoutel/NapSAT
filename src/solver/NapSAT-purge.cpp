@@ -62,7 +62,7 @@ void napsat::NapSAT::repair_watch_lists()
 
 void napsat::NapSAT::purge_root_watch_lists()
 {
-  ASSERT(_options.chronological_backtracking);
+  ASSERT(_options->chronological_backtracking);
   // in weak chronological backtracking, a missed lower implication can create a clause that has a watched literal falsified at level 0 while not being satisfied at level 0
   // Therefore we need to clean the watch lists
   for (unsigned i = 0; i < _n_propagated_lits; i++) {
@@ -138,7 +138,7 @@ void napsat::NapSAT::purge_clauses()
   // We assume that all the literals are propagated
   ASSERT(_n_propagated_lits == _trail.size());
 
-  if (_options.chronological_backtracking)
+  if (_options->chronological_backtracking)
     purge_root_watch_lists();
 
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
@@ -168,7 +168,7 @@ void napsat::NapSAT::purge_clauses()
       if (lit_false(*i)) {
         // In Graph bracktracking, a missed cross-implication can create a unit clause satisfied a a level not zero.
         // We can prevent this by not deleting literals that have a non-empty cross-chunk set.
-        if (_options.graph_backtracking) {
+        if (_options->graph_backtracking) {
           i++;
           continue;
         }
@@ -236,8 +236,8 @@ void napsat::NapSAT::purge_clauses()
       clause.watched = false;
       // The literal might be a missed lower implication
       if (lit_true(lits[0])) {
-        ASSERT(_options.chronological_backtracking || _options.graph_backtracking);
-        if (_options.lazy_strong_chronological_backtracking)
+        ASSERT(_options->chronological_backtracking || _options->graph_backtracking);
+        if (_options->lazy_strong_chronological_backtracking)
           reimply_literal(lits[0], cl);
       }
       else {
@@ -256,8 +256,8 @@ void napsat::NapSAT::purge_clauses()
 
 void napsat::NapSAT::simplify_clause_set()
 {
-  _next_clause_elimination *= _options.clause_elimination_multiplier;
-  _clause_activity_threshold *= _options.clause_activity_threshold_decay;
+  _next_clause_elimination *= _options->clause_elimination_multiplier;
+  _clause_activity_threshold *= _options->clause_activity_threshold_decay;
   double threshold = _max_clause_activity * _clause_activity_threshold;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
     ASSERT(_activities[cl] <= _max_clause_activity);

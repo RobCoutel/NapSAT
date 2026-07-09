@@ -34,7 +34,7 @@ int main(int argc, char** argv)
 
   bool all_models = false;
   if (string(argv[1]) == "-h" || string(argv[1]) == "--help") {
-    cout << options::get_help_text();
+    cout << Options::get_help_text();
     return 0;
   }
   else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
@@ -51,7 +51,7 @@ int main(int argc, char** argv)
   vector<string> tokens(argv + 2, argv + argc);
   tokens = env::extract_environment_variables(tokens);
 
-  options options(tokens);
+  Options* options = new Options(tokens);
   NapSAT* solver = create_solver(0, 0, options);
 
   chrono::time_point<chrono::high_resolution_clock> start = chrono::high_resolution_clock::now();
@@ -96,13 +96,13 @@ int main(int argc, char** argv)
   else
     cout << "UNKNOWN" << endl;
 
-  if (options.print_stats) {
+  if (options->print_stats) {
     print_statistics(solver);
   }
-  if (options.check_proof && get_status(solver) == status::UNSAT && !check_proof(solver)) {
+  if (options->check_proof && get_status(solver) == status::UNSAT && !check_proof(solver)) {
     LOG_ERROR("The proof is invalid.");
   }
-  if (options.print_proof && get_status(solver) == status::UNSAT) {
+  if (options->print_proof && get_status(solver) == status::UNSAT) {
     print_proof(solver);
   }
 

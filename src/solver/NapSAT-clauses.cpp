@@ -252,7 +252,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
     NOTIFY_STAT_N(_a_learned_clause_size, clause.size);
   }
 
-  if (external && _options.ignore_unused_variables) {
+  if (external && _options->ignore_unused_variables) {
     // mark all the variables in the clause as constrained
     for (unsigned i = 0; i < clause.size; i++)
       var_mark_constrained(lits[i].var());
@@ -260,7 +260,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
 
   if (clause.size == 1) {
     if (lit_undef(lits[0])) {
-      if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+      if (!_options->chronological_backtracking && !_options->graph_backtracking) {
         // we need to ensure monotonicity of the trail. For that reason, we have to backtrack everything above the implied level
         backtrack(LEVEL_ROOT);
       }
@@ -297,7 +297,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
   // fix the trail if the clause is unit/conflicting
   if (lit_undef(lits[0])) {
 
-    if (!_options.chronological_backtracking && !_options.graph_backtracking) {
+    if (!_options->chronological_backtracking && !_options->graph_backtracking) {
       // we need to ensure monotonicity of the trail. For that reason, we have to backtrack everything above the implied level
       Tlevel backtrack_level = lit_level(lits[1]);
       backtrack(backtrack_level);
@@ -312,7 +312,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
     _conflicts.push_back(id);
     if (_status == status::SAT)
       _status = status::UNKNOWN;
-    if (!_options.graph_backtracking) {
+    if (!_options->graph_backtracking) {
       // except in graph backtracking, there is no reason to not handle the conflict eagerly
       // in GB, we want to select the best chunks at the end of the procedure.
       _lit_buffer_size = 0;
@@ -370,7 +370,7 @@ Tlevel napsat::NapSAT::clause_level(Tclause cl) const
   ASSERT(clause_size(cl) > 0);
   const Tlit* lits = clause_lits(cl);
 
-  if (!_options.graph_backtracking) {
+  if (!_options->graph_backtracking) {
     ASSERT(lit_is_max_literal(lits[0], lits + 1, clause_size(cl) - 1));
     return lit_level(lits[0]);
   }
