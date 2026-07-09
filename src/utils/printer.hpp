@@ -16,6 +16,9 @@
 #include <string>
 #include <chrono>
 
+namespace napsat
+{
+
 const char ESC_CHAR = '\033'; // the decimal code for escape character is 27
 const char ESC_END = 'm';
 
@@ -41,17 +44,37 @@ std::string pad(unsigned n, unsigned max_int);
  */
 std::string pretty_integer(long long n);
 
+
 /**
- * @brief Returns a string representation of a time in milliseconds.
+ * @brief Returns a pretty string representation of a float.
+ * @param n The float to convert.
+ * @return A string representation of the float, with commas every three digits.
+ */
+std::string pretty_float(double f, unsigned n = 2);
+
+/**
+ * @brief Returns a string representation of a time in microseconds.
  * @param time The time to convert.
  * @return A string representation of the time.
  */
-std::string pretty_time(std::chrono::milliseconds time);
+std::string pretty_time(std::chrono::microseconds time);
+
+/**
+ * @brief Justifies a string to a given width by adding spaces to the left and right of the string.
+ * @param str The string to justify.
+ * @param width The width to justify to.
+ * @param fill The character to fill the spaces with.
+ * @param prefix A string to prepend to the justified string.
+ * @return The justified string.
+ */
+std::string justify_string(const std::string& str, unsigned width, char fill = ' ', const std::string& prefix = "");
 
 const std::string ERROR_HEAD = "\033[1;31mERROR: \033[0m";
 const std::string WARNING_HEAD = "\033[0;33mWARNING: \033[0m";
 const std::string INFO_HEAD = "\033[34mINFO: \033[0m";
 
-#define LOG_ERROR(msg)   do { std::cerr << ERROR_HEAD << msg << std::endl; } while(0)
-#define LOG_WARNING(msg) do { if(!napsat::env::get_suppress_warning()) std::cout << WARNING_HEAD << msg << std::endl; } while(0)
-#define LOG_INFO(msg)    do { if(!napsat::env::get_suppress_info()) std::cout << INFO_HEAD << msg << std::endl; } while(0)
+#define LOG_ERROR(msg)   do { std::cerr << napsat::ERROR_HEAD << msg << std::endl; } while(0)
+#define LOG_WARNING(msg) do { if(!napsat::env::get_suppress_warning()) std::cout << napsat::WARNING_HEAD << msg << std::endl; } while(0)
+#define LOG_INFO(msg)    do { if(!napsat::env::get_suppress_info()) std::cout << napsat::INFO_HEAD << msg << std::endl; } while(0)
+
+}

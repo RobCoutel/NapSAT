@@ -1,6 +1,7 @@
 build/
 build_rel/
 .vscode/
+.venv/
 
 SAT.cc
 SAT.hh
@@ -24,3 +25,6 @@ scripts/runcnfuzz
 executables/*
 
 .idea
+scripts/dataset/
+scripts/random-instances/
+CLAUDE.md

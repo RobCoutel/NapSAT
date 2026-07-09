@@ -26,8 +26,11 @@
 #define GREEN "\033[0;32m"
 #define RED "\033[0;31m"
 
-using namespace napsat;
 using namespace std;
+
+namespace napsat
+{
+
 
 static inline void ltrim(string &s) {
   s.erase(s.begin(), find_if(s.begin(), s.end(), [](unsigned char ch) {
@@ -39,9 +42,12 @@ static inline bool is_prefix(const string &s, const string &prefix) {
   return s.compare(0, prefix.size(), prefix) == 0;
 }
 
-bool napsat::NapSAT::parse_dimacs(const char* filename)
+bool NapSAT::parse_dimacs(const char* filename)
 {
+#if USE_OBSERVER
   bool printed_warning = false;
+#endif
+  bool printed_weight_warning = false;
   // the file is a compressed xz file
   // first decompress it and store it in a temporary file
   istringstream stream;
@@ -50,16 +56,24 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
     ostringstream decompressed_data;
     if (!decompress_xz(filename, decompressed_data)) {
       LOG_ERROR("The file " << filename << " could not be decompressed.");
-      _status = ERROR;
+      _status = status::ERROR;
       return false;
     }
     stream = istringstream(decompressed_data.str());
-  }
-  else {
+  } else if (string(filename).substr(string(filename).size() - 4) == ".bz2") {
+    // create a virtual file and read the content of the compressed file
+    ostringstream decompressed_data;
+    if (!decompress_bz2(filename, decompressed_data)) {
+      LOG_ERROR("The file " << filename << " could not be decompressed.");
+      _status = status::ERROR;
+      return false;
+    }
+    stream = istringstream(decompressed_data.str());
+  } else {
     ifstream file = ifstream(filename);
     if (!file.is_open()) {
       LOG_ERROR("The file " << filename << " could not be opened.");
-      _status = ERROR;
+      _status = status::ERROR;
       return false;
     }
     stream = istringstream(string((istreambuf_iterator<char>(file)), istreambuf_iterator<char>()));
@@ -71,7 +85,8 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
     ltrim(line);
     if (line.empty())
       continue;
-    if (_observer && is_prefix(line, "co")) {
+#if USE_OBSERVER
+    if (_sentinel && is_prefix(line, "co")) {
       // parse the alias name of the variable
       // the comment should be of the form:
       // >co <var> <alias>
@@ -86,10 +101,10 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
 
       if (!var_string.empty() && !alias.empty() && rest.empty()) {
         try {
-          unsigned var = stoi(var_string);
+          Tvar var = stoi(var_string);
           if (var >= _vars.size())
             var_allocate(var + 1);
-          _observer->set_alias(var, alias);
+          sentinel::wrapper::set_variable_alias(_sentinel, var, alias);
           // done, next line
           continue;
         }
@@ -104,6 +119,41 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       // treat it as a regular comment, continue
       continue;
     }
+#endif
+    if (is_prefix(line, "cw")) {
+      // parse the weight of the variable, used by literal_cost when no
+      // external weight function was set through napsat::set_weight_function
+      // the comment should be of the form:
+      // >cw <var> <weight>
+      istringstream ss(line);
+      string weight_string, var_string, rest;
+
+      ss.ignore(2);
+      ss >> var_string;
+      ss >> weight_string;
+      ss >> rest;
+
+      if (!var_string.empty() && !weight_string.empty() && rest.empty()) {
+        try {
+          Tvar var = stoi(var_string);
+          double weight = stod(weight_string);
+          if (var >= _vars.size())
+            var_allocate(var + 1);
+          var_weight(var) = weight;
+          // done, next line
+          continue;
+        }
+        catch (invalid_argument &e) {
+          // fall through printing the warning
+        }
+      }
+      if (!printed_weight_warning) {
+        LOG_WARNING("The comments starting with \'cw\' are interpreted as weights for variables. The format of the comment should be: \'cw <var> <weight>\' with weight a floating point number");
+        printed_weight_warning = true;
+      }
+      // treat it as a regular comment, continue
+      continue;
+    }
     if (is_prefix(line, "c"))
       continue;
     if (is_prefix(line, "%"))
@@ -112,12 +162,10 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
       if (first_line) {
         unsigned n_var, n_clauses;
         sscanf(line.c_str(), "p cnf %u %u", &n_var, &n_clauses);
-        if (n_var > _vars.size()) {
-          cout << "Allocating " << n_var << " variables" << endl;
-        var_allocate(n_var);
-      }
-      // we ignore the number of clauses
-      // TODO preallocate the clauses
+        if (n_var > _vars.size().value) {
+          LOG_INFO("Allocating " << n_var << " variables and " << n_clauses << " clauses.");
+          var_allocate(n_var);
+        }
       } else {
         LOG_ERROR("Misplaced string \'p cnf\' found. Must be the first non-comment line.");
       }
@@ -135,36 +183,36 @@ bool napsat::NapSAT::parse_dimacs(const char* filename)
         int lit = stoi(token);
         if (lit == 0)
           break;
-        add_literal(napsat::literal(abs(lit), lit > 0));
+        add_literal(Tlit(abs(lit), lit > 0));
       } catch (invalid_argument &e) {
         LOG_ERROR("The token " << token << " is not a number.");
-        _status = ERROR;
+        _status = status::ERROR;
         throw invalid_argument("The token " + token + " is not a number.");
         return false;
       }
     }
     finalize_clause();
-    if (_status != UNDEF)
+    if (_status != status::UNKNOWN)
       return true;
   }
   return true;
 }
 
-void napsat::NapSAT::bump_var_activity(Tvar var)
+void NapSAT::bump_var_activity(Tvar var)
 {
-  _vars.at(var).activity += _var_activity_increment;
-  if (_vars.at(var).activity > 1e100) {
+  _vars[var].activity += _var_activity_increment;
+  if (_vars[var].activity > 1e100) {
     for (Tvar i = 1; i < _vars.size(); i++) {
-      _vars.at(i).activity *= 1e-100;
+      _vars[i].activity *= 1e-100;
     }
     _variable_heap.normalize(1e-100);
     _var_activity_increment *= 1e-100;
   }
   if (_variable_heap.contains(var))
-    _variable_heap.increase_activity(var, _vars.at(var).activity);
+    _variable_heap.increase_activity(var, _vars[var].activity);
 }
 
-void napsat::NapSAT::bump_clause_activity(Tclause cl)
+void NapSAT::bump_clause_activity(Tclause cl)
 {
   _activities[cl] += _clause_activity_increment;
   _clause_activity_increment *= _options.clause_activity_multiplier;
@@ -177,79 +225,233 @@ void napsat::NapSAT::bump_clause_activity(Tclause cl)
   }
 }
 
-void napsat::NapSAT::delete_clause(Tclause cl)
-{
-  // If the clause is the reason for a literal, it cannot be deleted
-  ASSERT(cl < _clauses.size());
-  TSclause &clause = _clauses[cl];
-  ASSERT(!is_protected(cl));
-  _n_learned_clauses -= _clauses[cl].learned;
-  clause.deleted = true;
-  clause.watched = false;
-  _deleted_clauses.push_back(cl);
-  NOTIFY_OBSERVER(_observer, new napsat::gui::delete_clause(cl));
-  if(_proof)
-    _proof->deactivate_clause(cl);
-}
-
 static const char esc_char = 27; // the decimal code for escape character is 27
 
-void napsat::NapSAT::watch_lit(Tlit lit, Tclause cl)
+void NapSAT::watch_lit(Tlit lit, Tclause cl)
 {
-#if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new napsat::gui::watch(cl, lit));
-#endif
+  const Tlit* lits = clause_lits(cl);
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(cl < _clauses.size());
-  ASSERT(_clauses[cl].size > 2);
-  ASSERT(lit == _clauses[cl].lits[0] || lit == _clauses[cl].lits[1]);
-  _watch_lists[lit].push_back(cl);
+  ASSERT(clause_size(cl) > 2);
+  ASSERT(lit == lits[0] || lit == lits[1]);
+  _watches[lit].push_back(TSwatch(cl, lits[0] ^ lits[1] ^ lit));
+  #if NOTIFY_WATCH_CHANGES
+    NOTIFY(watch, cl, lit);
+    NOTIFY(block, cl, lits[0] ^ lits[1] ^ lit, lit);
+  #endif
 }
 
-void napsat::NapSAT::stop_watch(Tlit lit, Tclause cl)
+void NapSAT::watch_lit_bin(Tclause cl)
+{
+  const Tlit* lits = clause_lits(cl);
+  ASSERT(cl != CLAUSE_UNDEF);
+  ASSERT(cl < _clauses.size());
+  ASSERT(clause_size(cl) == 2);
+  _binary_watches[lits[0]].push_back(TSwatch(cl, lits[1]));
+  _binary_watches[lits[1]].push_back(TSwatch(cl, lits[0]));
+  #if NOTIFY_WATCH_CHANGES
+    NOTIFY(watch, cl, lits[0]);
+    NOTIFY(block, cl, lits[1], lits[0]);
+    NOTIFY(watch, cl, lits[1]);
+    NOTIFY(block, cl, lits[0], lits[1]);
+  #endif
+}
+
+void NapSAT::stop_watch(Tlit lit, Tclause cl)
 {
 #if NOTIFY_WATCH_CHANGES
-  NOTIFY_OBSERVER(_observer, new napsat::gui::unwatch(cl, lit));
+  NOTIFY(unwatch, cl, lit);
 #endif
   ASSERT(cl != CLAUSE_UNDEF);
-  ASSERT(_clauses[cl].lits[0] == lit || _clauses[cl].lits[1] == lit);
-  ASSERT(_clauses[cl].size > 2);
-  auto location = find(_watch_lists[lit].begin(), _watch_lists[lit].end(), cl);
-  ASSERT(location != _watch_lists[lit].end());
-  _watch_lists[lit].erase(location);
-}
-
-unsigned napsat::NapSAT::utility_heuristic(Tlit lit)
-{
-  return (lit_true(lit) * (2 * solver_level() - lit_level(lit) + 1)) + (lit_undef(lit) * (solver_level() + 1)) + (lit_false(lit) * (lit_level(lit)));
-}
-
-void napsat::NapSAT::print_lit(Tlit lit)
-{
-  if (lit_seen(lit))
-    cout << "M";
-  if (lit_undef(lit))
-    cout << ORANGE;
-  else if (lit_true(lit))
-    cout << GREEN;
-  else { // lit_false(lit)
-    ASSERT(lit_false(lit));
-    cout << RED;
+  ASSERT(clause_lits(cl)[0] == lit || clause_lits(cl)[1] == lit);
+  ASSERT(clause_size(cl) > 2);
+  size_t loc = 0;
+  while (loc < _watches[lit].size() && _watches[lit][loc].cl != cl) {
+    loc++;
   }
-  if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
-    cout << "\033[4m";
-  if (!lit_pol(lit))
-    cout << "-";
-  cout << lit_to_var(lit);
-
-  cout << esc_char << "[0m";
-  cout << "\033[0m";
+  ASSERT(loc < _watches[lit].size());
+  _watches[lit].erase(_watches[lit].begin() + loc);
 }
 
-string NapSAT::lit_to_string(Tlit lit)
+unsigned NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
+{
+  ASSERT(all_of(lits, lits + size, [this](Tlit lit) { return !lit_marked(lit); }));
+  Tlit* i = lits;
+  Tlit* j = i;
+  Tlit* end = i + size;
+  unsigned new_size = size;
+  bool tautology = false;
+  while(i < end) {
+    if (lit_marked(*i)) {
+      // check that the clause is not a tautology
+      for (Tlit* k = lits; k < j; k++) {
+        if (*k == ~*i) {
+          tautology = true;
+          goto end_loop;
+        }
+      }
+      i++;
+      continue;
+    }
+    lit_mark(*i);
+    *j++ = *i++;
+  }
+  new_size = j - lits;
+  end_loop:
+  for (unsigned k = 0; k < new_size; k++) {
+    lit_unmark(lits[k]);
+  }
+  if (tautology) {
+    return 0;
+  }
+  return new_size;
+}
+
+void NapSAT::var_allocate(Tvar var)
+{
+  if (_vars.size() >= var + 1)
+    return;
+  if (_status == status::SAT) {
+    _status = status::UNKNOWN;
+  }
+
+  unsigned old_size = _vars.size().value;
+  _vars.resize(var + 1);
+  for (Tvar i = old_size; i <= var; i++) {
+    assert(_vars[i].constrained == 0);
+    if (!_options.ignore_unused_variables)
+      var_mark_constrained(i);
+    _vars[i].chunks.resize(_n_allocated_chunks);
+    _vars[i].cross_chunks.resize(_n_allocated_chunks);
+    NOTIFY(add_variable, i);
+  }
+
+  _watches.resize(2 * var.value + 2);
+  _binary_watches.resize(2 * var.value + 2);
+  // reallocate the literal buffer to make sure it is big enough
+  // TODO replace with std::vector
+  Tlit* new_literal_buffer = new Tlit[_vars.size().value + 1];
+  assert(_lit_buffer);
+  std::memcpy(new_literal_buffer, _lit_buffer,
+              _lit_buffer_size * sizeof(Tlit));
+  delete[] _lit_buffer;
+  _lit_buffer = new_literal_buffer;
+}
+
+void NapSAT::allocate_chunks(size_t n_chunks)
+{
+  ASSERT(n_chunks > _n_allocated_chunks);
+  ASSERT(_chunks.size() == _n_allocated_chunks);
+  _chunks.resize(n_chunks);
+
+  for (Tchunk i = 1; i <= n_chunks; i++) {
+    _free_chunks.push_back(_n_allocated_chunks + n_chunks - i);
+    NOTIFY_STAT(_n_allocated_chunks);
+  }
+  _n_allocated_chunks = n_chunks;
+  // resize the chunk sets of the variables
+  for (Tvar i = 0; i < _vars.size(); i++) {
+    _vars[i].chunks.resize(_n_allocated_chunks);
+    _vars[i].cross_chunks.resize(_n_allocated_chunks);
+  }
+
+  for (Tchunk i = _n_allocated_chunks; i < _chunks.size().value; i++) {
+    _chunks[i].missed_implication.resize(_n_allocated_chunks);
+  }
+}
+
+unsigned NapSAT::utility_heuristic(Tlit lit)
+{
+  // In graph backtracking, we cannot use a utility function anymore, because the literals are
+  // now in a lattice, where all literals are not necessarily comparable.
+  // We can however approximate the utility with the number of non-zero chunks of the literal.
+  unsigned level_weight;
+  if (_options.graph_backtracking) {
+    level_weight = lit_chunks(lit).count();
+  } else {
+    level_weight = lit_level(lit).value;
+  }
+  return (lit_true(lit)  * (2 * solver_level().value - level_weight + 3))
+       + (lit_undef(lit) * (solver_level().value + 2))
+       + (lit_false(lit) * level_weight + 1);
+}
+
+unsigned NapSAT::max_utility_heuristic()
+{
+  return (2 * solver_level().value + 3);
+}
+
+
+void NapSAT::defragment_order()
+{
+  _current_order = 0;
+  for (size_t i = 0; i < _trail.size(); i++) {
+    lit_order(_trail[i]) = _current_order++;
+  }
+}
+
+void napsat::NapSAT::defragment_trail()
+{
+  // TODO is there a faster way to do this?
+  // Probably, but algorithmically complicated.
+  // Change if bottleneck.
+
+  // store all the decisions
+  vector<Tlit> decisions;
+  for (Tlevel level = 1; level <= solver_level(); level++) {
+    decisions.push_back(decision_lit_ptr(level)[0]);
+  }
+  restart();
+  propagate();
+  ASSERT(_conflicts.empty());
+  for (Tlit decision : decisions) {
+    imply_literal(decision, CLAUSE_UNDEF);
+    propagate();
+    ASSERT(_conflicts.empty());
+  }
+}
+
+size_t napsat::NapSAT::find_literal_in_trail(Tlit lit) const
+{
+  // the literal must be located between the decision of it's decision level and the end of the trail
+  // if in NCB, it must be located between the decision of it's decision level and the next decision of a different level
+  Tlevel level = lit_level(lit);
+  const Tlit* left = _trail.data();
+  if (level > 0) {
+    left = decision_lit_ptr(level);
+  }
+  const Tlit* right = _trail.data() + _trail.size();
+  if (lit_decision(lit)) {
+    return left - _trail.data();
+  }
+  if (!_options.chronological_backtracking && !_options.graph_backtracking
+   && level < solver_level()) {
+    right = decision_lit_ptr(level + 1);
+  }
+
+  size_t target_order = lit_order(lit);
+  while(left < right) {
+    const Tlit* mid = left + (right - left) / 2;
+    if (lit_order(*mid) == target_order) {
+      return mid - _trail.data();
+    }
+    if (lit_order(*mid) < target_order) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+  ASSERT(false,
+             "The literal " << lit_to_string(lit) << " with order " << target_order
+          << " was not found in the trail between " << (left - _trail.data())
+          << " and " << (right - _trail.data()) << ".");
+  return _trail.size();
+}
+
+string NapSAT::lit_to_string(Tlit lit) const
 {
   string s = "";
-  if (lit_seen(lit))
+  if (lit_marked(lit))
     s += "M";
   if (lit_undef(lit))
     s += ORANGE;
@@ -259,17 +461,248 @@ string NapSAT::lit_to_string(Tlit lit)
     ASSERT(lit_false(lit));
     s += RED;
   }
-  if (!lit_undef(lit) && lit_reason(lit) == CLAUSE_UNDEF)
+  if (lit_decision(lit))
     s += "\033[4m";
-  if (!lit_pol(lit))
-    s += "-";
-  s += to_string(lit_to_var(lit));
+  s += lit.to_string();
+  if (lit_locked(lit))
+    s += "🔒";
 
   s += "\033[0m";
   return s;
 }
 
-string NapSAT::clause_to_string(Tclause cl)
+std::string napsat::NapSAT::lit_to_md_string(Tlit lit) const
+{
+  string s = "[";
+  if (lit_undef(lit))
+    s += "<span style=\"color:rgb(200, 200, 0)\">";
+  else if (lit_true(lit))
+    s += "<span style=\"color:rgb(0, 176, 80)\">";
+  else { // lit_false(lit)
+    ASSERT(lit_false(lit));
+    s += "<span style=\"color:rgb(255, 0, 0)\">";
+  }
+  if (lit_decision(lit))
+    s += "<u>";
+  s += lit.to_string();
+  if (lit_locked(lit))
+    s += "🔒";
+
+  if (lit_decision(lit))
+    s += "</u>";
+
+  s += "</span>";
+  s += "](obsidian://open?vault=VAULT_NAME&file=" + lit.var().to_string() + ".md)";
+
+  return s;
+}
+
+std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
+{
+//   ---
+// tags:
+//   - decision
+// ---
+  string s = "---\n";
+  if (lit_decision(lit)) {
+    s += "  tags:\n   - decision\n";
+  } else {
+    s += "  tags:\n   - implied\n";
+  }
+  // check if the literal is part of a conflict
+  bool in_conflict = false;
+  for (Tclause conflict : _conflicts) {
+    const Tlit* lits = clause_lits(conflict);
+    for (const Tlit* i = lits; i < lits + clause_size(conflict); i++) {
+      if (i->var() == lit.var()) {
+        in_conflict = true;
+        break;
+      }
+    }
+  }
+  if (in_conflict) {
+    s += "   - conflicting\n";
+  }
+
+  s += "  level: "      + lit_level(lit).to_string() + "\n";
+  s += "  propagated: " + (string) (lit_propagated(lit) ? "true" : "false") + "\n";
+  s += "  sync: "       + (string) (lit_synced(lit) ? "true" : "false") + "\n";
+  s += "  locked: "     + (string) (lit_locked(lit) ? "true" : "false") + "\n";
+  s += "  marked: "     + (string) (lit_marked(lit) ? "true" : "false") + "\n";
+  s += "  vsids: "      + to_string(_vars[lit.var()].activity) + "\n";
+
+  // compute the number of clauses that contain this variable
+  unsigned n_clauses = 0;
+  for (TSclause cl : _clauses) {
+    if (cl.deleted)
+      continue;
+    const Tlit* lits = cl.lits;
+    for (const Tlit* i = lits; i < lits + cl.size; i++) {
+      if (i->var() == lit.var()) {
+        n_clauses++;
+        break;
+      }
+    }
+  }
+  s += "  n_clauses: " + to_string(n_clauses) + "\n";
+
+  s += "---\n";
+  s += "$\\ell$: " + lit_to_md_string(lit) + "\n";
+  s += "$\\delta(\\ell)$: " + lit_level(lit).to_string() + "\n";
+  s += "$\\rho(\\ell)$: " + clause_to_md_string(lit_reason(lit)) + "\n";
+  if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+    s += "$\\lambda(\\ell)$: " + clause_to_md_string(lit_lazy_reason(lit)) + "\n";
+  }
+  if (_options.graph_backtracking) {
+    s += "$\\gamma(\\ell)$: " + lit_chunks(lit).to_string() + "\n";
+    s += "$\\eta(\\ell)$: " + (lit_cross_chunks(lit) - lit_chunks(lit)).to_string() + "\n";
+    s += "$\\zeta(\\ell)$: " + to_string(literal_cost(lit)) + "\n";
+  }
+
+  s += "\n---\n";
+  s += "Watch list for " + lit_to_md_string(lit) + ":\n";
+  for (const TSwatch& watch : _binary_watches[lit]) {
+    s += "  Binary clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
+  }
+  for (const TSwatch& watch : _watches[lit]) {
+    s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
+  }
+  s += "\n---\n";
+  s += "Watch list for " + lit_to_md_string(~lit) + ":\n";
+  for (const TSwatch& watch : _binary_watches[~lit]) {
+    s += "  Binary clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
+  }
+  for (const TSwatch& watch : _watches[~lit]) {
+    s += "  Clause " + clause_to_md_string(watch.cl) + " with blocking literal " + lit_to_md_string(watch.block) + "\n";
+  }
+  s += "\n---\n";
+  return s;
+}
+
+std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
+{
+  auto plain_lit = [](Tlit l) { return l.to_string(); };
+  auto plain_clause = [this](Tclause cl) -> string {
+    if (cl == CLAUSE_UNDEF)
+      return "undef";
+    string s = to_string(cl) + ": ";
+    const Tlit* lits = clause_lits(cl);
+    for (const Tlit* i = lits; i < lits + clause_size(cl); i++)
+      s += i->to_string() + " ";
+    return s;
+  };
+
+  string s = "";
+  if (var_decision(var))
+    s += "tags: decision\n";
+  else if (!var_undef(var))
+    s += "tags: implied\n";
+  else
+    s += "tags: unassigned\n";
+
+  bool in_conflict = false;
+  for (Tclause conflict : _conflicts) {
+    const Tlit* lits = clause_lits(conflict);
+    for (const Tlit* i = lits; i < lits + clause_size(conflict); i++) {
+      if (i->var() == var) {
+        in_conflict = true;
+        break;
+      }
+    }
+    if (in_conflict)
+      break;
+  }
+  if (in_conflict)
+    s += "tags: conflicting\n";
+
+  s += "value: " + (string) (var_true(var) ? "true" : var_false(var) ? "false" : "undef") + "\n";
+  s += "δ: " + var_level(var).to_string() + "\n";
+  s += "ρ: " + plain_clause(var_reason(var)) + "\n";
+  Tclause lazy_reason = lit_lazy_reason(Tlit(var, 1));
+  if (lazy_reason != CLAUSE_UNDEF || _options.lazy_strong_chronological_backtracking)
+    s += "λ: " + plain_clause(lazy_reason) + "\n";
+  s += "propagated: " + (string) (var_propagated(var) ? "true" : "false") + "\n";
+  s += "synced: "     + (string) (var_synced(var) ? "true" : "false") + "\n";
+  s += "locked: "     + (string) (var_locked(var) ? "true" : "false") + "\n";
+  s += "marked: "     + (string) (var_marked(var) ? "true" : "false") + "\n";
+  s += "vsids: "       + to_string(var_activity(var)) + "\n";
+
+  unsigned n_clauses = 0;
+  for (TSclause cl : _clauses) {
+    if (cl.deleted)
+      continue;
+    const Tlit* lits = cl.lits;
+    for (const Tlit* i = lits; i < lits + cl.size; i++) {
+      if (i->var() == var) {
+        n_clauses++;
+        break;
+      }
+    }
+  }
+  s += "n_clauses: " + to_string(n_clauses) + "\n";
+
+  if (_options.graph_backtracking) {
+    s += "γ: " + var_chunks(var).to_string() + "\n";
+    s += "η: " + (var_cross_chunks(var) - var_chunks(var)).to_string() + "\n";
+    s += "ζ: " + to_string(literal_cost(Tlit(var, var_value(var)))) + "\n";
+  }
+
+  for (unsigned pol = 0; pol < 2; pol++) {
+    Tlit lit = Tlit(var, pol);
+    s += "\nWatch list for " + plain_lit(lit) + ":\n";
+    for (const TSwatch& watch : _binary_watches[lit])
+      s += "  Binary clause " + plain_clause(watch.cl) + " with blocking literal " + plain_lit(watch.block) + "\n";
+    for (const TSwatch& watch : _watches[lit])
+      s += "  Clause " + plain_clause(watch.cl) + " with blocking literal " + plain_lit(watch.block) + "\n";
+  }
+
+  return s;
+}
+
+std::string napsat::NapSAT::clause_to_gui_info_string(Tclause cl) const
+{
+  if (cl == CLAUSE_UNDEF)
+    return "undef";
+  if (cl >= _clauses.size())
+    return "invalid clause";
+
+  const TSclause& c = _clauses[cl];
+
+  string s = "tags:";
+  if (c.deleted)
+    s += " deleted";
+  if (c.learned)
+    s += " learned";
+  if (c.external)
+    s += " external";
+  if (c.watched)
+    s += " watched";
+  s += "\n";
+
+  if (_options.graph_backtracking) {
+    s += "γ(" + cl.to_string() + ") = " + clause_chunks(cl).to_string() + "\n";
+  }
+
+  s += "size: " + to_string(c.size) + "\n";
+  if (c.learned)
+    s += "activity: " + to_string(_activities[cl]) + "\n";
+
+
+  s += "\nLiterals:\n";
+  const Tlit* lits = clause_lits(cl);
+  for (unsigned i = 0; i < c.size; i++) {
+    Tlit lit = lits[i];
+    string value = lit_true(lit) ? "true" : lit_false(lit) ? "false" : "undef";
+    s += "  " + lit.to_string();
+    if (i < 2)
+      s += " (watched)";
+    s += ": " + value + " @ " + lit_level(lit).to_string() + "\n";
+  }
+
+  return s;
+}
+
+string NapSAT::clause_to_string(Tclause cl) const
 {
   string s = "";
   if (cl == CLAUSE_UNDEF)
@@ -278,83 +711,154 @@ string NapSAT::clause_to_string(Tclause cl)
   if (_clauses[cl].deleted) {
     s += "d";
   }
+  if (_clauses[cl].external) {
+    s += "e";
+  }
+  if (_clauses[cl].learned) {
+    s += "l";
+  }
   s += to_string(cl) + ": ";
-  for (Tlit* i = _clauses[cl].lits; i < _clauses[cl].lits + _clauses_sizes[cl]; i++) {
-    if (i == _clauses[cl].lits + _clauses[cl].size)
+  if (clause_size(cl) == 0) {
+    s += "☐";
+    return s;
+  }
+  ASSERT(clause_size(cl) > 0);
+  ASSERT(clause_size(cl) < 1000000);
+  for (const Tlit* i = clause_lits(cl); i < clause_lits(cl) + clause_size(cl); i++) {
+    if (i == clause_lits(cl) + clause_size(cl))
       s += "| ";
-    if (*i == _clauses[cl].blocker)
-      s += "\033[3mb";
     s += lit_to_string(*i);
-    if (*i == _clauses[cl].blocker)
-      s += "\033[0m";
     s += " ";
   }
   return s;
 }
 
-void NapSAT::print_clause(Tclause cl)
+std::string napsat::NapSAT::clause_to_md_string(Tclause cl) const
+{
+  string s = "";
+  if (cl == CLAUSE_UNDEF)
+    return "undef";
+  if (_clauses[cl].deleted) {
+    s += "~~";
+  }
+  if (_clauses[cl].external) {
+    s += "**";
+  }
+  s += to_string(cl);
+  if (_clauses[cl].external) {
+    s += "**";
+  }
+  if (_clauses[cl].deleted) {
+    s += "~~";
+  }
+  s += ": ";
+  ASSERT(clause_size(cl) > 0);
+  ASSERT(clause_size(cl) < 1000000);
+  for (const Tlit* i = clause_lits(cl); i < clause_lits(cl) + clause_size(cl); i++) {
+    if (i == clause_lits(cl) + clause_size(cl))
+      s += "| ";
+    s += lit_to_md_string(*i);
+    s += " ";
+  }
+  return s;
+}
+
+std::string NapSAT::clause_to_string(const Tlit* lits, size_t size) const
+{
+  string s = "";
+  s += "{ ";
+  for (const Tlit* i = lits; i < lits + size; i++) {
+    s += lit_to_string(*i);
+    s += " ";
+  }
+  s += "}";
+  return s;
+}
+
+std::string napsat::NapSAT::clause_to_md_string(const Tlit* lits, size_t size) const
+{
+  string s = "";
+  s += "{ ";
+  for (const Tlit* i = lits; i < lits + size; i++) {
+    s += lit_to_md_string(*i);
+    s += " ";
+  }
+  s += "}";
+  return s;
+}
+
+void NapSAT::print_clause(Tclause cl) const
 {
   cout << clause_to_string(cl);
 }
 
-void NapSAT::print_trail()
+void NapSAT::print_trail() const
 {
-  cout << "trail: " << _propagated_literals << " - " << _trail.size() - _propagated_literals << "\n";
-  for (unsigned int i = 0; i < _trail.size(); i++) {
-    Tlit lit = _trail[i];
-    if (i == _propagated_literals) {
-      cout << "-------- waiting queue --------\n";
-    }
-    ASSERT(!lit_undef(lit));
-    cout << lit_level(lit) << ": ";
-    for (Tlevel i = 0; i < lit_level(lit); i++) {
-      cout << " ";
-    }
-    print_lit(lit);
-    cout << " --> reason: ";
-    print_clause(lit_reason(lit));
-    cout << "\n";
+  cout << "trail: " << _n_propagated_lits << " - " << _trail.size() - _n_propagated_lits;
+  if (_n_assumptions > 0) {
+    cout << " (assumptions: " << _n_assumptions << ")";
   }
   cout << "\n";
+  for (unsigned int i = 0; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    if (i == _n_propagated_lits) {
+      cout << "^ τ -------- propagation head -------- ω v\n";
+    }
+    ASSERT(!lit_undef(lit));
+    cout << pad(i, _trail.size()) << i;
+    cout << ": δ = " <<  pad(lit_level(lit).value, solver_level().value) << lit_level(lit) << " ";
+    if (solver_level() < 500) {
+      for (Tlevel i = 0; i < lit_level(lit); i++) {
+        cout << " ";
+      }
+    }
+    cout << lit_to_string(lit) << " --> ρ = ";
+    print_clause(lit_reason(lit));
+    if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+      cout << " / (λ = ";
+      print_clause(lit_lazy_reason(lit));
+      cout << ")";
+    }
+    if (_options.graph_backtracking) {
+      cout << " (γ = " << lit_chunks(lit).to_string() << ", ";
+      cout <<   "η = " << (lit_cross_chunks(lit) - lit_chunks(lit)).to_string();
+      if (lit_decision(lit) && lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+        cout << ", ξ = " << _chunks[lit.var()].missed_implication.to_string();
+      }
+      cout << ")";
+    }
+    // if (lit_propagated(lit)) {
+    //   cout << " (propagated)";
+    // }
+    cout << "\n";
+  }
+  for (Tclause conflict : _conflicts) {
+    cout << "conflict: ";
+    print_clause(conflict);
+    if (_options.graph_backtracking)
+      cout << " (" << clause_chunks(conflict).to_string() << ")";
+    cout << "\n";
+  }
+  cout << endl;
 }
 
-/**
- * @brief Adds spaces to the left of the number to make it have as many digits as the maximum number of digits in the given range.
- */
-static void pad(int n, int max_int)
-{
-  int max_digits = 0;
-  while (max_int > 0) {
-    max_int /= 10;
-    max_digits++;
-  }
-  int digits = 0;
-  while (n > 0) {
-    n /= 10;
-    digits++;
-  }
-  for (int i = 0; i < max_digits - digits; i++)
-    cout << " ";
-}
-
-void napsat::NapSAT::print_trail_simple()
+void NapSAT::print_trail_simple() const
 {
   cout << "trail :\n";
   for (Tlevel lvl = solver_level(); lvl <= solver_level(); lvl--) {
-    cout << lvl << ": ";
+    cout << lvl.to_string() << ": ";
     for (unsigned i = 0; i < _trail.size(); i++) {
-      if (i == _propagated_literals)
+      if (i == _n_propagated_lits)
         cout << "| ";
       Tlit lit = _trail[i];
       if (lit_level(lit) == lvl) {
-        if (lit_pol(lit))
+        if (lit.pol())
           cout << " ";
-        pad(lit_to_var(lit), _vars.size());
-        print_lit(lit);
-        cout << " ";
+        cout << pad(lit.var().value, _vars.size().value);
+        cout << lit << " ";
       }
       else {
-        pad(0, _vars.size());
+        cout << pad(0, _vars.size().value);
         cout << "  ";
       }
     }
@@ -362,9 +866,17 @@ void napsat::NapSAT::print_trail_simple()
   }
 }
 
+void NapSAT::print_chunks() const
+{
+  for (Tchunk chunk = 0; chunk < _chunks.size().value; chunk++) {
+    cout << "Chunk " << chunk << ": ";
+    cout << "decision = " << _chunks[chunk].decision.to_string() << endl;
+  }
+}
+
 const static unsigned TERMINAL_WIDTH = 120;
 
-void napsat::NapSAT::print_clause_set()
+void NapSAT::print_clause_set() const
 {
   unsigned longest_clause = 0;
   for (Tclause cl = 0; cl < _clauses.size(); cl++) {
@@ -376,16 +888,15 @@ void napsat::NapSAT::print_clause_set()
   unsigned longest_var = 1; // 1 for the sign
   Tvar max_var = _vars.size();
   while (max_var > 0) {
-    max_var /= 10;
+    max_var.value /= 10;
     longest_var++;
   }
 
   unsigned max_clause_width = (longest_clause + 2) * (longest_var + 1) + 3;
-  cout << "max_clause_width = " << max_clause_width << endl;
   Tclause i = 0;
   while (i < _clauses.size()) {
     unsigned j = max_clause_width;
-    while (j < TERMINAL_WIDTH && i < _clauses.size()) {
+    do {
       if (_clauses[i].deleted) {
         i++;
         continue;
@@ -395,46 +906,48 @@ void napsat::NapSAT::print_clause_set()
       string spaces = "";
 
       ASSERT(string_length_escaped(clause_str) <= max_clause_width);
+      ASSERT(max_clause_width >= string_length_escaped(clause_str));
       for (unsigned k = 0; k < max_clause_width - string_length_escaped(clause_str); k++)
         spaces += " ";
-      cout << spaces;
+      if (j + max_clause_width < TERMINAL_WIDTH)
+        cout << spaces;
       j += max_clause_width;
-    }
+    } while (j < TERMINAL_WIDTH && i < _clauses.size());
     cout << endl;
   }
 }
 
-void napsat::NapSAT::print_watch_lists(Tlit lit)
+void NapSAT::print_watch_lists(Tlit lit) const
 {
   Tlit i = 1;
-  Tlit end = _watch_lists.size();
+  Tlit end = _watches.size();
   if (lit != LIT_UNDEF) {
     i = lit;
-    end = lit + 1;
+    end = lit.value + 1;
   }
-  for (; i < end; i++) {
+  for (; i < end; i.value++) {
     cout << "watch list for ";
-    if (lit_pol(i))
+    if (i.pol())
       cout << " ";
-    print_lit(i);
-    cout << ": ";
+    cout << i << ": ";
     // print the binary list
     cout << "binary: ";
-    for (pair<Tlit, Tclause> p : _binary_clauses[i]) {
-      print_lit(p.first);
-      cout << " <- " << p.second << " ";
+    for (TSwatch w : _binary_watches[i]) {
+      cout << w.block << " <- " << w.cl << " ";
     }
     cout << "\n                non-binary: ";
 
-    for (Tclause cl : _watch_lists[i])
-      cout << cl << " ";
+    for (TSwatch w : _watches[i])
+      cout << w.cl << " ";
     cout << "\n";
   }
 }
 
-bool napsat::NapSAT::parse_command(std::string input)
+bool NapSAT::parse_command(std::string input)
 {
   if (input == "") {
+    if (_status == status::SAT || _status == status::UNSAT)
+      return true;
     decide();
     return true;
   }
@@ -467,7 +980,7 @@ bool napsat::NapSAT::parse_command(std::string input)
       decide();
     else if (tokens.size() == 2) {
       int lit_int = stoi(tokens[1]);
-      Tlit lit = literal(abs(lit_int), lit_int > 0);
+      Tlit lit = Tlit(abs(lit_int), lit_int > 0);
       if (!lit_undef(lit)) {
         LOG_WARNING("The literal " << lit_to_string(lit) << " is not undefined. This command is ignored.");
         return false;
@@ -479,6 +992,30 @@ bool napsat::NapSAT::parse_command(std::string input)
       return false;
     }
   }
+  else if (tokens[0] == "ASSUME") {
+    if (tokens.size() != 2) {
+      LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
+      return false;
+    }
+    int lit_int = stoi(tokens[1]);
+    Tlit lit(abs(lit_int), lit_int > 0);
+    if (!assume(lit)) {
+      LOG_WARNING("The assumption of literal " << lit_to_string(lit) << " failed.");
+      return false;
+    }
+  }
+  else if (tokens[0] == "FORGET") {
+    if (tokens.size() != 2) {
+      LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
+      return false;
+    }
+    int lit_int = stoi(tokens[1]);
+    Tlit lit(abs(lit_int), lit_int > 0);
+    if (!forget_assumption(lit)) {
+      LOG_WARNING("The forgetting of assumption of literal " << lit_to_string(lit) << " failed.");
+      return false;
+    }
+  }
   else if (tokens[0] == "HINT") {
     if (tokens.size() == 2) {
       int lit = stoi(tokens[1]);
@@ -486,7 +1023,7 @@ bool napsat::NapSAT::parse_command(std::string input)
         LOG_WARNING("The literal " << lit_to_string(lit) << " is not undefined. This command is ignored.");
         return false;
       }
-      hint(literal(abs(lit), lit > 0));
+      hint(Tlit(abs(lit), lit > 0));
     }
     else if (tokens.size() == 3) {
       int lit = stoi(tokens[1]);
@@ -495,7 +1032,7 @@ bool napsat::NapSAT::parse_command(std::string input)
         return false;
       }
       Tlevel level = stoi(tokens[2]);
-      hint(literal(abs(lit), lit > 0), level);
+      hint(Tlit(abs(lit), lit > 0), level);
     }
     else {
       LOG_WARNING("Wrong number of arguments (expected 0 or 1). This command is ignored.");
@@ -506,7 +1043,7 @@ bool napsat::NapSAT::parse_command(std::string input)
     start_clause();
     for (unsigned i = 1; i < tokens.size(); i++) {
       int lit = stoi(tokens[i]);
-      add_literal(literal(abs(lit), lit > 0));
+      add_literal(Tlit(abs(lit), lit > 0));
     }
     finalize_clause();
   }
@@ -534,8 +1071,8 @@ bool napsat::NapSAT::parse_command(std::string input)
       LOG_WARNING("Wrong number of arguments (expected 1). This command is ignored.");
       return false;
     }
-    int cl = stoi(tokens[1]);
-    if (cl < 0 || (unsigned) cl >= _clauses.size()) {
+    Tclause cl = stoi(tokens[1]);
+    if (cl < 0 || cl >= _clauses.size()) {
       LOG_WARNING("The clause " << cl << " does not exist. This command is ignored.");
       return false;
     }
@@ -547,21 +1084,18 @@ bool napsat::NapSAT::parse_command(std::string input)
   }
   else if (tokens[0] == "HELP") {
     // print the content of the help file
-    string man_file = napsat::env::get_man_page_folder() + "man-sat.txt";
-    ifstream file(man_file);
-    if (file.is_open()) {
-      string line;
-      while (getline(file, line))
-        cout << line << endl;
-      file.close();
-    }
-    else {
-      LOG_ERROR("The manual page could not be loaded.");
-    }
+    // TODO: make this work with modernized parser
   }
   else {
     LOG_WARNING("unknown command \"" << tokens[0] << "\"; try \"HELP\" to get the list of commands");
     return false;
   }
   return true;
+}
+
+void napsat::NapSAT::save_state()
+{
+  SAVE_STATE;
+}
+
 }

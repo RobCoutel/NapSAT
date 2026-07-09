@@ -13,7 +13,6 @@
  */
 #pragma once
 
-#include <lzma.h>
 #include <fstream>
 #include <string>
 
@@ -26,3 +25,5 @@
  * @details If the decompression fails, an error message is printed to stderr.
  */
 bool decompress_xz(const char* filename, std::ostringstream& output);
+
+bool decompress_bz2(const char* filename, std::ostringstream& output);

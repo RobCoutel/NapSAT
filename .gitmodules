@@ -1,0 +1,3 @@
+[submodule "SATSentinel"]
+	path = SATSentinel
+	url = git@github.com:RobCoutel/SATSentinel.git

@@ -11,22 +11,25 @@
  *
  * To add a new option, you must:
  * - Add a new field in the options class.
- * - Add an entry in the SAT-options.cpp file "bool_options", "string_options" or "double_options" unordered_map.
- * - Add a comment above the field in this file with the following information:
- *   - @brief A description of the option.
- *   - @default The default value of the option for static (environment) options.
- * You also may:
- * - Add an alias to the option with @alias. The alias should also be entered in the unordered_maps in the SAT-options.cpp file.
- * - mention if an option is subsumed by another option with the tag @subsumed and the option that subsumes it.
- * - mention a warning that the user may need to know with the tag @warning.
- * - specific ranges of values or other constraints with the tag @requires.
- *
- * Finally, you should run the script/generate-option-documentation.py script from the root of the directory.
+ * - Register it in options::build_option_parser (src/solver/SAT-options.cpp) via
+ *   parser.add_bool/add_double/add_string(...), chaining .alias(...) for every CLI alias.
+ * - Declare any fixed-priority incompatibility with .subsumes(...) and any AND-requirement on
+ *   another option with .require(other, expected_value).
+ * - Add a comment above the field in this file describing the option; the runtime -h/--help output
+ *   is generated from the strings passed to build_option_parser, not from these comments, but they
+ *   remain useful documentation for readers of this header.
  */
 #pragma once
 
 #include <string>
 #include <vector>
+
+#include "SAT-config.hpp"
+#include "../src/utils/options.hpp"
+
+#if USE_OBSERVER
+#include "Sentinel-options.hpp"
+#endif
 
 namespace napsat
 {
@@ -37,35 +40,6 @@ namespace napsat
     /* Note that the flags "[Start/Stop] Documentation" are used to generate the man page.*/
     /** Start Documentation **/
     /** GLOBAL ENVIRONMENT **/
-    /**
-     * @brief The directory of the manual pages. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable. NapSAT will find the manual pages folder if the option is not set. This option is only meant to be used by the user of the library.
-     * @default [exec_dir]/../
-     * @alias -m
-     */
-    static std::string man_page_folder;
-
-    /**
-     * @brief The directory of the invariant configurations. This option in general should not be set by the user, unless NapSAT is used as a library and the main program is not the NapSAT executable.
-     * NapSAT will find the invariant configurations folder if the option is not set. However, the user can use this option to set their own configurations.
-     * The invariants will only be used if the observer is active (-i, -o or -c).
-     * @default [exec_dir]/../invariant-configurations/
-     * @alias -icf
-     */
-    static std::string invariant_configuration_folder;
-
-    /**
-     * @brief If true, the solver will not print warnings to the standard output.
-     * @default off
-     * @alias -sw
-    */
-    static bool suppress_warning;
-
-    /**
-     * @brief If true, the solver will not print information to the standard output.
-     * @default off
-     * @alias -si
-    */
-    static bool suppress_info;
 
     public:
     /** Stop Documentation **/
@@ -75,14 +49,14 @@ namespace napsat
     static std::vector<std::string> extract_environment_variables(std::vector<std::string>& tokens);
 
     /**
-     * @brief Returns the directory of the manual pages.
-     */
-    static std::string get_man_page_folder();
-
-    /**
      * @brief Returns the directory of the invariant configurations.
      */
     static std::string get_invariant_configuration_folder();
+
+    /**
+     * @brief Returns the directory of the obsidian template folder.
+     */
+    static std::string get_obsidian_template_folder();
 
     /**
      * @brief Returns true if the solver will not print warnings.
@@ -94,17 +68,18 @@ namespace napsat
      */
     static bool get_suppress_info();
 
-    /**
-     * @brief Sets the directory of the manual pages
-     * @param dir The directory of the manual pages.
-     */
-    static void set_man_page_folder(std::string dir);
 
     /**
      * @brief Sets the directory of the invariant configurations.
      * @param dir The directory of the invariant configurations.
      */
     static void set_invariant_configuration_folder(std::string dir);
+
+    /**
+     * @brief Sets the directory of the obsidian template folder.
+     * @param dir The directory of the obsidian template folder.
+     */
+    static void set_obsidian_template_folder(std::string dir);
 
     /**
      * @brief Sets the solver to suppress warnings.
@@ -121,38 +96,58 @@ namespace napsat
 
   class options {
   public:
+
+    sentinel::Options sentinel_options;
+
+
     /** Start Documentation **/
     /** SOLVER BEHAVIOR **/
     /**
-     * @brief Enables chronological backtracking. If enabled directly, the solver will use weak chronological backtracking. This option is not meant to be used standalone, but can be, in which case, wcb is used. This option is enabled by any chronological backtracking variant.
-     * wcb => cb, rscb => cb, lscb => cb
-     * There exists a hierarchy between the options. If several are enabled, the highest in the hierarchy will be used.
-     * cb <= wcb < rscb < lscb
-     * @alias -cb
-     * @subsumed -wcb, -lscb and -rscb
+     * @brief Enables the solver to use chronological backtracking (RSCB).
+     * That is, the solver will re-propagate literals that moved during backtracking.
      */
     bool chronological_backtracking = false;
-
-    /**
-     * @brief Enables the solver to use chronological backtracking.
-     * @alias -wcb
-     * @subsumed lscb and rscb
-     */
-    bool weak_chronological_backtracking = false;
-
-    /**
-     * @brief Enables the solver to use restoring chronological backtracking.
-     * That is, the solver will re-propagate literals that moved during backtracking.
-     * @alias -rscb
-     * @subsumed lscb
-     */
-    bool restoring_strong_chronological_backtracking = false;
 
     /**
      * @brief Enables the solver to use strong chronological backtracking. That is, the solver will use the lazy reimplication scheme.
      * @alias -scb
      */
     bool lazy_strong_chronological_backtracking = false;
+
+    /**
+     * @brief Enables the solver to use graph backtracking. That is, upon a conflict, the solver will only undo the literals that are reachable from the conflicting level in the implication graph. Further, the conflict level can be chosen by a heuristic, and does not necessarily have to be the highest level in the conflict clause.
+     * @requires -cb, -wcb, -rscb and -lscb are false
+     * @alias -gb
+     */
+    bool graph_backtracking = false;
+
+    /**
+     * @brief Enables the solver to log missed implications for decisions. When a decision is detected to be implied by a clause, if the chunk of that decision is backtracked, then, one of the chunks of the lazy reason clause needs to be backtracked as well.
+     * @requires -gb is true
+     * @alias -lcm
+     */
+    bool lazy_chunk_merging = false;
+
+    /**
+     * @brief Enables the solver to eagerly merge chunks when a missed implication is detected for a decision. That is, when a decision is detected to be implied by a clause, the chunks of the lazy reason clause are merged with the chunk of the decision right away.
+     * @requires -gb is true and -lcm is false
+     * @alias -ecm
+     */
+    bool eager_chunk_merging = false;
+
+    /**
+     * @brief Enables the solver to search the smallest UIP and choose the backtracked chunk accordingly.
+     * @requires -gb is true, -bfc is false
+     * @alias -bsc
+     */
+    bool backtrack_smallest_chunk = false;
+
+    /**
+     * @brief Enables the solver to backtrack the first chunk in the conflict clause.
+     * @requires -gb is true, -bsc is false
+     * @alias -bfc
+     */
+    bool backtrack_first_chunk = false;
 
     /**
      * @brief Enables the solver to delete learned clauses.
@@ -191,20 +186,40 @@ namespace napsat
     bool check_invariants = false;
 
     /**
-     * @brief Enables the observer to print statistics during, and at the end of the execution.
+     * @brief Enables the observer to print statistics at the end of the execution.
      * @requires observing or interactive is on
      * @alias -stat
-    */
+     * @warning This option has a significant impact on the performance of the solver.
+     * It should not be used when measuring the compute time of the solver. It is recommended
+     * to run the solver twice, once with this option and once without it.
+     */
 
     bool print_stats = false;
+
     /**
-     * @brief Enables the observer to build a proof during the execution.
+     * @brief Enables the observer to print the statistics during the execution.
+     * @requires observing or interactive is on
+     * @alias -live-stat
+     * @warning This option has a significant impact on the performance of the solver.
+     * It should not be used when measuring the compute time of the solver. It is recommended
+     * to run the solver twice, once with this option and once without it.
+     */
+    bool print_live_stats = false;
+
+    /**
+     * @brief If true, the solver will save its state to an obsidian vault when failing an assertion.
+      * @alias -ssi
+     */
+    bool save_state_on_interrupt = true;
+
+    /**
+     * @brief Enables resolution proof system to build a proof during the execution.
      * @alias -bp
     */
-
     bool build_proof = false;
+
     /**
-     * @brief Enables the observer to check the proof during the execution.
+     * @brief Enables the resolution proof system to check the proof during the execution.
      * @requires build_proof is on
      * @alias -cp
     */
@@ -218,17 +233,12 @@ namespace napsat
     bool print_proof = false;
 
     /**
-     * @brief File containing the commands to be executed by the solver.
-     * @requires interactive is on
-     * @alias -commands
-    */
-    std::string commands_file = "";
+     * @brief If true, for each learned clause, the solver will record on which input clauses it depends.
+     * @details Note that if this option is enabled, deletion of input clauses is disabled (even when satisfied at level 0).
+     * @warning This option must be enabled to produce clause UNSAT cores.
+     */
+    bool record_dependencies = false;
 
-    /**
-     * @brief Folder where the solver will save the LaTeX files. (see $ NapSAT --help-navigation for more information)
-     * @alias -s
-    */
-    std::string save_folder = "";
 
     /** VARIABLE ACTIVITY **/
     /**
@@ -242,7 +252,7 @@ namespace napsat
      * @brief Multiplier of the number of clauses before elimination. When the simplifying procedure is called to eliminate clauses, the new threshold for deletion is multiplied by this multiplier.
      * @requires multiplier > 1
      */
-    double clause_elimination_multiplier = 1.5;
+    double clause_elimination_multiplier = 2.0;
 
     /**
      * @brief Multiplier for the activity increment of clauses. The higher the multiplier, faster the clauses are considered irrelevant.
@@ -255,29 +265,60 @@ namespace napsat
      */
     double clause_activity_threshold_decay = 0.85;
 
-    /** RESTARTS **/
     /**
-     * @brief Decay factor the of moving average of the agility.
-     * @requires 0 < decay < 1
+     * @brief Enables luby restarts of the solver.
      */
-    double agility_decay = 0.9999;
+    bool restarts = true;
 
     /**
-     * @brief Threshold of the agility. If the agility is lower than the threshold, the solver restarts and the the threshold is multiplied by agility_threshold_decay.
-     * @requires 0 < threshold < 1
+     * @brief If this option is true, the solver will backtrack the chunks that were analyzed to learn clauses. Otherwise, the solver will always backtrack the smallest set of chunks, if possible.
+     * @alias -bl
+     * @requires -gb
      */
-    double agility_threshold = 0.4;
+    bool backtrack_learned = false;
 
     /**
-      * @brief Multiplier for the agility threshold. Since formulas can be very different, the agility for one problem may not be the same as the agility for another problem. Therefore, the threshold is multiplied by the threshold multiplier upon each implication. This hyper parameter must be set to a value greater than 1.
-      * @requires multiplier >= 1
-      */
-    double threshold_multiplier = 1;
-    /**
-     * @brief Decay factor of the threshold. If the solver restarts too often, the solver will not make progress. Therefore, the threshold is multiplied by the threshold decay factor upon each restart. This hyper parameter must be set to a value lower than 1 and lower than 2 - threshold_multiplier.
-     * @requires 0 < decay < 1
+     * @brief If true, the solver will use an approximate cost estimation when calculating the weights of bitsets during conflict analysis.
+     * @alias -max-approx-cost
+     * @requires -gb and not use_sum_approximate_cost_estimation and not use_vsids_approximate_cost_estimation
      */
-    double agility_threshold_decay = 1;
+    bool use_max_approximate_cost_estimation = false;
+
+    /**
+     * @brief If true, the solver will use an alternative approximate cost estimation when calculating the weights of bitsets during conflict analysis.
+     * @alias -sum-approx-cost
+     * @requires -gb and not use_max_approximate_cost_estimation and not use_vsids_approximate_cost_estimation
+     */
+    bool use_sum_approximate_cost_estimation = false;
+
+    /**
+     * @brief If true, the solver will use an approximate cost estimation based on VSIDS activity when calculating the weights of bitsets during conflict analysis.
+     * @alias -vsids-approx-cost
+     * @requires -gb and not use_max_approximate_cost_estimation and not use_sum_approximate_cost_estimation
+     */
+    bool use_vsids_approximate_cost_estimation = false;
+
+    /**
+     * @brief Penalty for the level of chunks in the cost heuristic. The higher the penalty, the more the heuristic
+     * will prefer to backtrack chunks at higher level.
+     * @requires -gb
+     */
+    double chunk_level_penalty = 0.01;
+
+    /**
+     * @brief Limit on the number of backtrack possibilities to consider when using graph backtracking. If the number of possibilities is greater than the limit, the solver will heuristically cutoff.
+     */
+    double backtrack_possibilities_limit = 1000;
+
+    /**
+     * @brief Weight of synced variables in the utility heuristic.
+     * @requires -gb
+     * @details The utility heuristic is used to choose which chunk to backtrack when using graph backtracking.
+     * The utility of a literal is defined as follows:
+     * - If the variable is synced, the utility is sync_weight.
+     * - Otherwise, the utility is 1.
+     */
+    double sync_weight = 8;
 
     /**
      * @brief Timeout of the solver in milliseconds. If the solver does not finish within this time, it will stop and return UNKNOWN.
@@ -304,7 +345,28 @@ namespace napsat
     /**
      * @brief Constructor
     */
-    options(std::vector<std::string>& tokens);
+    explicit options(std::vector<std::string>& tokens);
+
+    /**
+     * @brief Runtime-generated help text describing every solver option (and, nested within it,
+     * every sentinel/observer option). Replaces the old scripts/generate-option-documentation.py
+     * + man.txt pipeline.
+     */
+    static std::string get_help_text();
+
+  private:
+    /**
+     * @brief Registers every option of `target` (aliases, defaults, incompatibilities,
+     * requirements) into `parser`. Shared by the constructor and get_help_text().
+     */
+    static void build_option_parser(options& target, OptionParser& parser);
+
+    /**
+     * @brief Extracts the brace-delimited group of tokens following -o/--observing (if any), e.g.
+     * `-o {--gui -commands file.txt}`, stripping the group out of `tokens` in place and returning
+     * its contents (braces stripped) for the sentinel option parser to consume.
+     */
+    static std::vector<std::string> extract_sentinel_tokens(std::vector<std::string>& tokens);
   };
 
 } // namespace napsat

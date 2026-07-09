@@ -2,6 +2,7 @@
 #include "SAT-types.hpp"
 
 #include <vector>
+#include <functional>
 
 namespace napsat
 {
@@ -24,6 +25,21 @@ namespace napsat
    * @param solver The solver to delete.
   */
   void delete_solver(NapSAT* solver);
+
+  /**
+   * @brief Create a new variable in the solver.
+   * @param solver The solver in which to create the variable.
+   * @return The variable created.
+   */
+  Tvar new_variable(NapSAT* solver);
+
+  /**
+   * @brief Returns the current number of variables in the solver.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @return the current number of variables in the solver.
+   */
+  unsigned variables_count(const NapSAT* solver);
 
   /**
    * @brief Parse a DIMACS file and add the clauses to the clause set.
@@ -77,6 +93,19 @@ namespace napsat
   status solve(NapSAT* solver);
 
   /**
+   * @brief Solves the clause set with a limit on the number of conflicts.
+   * The procedure stops when all variables are assigned, or the solver
+   * concludes that the clause set is unsatisfiable, or the number of conflicts
+   * reaches the given limit.
+   * @param solver an instance of the SAT solver
+   * @param conflict_limit limit on the number of conflicts before stopping the
+   * solve.
+   * @pre the solver is a valid instance of NapSAT
+   * @return status of the solver.
+   */
+  status solve_limited(NapSAT* solver, unsigned conflict_limit);
+
+  /**
    * @brief Returns the status of the solver.
    * @param solver an instance of the SAT solver
    * @return status of the solver.
@@ -125,17 +154,131 @@ namespace napsat
   Tclause add_clause(NapSAT* solver, const Tlit* lits, unsigned n_lits);
 
   /**
+   * @brief Pushes assumptions to the solver.
+   * @param solver an instance of the SAT solver
+   * @param assumption a literal to assume.
+   * @pre the solver is a valid instance of NapSAT
+   * @return true if the assumption was added successfully, false otherwise.
+   * @details Assumptions are literals assigned by the user that the solver cannot
+   * remove until the user calls remove_assumption<s>.
+   * @details The solver will return false if an assumption contradicts the current
+   * set of assumptions
+   * @details In GB, pushing assumptions can be done at any time. If the
+   * assignment contradicts the assumptions, the solver will backtrack to a level where
+   * the assumptions are still valid. In CB and NCB, pushing assumption will force
+   * the solver to backtrack to level 0 before adding the assumptions.
+   */
+  bool add_assumption(NapSAT* solver, Tlit assumption);
+
+  /**
+   * @brief Pushes assumptions to the solver.
+   * @param solver an instance of the SAT solver
+   * @param assumptions vector of literals to assume.
+   * @pre the solver is a valid instance of NapSAT
+   * @return true if all assumptions were added successfully, false otherwise.
+   * @details Assumptions are literals assigned by the user that the solver cannot
+   * remove until the user calls remove_assumption<s>().
+   * @details The solver will return false if an assumption contradicts the current
+   * set of assumptions
+   * @details In GB, pushing assumptions can be done at any time. If the
+   * assignment contradicts the assumptions, the solver will backtrack to a level where
+   * the assumptions are still valid. In CB and NCB, pushing assumption will force
+   * the solver to backtrack to level 0 before adding the assumptions.
+   */
+  bool add_assumption(NapSAT* solver, const std::vector<Tlit>& assumptions);
+
+  /**
+   * @brief Removes an assumption from the solver.
+   * @param solver an instance of the SAT solver
+   * @param assumption literal to remove from the assumptions.
+   * @pre the solver is a valid instance of NapSAT
+   * @return true if the assumption was removed successfully, false otherwise.
+   * @details In CB and NCB, removing an assumption will backtrack the solver to
+   * the assumption levels. In GB, the trail is not modified, but the assumption is
+   * now unlocked and can be modified by the solver.
+   */
+  bool forget_assumption(NapSAT* solver, Tlit assumption);
+
+  /**
+   * @brief Removes all assumptions from the solver.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @details In CB and NCB, removing all assumptions will backtrack the solver to
+   * level 0. In GB, the trail is not modified, but all assumptions are now unlocked and
+   * can be modified by the solver.
+   */
+  void forget_assumption(NapSAT* solver);
+
+  /**
+   * @brief Returns the list of failed assumptions after an UNSAT solve.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @pre the last call to solve returned UNSAT
+   * @return vector of literals representing the failed assumptions.
+   */
+  std::vector<Tlit> unsat_core(const NapSAT* solver);
+
+  /**
+   * @brief Returns the list of clauses in the unsat core after an UNSAT solve modulo assumptions.
+   * @param solver an instance of the SAT solver
+   * @pre the solver is a valid instance of NapSAT
+   * @pre the last call to solve returned UNSAT
+   * @return vector of clause identifiers representing the clauses in the unsat core modulo assumptions.
+   */
+  std::vector<Tclause> clause_unsat_core(NapSAT* solver);
+
+  /**
    * @brief Returns a reference to the trail. The trail should not be modified
    * by the user.
    * @param solver an instance of the SAT solver
    * @pre the solver is a valid instance of NapSAT
    */
-  const std::vector<Tlit>& get_partial_assignment(NapSAT* solver);
+  const std::vector<Tlit>& get_partial_assignment(const NapSAT* solver);
 
   /**
    * @brief Returns true if the given literal is decided.
-  */
-  bool is_decided(NapSAT* solver, Tlit lit);
+   * @param solver an instance of the SAT solver
+   * @param lit literal to check.
+   * @return true if the literal is decided, false otherwise.
+   * @pre the solver is a valid instance of NapSAT
+   */
+  bool is_decided(const NapSAT* solver, Tlit lit);
+
+  /**
+   * @brief Returns true if the given literal is assigned at root level.
+   */
+  bool is_root_level(const NapSAT* solver, Tvar var);
+
+  /**
+   * @brief Returns the value of a literal in the current assignment.
+   * @param solver an instance of the SAT solver
+   * @param lit literal to evaluate.
+   * @return Tval representing the value of the literal.
+   * @pre the solver is a valid instance of NapSAT
+   */
+  Tval get_variable_value(const NapSAT* solver, Tvar var);
+
+  /**
+   * @brief Suggest a polarity for a variable.
+   * @param solver an instance of the SAT solver
+   * @param lit literal whose variable will have a suggested polarity.
+   * @param polarity suggested polarity. true for positive, false for negative.
+   * @pre the solver is a valid instance of NapSAT
+   * @details The first time this variable is assigned as a decision, it will be
+   * assigned the suggested polarity. After that, the phase_cache will be used.
+   */
+  void suggest_polarity(NapSAT* solver, Tlit lit, bool polarity);
+
+  /**
+   * @brief Provide a weight function to the solver for weighted SAT solving.
+   * @param solver an instance of the SAT solver
+   * @param weight_function a function that takes a literal and returns its weight as an unsigned integer.
+   * @pre the solver is a valid instance of NapSAT
+   * @details The weight function is used to compute the weight of a set of literals or chunks during graph-based backtracking.
+   */
+  void set_weight_function(NapSAT* solver, std::function<double(Tlit)> weight_function);
+
+  void synchronize(NapSAT* solver);
 
   /**
    * @brief Prints on the standard output the statistics collected by the solver
@@ -143,7 +286,7 @@ namespace napsat
    * @param solver an instance of the SAT solver
    * @pre the solver is a valid instance of NapSAT
   */
-  void print_statistics(NapSAT* solver);
+  void print_statistics(const NapSAT* solver);
 
   /**
    * @brief Prints the proof of the last execution of the solver.

@@ -19,6 +19,7 @@
 #include <iostream>
 #include <fstream>
 #include <lzma.h>
+#include <bzlib.h>
 #include <string>
 #include <sstream>
 
@@ -132,4 +133,37 @@ bool decompress_xz(const char* filename, ostringstream& output)
   LOG_INFO("Total Decompressed " << byte_size_to_string(strm.total_in) << " to " << byte_size_to_string(strm.total_out));
 
   return true;
+}
+
+bool decompress_bz2(const char* filename, std::ostringstream& output)
+{
+    const int bufferSize = 4096;
+    char buffer[bufferSize];
+
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        return false;
+    }
+
+    BZFILE* bzFile = nullptr;
+    int bzError;
+    bzFile = BZ2_bzReadOpen(&bzError, file, 0, 0, nullptr, 0);
+    if (bzError != BZ_OK) {
+        fclose(file);
+        return false;
+    }
+
+    while (bzError == BZ_OK) {
+        int bytesRead = BZ2_bzRead(&bzError, bzFile, buffer, bufferSize);
+        if (bytesRead > 0) {
+            output.write(buffer, bytesRead);
+        }
+    }
+
+    bool success = (bzError == BZ_STREAM_END);
+
+    BZ2_bzReadClose(&bzError, bzFile);
+    fclose(file);
+
+    return success;
 }

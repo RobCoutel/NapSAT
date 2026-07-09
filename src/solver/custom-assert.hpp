@@ -16,33 +16,27 @@
 
 #include <cassert>
 
+// Source - https://stackoverflow.com/a/55420185
+// Posted by John Bollinger, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-06-23, License - CC BY-SA 4.0
+#define is_empty(...) ( sizeof((int[]){__VA_ARGS__})/sizeof(int) == 0)
+
+
 #ifndef NDEBUG
 #if OBSERVED_ASSERTS && USE_OBSERVER
-#define ASSERT(cond) \
-  do {                                                              \
-    if (_observer) {                                                \
-      if (!(cond))  {                                               \
-        NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
-        assert(cond);                                               \
-      }                                                             \
-    } else {                                                        \
-      assert(cond);                                                 \
-    }                                                               \
+#define ASSERT(cond, ...)                                                   \
+  do {                                                                      \
+    if (!(cond))  {                                                         \
+      LOG_ERROR("Assertion failed: " #cond);                                \
+      __VA_OPT__(LOG_ERROR("MESSAGE: " << __VA_ARGS__));                    \
+      NOTIFY(message, ("Assertion failed: " #cond));    \
+      assert(cond);                                                         \
+    }                                                                       \
   } while(0)
 
-#define ASSERT_MSG(cond, msg) \
-  do {                                                              \
-    if (!(cond))  {                                                 \
-      LOG_ERROR( "MESSAGE: " << msg );                              \
-      NOTIFY_OBSERVER(_observer, new napsat::gui::marker("Assertion failed: " #cond));  \
-      assert(cond);                                                 \
-    }                                                               \
-  } while(0)
 #else
 #define ASSERT(cond) assert(cond);
-#define ASSERT_MSG(cond, msg) assert(cond);
 #endif
 #else
-#define ASSERT(cond)           ((void)0)
-#define ASSERT_MSG(cond, msg)  ((void)0)
+#define ASSERT(cond) ((void)0)
 #endif

@@ -72,7 +72,7 @@ namespace napsat::proof
      * @brief Buffer used to store the current resolution chain inputted by the
      * user. The chain is cleared when the function finalize_resolution is
      * called. */
-    std::vector<std::pair<napsat::Tlit, napsat::Tclause>> current_resolution_chain;
+    std::vector<std::pair<napsat::Tlit, TclauseID>> current_resolution_chain;
 
     /**
      * @brief The clauses in the proof.
@@ -82,12 +82,12 @@ namespace napsat::proof
     /**
      * @brief Dictionary holding the clause index for each clause ID provided
      * by the solver. It maps Tclause to TclauseID. */
-    std::vector<TclauseID> clause_matches;
+    indexed_vector<TclauseID, Tclause> clause_matches;
 
     /**
      * @brief Internal ID of the empty clause if it exists. It is the starting
      * point of the backward verification of the proof. */
-    TclauseID empty_clause_id = CLAUSE_UNDEF;
+    TclauseID empty_clause_id = 0xFFFFFFFF;
 
     /**
      * @brief List of literals at root level.
@@ -135,6 +135,11 @@ namespace napsat::proof
      * resolution chain yields different literals than the clause.
      */
     bool check_resolution_chain(TclauseID id);
+
+        /**
+     * @brief Check if the clause with the given literals is a tautology.
+     */
+    bool check_tautology(Tlit* lits, unsigned size);
 
     /**
      * @brief Print the clause with the given index.
@@ -200,6 +205,13 @@ namespace napsat::proof
      * is correctly derived from the resolution chain.
      */
     void finalize_resolution(napsat::Tclause id, const napsat::Tlit* lits, unsigned n_lits);
+
+    /**
+     * @brief Cancel the current resolution chain.
+     * @details The resolution chain is cleared, and the next link will be the
+     * first link of a new resolution chain.
+     */
+    void cancel_resolution_chain(void);
 
     /**
      * @brief Assigns a literal at root level.
