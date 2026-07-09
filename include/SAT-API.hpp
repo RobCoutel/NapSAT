@@ -267,7 +267,7 @@ namespace napsat
    * @details The first time this variable is assigned as a decision, it will be
    * assigned the suggested polarity. After that, the phase_cache will be used.
    */
-  void suggest_polarity(NapSAT* solver, Tlit lit, bool polarity);
+  void suggest_polarity(NapSAT* solver, Tvar lit, bool polarity);
 
   /**
    * @brief Provide a weight function to the solver for weighted SAT solving.
@@ -278,6 +278,10 @@ namespace napsat
    */
   void set_weight_function(NapSAT* solver, std::function<double(Tlit)> weight_function);
 
+  /**
+   * @brief Synchronizes the state of the solver with the user.
+   * @details This is used to determine how much backtracking certain literals will cost.
+   */
   void synchronize(NapSAT* solver);
 
   /**

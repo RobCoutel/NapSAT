@@ -69,9 +69,22 @@ $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ) $(SATSENTINEL_LIB)
 # Remove the archive before rebuilding: `ar rcs` never drops members that
 # are no longer part of $^, so a stale .a could otherwise keep referencing
 # objects built with a previous, incompatible set of flags.
-$(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
+#
+# NapSAT.a bundles SATSentinel.a's objects too, so that anything linking
+# against NapSAT.a (e.g. Vampire) never needs to know SATSentinel exists as
+# a separate archive. SATSentinel's objects are extracted into a scratch
+# dir and renamed with a prefix first, since a couple of filenames
+# (options.cpp, printer.cpp) exist in both src trees and would otherwise
+# collide as archive member names.
+SATSENTINEL_MERGE_DIR := $(BUILD_DIR)/.satsentinel-merge
+$(BUILD_DIR)/$(TARGET_LIB): $(OBJS) $(SATSENTINEL_LIB)
 	$(RM) $@
-	ar rcs $@ $^
+	$(RM) -r $(SATSENTINEL_MERGE_DIR)
+	$(MKDIR_P) $(SATSENTINEL_MERGE_DIR)
+	cd $(SATSENTINEL_MERGE_DIR) && ar x $(abspath $(SATSENTINEL_LIB))
+	for f in $(SATSENTINEL_MERGE_DIR)/*.o; do mv "$$f" "$(SATSENTINEL_MERGE_DIR)/satsentinel-$$(basename $$f)"; done
+	ar rcs $@ $(OBJS) $(SATSENTINEL_MERGE_DIR)/*.o
+	$(RM) -r $(SATSENTINEL_MERGE_DIR)
 
 $(SATSENTINEL_LIB):
 	$(MAKE) -C $(SATSENTINEL_DIR) lib BUILD_MODE=$(BUILD_MODE) GUI=$(GUI)

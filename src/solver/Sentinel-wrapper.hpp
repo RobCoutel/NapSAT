@@ -13,7 +13,6 @@
 #include <string>
 
 
-
 namespace sentinel::wrapper
 {
   inline sentinel::Tvar convert(napsat::Tvar var) {

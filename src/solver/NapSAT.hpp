@@ -475,9 +475,8 @@ namespace napsat
      * @param lit literal whose variable will have a suggested polarity.
      * @param polarity suggested polarity. true for positive, false for negative.
      */
-    inline void suggest_polarity(Tlit lit, bool polarity)
+    inline void suggest_polarity(Tvar var, bool polarity)
     {
-      Tvar var = lit.var();
       ASSERT(var < _vars.size());
       _vars[var].phase_cache = polarity ? 1 : 0;
     }
