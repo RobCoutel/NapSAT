@@ -16,13 +16,16 @@
 #include "../utils/options.hpp"
 #include "../utils/printer.hpp"
 
+#if USE_OBSERVER
+#include "Sentinel-options.hpp"
+#endif
+
 #include <string>
 #include <iostream>
 #include <sstream>
 #include <unordered_map>
 
 using namespace std;
-
 
 
 /**************************************************************************************************/
@@ -310,7 +313,9 @@ void napsat::options::build_option_parser(napsat::options& t, napsat::OptionPars
 napsat::options::options(vector<string>& tokens)
 {
   vector<string> sentinel_tokens = extract_sentinel_tokens(tokens);
-  sentinel_options = sentinel::Options(sentinel_tokens);
+#if USE_OBSERVER
+  sentinel_options = new ::sentinel::Options(sentinel_tokens);
+#endif
 
   OptionParser parser;
   build_option_parser(*this, parser);
@@ -328,7 +333,7 @@ napsat::options::options(vector<string>& tokens)
     chronological_backtracking = false;
   }
 
-  interactive |= !sentinel_options.commands_file.empty();
+  interactive |= sentinel_options && !sentinel_options->commands_file.empty();
 
   build_proof = build_proof || print_proof || check_proof;
 
@@ -360,5 +365,8 @@ string napsat::options::get_help_text()
   return title
        + justify_string(usage, 80)
        + parser.help_text() + "\n"
-       + sentinel::Options::get_help_text();
+#if USE_OBSERVER
+       + ::sentinel::Options::get_help_text()
+#endif
+       ;
 }

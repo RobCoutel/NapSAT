@@ -27,9 +27,10 @@
 #include "SAT-config.hpp"
 #include "../src/utils/options.hpp"
 
-#if USE_OBSERVER
-#include "Sentinel-options.hpp"
-#endif
+namespace sentinel
+{
+  class Options;
+}
 
 namespace napsat
 {
@@ -97,7 +98,7 @@ namespace napsat
   class options {
   public:
 
-    sentinel::Options sentinel_options;
+    ::sentinel::Options* sentinel_options = nullptr;
 
 
     /** Start Documentation **/

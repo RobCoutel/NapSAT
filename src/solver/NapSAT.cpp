@@ -213,8 +213,9 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::options& opti
   if (options.interactive || options.observing || options.check_invariants || options.print_stats) {
     bool check_only = options.check_invariants && !options.interactive && !options.observing;
 
-    load_invariant_configuration(_options.sentinel_options);
-    _sentinel = sentinel::create_sentinel(_options.sentinel_options);
+    ASSERT(options.sentinel_options);
+    load_invariant_configuration(*_options.sentinel_options);
+    _sentinel = sentinel::create_sentinel(*_options.sentinel_options);
     for (sentinel::WatchInvariant* invariant : _watch_invariants)
       sentinel::add_watch_invariant(_sentinel, invariant);
     sentinel::wrapper::set_variable_detail_callback(_sentinel, [this](Tvar var) {
