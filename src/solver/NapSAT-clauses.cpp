@@ -102,7 +102,11 @@ Tclause napsat::NapSAT::next_clause_id(size_t size)
   return cl;
 }
 
-Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsigned input_size, bool learned, bool external, Tclause id)
+Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
+                                            const unsigned input_size,
+                                            bool learned,
+                                            bool external,
+                                            Tclause id)
 {
   ASSERT(lits_input != nullptr);
   ASSERT(id == CLAUSE_UNDEF || id < _clauses.size());
@@ -185,12 +189,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     clause.size = input_size - n_removed;
   }
 
-  // if (external) {
-  //   cout << "Added external clause " << clause_to_string(id) << endl;
-  // } else {
-  //   cout << "Learned clause " << clause_to_string(id) << endl;
-  // }
-
   if (clause_size == 0) {
     _status = status::UNSAT;
     return id;
@@ -245,22 +243,22 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     }
   }
   // sort the literals
-  sort(lits, lits + clause_size);
+  sort(lits, lits + clause.size);
   // print the clause
-  NOTIFY(add_clause, id, lits_input, input_size, external);
+  NOTIFY(add_clause, id, clause.lits, clause.size, external);
   NOTIFY_STAT(new_clause);
 
   if (learned) {
-    NOTIFY_STAT_N(_a_learned_clause_size, clause_size);
+    NOTIFY_STAT_N(_a_learned_clause_size, clause.size);
   }
 
   if (external && _options.ignore_unused_variables) {
     // mark all the variables in the clause as constrained
-    for (unsigned i = 0; i < clause_size; i++)
+    for (unsigned i = 0; i < clause.size; i++)
       var_mark_constrained(lits[i].var());
   }
 
-  if (clause_size == 1) {
+  if (clause.size == 1) {
     if (lit_undef(lits[0])) {
       if (!_options.chronological_backtracking && !_options.graph_backtracking) {
         // we need to ensure monotonicity of the trail. For that reason, we have to backtrack everything above the implied level
@@ -283,8 +281,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input, const unsign
     }
     return id;
   }
-  select_watched_literals(lits, clause_size);
-  if (clause_size == 2) {
+  select_watched_literals(lits, clause.size);
+  if (clause.size == 2) {
     watch_lit_bin(id);
   } else {
     watch_lit(lits[0], id);

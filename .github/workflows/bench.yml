@@ -1,0 +1,68 @@
+name: Perf regression
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y liblzma-dev libbz2-dev
+
+      - name: Build PR branch
+        run: make all
+
+      - name: Benchmark PR branch
+        run: python3 scripts/bench.py run tests/cnf/bench --exec build/NapSAT --out current.json
+
+      - name: Checkout main branch (separate tree, same scripts/corpus)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-src
+          submodules: recursive
+
+      - name: Build main branch
+        run: make -C main-src all
+
+      - name: Benchmark main branch
+        # Deliberately uses *this* checkout's scripts/bench.py and tests/cnf/bench
+        # against main's binary, not main's own copies -- this workflow and its
+        # corpus don't exist on main yet (this is the PR introducing them), and
+        # even once they do, comparing under one fixed harness avoids the harness
+        # itself being a moving part of the comparison.
+        run: python3 scripts/bench.py run tests/cnf/bench --exec main-src/build/NapSAT --out baseline.json
+
+      - name: Compare
+        id: compare
+        run: |
+          set +e
+          python3 scripts/bench.py compare baseline.json current.json --threshold 0.10 | tee compare-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo '## Perf regression check'
+            echo '```'
+            cat compare-output.txt
+            echo '```'
+          } > pr-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file pr-comment.md
+
+      - name: Fail on regression
+        if: steps.compare.outputs.exit_code != '0'
+        run: exit 1

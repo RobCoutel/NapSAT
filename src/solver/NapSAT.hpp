@@ -1837,16 +1837,46 @@ public:
      */
     void purge_conflict_buffer();
 
+    /**
+     * @brief Among the backtrack possibilities, remove the ones that are subsumed by others. That is, if a backtrack possibility is a superset of another, it is removed.
+     * @param possibilities vector of backtrack possibilities to filter.
+     * @details This function is used to reduce the number of backtrack possibilities to consider.
+     */
     void subsumption_filter(std::vector<bitset>& possibilities);
 
+    /**
+     * @brief In Lazy Chunk Merging (see -lcm option), compute the combinations of chunks that can be undone together to resolve all conflicts while ensuring that no reimplication provokes the same conflict.
+     * @example let current be {1}, and {1} is mergeable with {2, 3}. If now {3} is mergeable with {4}, then the execution would work as follows:
+     * - compute_lazy_merge_chunk_combination({}, {1}, {1}, {})
+     *   Since {1} is mergeable, then we generate the combinations {1, 2} and {1, 3} and call the function recursively for each of them:
+     * - compute_lazy_merge_chunk_combination({}, {1}, {1, 2}, {1})
+     *   Since {2} is not mergeable, we add {1, 2} to the combinations and return.
+     * - compute_lazy_merge_chunk_combination({}, {1}, {1, 3}, {1})
+     *   Since {3} is mergeable, we generate the combinations {1, 3, 4} and call the function recursively for it:
+     * - compute_lazy_merge_chunk_combination({}, {1}, {1, 3, 4}, {1, 3})
+     *   Since {4} is not mergeable, we add {1, 3, 4} to the combinations and return.
+     * The final combinations are {1, 2} and {1, 3, 4}. Note that {1, 3} is not a valid combination because it would provoke the same conflict again.
+     * @details this function is recursive
+     * @param combinations vector of combinations to fill
+     * @param mergeable_chunks the chunks that can be merged together to resolve the conflicts
+     * @param current the current set of chunks being considered for merging
+     * @param processed the chunks that have already been considered for merging and should not be considered again
+     */
     void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations,
                                               const bitset& mergeable_chunks,
                                               bitset current,
                                               bitset processed) const;
 
+    /**
+     * @brief In Lazy Chunk Merging (see -lcm option), compute the combinations of chunks that can be undone together to resolve all conflicts while ensuring that no reimplication provokes the same conflict.
+     * @example If a conflict is caused by chunks {1, 2}, and chunk 2 is lazily merged with chunks {3, 4}, the the combinations should be {1}, {2, 3}, {2, 4}. The combination {1, 2} is not valid because it would provoke the same conflict again.
+     */
     void enhance_backtrack_possibilities_with_lazy_merging(const bitset& combined_chunks,
                                                            std::vector<bitset>& possibilities) const;
 
+    /**
+     * @brief When multiple conflicts are registered at the same time, this function ensure that they are resolved in an order such that no implication is missed.
+     */
     void fix_conflicts_and_learned_in_order(const std::vector<std::pair<Tclause, std::vector<Tlit>>>& learned);
 
     /**
@@ -1868,6 +1898,13 @@ public:
      * @return true if there is a conflict at root level, false otherwise.
      */
     bool root_level_conflict();
+
+    /**
+     * @brief In Lazy Chunk Merging (see -lcm option), a conflict an be detected as root level even if its literals are not all at root level. This is the case because the conflict is caused by chunks that are all lazily merged with the empty set of chunks. We can then conclude UNSAT. This function deduces the empty clause for the proof.
+     * @pre The literals of the conflict are in the _lit_buffer and its size in _lit_buffer_size.
+     * @post The empty clause is added to the proof and the status is set to UNSAT.
+     */
+    void prove_root_conflict_with_lazy_merging();
 
     typedef struct Tweight {
       /**

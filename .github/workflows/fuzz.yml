@@ -1,0 +1,54 @@
+name: Fuzz
+
+on:
+  pull_request:
+  schedule:
+    # Nightly, larger fuzzing run than what PRs get.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    env:
+      # Single debug build serves both the "func" (metamorphic + cross-strategy)
+      # and "ub" (crash/UB) fuzz modes: ASan/UBSan on top of the regular debug
+      # flags (assertions, -ftrapv) that already exist in the Makefile.
+      # DBG_FLAGS uses `?=` in both Makefiles, so an exported env value wins
+      # over the in-Makefile default and flows through the recursive
+      # `make -C SATSentinel` sub-build too.
+      DBG_FLAGS: "-O0 -g -g3 -gdwarf-2 -ftrapv -fsanitize=address,undefined -fno-sanitize-recover=all"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y liblzma-dev libbz2-dev
+
+      - name: Build (debug + sanitizers)
+        run: make debug
+
+      - name: Fuzz (func mode -- metamorphic + cross-strategy agreement)
+        run: |
+          python3 scripts/fuzz.py func \
+            --count ${{ github.event_name == 'schedule' && 2000 || 150 }} \
+            --max-vars ${{ github.event_name == 'schedule' && 200 || 80 }} \
+            --timeout 5 \
+            --seed ${{ github.run_id }}
+
+      - name: Fuzz (ub mode -- malformed/adversarial input)
+        if: always()
+        run: |
+          python3 scripts/fuzz.py ub \
+            --count ${{ github.event_name == 'schedule' && 3000 || 300 }} \
+            --timeout 5 \
+            --seed ${{ github.run_id }}
+
+      - name: Upload reproducers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-failures
+          path: fuzz-failures/*.cnf
+          if-no-files-found: ignore
