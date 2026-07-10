@@ -278,6 +278,7 @@ Tvar napsat::NapSAT::new_variable()
 
 NapSAT::~NapSAT()
 {
+  // stop the solver clock
   ASSERT(_options);
   if (_options->print_stats) {
     get_statistics()->print_statistics(true);

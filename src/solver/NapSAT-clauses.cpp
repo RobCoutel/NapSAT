@@ -111,7 +111,6 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
   ASSERT(lits_input != nullptr);
   ASSERT(id == CLAUSE_UNDEF || id < _clauses.size());
   ASSERT(id == CLAUSE_UNDEF || _clauses[id].deleted);
-  cout << "Adding clause: " << clause_to_string(lits_input, input_size) << endl;
   if (external) {
     for (unsigned i = 0; i < input_size; i++)
       bump_var_activity(lits_input[i].var());

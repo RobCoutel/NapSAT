@@ -15,10 +15,10 @@
 
 #include "custom-assert.hpp"
 #include "../exporter/implication_graph_exporter.hpp"
+#include "../utils/hitting-set.hpp"
 
 #include <cstring>
 #include <iostream>
-#include <queue>
 
 using namespace std;
 
@@ -147,82 +147,18 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bitset& com
   }
 }
 
-typedef pair<unsigned, bitset> prefix_t;
-struct compare_prefixes {
-  bool operator()(const prefix_t& a, const prefix_t& b) const {
-    return a.first > b.first;
-  }
-};
-
 void NapSAT::compute_backtrack_possibilities(vector<bitset>& possibilities) const
 {
-  ASSERT(all_of(_conflicts_chunks.begin(), _conflicts_chunks.end(),
-      [](const bitset& cl_chunks){ return !cl_chunks.empty(); }
-    ));
-  ASSERT(possibilities.empty());
-  priority_queue<prefix_t, vector<prefix_t>, compare_prefixes> prefixes;
+  compute_hitting_sets(_conflicts_chunks, possibilities,
+                       static_cast<unsigned>(_options->backtrack_possibilities_limit));
+  if (possibilities.size() > _options->backtrack_possibilities_limit)
+    NOTIFY_STAT(_n_backtrack_limit_reached);
 
   bitset remaining(_n_allocated_chunks);
-  prefixes.push(make_pair(_conflicts_chunks.size(), bitset(_n_allocated_chunks)));
-  while (!prefixes.empty()) {
-    // check if the prefix is subsumed by an existing possibility
-    if (possibilities.size() > _options->backtrack_possibilities_limit) {
-      NOTIFY_STAT(_n_backtrack_limit_reached);
-      break;
-    }
-
-    prefix_t p = prefixes.top();
-    bitset& prefix = p.second;
-    prefixes.pop();
-
-    // by virtue of the priority queue, we know that future prefixes cannot subsum older ones.
-    // But it can still be the case that an older prefix subsumes a newer one
-    if (any_of(possibilities.begin(), possibilities.end(),
-        [prefix](const bitset& p){ return p <= prefix; }
-      )) {
-      // this prefix is subsumed by an existing possibility, skip it
-      continue;
-    }
-    if (p.first == prefix.count()) {
-      // all conflicts are solved, we can stop
-      possibilities.push_back(prefix);
-      continue;
-    }
-
-    // Calculate which chunks can still be required
-    remaining.clear();
-    for (const bitset& cl_chunks : _conflicts_chunks)
-      if (!prefix.has_intersection(cl_chunks))
-        remaining |= cl_chunks;
-    ASSERT (!remaining.empty());
-
-    // expand the prefix
-    Tchunk min_chunk = prefix.empty() ? CHUNK_UNDEF : *prefix.cbegin();
-
-    for (auto it = remaining.cbegin(); it != remaining.cend(); ++it) {
-      if (*it > min_chunk) {
-        // Only add prefixes that expand to the left
-        // The ones on the left should be expanded elsewhere.
-        // This prevents duplicates and makes the search more efficient, but is more complex to implement.
-        break;
-      }
-      bitset next = prefix;
-      next.set(*it, true);
-
-      unsigned conflicts_left = 0;
-
-      for (const bitset& cl_chunks : _conflicts_chunks)
-        if (!next.has_intersection(cl_chunks))
-          conflicts_left++;
-      prefixes.push(make_pair(conflicts_left + next.count(), next));
-    }
-  }
-
-  NOTIFY_STAT_N(_a_prefix_size, prefixes.size());
-  remaining.clear();
   for (const bitset& cl_chunks : _conflicts_chunks) {
     remaining |= cl_chunks;
   }
+
   enhance_backtrack_possibilities_with_lazy_merging(remaining, possibilities);
 
   NOTIFY_STAT_N(_a_bt_choices, possibilities.size());

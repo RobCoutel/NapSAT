@@ -923,10 +923,10 @@ public:
     /**
      * @brief Increment of the purge threshold upon each purge.
      */
-    unsigned _purge_inc = 2;
+    unsigned _purge_inc = 10;
 
     /**
-     * @brief Conflict counter to determine when to purge level 0 literals
+     * @brief Conflict counter to determine when to purge clauses.
      * @details The counter is incremented at each conflict. If the conflict_limit
      * option is set, the solver will stop upon reaching the conflict limit.
      */

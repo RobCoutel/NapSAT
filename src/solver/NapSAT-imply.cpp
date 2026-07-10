@@ -334,7 +334,8 @@ void NapSAT::reimply_graph(Tlit lit, Tclause reason)
   Tlit* lits = clause.lits;
   Tlit c1 = lits[1];
   Tlit c2 = lits[0];
-  ASSERT(!(lit_cross_chunks(2) >= lit_chunks(c1)));
+  if(lit_cross_chunks(c1) >= lit_chunks(c2))
+    return;
 
   lit_cross_chunks(c1) |= lit_chunks(c2);
 
