@@ -118,7 +118,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
         Tlit* lits = clause_lits(cl);
         lits[0] = c2;
         lits[1] = c1;
-        reimply_literal(c2, cl);
+        reimply(c2, cl);
       }
       continue;
     }
@@ -131,7 +131,7 @@ void napsat::NapSAT::propagate_binary_clauses(Tlit c1)
       ASSERT(lits[0] == c2 || lits[1] == c2);
       lits[0] = c2;
       lits[1] = c1;
-      imply_literal(c2, cl);
+      imply(c2, cl);
       continue;
     }
     // Conflict
@@ -488,7 +488,7 @@ void NapSAT::propagate_lit(Tlit lit)
        * - GB:   c₂ ∈ π ∧ γ(c₂) ⊆ γ(c₁)
        * satisfying the invariants for τ ← (τ ⋅ ℓ)
        */
-      imply_literal(c2, cl);
+      imply(c2, cl);
       // don't increment. We would have done so earlier if we did not change the watched literals
       continue;
     }
@@ -541,7 +541,7 @@ void NapSAT::propagate_lit(Tlit lit)
      * Note that reimply literal ensures δ(λ(c₂) \ {c₂}) > δ(c₁) ∧  δ(ℓ) > δ(c₁) before reimplication
      */
     ASSERT(_options->chronological_backtracking || _options->graph_backtracking);
-    reimply_literal(c2, cl);
+    reimply(c2, cl);
 
     /**
      * We now have in addition that δ(λ(c₂) \ {c₂}) ≤ δ(c₁)

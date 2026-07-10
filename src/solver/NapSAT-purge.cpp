@@ -238,11 +238,11 @@ void napsat::NapSAT::purge_clauses()
       if (lit_true(lits[0])) {
         ASSERT(_options->chronological_backtracking || _options->graph_backtracking);
         if (_options->lazy_strong_chronological_backtracking)
-          reimply_literal(lits[0], cl);
+          reimply(lits[0], cl);
       }
       else {
         ASSERT(lit_undef(lits[0]));
-        imply_literal(lits[0], cl);
+        imply(lits[0], cl);
       }
       NOTIFY_STAT(_n_unit_clause_simplified);
     }

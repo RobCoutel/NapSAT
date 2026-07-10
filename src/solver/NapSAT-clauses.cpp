@@ -111,6 +111,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
   ASSERT(lits_input != nullptr);
   ASSERT(id == CLAUSE_UNDEF || id < _clauses.size());
   ASSERT(id == CLAUSE_UNDEF || _clauses[id].deleted);
+  cout << "Adding clause: " << clause_to_string(lits_input, input_size) << endl;
   if (external) {
     for (unsigned i = 0; i < input_size; i++)
       bump_var_activity(lits_input[i].var());
@@ -264,7 +265,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
         // we need to ensure monotonicity of the trail. For that reason, we have to backtrack everything above the implied level
         backtrack(LEVEL_ROOT);
       }
-      imply_literal(lits[0], id);
+      imply(lits[0], id);
     }
     if (lit_true(lits[0]) && lit_level(lits[0]) != LEVEL_ROOT) {
       reimply_literal_root(lits[0], id);
@@ -304,7 +305,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
     }
 
     ASSERT(check_clause_unit(id));
-    imply_literal(lits[0], id);
+    imply(lits[0], id);
     return id;
   }
   if (lit_false(lits[0])) {
@@ -329,7 +330,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
 
   // This might be a missed lower implication
   // check if we need to reimply the literal at a lower level (or fix the cross-chunks)
-  reimply_literal(lits[0], id);
+  reimply(lits[0], id);
   return id;
 }
 

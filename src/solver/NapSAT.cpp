@@ -498,14 +498,14 @@ bool NapSAT::decide()
   // Tlit lit = literal(var, value);
   // Tlit lit = literal(var, false);
   Tlit lit = Tlit(var, _vars[var].synced);
-  imply_literal(lit, CLAUSE_UNDEF);
+  imply(lit, CLAUSE_UNDEF);
   return true;
 }
 
 bool napsat::NapSAT::decide(Tlit lit)
 {
   ASSERT(lit_undef(lit));
-  imply_literal(lit, CLAUSE_UNDEF);
+  imply(lit, CLAUSE_UNDEF);
   return true;
 }
 
@@ -562,7 +562,7 @@ void NapSAT::hint(Tlit lit)
   ASSERT(lit.var() < _vars.size());
   ASSERT(!_writing_clause);
   ASSERT(lit_undef(lit));
-  imply_literal(lit, CLAUSE_LAZY);
+  imply(lit, CLAUSE_LAZY);
 }
 
 void NapSAT::hint(Tlit lit, Tlevel level)

@@ -416,7 +416,7 @@ void napsat::NapSAT::defragment_trail()
   propagate();
   ASSERT(_conflicts.empty());
   for (Tlit decision : decisions) {
-    imply_literal(decision, CLAUSE_UNDEF);
+    imply(decision, CLAUSE_UNDEF);
     propagate();
     ASSERT(_conflicts.empty());
   }

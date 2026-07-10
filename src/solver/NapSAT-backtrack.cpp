@@ -170,7 +170,7 @@ void NapSAT::backtrack(Tlevel level)
     for (Tclause lazy_clause : _reimplication_backtrack_buffer) {
       Tlit reimpl_lit = clause_lits(lazy_clause)[0];
       ASSERT(lit_undef(reimpl_lit));
-      imply_literal(reimpl_lit, lazy_clause);
+      imply(reimpl_lit, lazy_clause);
       NOTIFY_STAT(_n_lazy_reimplication_used);
     }
     _reimplication_backtrack_buffer.clear();

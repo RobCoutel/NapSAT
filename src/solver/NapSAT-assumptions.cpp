@@ -352,7 +352,7 @@ void NapSAT::add_assumption_GB_undef(Tlit lit)
   ASSERT(lit_undef(lit));
   ASSERT(_options->graph_backtracking);
   // convert the literal into a decision at the current level
-  imply_literal(lit, CLAUSE_UNDEF);
+  imply(lit, CLAUSE_UNDEF);
   // lock the chunk of the literal
   ASSERT(lit_chunks(lit).count() == 1);
   _locked_chunks |= lit_chunks(lit);

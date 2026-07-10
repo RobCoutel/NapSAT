@@ -1695,7 +1695,7 @@ public:
      *    C = ■ ⇔ δ(ℓ) = |πᵈ| + 1
      *
      */
-    void imply_literal(Tlit lit, Tclause reason);
+    void imply(Tlit lit, Tclause reason);
 
     /**
      * @brief Attempts to reimply a literal to a lower level. If the current
@@ -1714,7 +1714,15 @@ public:
      * the level of the reason.
      *   δ(ℓ) ≤ δ(C \ {ℓ}) ∨ δ(λ(ℓ) \ {ℓ}) ≤ δ(C \ {ℓ})
      */
-    void reimply_literal(Tlit lit, Tclause reason);
+    void reimply(Tlit lit, Tclause reason);
+
+    void backtrack_reimply(Tlit lit, Tclause reason);
+
+    void reimply_literal_cb(Tlit lit, Tclause reason);
+
+    void reimply_lazy(Tlit lit, Tclause reason);
+
+    void reimply_graph(Tlit lit, Tclause reason);
 
     /**
      * @brief Eagerly reimplies a literal to level ROOT.

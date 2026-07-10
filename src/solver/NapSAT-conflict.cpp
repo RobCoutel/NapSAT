@@ -321,7 +321,7 @@ void NapSAT::fix_conflicts_and_learned_in_order(const vector<pair<Tclause, vecto
       }
       if (lit_undef(lits[0])
        && (clause_size(conflict) == 1 || lit_false(lits[1]))) {
-        imply_literal(lits[0], conflict);
+        imply(lits[0], conflict);
       }
       if (lit_false(lits[0])) {
         _conflicts.push_back(conflict);

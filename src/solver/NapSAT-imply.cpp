@@ -19,7 +19,7 @@ using namespace std;
 
 namespace napsat {
 
-void NapSAT::imply_literal(Tlit lit, Tclause reason)
+void NapSAT::imply(Tlit lit, Tclause reason)
 {
   /**
    * Preconditions:
@@ -138,7 +138,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   if (!_options->graph_backtracking) {
     // Non-chronological backtracking
     backtrack(LEVEL_ROOT);
-    imply_literal(lit, reason);
+    imply(lit, reason);
     return;
   }
 
@@ -271,48 +271,70 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   ASSERT(check_decision_index_consistency());
 }
 
-void NapSAT::reimply_literal(Tlit c2, Tclause reason)
+void NapSAT::reimply(Tlit c2, Tclause reason)
 {
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
+  ASSERT(lit_true(clause_lits(reason)[0]));
+  ASSERT(lit_false(clause_lits(reason)[1]));
+
   if (clause_size(reason) == 1) {
     reimply_literal_root(c2, reason);
     return;
   }
+
+  if (_options->graph_backtracking) {
+    reimply_graph(c2, reason);
+    return;
+  }
+  if (_options->lazy_strong_chronological_backtracking) {
+    reimply_lazy(c2, reason);
+    return;
+  }
+  backtrack_reimply(c2, reason);
+
+}
+
+void NapSAT::backtrack_reimply(Tlit lit, Tclause reason)
+{
+  // Non-chronological backtracking
   TSclause& clause = _clauses[reason];
   Tlit* lits = clause.lits;
   Tlit c1 = lits[1];
-  ASSERT(c2 == lits[0]);
-  ASSERT(lit_true(c2));
-  ASSERT(lit_false(c1));
+  Tlit c2 = lits[0];
+  ASSERT(clause.external, "Clause " + std::to_string(reason) + " is not external");
+  ASSERT(lit_is_max_literal(c1, lits + 2, clause.size - 2));
+  if (lit_level(c2) <= lit_level(c1))
+      return;
 
-  if (!_options->lazy_strong_chronological_backtracking && !_options->graph_backtracking) {
-    // Non-chronological backtracking
-    ASSERT(clause.external);
+  // NCB does not support lazy reimplication. We need to backtrack and reimply now.
+  Tlevel backtrack_level = lit_level(c1);
+  backtrack(backtrack_level);
+  imply(c2, reason);
+  return;
+}
 
-    // NCB does not support lazy reimplication. We need to backtrack and reimply now.
-    Tlevel backtrack_level = lit_level(c1);
-    backtrack(backtrack_level);
-    imply_literal(c2, reason);
+void NapSAT::reimply_lazy(Tlit lit, Tclause reason)
+{
+  // Lazy chronological backtracking
+  TSclause& clause = _clauses[reason];
+  Tlit* lits = clause.lits;
+  Tlit c1 = lits[1];
+  Tlit c2 = lits[0];
+  ASSERT(lit_is_max_literal(c1, lits + 2, clause.size - 2));
+  if (lit_lazy_level(c2)  <= lit_level(c1)) {
     return;
   }
+  lit_lazy_reason(c2) = reason;
+  return;
+}
 
-  // The levels are ok. Nothing to do here.
-  if (!_options->graph_backtracking && lit_level(c2) <= lit_level(c1))
-      return;
-  if (_options->lazy_strong_chronological_backtracking) {
-    ASSERT(lit_is_max_literal(lits[1], lits + 2, clause.size - 2));
-    if (lit_lazy_level(c2)  <= lit_level(c1)) {
-      return;
-    }
-    lit_lazy_reason(c2) = reason;
-    return;
-  }
-  /* GRAPH BACKTRACKING */
-  ASSERT(_options->graph_backtracking);
-  ASSERT(lit_true(c2));
-  ASSERT(c2 == lits[0]);
-  ASSERT(check_clause_implying(reason));
-  ASSERT(clause.size >= 2);
+void NapSAT::reimply_graph(Tlit lit, Tclause reason)
+{
+  TSclause& clause = _clauses[reason];
+  Tlit* lits = clause.lits;
+  Tlit c1 = lits[1];
+  Tlit c2 = lits[0];
+  ASSERT(!(lit_cross_chunks(2) >= lit_chunks(c1)));
 
   lit_cross_chunks(c1) |= lit_chunks(c2);
 
