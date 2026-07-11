@@ -122,7 +122,7 @@ TEST_CASE("hitting-set: element common to all sets yields the unique size-1 answ
     make_set(64, {7, 12}),
   };
   vector<bitset> result;
-  compute_hitting_sets(to_hit, result);
+  compute_hitting_sets(to_hit, result, 1);
   REQUIRE(same_family(result, {{7}}));
 }
 
@@ -171,7 +171,7 @@ TEST_CASE("hitting-set: limit caps the number of results") {
 TEST_CASE("hitting-set: default limit returns just the smallest hitting set") {
   vector<bitset> to_hit = { make_set(64, {0, 1}), make_set(64, {10, 11}) };
   vector<bitset> result;
-  compute_hitting_sets(to_hit, result); // limit defaults to 0
+  compute_hitting_sets(to_hit, result, 1); // limit defaults to 0
   REQUIRE(result.size() == 1);
   REQUIRE(hits_everything(result[0], to_hit));
 }

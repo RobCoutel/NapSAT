@@ -40,7 +40,9 @@ namespace
 
   struct compare_hitting_set_nodes {
     bool operator()(const hitting_set_node& a, const hitting_set_node& b) const {
-      return (a.size + a.unsatisfied.size()) > (b.size + b.unsatisfied.size());
+      double score_a = a.size + 1.1 * a.unsatisfied.size();
+      double score_b = b.size + 1.1 * b.unsatisfied.size();
+      return score_a > score_b; // min-heap
     }
   };
 }
