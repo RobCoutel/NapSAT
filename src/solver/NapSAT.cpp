@@ -437,7 +437,7 @@ status NapSAT::solve()
         NOTIFY_STAT_N(solve_time, duration);
         if (_options->print_live_stats)
           get_statistics()->print_statistics(true);
-        NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status));
+        NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status), 1);
         return _status;
       }
       // in chronological backtracking, the purge might have implied some literals
@@ -463,7 +463,7 @@ status NapSAT::solve()
   NOTIFY_STAT_N(solve_time, duration);
   if (_options->print_live_stats)
     get_statistics()->print_statistics(true);
-  NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status));
+  NOTIFY(message, "Solver finished solving. Status: " + status_to_string(_status), 1);
   return _status;
 }
 
@@ -474,6 +474,9 @@ status napsat::NapSAT::solve(unsigned conflict_limit)
   _conflict_count = 0;
   status result = solve();
   _options->conflict_limit = old_conflict_limit;
+  if (_status == status::UNSAT) {
+    NOTIFY(message, "FINISHED WITH UNSAT", 0);
+  }
   return result;
 }
 
@@ -617,6 +620,9 @@ void napsat::NapSAT::print_proof()
 
 bool napsat::NapSAT::check_proof()
 {
+  if (!_options->check_proof) {
+    return true;
+  }
   ASSERT(_proof);
   ASSERT(_status == status::UNSAT);
   return _proof->check_proof();

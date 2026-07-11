@@ -57,6 +57,11 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
 
   unsigned capacity = to_hit[0].capacity();
 
+  bitset all_elements(capacity);
+  for (const bitset& s : to_hit) {
+    all_elements |= s;
+  }
+
   priority_queue<hitting_set_node, vector<hitting_set_node>, compare_hitting_set_nodes> queue;
   // Sizes of accepted hitting sets, kept parallel to `hitting_set`. A node is only
   // accepted once its priority (size + unsatisfied.size()) equals its size, and the
@@ -72,24 +77,20 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
     root.unsatisfied[i] = i;
   queue.push(std::move(root));
 
-  // Scratch space to collect, for the node currently being expanded, the distinct
-  // elements appearing across its unsatisfied sets. `bitset::operator|=` is
-  // deliberately not used for this: it compacts into a sparse vector and pays an
-  // O(size-so-far) `vector::insert` for every previously-unseen word, which is
-  // the dominant cost once the O(m) full rescan is avoided. A dense "seen"
-  // buffer makes recording an element O(1); `touched` lets us reset only what
-  // we touched instead of clearing the whole buffer every node.
-  vector<bool> seen(capacity, false);
-  vector<unsigned> touched;
-
   /**
    * @brief When we already found a set S such that S - prefix = {c}, we can skip expanding the prefix with c, because it will be subsumed by S.
    */
   bitset unit_sets(capacity);
+  // The set of element that can still be used to expand the current prefix.
+  bitset remaining(capacity);
+  // add a filter that conly accepts element on the left of the min_index_in_prefix, so that we do not generate duplicates.
+  bitset filter(capacity);
   while (!queue.empty()) {
     if (hitting_set.size() >= limit && limit > 0)
       break;
     unit_sets.clear();
+    filter.clear();
+    remaining.clear();
 
     hitting_set_node node = queue.top();
     queue.pop();
@@ -121,55 +122,38 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
       hitting_set.push_back(std::move(node.prefix));
       continue;
     }
-
-    unsigned min_index_in_prefix = NO_ELEMENT;
+    unsigned min_index_in_prefix = capacity;
     if (!node.prefix.empty())
       min_index_in_prefix = *node.prefix.cbegin();
+    assert(min_index_in_prefix <= capacity);
+    for (auto it = all_elements.cbegin(); it != all_elements.cend(); ++it) {
+      unsigned c = *it;
+      if (c >= min_index_in_prefix) {
+        filter.set(c, true);
+      }
+    }
+    // now the filter also excludes the elements that would make this prefix subsumed by an existing hitting set
+    filter |= unit_sets;
 
     bool impossible_to_cover = false;
     // Calculate which elements can still be required
-    assert(touched.empty());
     for (unsigned idx : node.unsatisfied) {
-      auto it = to_hit[idx].cbegin();
-      unsigned min_index_in_set = NO_ELEMENT;
-      auto end = to_hit[idx].cend();
-      for (; it != end; ++it) {
-        unsigned c = *it;
-        if (seen[c] || unit_sets[c])
-          continue;
-        seen[c] = true;
-        touched.push_back(c);
-        if (c < min_index_in_set) {
-          min_index_in_set = c;
-        }
-      }
-      if (min_index_in_set > min_index_in_prefix) {
+      bitset remaining_in_set = to_hit[idx] - filter;
+
+      if (remaining_in_set.empty()) {
         // This set cannot be hit by any prefix that expands to the left of the current prefix, so it is impossible to cover it.
         impossible_to_cover = true;
         break;
       }
+      remaining |= remaining_in_set;
     }
     if (impossible_to_cover) {
-      for (unsigned c : touched)
-        seen[c] = false;
-      touched.clear();
       continue;
     }
-    assert(!touched.empty());
 
-    // expand the prefix
-    unsigned min_element = node.prefix.empty() ? NO_ELEMENT : *node.prefix.cbegin();
-
-    for (unsigned c : touched) {
-      // reset the scratch buffer for the next node as we go, instead of a
-      // second full pass over `touched` after the loop
-      seen[c] = false;
-      if (c > min_element) {
-        // Only add prefixes that expand to the left
-        // The ones on the left should be expanded elsewhere.
-        // This prevents duplicates and makes the search more efficient, but is more complex to implement.
-        continue;
-      }
+    for (auto it = remaining.cbegin(); it != remaining.cend(); ++it) {
+      unsigned c = *it;
+      assert(c < min_index_in_prefix);
 
       hitting_set_node child;
       child.prefix = node.prefix;
@@ -182,8 +166,8 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
 
       queue.push(std::move(child));
     }
-    touched.clear();
   }
+
 }
 
 }

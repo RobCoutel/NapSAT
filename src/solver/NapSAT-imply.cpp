@@ -426,6 +426,8 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   // update the decision level and bitset
   lit_level(decision) = implication_level(reason);
   lit_chunks(decision) = reason_chunks;
+  lit_cross_chunks(decision).set(decision_chunk, false);
+  lit_cross_chunks(decision) |= reason_chunks;
 
   // update the cross chunk
   if (clause_size(reason) >= 2) {

@@ -1187,6 +1187,8 @@ void NapSAT::graph_repair()
       _conflicts_chunks.back() -= _locked_chunks;
       if (_conflicts_chunks.back().empty()) { // conflict cannot be solved
         _status = status::UNSAT;
+        cout << "Conflict cannot be solved because all chunks are locked" << endl;
+        // TODO need to produce a proof
         return;
       }
     }
@@ -1198,6 +1200,7 @@ void NapSAT::graph_repair()
     // we cannot repair the conflicts
     // TODO: We still need to generate the empty clause for the proof
     _status = status::UNSAT;
+    cout << "Conflict cannot be solved because there is no backtrack possibility" << endl;
     return;
   }
 

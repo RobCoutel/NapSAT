@@ -350,9 +350,16 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
           Tlit n_c1 = Tlit(c1.value);
           Tlit n_c2 = Tlit(c2.value);
           Tlit n_blocker = Tlit(blocker.value);
-          return  !(lit_false(n_c1) && lit_propagated(n_c1))
-                || (lit_true(n_c2) && lit_chunks(n_c2) <= lit_cross_chunks(n_c1))
-                || (lit_true(n_blocker) && lit_chunks(n_blocker) <= lit_cross_chunks(n_c1));
+          bool success = !(lit_false(n_c1) && lit_propagated(n_c1))
+                         || (lit_true(n_c2) && lit_chunks(n_c2) <= lit_cross_chunks(n_c1))
+                         || (lit_true(n_blocker) && lit_chunks(n_blocker) <= lit_cross_chunks(n_c1));
+          if (!success) {
+            err_msg += "\n";
+            err_msg += "γ(" + lit_to_string(n_c2) + ") = " + lit_chunks(n_c2).to_string() + "\n";
+            err_msg += "γ(" + lit_to_string(n_blocker) + ") = " + lit_chunks(n_blocker).to_string() + "\n";
+            err_msg += "η(" + lit_to_string(n_c1) + ") = " + lit_cross_chunks(n_c1).to_string() + "\n";
+          }
+          return success;
         },
         "¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∧ γ(c₂) ⊆ η(c₁)) ∨ (b ∈ π ∧ γ(b) ⊆ η(c₁))]")}
   });

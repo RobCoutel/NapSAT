@@ -162,7 +162,7 @@ bool bitset::empty() const {
   assert(it != _bits.cend());
   do {
     if (*it & M_DATA_MSK) return false;
-  } while (*(it++) & M_DATA_MSK);
+  } while (*(it++) & M_NEXT_MSK);
   return true;
 }
 

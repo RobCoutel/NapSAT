@@ -85,14 +85,24 @@ void forget_assumption(NapSAT* solver)
 status solve(NapSAT* solver)
 {
   assert(solver != nullptr);
-  return solver->solve();
+  status s = solver->solve();
+  if (s == status::UNSAT) {
+    if (!solver->check_proof()) {
+      LOG_ERROR("Proof check failed. The proof is invalid.");
+    }
+  }
+  return s;
 }
 
 status solve_limited(NapSAT* solver, unsigned conflict_limit)
 {
   assert(solver != nullptr);
   status s = solver->solve(conflict_limit);
-  // solver->print_trail();
+  if (s == status::UNSAT) {
+    if (!solver->check_proof()) {
+      LOG_ERROR("Proof check failed. The proof is invalid.");
+    }
+  }
   return s;
 }
 

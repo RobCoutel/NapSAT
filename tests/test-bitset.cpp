@@ -111,6 +111,20 @@ TEST_CASE("iterator empty") {
   REQUIRE(it == a.cend());
 }
 
+TEST_CASE("bitset: faulty empty (exact capacity)") {
+  bitset a(2*4032);
+  REQUIRE(a.empty());
+  a.set(5001, true);
+  REQUIRE_FALSE(a.empty());
+}
+
+TEST_CASE("bitset: faulty empty (inexact capacity)") {
+  bitset a(9000);
+  REQUIRE(a.empty());
+  a.set(5001, true);
+  REQUIRE_FALSE(a.empty());
+}
+
 TEST_CASE("iterator metadata") {
   const size_t CNT = GENERATE(1, 10, 100, 1000, 4000, 6000, 10000, 12000, 24000, 54000);
 

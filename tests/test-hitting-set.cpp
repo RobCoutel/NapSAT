@@ -244,7 +244,7 @@ TEST_CASE("hitting-set: double large hitting set if bad ordering") {
 
 TEST_CASE("hitting-set: works across multiple bitset metadata blocks") {
   // Each metadata block covers 63*64 = 4032 bits, so this spans two blocks.
-  const unsigned capacity = 9000;
+  const unsigned capacity = 2*4032;
   vector<bitset> to_hit = {
     make_set(capacity, {10, 5000, 8000}),
     make_set(capacity, {10, 5001}),
@@ -252,4 +252,31 @@ TEST_CASE("hitting-set: works across multiple bitset metadata blocks") {
   vector<bitset> result;
   compute_hitting_sets(to_hit, result, /*limit=*/10);
   REQUIRE(same_family(result, {{10}, {5000, 5001}, {8000, 5001}}));
+}
+
+TEST_CASE("hitting-set: previous bug: no hitting set found") {
+  vector<bitset> to_hit = {
+    make_set(128, {58, 60, 64}),
+    make_set(128, {6, 9, 15, 17, 34}),
+    make_set(128, {6, 15, 17, 34}),
+ };
+  vector<bitset> result;
+  compute_hitting_sets(to_hit, result); // limit defaults to 0
+  for (const bitset& candidate : result)
+    REQUIRE(hits_everything(candidate, to_hit));
+  REQUIRE(all_pairwise_incomparable(result));
+  REQUIRE(same_family(result, {
+    { 6, 58},
+    {15, 58},
+    {17, 58},
+    {34, 58},
+    { 6, 60},
+    {15, 60},
+    {17, 60},
+    {34, 60},
+    { 6, 64},
+    {15, 64},
+    {17, 64},
+    {34, 64},
+  }));
 }
