@@ -355,8 +355,8 @@ void NapSAT::allocate_chunks(size_t n_chunks)
   ASSERT(_chunks.size() == _n_allocated_chunks);
   _chunks.resize(n_chunks);
 
-  for (Tchunk i = 1; i <= n_chunks; i++) {
-    _free_chunks.push_back(_n_allocated_chunks + n_chunks - i);
+  for (Tchunk i = _n_allocated_chunks; i < n_chunks; i++) {
+    _free_chunks.push_back(i);
     NOTIFY_STAT(_n_allocated_chunks);
   }
   _n_allocated_chunks = n_chunks;
@@ -366,9 +366,13 @@ void NapSAT::allocate_chunks(size_t n_chunks)
     _vars[i].cross_chunks.resize(_n_allocated_chunks);
   }
 
-  for (Tchunk i = _n_allocated_chunks; i < _chunks.size().value; i++) {
+  for (Tchunk i = _n_allocated_chunks; i < _chunks.size(); i++) {
     _chunks[i].missed_implication.resize(_n_allocated_chunks);
   }
+  ASSERT(_n_allocated_chunks == solver_level().value + _free_chunks.size(),
+        "\n_n_allocated_chunks = " + std::to_string(_n_allocated_chunks) + "\n"
+      + " solver_level() = " + solver_level().to_string() + "\n"
+      + "_free_chunks.size() = " + to_string(_free_chunks.size()));
 }
 
 unsigned NapSAT::utility_heuristic(Tlit lit)
@@ -834,7 +838,7 @@ void NapSAT::print_trail() const
       cout << " (γ = " << lit_chunks(lit).to_string() << ", ";
       cout <<   "η = " << (lit_cross_chunks(lit) - lit_chunks(lit)).to_string();
       if (lit_decision(lit) && lit_lazy_reason(lit) != CLAUSE_UNDEF) {
-        cout << ", ξ = " << _chunks[lit.var()].missed_implication.to_string();
+        cout << ", ξ = " << _chunks[*lit_chunks(lit).cbegin()].missed_implication.to_string();
       }
       cout << ")";
     }
@@ -879,7 +883,7 @@ void NapSAT::print_trail_simple() const
 
 void NapSAT::print_chunks() const
 {
-  for (Tchunk chunk = 0; chunk < _chunks.size().value; chunk++) {
+  for (Tchunk chunk = 0; chunk < _chunks.size(); chunk++) {
     cout << "Chunk " << chunk << ": ";
     cout << "decision = " << _chunks[chunk].decision.to_string() << endl;
   }

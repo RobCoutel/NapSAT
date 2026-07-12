@@ -48,14 +48,14 @@ namespace
 }
 
 void compute_hitting_sets(const vector<bitset>& to_hit,
-                          vector<bitset>& hitting_set,
+                          vector<bitset>& hitting_sets,
                           unsigned limit)
 {
   assert(!to_hit.empty());
   assert(all_of(to_hit.begin(), to_hit.end(),
       [](const bitset& s){ return !s.empty(); }
     ));
-  assert(hitting_set.empty());
+  assert(hitting_sets.empty());
 
   unsigned capacity = to_hit[0].capacity();
 
@@ -65,7 +65,7 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
   }
 
   priority_queue<hitting_set_node, vector<hitting_set_node>, compare_hitting_set_nodes> queue;
-  // Sizes of accepted hitting sets, kept parallel to `hitting_set`. A node is only
+  // Sizes of accepted hitting sets, kept parallel to `hitting_sets`. A node is only
   // accepted once its priority (size + unsatisfied.size()) equals its size, and the
   // priority queue pops nodes in non-decreasing priority order, so this is always
   // sorted: hitting sets are discovered in non-decreasing size order.
@@ -88,7 +88,7 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
   // add a filter that conly accepts element on the left of the min_index_in_prefix, so that we do not generate duplicates.
   bitset filter(capacity);
   while (!queue.empty()) {
-    if (hitting_set.size() >= limit && limit > 0)
+    if (hitting_sets.size() >= limit && limit > 0)
       break;
     unit_sets.clear();
     filter.clear();
@@ -99,13 +99,13 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
 
     // by virtue of the priority queue, we know that future prefixes cannot subsume older ones.
     // But it can still be the case that an older prefix subsumes a newer one.
-    // `hitting_set`/`hitting_set_sizes` are sorted by size (see above), so we can stop
+    // `hitting_sets`/`hitting_set_sizes` are sorted by size (see above), so we can stop
     // as soon as a hitting set is too large to be a subset of `node.prefix`.
     bool subsumed = false;
-    for (size_t i = 0; i < hitting_set.size(); i++) {
+    for (size_t i = 0; i < hitting_sets.size(); i++) {
       if (hitting_set_sizes[i] > node.size)
         break;
-      bitset diff = hitting_set[i] - node.prefix;
+      bitset diff = hitting_sets[i] - node.prefix;
       if (diff.count() == 1) {
         unsigned c = *diff.cbegin();
         unit_sets.set(c, true);
@@ -121,7 +121,7 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
     if (node.unsatisfied.empty()) {
       // all sets are hit, we can stop
       hitting_set_sizes.push_back(node.size);
-      hitting_set.push_back(std::move(node.prefix));
+      hitting_sets.push_back(std::move(node.prefix));
       continue;
     }
     unsigned min_index_in_prefix = capacity;

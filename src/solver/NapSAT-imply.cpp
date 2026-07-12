@@ -57,24 +57,24 @@ void NapSAT::imply(Tlit lit, Tclause reason)
   // for the logic, look at the comment in NapSAT.hpp
 
   if (reason == CLAUSE_UNDEF) {
+    if (_options->graph_backtracking && _free_chunks.empty()) {
+      allocate_chunks(2 * _n_allocated_chunks);
+    }
     // Decision
     _decision_index.push_back(_trail.size() - 1);
     svar.level = solver_level();
     NOTIFY(assign, lit);
     NOTIFY_STAT(decision);
     if (_options->graph_backtracking) {
-      if (_free_chunks.empty()) {
-        allocate_chunks(2 * _n_allocated_chunks);
-      }
       Tchunk chunk_number = _free_chunks.back();
-      ASSERT (_n_allocated_chunks == _chunks.size().value);
+      ASSERT (_n_allocated_chunks == _chunks.size());
       ASSERT(chunk_number < _n_allocated_chunks,
         "Chunk number: " + std::to_string(chunk_number) +
         "\nNumber of allocated chunks: " + std::to_string(_n_allocated_chunks));
       _free_chunks.pop_back();
       svar.chunks.set(chunk_number, true);
       _chunks[chunk_number].decision = var;
-      ASSERT(_chunks.size().value == solver_level().value + _free_chunks.size().value,
+      ASSERT(_chunks.size() == solver_level().value + _free_chunks.size(),
         "Chunks size: " + std::to_string(_chunks.size()) +
         "\nSolver level: " + std::to_string(solver_level()) +
         "\nFree chunks size: " + std::to_string(_free_chunks.size()));

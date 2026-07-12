@@ -987,13 +987,13 @@ public:
      * @details A chunk is a set of variables reachable from a decision in the
      * implication graph.
      */
-    indexed_vector<TSchunk, Tvar> _chunks;
+    std::vector<TSchunk> _chunks;
 
     /**
      * @brief Contains the free chunks that can be reused.
      * @details Free chunks happen after backtracking, when a chunk is removed.
      */
-    indexed_vector<Tchunk, Tvar> _free_chunks;
+    std::vector<Tchunk> _free_chunks;
 
     /**
      * @brief Callback function called upon conflict analysis to heuristically determine

@@ -361,10 +361,6 @@ bool NapSAT::propagate()
     propagate_lit(lit);
 
     if (_conflicts.empty()) {
-      NOTIFY(check_invariants);
-    }
-
-    if (_conflicts.empty()) {
       _vars[lit.var()].propagated = true;
       _n_propagated_lits++;
       NOTIFY(propagate, lit);
@@ -418,8 +414,8 @@ status NapSAT::solve()
         break;
       }
     }
-    ASSERT(_n_propagated_lits == _trail.size());
     NOTIFY(check_invariants);
+    ASSERT(_n_propagated_lits == _trail.size());
     if (_n_root_lvl_lits >= _purge_threshold && solver_level() == LEVEL_ROOT && _n_propagated_lits == _trail.size()) {
       // in WCB and RSCB, missed lower implications can be a problem when purging clauses.
       // this is the same trick as in CaDiCaL, but we might be able to do better
@@ -444,7 +440,6 @@ status NapSAT::solve()
       // therefore we cannot take a decision before we propagate
       continue;
     }
-    NOTIFY(check_invariants);
     // synchronize();
 #if USE_OBSERVER
     if (_options->interactive)
@@ -456,8 +451,7 @@ status NapSAT::solve()
     if (_status == status::SAT)
       break;
   }
-  if (_status == status::SAT)
-    NOTIFY(check_invariants);
+  NOTIFY(check_invariants);
   auto end_time = std::chrono::high_resolution_clock::now();
   long long duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
   NOTIFY_STAT_N(solve_time, duration);
