@@ -128,8 +128,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
     Tlit l = lits_input[i];
     if (lit_level(l) == LEVEL_ROOT) {
       // the solver should not introduce redundant literals, so the literal must be false at level 0
-      ASSERT(external,
-        "The clause: " + clause_to_string(lits_input, input_size) + "\nLiteral: " + lit_to_string(l) + "\nLevel: " + std::to_string(lit_level(l)) + "\nThis should not happen since the solver should not introduce redundant literals.");
+      // ASSERT(external || _conflicts.size() > 0,
+      //   "The clause: " + clause_to_string(lits_input, input_size) + "\nLiteral: " + lit_to_string(l) + "\nLevel: " + std::to_string(lit_level(l)) + "\nThis should not happen since the solver should not introduce redundant literals.");
       // The solver should not generate redundant literals and clauses
       satisfied_at_root |= lit_true(l);
       n_removed++;

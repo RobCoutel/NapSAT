@@ -16,6 +16,7 @@
 #include "custom-assert.hpp"
 #include "../exporter/implication_graph_exporter.hpp"
 #include "../utils/hitting-set.hpp"
+#include "../utils/reachability-closure.hpp"
 
 #include <cstring>
 #include <iostream>
@@ -63,82 +64,24 @@ void NapSAT::subsumption_filter(vector<bitset>& possibilities)
   }
 }
 
-static bool subsumed(const vector<bitset>& a, const bitset& b)
-{
-  for (const bitset& ba : a) {
-    if (ba <= b) {
-      return true;
-    }
-  }
-  return false;
-}
-
-void NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combinations,
-                                                  const bitset& mergeable_chunks,
-                                                  bitset current,
-                                                  bitset processed) const
-{
-  // check for subsumption
-  if (subsumed(combinations, current)) {
-    return;
-  }
-
-  // Set of chunks that have to be inspected
-  bitset diff = current - processed;
-  diff &= mergeable_chunks;
-
-  if (diff.empty()) {
-    combinations.push_back(current);
-    return;
-  }
-
-  for (auto i = diff.cbegin(); i != diff.cend(); ++i) {
-    Tchunk c = *i;
-    bitset next_process = processed;
-    next_process.set(c, true);
-    bitset merged_chunks = _chunks[c].missed_implication;
-    if (_n_assumptions > 0) {
-      // the assumptions cannot be backtracked, and are removed from the possibilities
-      merged_chunks -= _locked_chunks;
-    }
-
-    bool branched = false;
-    for (auto j = merged_chunks.cbegin(); j != merged_chunks.cend(); ++j) {
-      Tchunk c2 = *j;
-      if (current.get(c2)) {
-        // we already have this chunk, any further combination will be subsumed
-        continue;
-      }
-      branched = true;
-      bitset next_current = current;
-      next_current.set(c2, true);
-      compute_lazy_merge_chunk_combination(combinations, mergeable_chunks, next_current, next_process);
-      if (combinations.size() > _options->backtrack_possibilities_limit) {
-        return;
-      }
-    }
-    if (!branched) {
-      // c's missed implications are empty or already satisfied by current;
-      // still need to record c as processed so current is not silently dropped
-      compute_lazy_merge_chunk_combination(combinations, mergeable_chunks, current, next_process);
-      if (combinations.size() > _options->backtrack_possibilities_limit) {
-        return;
-      }
-    }
-  }
-}
-
 void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bitset& combined_chunks,
                                                                vector<bitset>& possibilities) const
 {
-  // check the chunks among the combined chunks that can be merged
+  // The reimplication relation forms a DAG over chunks: parents[c] are the
+  // chunks that must also be undone together with c, or c's reimplication
+  // would provoke the same conflict again. Locked chunks are pinned by
+  // assumptions and can never be undone, so they cannot be added to any
+  // completion.
+  vector<bitset> parents(_n_allocated_chunks);
   bitset mergeable_chunks(_n_allocated_chunks);
   for (Tchunk c = 0; c < _n_allocated_chunks; c++) {
-    if (!_chunks[c].is_reimplied) {
-      continue;
+    parents[c] = _chunks[c].missed_implication;
+    if (_chunks[c].is_reimplied) {
+      mergeable_chunks.set(c, true);
     }
-    mergeable_chunks.set(c, true);
   }
+  bitset forbidden = _n_assumptions > 0 ? _locked_chunks : bitset(_n_allocated_chunks);
+  unsigned limit = static_cast<unsigned>(_options->backtrack_possibilities_limit);
 
   size_t original_size = possibilities.size();
   while(original_size > 0) {
@@ -152,8 +95,8 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bitset& com
     possibilities[original_size - 1] = possibilities.back();
     possibilities.pop_back();
     original_size--;
-    compute_lazy_merge_chunk_combination(possibilities, mergeable_chunks, current, bitset(_n_allocated_chunks));
-    // remove the original possibility
+    // remove the original possibility, replaced with its lazy-merge completions
+    compute_reachability_closures(parents, forbidden, current, possibilities, limit);
   }
 }
 

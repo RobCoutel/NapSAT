@@ -362,6 +362,17 @@ void NapSAT::reimply_graph(Tlit lit, Tclause reason)
 
     ASSERT(lit_chunks(c2).count() == 1);
     Tchunk decision_chunk = *lit_chunks(c2).cbegin();
+
+    if (chunks.empty()) {
+      // every other literal of reason is at the root level: c2 does not
+      // actually depend on any decision chunk, so reason proves it
+      // unconditionally. Reimply it eagerly (freeing its chunk and moving
+      // it to the root) instead of registering a lazy merge with an empty
+      // (and therefore vacuously "always active") dependency set.
+      eager_decision_reimplication(c2, reason);
+      return;
+    }
+
     NOTIFY_STAT(_n_cross_implication_decisions);
     if (!reimplication_cycle(decision_chunk, chunks)) {
       lit_lazy_reason(c2) = reason;

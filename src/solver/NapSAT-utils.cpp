@@ -635,8 +635,17 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
   s += "δ: " + var_level(var).to_string() + "\n";
   s += "ρ: " + plain_clause(var_reason(var)) + "\n";
   Tclause lazy_reason = lit_lazy_reason(Tlit(var, 1));
-  if (lazy_reason != CLAUSE_UNDEF || _options->lazy_strong_chronological_backtracking)
+  if (lazy_reason != CLAUSE_UNDEF || _options->lazy_strong_chronological_backtracking) {
     s += "λ: " + plain_clause(lazy_reason) + "\n";
+    if (lazy_reason != CLAUSE_UNDEF) {
+      bitset chunks(_n_allocated_chunks);
+      for (unsigned i = 1; i < clause_size(lazy_reason); i++) {
+        Tlit lit = clause_lits(lazy_reason)[i];
+        chunks |= lit_chunks(lit);
+      }
+      s += "γ(λ): " + chunks.to_string() + "\n";
+    }
+  }
   s += "propagated: " + (string) (var_propagated(var) ? "true" : "false") + "\n";
   s += "synced: "     + (string) (var_synced(var) ? "true" : "false") + "\n";
   s += "locked: "     + (string) (var_locked(var) ? "true" : "false") + "\n";

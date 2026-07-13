@@ -1845,31 +1845,9 @@ public:
     void subsumption_filter(std::vector<bitset>& possibilities);
 
     /**
-     * @brief In Lazy Chunk Merging (see -lcm option), compute the combinations of chunks that can be undone together to resolve all conflicts while ensuring that no reimplication provokes the same conflict.
-     * @example let current be {1}, and {1} is mergeable with {2, 3}. If now {3} is mergeable with {4}, then the execution would work as follows:
-     * - compute_lazy_merge_chunk_combination({}, {1}, {1}, {})
-     *   Since {1} is mergeable, then we generate the combinations {1, 2} and {1, 3} and call the function recursively for each of them:
-     * - compute_lazy_merge_chunk_combination({}, {1}, {1, 2}, {1})
-     *   Since {2} is not mergeable, we add {1, 2} to the combinations and return.
-     * - compute_lazy_merge_chunk_combination({}, {1}, {1, 3}, {1})
-     *   Since {3} is mergeable, we generate the combinations {1, 3, 4} and call the function recursively for it:
-     * - compute_lazy_merge_chunk_combination({}, {1}, {1, 3, 4}, {1, 3})
-     *   Since {4} is not mergeable, we add {1, 3, 4} to the combinations and return.
-     * The final combinations are {1, 2} and {1, 3, 4}. Note that {1, 3} is not a valid combination because it would provoke the same conflict again.
-     * @details this function is recursive
-     * @param combinations vector of combinations to fill
-     * @param mergeable_chunks the chunks that can be merged together to resolve the conflicts
-     * @param current the current set of chunks being considered for merging
-     * @param processed the chunks that have already been considered for merging and should not be considered again
-     */
-    void compute_lazy_merge_chunk_combination(std::vector<bitset>& combinations,
-                                              const bitset& mergeable_chunks,
-                                              bitset current,
-                                              bitset processed) const;
-
-    /**
-     * @brief In Lazy Chunk Merging (see -lcm option), compute the combinations of chunks that can be undone together to resolve all conflicts while ensuring that no reimplication provokes the same conflict.
+     * @brief In Lazy Chunk Merging (see -lcm option), enhance each backtrack possibility with the chunks that must be undone together with it to avoid the reimplication provoking the same conflict again.
      * @example If a conflict is caused by chunks {1, 2}, and chunk 2 is lazily merged with chunks {3, 4}, the the combinations should be {1}, {2, 3}, {2, 4}. The combination {1, 2} is not valid because it would provoke the same conflict again.
+     * @details The chunk reimplication relation forms a DAG (chunk c has an edge to each chunk of `_chunks[c].missed_implication`); see compute_reachability_closures() for how each possibility is expanded into every valid completion of that DAG.
      */
     void enhance_backtrack_possibilities_with_lazy_merging(const bitset& combined_chunks,
                                                            std::vector<bitset>& possibilities) const;
