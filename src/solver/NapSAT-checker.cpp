@@ -85,6 +85,45 @@ bool napsat::NapSAT::check_lit_needs_fixing(Tlit lit) const
   return false;
 }
 
+bool napsat::NapSAT::check_correct_chunks() const
+{
+  if (!_options->graph_backtracking)
+    return true;
+
+  bool success = true;
+  for (Tlit lit : _trail) {
+    Tclause reason = lit_reason(lit);
+    if (reason == CLAUSE_UNDEF) {
+      // Decision literal: must own a single, fresh chunk.
+      if (lit_chunks(lit).count() != 1) {
+        success = false;
+        LOG_ERROR("Invariant violation: Correct chunks: decision literal " << lit_to_string(lit) << " has chunks " << lit_chunks(lit).to_string() << " instead of a single fresh chunk");
+        continue;
+      }
+      Tchunk chunk = *lit_chunks(lit).cbegin();
+      if (_chunks[chunk].decision != lit.var()) {
+        success = false;
+        LOG_ERROR("Invariant violation: Correct chunks: decision literal " << lit_to_string(lit) << " owns chunk " << chunk << " but that chunk is registered as started by variable " << _chunks[chunk].decision);
+      }
+    }
+    else {
+      // Implied literal: its chunks must be the union of the chunks of the other literals of its reason.
+      const Tlit* lits = clause_lits(reason);
+      const unsigned size = clause_size(reason);
+      ASSERT(lits[0] == lit);
+      bitset expected = lit_chunks(lit);
+      expected.clear();
+      for (size_t i = 1; i < size; i++)
+        expected |= lit_chunks(lits[i]);
+      if (lit_chunks(lit) != expected) {
+        success = false;
+        LOG_ERROR("Invariant violation: Correct chunks: implied literal " << lit_to_string(lit) << " has chunks " << lit_chunks(lit).to_string() << " but the union of the chunks of its reason " << clause_to_string(reason) << " (excluding itself) is " << expected.to_string());
+      }
+    }
+  }
+  return success;
+}
+
 
 bool napsat::NapSAT::lit_is_max_literal(Tlit lit, const Tlit* lits, size_t size) const
 {

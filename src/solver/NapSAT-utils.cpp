@@ -365,7 +365,7 @@ void NapSAT::allocate_chunks(size_t n_chunks)
     _vars[i].cross_chunks.resize(n_chunks);
   }
 
-  for (Tchunk i = _n_allocated_chunks; i < _chunks.size(); i++) {
+  for (Tchunk i = 0; i < _chunks.size(); i++) {
     _chunks[i].missed_implication.resize(n_chunks);
   }
   _locked_chunks.resize(n_chunks);

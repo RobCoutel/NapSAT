@@ -2208,12 +2208,6 @@ public:
     bool mark_relevant_literals(Tlit lit, T level, unsigned& count);
 
     /**
-     * @brief Helper to implement both the level and chunk conflict analysis together
-     */
-    template <typename T>
-    void analyze_conflict_impl(T x);
-
-    /**
      * Analyze a conflict and learn a new clause.
      * @param level level to analyze the conflict on.
      * @pre The solver is not in Strong Chronological Backtracking mode
@@ -2239,13 +2233,8 @@ public:
      * @details Sets the clause in the literal_buffer and _lit_buffer_size variables.
      * @post The literal_buffer is set such that the first literal is the UIP
      */
-    void analyze_conflict(Tlevel level);
-
-    /**
-     * @details Sets the clause in the literal_buffer and _lit_buffer_size variables.
-     * @post The literal_buffer is set such that the first literal is the UIP
-     */
-    void analyze_conflict(const bitset& chunks);
+    template <typename T>
+    void analyze_conflict(T x);
 
 
     /*************************************************************************/
@@ -2595,10 +2584,10 @@ public:
     bool check_lit_needs_fixing(Tlit lit) const;
 
     /**
-     * @brief Returns true if the watch lists of the solver are minimal.
+     * @brief Returns true if all the chunks in the solver are correct.
      * @warning This function is very expensive and should only be used for debugging
      */
-    bool watch_lists_minimal();
+    bool check_correct_chunks() const;
 
     std::vector<sentinel::WatchInvariant*> _watch_invariants;
 

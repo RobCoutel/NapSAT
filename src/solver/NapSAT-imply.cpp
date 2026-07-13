@@ -164,6 +164,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
     _chunks[ck].missed_implication.clear();
     _chunks[ck].is_reimplied = false;
     _decision_index.resize(_decision_index.size() - 1);
+    lit_lazy_reason(lit) = CLAUSE_UNDEF;
   }
 
   // update the level of the literal to root
@@ -569,7 +570,7 @@ bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& re
 
   bool changed = true;
 
-  bool visited[_n_allocated_chunks];
+  vector<bool> visited(_n_allocated_chunks, false);
   while (changed) {
     if(closure[decision_chunk]) {
       // we found a cycle

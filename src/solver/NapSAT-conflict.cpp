@@ -149,8 +149,8 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bitset& com
 
 void NapSAT::compute_backtrack_possibilities(vector<bitset>& possibilities) const
 {
-  compute_hitting_sets(_conflicts_chunks, possibilities,
-                       static_cast<unsigned>(_options->backtrack_possibilities_limit), true);
+  compute_hitting_sets_smallest_first(_conflicts_chunks, possibilities,
+                                      static_cast<unsigned>(_options->backtrack_possibilities_limit), true);
   if (possibilities.size() > _options->backtrack_possibilities_limit)
     NOTIFY_STAT(_n_backtrack_limit_reached);
 
@@ -732,9 +732,10 @@ bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
 }
 
 template <typename T>
-void NapSAT::analyze_conflict_impl(T level) {
+void NapSAT::analyze_conflict(T level) {
   ASSERT(_lit_buffer_size > 0);
   ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
+  ASSERT(!_options->graph_backtracking || check_correct_chunks());
   NOTIFY(message, "Analyzing conflict " + clause_to_string(_lit_buffer, _lit_buffer_size) + " at level " + level.to_string(), 8);
   unsigned count = 0;
   for (unsigned i = 0; i < _lit_buffer_size; i++) {
@@ -752,7 +753,7 @@ void NapSAT::analyze_conflict_impl(T level) {
   _lit_buffer_size = 0;
   unsigned i = _trail.size();
 
-  while (count > 1) {
+  while (count > 1 && i > 0) {
     ASSERT(i > 0);
     Tlit lit = _trail[--i];
     if (!lit_marked(lit))
@@ -769,8 +770,11 @@ void NapSAT::analyze_conflict_impl(T level) {
     }
     // mark the literals of the reason
     if (lit_reason(lit) == CLAUSE_UNDEF && lit_lazy_reason(lit) == CLAUSE_UNDEF) {
+      ASSERT(_options->lazy_chunk_merging || _options->lazy_strong_chronological_backtracking);
       // this is a decision literal, we cannot go further
       // we are guaranteed that there is a merge later, that will reset the index i. We will need this literal again
+      // it must be the uip, but we cannot finish here because other literals are still marked and have to be analyzed with their lazy reason.
+      // we will certainly visit this literal again, so we can just skip it for now
       continue;
     }
     if (mark_relevant_literals(lit, level, count)) {
@@ -832,9 +836,6 @@ void NapSAT::analyze_conflict_impl(T level) {
   }
   _lit_buffer_size = k;
 }
-
-void NapSAT::analyze_conflict(Tlevel l) { analyze_conflict_impl(l); };
-void NapSAT::analyze_conflict(const bitset& b) { analyze_conflict_impl(b); };
 
 
 Tlevel NapSAT::compute_repair_level()
@@ -981,7 +982,7 @@ bool NapSAT::conflict_can_generate_learned_clause(Tclause conflict, const bitset
    *
    * virtually, after merge, Conflict subset ck_a U ck_b U ck_d
    */
-  bitset conflict_chunks;
+  bitset conflict_chunks(_n_allocated_chunks);
   if (_conflicts.size() > clause_size(conflict)) {
     // recomputing is cheaper than checking the existing chunks for all the conflicts
     conflict_chunks = clause_chunks(conflict);
@@ -1007,7 +1008,8 @@ bool NapSAT::conflict_can_generate_learned_clause(Tclause conflict, const bitset
     for (auto it = conflict_chunks.cbegin(); it != conflict_chunks.cend(); ++it) {
       Tchunk chunk = *it;
       const bitset& reimplied_chunks = _chunks[chunk].missed_implication;
-      if (conflict_chunks.has_intersection(reimplied_chunks)) {
+      if (_chunks[chunk].is_reimplied) {
+        ASSERT(var_lazy_reason(_chunks[chunk].decision) != CLAUSE_UNDEF);
         conflict_chunks |= reimplied_chunks;
         conflict_chunks.set(chunk, false);
 
@@ -1190,7 +1192,6 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
       }
       // remove the uip from the learned clause
       _lit_buffer[0] = _lit_buffer[--_lit_buffer_size];
-
       bt = update_bt_after_analysis_of_reimplication(bt);
     } while (true);
     bt = bt_save;
@@ -1269,7 +1270,6 @@ void NapSAT::graph_repair()
       _conflicts_chunks.back() -= _locked_chunks;
       if (_conflicts_chunks.back().empty()) { // conflict cannot be solved
         _status = status::UNSAT;
-        cout << "Conflict cannot be solved because all chunks are locked" << endl;
         // TODO need to produce a proof
         return;
       }
@@ -1282,7 +1282,6 @@ void NapSAT::graph_repair()
     // we cannot repair the conflicts
     // TODO: We still need to generate the empty clause for the proof
     _status = status::UNSAT;
-    cout << "Conflict cannot be solved because there is no backtrack possibility" << endl;
     return;
   }
 

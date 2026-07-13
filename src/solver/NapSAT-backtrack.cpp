@@ -190,6 +190,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   level_transformation.resize(solver_level() + 1);
   Tlevel real_level = 1;
   Tlevel min_level = LEVEL_UNDEF;
+  level_transformation[LEVEL_ROOT] = LEVEL_ROOT;
   for (Tlevel lvl = 1; lvl <= solver_level(); lvl++) {
     Tlit decision = decision_lit(lvl);
 
@@ -214,7 +215,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
     Tlevel lit_lvl = var_level(var);
 
     // belonging to one of the deleted levels is a sufficient condition, faster to compute than the chunk intersection
-    bool backtracked = i >= j &&  (level_transformation[lit_lvl] == LEVEL_ERROR || chunks.has_intersection(backtracked_chunks));
+    bool backtracked = i >= j && (level_transformation[lit_lvl] == LEVEL_ERROR || chunks.has_intersection(backtracked_chunks));
 
     /** CROSS-CHUNKS **/
     if (!backtracked && lit_propagated(lit) && lit_cross_chunks(lit).has_intersection(backtracked_chunks)) {
@@ -228,7 +229,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
     // check if the lazy reimplication still holds
     Tclause lazy_reason = lit_lazy_reason(lit);
     if (lazy_reason != CLAUSE_UNDEF) {
-      ASSERT(lit_decision(lit));
+      ASSERT(lit_decision(lit), "The literal " + lit_to_string(lit) + " has a lazy reason " + clause_to_string(lazy_reason) + " but is not a decision literal");
       TSchunk& chunk = _chunks[*var_chunks(var).cbegin()];
       if (chunk.missed_implication.has_intersection(backtracked_chunks)) {
         lit_lazy_reason(lit) = CLAUSE_UNDEF;
