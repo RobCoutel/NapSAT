@@ -198,6 +198,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::Options* opti
     stat._a_learned_clause_size = _statistics->add_stat("Avg learned clause size", cat_aux, statistics::AVERAGE);
     stat._a_bt_choices = _statistics->add_stat("Avg number of backtrack choices", cat_aux, statistics::AVERAGE);
     stat._a_prefix_size = _statistics->add_stat("Avg prefix size", cat_aux, statistics::AVERAGE);
+    stat._a_trail_compaction = _statistics->add_stat("Avg trail compaction", cat_aux, statistics::AVERAGE);
   }
 #else
   if (_options->print_stats)

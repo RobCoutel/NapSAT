@@ -13,5 +13,5 @@ namespace napsat
 {
   void compute_hitting_sets(const std::vector<bitset>& to_hit,
                            std::vector<bitset>& hitting_set,
-                           unsigned limit = 0);
+                           unsigned limit = 0, bool approximate = false);
 }

@@ -14,7 +14,8 @@ directoryUnSat = "/home/robin/OneDrive/University/Library/SAT.CNF/unsat/"
 # Path to the executable
 SAT_exec = "build/NapSAT"
 
-SAT_options = ["", "-rscb", "-lscb", "-gb", "-gb -lcm", "-gb -bl", "-gb -bl -lcm"]
+# SAT_options = ["", "-rscb", "-lscb", "-gb", "-gb -lcm", "-gb -bl", "-gb -bl -lcm"]
+SAT_options = ["-gb -compact-trail"]
 
 additional_options = "-o \"{--check-only}\" -sw -cp -ssi off"
 

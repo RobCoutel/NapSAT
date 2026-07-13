@@ -150,7 +150,7 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bitset& com
 void NapSAT::compute_backtrack_possibilities(vector<bitset>& possibilities) const
 {
   compute_hitting_sets(_conflicts_chunks, possibilities,
-                       static_cast<unsigned>(_options->backtrack_possibilities_limit));
+                       static_cast<unsigned>(_options->backtrack_possibilities_limit), true);
   if (possibilities.size() > _options->backtrack_possibilities_limit)
     NOTIFY_STAT(_n_backtrack_limit_reached);
 
@@ -405,6 +405,86 @@ void NapSAT::calculate_bitset_weights(vector<Tweight>& weights)
     w.finished = (w.give_up_point == end);
     if (w.finished && w.total_weight < lowest_weight) {
       lowest_weight = w.total_weight;
+    }
+  }
+
+  // sort again, such that the best candidate is first
+  sort(weights.begin(), weights.end(),
+            [](const Tweight& a, const Tweight& b) { return b < a; });
+}
+
+
+std::vector<NapSAT::Ttrail_piece> NapSAT::trail_chunk_compaction(const bitset& chunks_of_interest)
+{
+  std::vector<Ttrail_piece> compacted_trail;
+  if (_trail.empty()) {
+    return compacted_trail;
+  }
+
+  bitset current_chunks(_n_allocated_chunks);
+  std::vector<Tlit> current_literals;
+
+  for (size_t i = 0; i < _trail.size(); ++i) {
+    Tlit lit = _trail[i];
+    if (!lit_synced(lit)) {
+      continue;
+    }
+    if (!lit_chunks(lit).has_intersection(chunks_of_interest)) {
+      continue;
+    }
+
+    if (lit_chunks(lit) == current_chunks) {
+      current_literals.push_back(lit);
+    } else {
+      if (!current_literals.empty()) {
+        compacted_trail.emplace_back(Ttrail_piece(current_chunks, current_literals));
+      }
+      current_chunks = lit_chunks(lit);
+      current_literals.clear();
+      current_literals.push_back(lit);
+    }
+  }
+
+  // Add the last group
+  compacted_trail.emplace_back(Ttrail_piece(current_chunks, current_literals));
+
+  NOTIFY_STAT_N(_a_trail_compaction, ((double) _trail.size()) / compacted_trail.size());
+
+  return compacted_trail;
+}
+
+void NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights,
+                                      const std::vector<Ttrail_piece>& compacted_trail)
+{
+  if (weights.empty() || weights[0].finished) {
+    sort(weights.begin(), weights.end(),
+            [](const Tweight& a, const Tweight& b) { return b < a; });
+    return;
+  }
+
+  for (Tweight& w : weights) {
+    size_t end = decision_lit_ptr(w.lowest_level) - _trail.data();
+    // this is a bit dirty, but like this we can reuse the same interface as above.
+    // The function will not do anything on the second call.
+    if (w.give_up_point == end)
+      continue;
+    w.give_up_point = end;
+    w.finished = true;
+
+    for (const Ttrail_piece& piece : compacted_trail) {
+      if (!piece.chunks.has_intersection(w.chunks)) {
+        continue;
+      }
+      if (!piece.calculated) {
+        for (Tlit lit : piece.literals) {
+          if (!lit_synced(lit)) {
+            continue;
+          }
+          ASSERT(lit_chunks(lit).has_intersection(w.chunks));
+          w.total_weight += literal_cost(lit);
+        }
+      }
+      w.total_weight += piece.weight;
     }
   }
 
@@ -1181,8 +1261,10 @@ void NapSAT::graph_repair()
   possibilities.clear();
   _conflicts_chunks.clear();
   _conflicts_chunks.reserve(_conflicts.size());
+  bitset chunks_of_interest(_n_allocated_chunks);
   for (Tclause conflict : _conflicts) {
     _conflicts_chunks.push_back(clause_chunks(conflict));
+    chunks_of_interest |= _conflicts_chunks.back();
     if (_n_assumptions > 0) {
       _conflicts_chunks.back() -= _locked_chunks;
       if (_conflicts_chunks.back().empty()) { // conflict cannot be solved
@@ -1256,7 +1338,9 @@ void NapSAT::graph_repair()
 
     const auto start = chrono::high_resolution_clock::now();
 
-    if (approximate) {
+    if (_options->use_compact_trail) {
+      calculate_bitset_weights(weights, trail_chunk_compaction(chunks_of_interest));
+    } else if (approximate) {
       calculate_bitset_weights_approx(weights);
     } else {
       calculate_bitset_weights(weights);

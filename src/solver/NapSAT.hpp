@@ -1117,6 +1117,7 @@ public:
       statistics::stat *_a_learned_clause_size = nullptr; // "Avg learned clause size"
       statistics::stat *_a_bt_choices = nullptr; // "Avg backtrack size"
       statistics::stat *_a_prefix_size = nullptr; // "Avg learned clause size"
+      statistics::stat *_a_trail_compaction = nullptr; // "Avg trail compaction"
     } stat;
 #endif
   public:
@@ -1905,6 +1906,33 @@ public:
      */
     void prove_root_conflict_with_lazy_merging();
 
+    struct Ttrail_piece {
+      /**
+       * @brief The set of chunks that are associated with the literals in the trail chunk.
+       */
+      bitset chunks;
+      /**
+       * @brief The literals in the trail chunk.
+       */
+      std::vector<Tlit> literals;
+      bool calculated = false;
+
+      double weight = 0.0;
+
+      Ttrail_piece(const bitset& chunks, const std::vector<Tlit>& literals, double weight = 0.0)
+        : chunks(chunks), literals(literals), weight(weight) {}
+    };
+
+    /**
+     * @brief Creates a trail where all literals that belong to the same set of chunks are grouped together.
+     * @details This is because it can become very expensive to calculate the cost of chunks if there is one key literal, belonging to a lot of chunks, that then implies a long chain of other literals.
+     * For example, let ℓ such that γ(ℓ) = {1, 2, ..., 1000} and a series of clauses {¬ℓ, ℓ₁}, {¬ℓ₁, ℓ₂}, ..., {¬ℓ₄₉₉, ℓ₅₀₀}. If we have a conflict involving ℓ₅₀₀, then the cost of calculating the cost of each chunk is O(1000 * 500) without the trail chunk compaction, and O(1000 + 500) with the trail chunk compaction.
+     * This happens for example in vampire with AVATAR on SWV/SWV424-1.500.p
+     *
+     * To be efficient, this function only considers subsequent literals and checks whether they belong to the same set of chunks. We do not do a O(n^2) check for all pairs of literals because it would be too expensive. This is a heuristic that works well in practice.
+     */
+    std::vector<Ttrail_piece> trail_chunk_compaction(const bitset& chunks_of_interest);
+
     typedef struct Tweight {
       /**
        * @brief The set of chunks being considered by the weight counter
@@ -1984,6 +2012,8 @@ public:
      * @param weights vector of bitsets to evaluate. After the call, the weights are updated and sorted such that the lightest bitset is at the beginning of the vector.
      */
     void calculate_bitset_weights(std::vector<Tweight>& weights);
+
+    void calculate_bitset_weights(std::vector<Tweight>& weights, const std::vector<Ttrail_piece>& compacted_trail);
 
     /**
      * @brief Given a set of bitsets, calculate an approximation of their weights according to the current state of the solver.

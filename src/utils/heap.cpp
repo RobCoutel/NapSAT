@@ -160,10 +160,8 @@ void napsat::utils::heap::print()
   }
 
   unsigned max_width = 1;
-  unsigned max_height = 0;
   for (unsigned i = 0; i < _heap.size(); i = left(i)) {
     max_width = max_width << 1;
-    max_height++;
   }
   unsigned height = 0;
   unsigned width = 1;

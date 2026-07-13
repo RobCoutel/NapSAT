@@ -300,6 +300,15 @@ namespace napsat
     bool use_vsids_approximate_cost_estimation = false;
 
     /**
+     * @brief If true, the solver will use a compact representation of the trail when calculating the weights of bitsets during conflict analysis.
+     * @alias -compact-trail
+     * @requires -gb
+     * @details The compact representation of the trail is a vector of trail chunks, where each trail chunk is a set of literals that belong to the same set of chunks. The compact representation of the trail is used to speed up the calculation of the weights of bitsets during conflict analysis. The compact representation of the trail is only used when calculating the weights of bitsets during conflict analysis. It is not used when calculating the weights of bitsets during the propagation of literals.
+     * @warning The compact representation of the trail is not always faster than the normal representation of the trail. It will have a positive impact in problems with a large number of decisions and binary clauses.
+     */
+    bool use_compact_trail = false;
+
+    /**
      * @brief Penalty for the level of chunks in the cost heuristic. The higher the penalty, the more the heuristic
      * will prefer to backtrack chunks at higher level.
      * @requires -gb

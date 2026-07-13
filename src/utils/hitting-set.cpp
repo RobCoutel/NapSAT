@@ -49,13 +49,23 @@ namespace
 
 void compute_hitting_sets(const vector<bitset>& to_hit,
                           vector<bitset>& hitting_sets,
-                          unsigned limit)
+                          unsigned limit, bool approximate)
 {
   assert(!to_hit.empty());
   assert(all_of(to_hit.begin(), to_hit.end(),
       [](const bitset& s){ return !s.empty(); }
     ));
   assert(hitting_sets.empty());
+
+  // if there is only one set, the minimal hitting sets are the singletons of its elements
+  if (to_hit.size() == 1) {
+    for (auto it = to_hit[0].cbegin(); it != to_hit[0].cend(); ++it) {
+      bitset singleton(to_hit[0].capacity());
+      singleton.set(*it, true);
+      hitting_sets.push_back(std::move(singleton));
+    }
+    return;
+  }
 
   unsigned capacity = to_hit[0].capacity();
 
@@ -64,6 +74,10 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
     all_elements |= s;
   }
 
+  cout << "Computing hitting sets for " << to_hit.size() << " sets over " << all_elements.count() << " elements" << endl;
+  for (const bitset& s : to_hit) {
+    cout << "  " << s << endl;
+  }
   priority_queue<hitting_set_node, vector<hitting_set_node>, compare_hitting_set_nodes> queue;
   // Sizes of accepted hitting sets, kept parallel to `hitting_sets`. A node is only
   // accepted once its priority (size + unsatisfied.size()) equals its size, and the
@@ -78,6 +92,8 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
   for (unsigned i = 0; i < to_hit.size(); i++)
     root.unsatisfied[i] = i;
   queue.push(std::move(root));
+
+  unsigned shortest_set = 0xFFFFFFFF;
 
   /**
    * @brief When we already found a set S such that S - prefix = {c}, we can skip expanding the prefix with c, because it will be subsumed by S.
@@ -96,6 +112,11 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
 
     hitting_set_node node = queue.top();
     queue.pop();
+
+    if (approximate && node.size > 2 * shortest_set) {
+      // we already found a hitting set of size shortest_set, and this node is larger, so it cannot lead to a smaller one.
+      continue;
+    }
 
     // by virtue of the priority queue, we know that future prefixes cannot subsume older ones.
     // But it can still be the case that an older prefix subsumes a newer one.
@@ -122,6 +143,9 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
       // all sets are hit, we can stop
       hitting_set_sizes.push_back(node.size);
       hitting_sets.push_back(std::move(node.prefix));
+      if (approximate && node.size < shortest_set) {
+        shortest_set = node.size;
+      }
       continue;
     }
     unsigned min_index_in_prefix = capacity;
@@ -169,6 +193,11 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
       queue.push(std::move(child));
     }
   }
+
+  cout << "Found " << hitting_sets.size() << " hitting sets" << endl;
+  // for (const bitset& s : hitting_sets) {
+  //   cout << "  " << s << endl;
+  // }
 
 }
 

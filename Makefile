@@ -76,19 +76,36 @@ $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ) $(SATSENTINEL_LIB)
 #
 # NapSAT.a bundles SATSentinel.a's objects too, so that anything linking
 # against NapSAT.a (e.g. Vampire) never needs to know SATSentinel exists as
-# a separate archive. SATSentinel's objects are extracted into a scratch
-# dir and renamed with a prefix first, since a couple of filenames
-# (options.cpp, printer.cpp) exist in both src trees and would otherwise
-# collide as archive member names.
-SATSENTINEL_MERGE_DIR := $(BUILD_DIR)/.satsentinel-merge
+# a separate archive. It also bundles static bz2/lzma (found via the
+# compiler's own library search, so this works across distros without
+# hardcoding a path), so consumers need no -lbz2/-llzma of their own either.
+# GL and glfw can't be bundled the same way: GL is a runtime dispatch shim
+# to the GPU driver with no static archive to speak of, and this distro's
+# glfw3 package ships no static .a at all -- both stay as regular link
+# dependencies (see the top-level CMakeLists.txt).
+#
+# Each merged archive's objects are extracted into their own scratch
+# subdirectory and renamed with a prefix, since filenames can collide both
+# across archives and within NapSAT/SATSentinel's own src trees (e.g.
+# options.cpp, printer.cpp) and would otherwise collide as archive member
+# names.
+BZ2_STATIC := $(shell $(CC) -print-file-name=libbz2.a)
+LZMA_STATIC := $(shell $(CC) -print-file-name=liblzma.a)
+EXTERNAL_MERGE_DIR := $(BUILD_DIR)/.external-merge
 $(BUILD_DIR)/$(TARGET_LIB): $(OBJS) $(SATSENTINEL_LIB)
+	@test -f $(BZ2_STATIC) || { echo "libbz2.a not found (install libbz2-dev)"; exit 1; }
+	@test -f $(LZMA_STATIC) || { echo "liblzma.a not found (install liblzma-dev)"; exit 1; }
 	$(RM) $@
-	$(RM) -r $(SATSENTINEL_MERGE_DIR)
-	$(MKDIR_P) $(SATSENTINEL_MERGE_DIR)
-	cd $(SATSENTINEL_MERGE_DIR) && ar x $(abspath $(SATSENTINEL_LIB))
-	for f in $(SATSENTINEL_MERGE_DIR)/*.o; do mv "$$f" "$(SATSENTINEL_MERGE_DIR)/satsentinel-$$(basename $$f)"; done
-	ar rcs $@ $(OBJS) $(SATSENTINEL_MERGE_DIR)/*.o
-	$(RM) -r $(SATSENTINEL_MERGE_DIR)
+	$(RM) -r $(EXTERNAL_MERGE_DIR)
+	$(MKDIR_P) $(EXTERNAL_MERGE_DIR)/satsentinel $(EXTERNAL_MERGE_DIR)/bz2 $(EXTERNAL_MERGE_DIR)/lzma
+	cd $(EXTERNAL_MERGE_DIR)/satsentinel && ar x $(abspath $(SATSENTINEL_LIB))
+	cd $(EXTERNAL_MERGE_DIR)/bz2 && ar x $(BZ2_STATIC)
+	cd $(EXTERNAL_MERGE_DIR)/lzma && ar x $(LZMA_STATIC)
+	for f in $(EXTERNAL_MERGE_DIR)/satsentinel/*.o; do mv "$$f" "$(EXTERNAL_MERGE_DIR)/satsentinel-$$(basename $$f)"; done
+	for f in $(EXTERNAL_MERGE_DIR)/bz2/*.o; do mv "$$f" "$(EXTERNAL_MERGE_DIR)/bz2-$$(basename $$f)"; done
+	for f in $(EXTERNAL_MERGE_DIR)/lzma/*.o; do mv "$$f" "$(EXTERNAL_MERGE_DIR)/lzma-$$(basename $$f)"; done
+	ar rcs $@ $(OBJS) $(EXTERNAL_MERGE_DIR)/*.o
+	$(RM) -r $(EXTERNAL_MERGE_DIR)
 
 $(SATSENTINEL_LIB):
 	$(MAKE) -C $(SATSENTINEL_DIR) lib BUILD_MODE=$(BUILD_MODE) GUI=$(GUI)

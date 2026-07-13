@@ -278,6 +278,10 @@ void napsat::Options::build_option_parser()
     "analysis.").alias("-vsids-approx-cost");
   _parser.add_double("--chunk-level-penalty", chunk_level_penalty,
     "Penalty for the level of chunks in the cost heuristic used by graph backtracking.");
+  auto& compact_trail = _parser.add_bool("--use-compact-trail", use_compact_trail,
+    "Uses a compact representation of the trail when calculating the weights of bitsets during "
+    "conflict analysis.").alias("-compact-trail");
+
   _parser.add_double("--backtrack-possibilities-limit", backtrack_possibilities_limit,
     "Limit on the number of backtrack possibilities considered by graph backtracking before "
     "heuristically cutting off.");
@@ -301,6 +305,7 @@ void napsat::Options::build_option_parser()
   bsc.require(gb, true);
   bfc.require(gb, true);
   bfc.subsumes(bsc);
+  compact_trail.require(gb, true);
 
   max_c.require(gb, true);
   sum_c.require(gb, true);

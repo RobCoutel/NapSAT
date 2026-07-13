@@ -312,7 +312,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
     _conflicts.push_back(id);
     if (_status == status::SAT)
       _status = status::UNKNOWN;
-    if (!_options->graph_backtracking) {
+    if (!_options->graph_backtracking || _conflicts.size() >= 10) {
       // except in graph backtracking, there is no reason to not handle the conflict eagerly
       // in GB, we want to select the best chunks at the end of the procedure.
       _lit_buffer_size = 0;
