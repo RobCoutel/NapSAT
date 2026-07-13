@@ -74,10 +74,6 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
     all_elements |= s;
   }
 
-  cout << "Computing hitting sets for " << to_hit.size() << " sets over " << all_elements.count() << " elements" << endl;
-  for (const bitset& s : to_hit) {
-    cout << "  " << s << endl;
-  }
   priority_queue<hitting_set_node, vector<hitting_set_node>, compare_hitting_set_nodes> queue;
   // Sizes of accepted hitting sets, kept parallel to `hitting_sets`. A node is only
   // accepted once its priority (size + unsatisfied.size()) equals its size, and the
@@ -193,11 +189,6 @@ void compute_hitting_sets(const vector<bitset>& to_hit,
       queue.push(std::move(child));
     }
   }
-
-  cout << "Found " << hitting_sets.size() << " hitting sets" << endl;
-  // for (const bitset& s : hitting_sets) {
-  //   cout << "  " << s << endl;
-  // }
 
 }
 
