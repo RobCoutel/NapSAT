@@ -1749,7 +1749,7 @@ public:
     /**
      * @brief Checks whether reimplying lit (a decision literal) would create a cycle.
      */
-    bool reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks);
+    bool reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks) const;
 
     /**
      * @brief Searches for a replacement literal for the first watched literal
@@ -2588,6 +2588,12 @@ public:
      * @warning This function is very expensive and should only be used for debugging
      */
     bool check_correct_chunks() const;
+
+    /**
+     * @brief Checks if the reimplication of the chunks in the solver is correct.
+     * @details In LCM, chunks can be reimplies. This function checks that the data structures are consistent with reimplications.
+     */
+    bool check_correct_chunk_reimplication() const;
 
     std::vector<sentinel::WatchInvariant*> _watch_invariants;
 

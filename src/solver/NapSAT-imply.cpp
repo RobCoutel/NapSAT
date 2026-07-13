@@ -561,7 +561,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   ASSERT(check_decision_index_consistency());
 }
 
-bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks)
+bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks) const
 {
   if (reimplying_chunks.empty()) {
     return false;
@@ -582,7 +582,7 @@ bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& re
       if (visited[c])
         continue;
       visited[c] = true;
-      bitset& m = _chunks[c].missed_implication;
+      const bitset& m = _chunks[c].missed_implication;
       if (!(m < closure)) {
         closure |= m;
         changed = true;

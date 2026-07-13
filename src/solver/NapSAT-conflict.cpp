@@ -102,15 +102,25 @@ void NapSAT::compute_lazy_merge_chunk_combination(vector<bitset>& combinations,
       merged_chunks -= _locked_chunks;
     }
 
+    bool branched = false;
     for (auto j = merged_chunks.cbegin(); j != merged_chunks.cend(); ++j) {
       Tchunk c2 = *j;
       if (current.get(c2)) {
         // we already have this chunk, any further combination will be subsumed
         continue;
       }
+      branched = true;
       bitset next_current = current;
       next_current.set(c2, true);
       compute_lazy_merge_chunk_combination(combinations, mergeable_chunks, next_current, next_process);
+      if (combinations.size() > _options->backtrack_possibilities_limit) {
+        return;
+      }
+    }
+    if (!branched) {
+      // c's missed implications are empty or already satisfied by current;
+      // still need to record c as processed so current is not silently dropped
+      compute_lazy_merge_chunk_combination(combinations, mergeable_chunks, current, next_process);
       if (combinations.size() > _options->backtrack_possibilities_limit) {
         return;
       }
@@ -1242,6 +1252,7 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
       _dependency_tracker->finalize_tracking(id);
 
     if (_lit_buffer_size == 0) {
+      cout << "UNSAT: learned clause is empty" << endl;
       _status = status::UNSAT;
       return;
     }
@@ -1270,6 +1281,7 @@ void NapSAT::graph_repair()
       _conflicts_chunks.back() -= _locked_chunks;
       if (_conflicts_chunks.back().empty()) { // conflict cannot be solved
         _status = status::UNSAT;
+        cout << "UNSAT: conflict cannot be solved because all chunks are locked" << endl;
         // TODO need to produce a proof
         return;
       }
@@ -1282,6 +1294,7 @@ void NapSAT::graph_repair()
     // we cannot repair the conflicts
     // TODO: We still need to generate the empty clause for the proof
     _status = status::UNSAT;
+    cout << "UNSAT: conflict cannot be solved because all chunks are locked" << endl;
     return;
   }
 

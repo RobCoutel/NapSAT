@@ -124,6 +124,62 @@ bool napsat::NapSAT::check_correct_chunks() const
   return success;
 }
 
+bool napsat::NapSAT::check_correct_chunk_reimplication() const
+{
+  if (!_options->graph_backtracking || !_options->lazy_chunk_merging)
+    return true;
+
+  bool success = true;
+  for (Tlit lit : _trail) {
+    if (!lit_decision(lit))
+      continue;
+    ASSERT(lit_chunks(lit).count() == 1);
+    Tchunk chunk = *lit_chunks(lit).cbegin();
+    const TSchunk& ck = _chunks[chunk];
+    if (ck.decision != lit.var()) {
+      success = false;
+      LOG_ERROR("Invariant violation: Correct chunk reimplication: decision literal " << lit_to_string(lit) << " owns chunk " << chunk << " but that chunk is registered as started by variable " << ck.decision);
+      continue;
+    }
+
+    Tclause lazy_reason = lit_lazy_reason(lit);
+    if (lazy_reason == CLAUSE_UNDEF) {
+      if (ck.is_reimplied) {
+        success = false;
+        LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") is marked as reimplied but has no lazy reason");
+      }
+      continue;
+    }
+
+    if (!ck.is_reimplied) {
+      success = false;
+      LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") has lazy reason " << clause_to_string(lazy_reason) << " but is not marked as reimplied");
+    }
+
+    const Tlit* lits = clause_lits(lazy_reason);
+    const unsigned size = clause_size(lazy_reason);
+    if (lits[0] != lit) {
+      success = false;
+      LOG_ERROR("Invariant violation: Correct chunk reimplication: lazy reason " << clause_to_string(lazy_reason) << " of decision literal " << lit_to_string(lit) << " does not have it as its first literal");
+      continue;
+    }
+
+    bitset expected(_n_allocated_chunks);
+    for (size_t i = 1; i < size; i++)
+      expected |= lit_chunks(lits[i]);
+    if (ck.missed_implication != expected) {
+      success = false;
+      LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") has missed_implication " << ck.missed_implication.to_string() << " but the union of the chunks of its lazy reason " << clause_to_string(lazy_reason) << " (excluding itself) is " << expected.to_string());
+    }
+
+    if (reimplication_cycle(chunk, ck.missed_implication)) {
+      success = false;
+      LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") is reimplied by chunks " << ck.missed_implication.to_string() << " which creates a reimplication cycle");
+    }
+  }
+  return success;
+}
+
 
 bool napsat::NapSAT::lit_is_max_literal(Tlit lit, const Tlit* lits, size_t size) const
 {
