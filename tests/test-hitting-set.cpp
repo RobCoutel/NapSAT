@@ -280,3 +280,117 @@ TEST_CASE("hitting-set: previous bug: no hitting set found") {
     {34, 64},
   }));
 }
+
+// compute_hitting_sets_smallest_first is an experimental alternative
+// branching strategy (see its doc comment in hitting-set.hpp), added to
+// benchmark against compute_hitting_sets. Exhaustive (unbounded-limit)
+// enumeration of inclusion-minimal hitting sets is a mathematically unique
+// family regardless of search strategy, so every same_family expectation
+// below is copied verbatim from the compute_hitting_sets tests above: any
+// correctly-implemented exhaustive algorithm must agree with them exactly.
+TEST_CASE("hitting-set (smallest-first): single set, single element") {
+  vector<bitset> to_hit = { make_set(64, {5}) };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result);
+  REQUIRE(same_family(result, {{5}}));
+}
+
+TEST_CASE("hitting-set (smallest-first): two disjoint sets require one element from each") {
+  vector<bitset> to_hit = { make_set(64, {0, 1}), make_set(64, {10, 11}) };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result, /*limit=*/10);
+  REQUIRE(same_family(result, {{0, 10}, {0, 11}, {1, 10}, {1, 11}}));
+}
+
+TEST_CASE("hitting-set (smallest-first): shared element subsumes the combinations that don't use it") {
+  vector<bitset> to_hit = { make_set(64, {0, 1, 2}), make_set(64, {2, 3, 4}) };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result, /*limit=*/10);
+  REQUIRE(same_family(result, {{2}, {0, 3}, {0, 4}, {1, 3}, {1, 4}}));
+}
+
+TEST_CASE("hitting-set (smallest-first): every returned set actually hits every input set") {
+  vector<bitset> to_hit = {
+    make_set(128, {1, 40, 90}),
+    make_set(128, {2, 40, 91}),
+    make_set(128, {1, 2, 92}),
+  };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result, /*limit=*/10);
+  REQUIRE(!result.empty());
+  for (const bitset& candidate : result)
+    REQUIRE(hits_everything(candidate, to_hit));
+}
+
+TEST_CASE("hitting-set (smallest-first): no returned set is redundant with another") {
+  vector<bitset> to_hit = {
+    make_set(128, {1, 40, 90}),
+    make_set(128, {2, 40, 91}),
+    make_set(128, {1, 2, 92}),
+  };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result, /*limit=*/10);
+  REQUIRE(all_pairwise_incomparable(result));
+}
+
+TEST_CASE("hitting-set (smallest-first): works across multiple bitset metadata blocks") {
+  const unsigned capacity = 2*4032;
+  vector<bitset> to_hit = {
+    make_set(capacity, {10, 5000, 8000}),
+    make_set(capacity, {10, 5001}),
+  };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result, /*limit=*/10);
+  REQUIRE(same_family(result, {{10}, {5000, 5001}, {8000, 5001}}));
+}
+
+TEST_CASE("hitting-set (smallest-first): previous bug: no hitting set found") {
+  vector<bitset> to_hit = {
+    make_set(128, {58, 60, 64}),
+    make_set(128, {6, 9, 15, 17, 34}),
+    make_set(128, {6, 15, 17, 34}),
+ };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result);
+  for (const bitset& candidate : result)
+    REQUIRE(hits_everything(candidate, to_hit));
+  REQUIRE(all_pairwise_incomparable(result));
+  REQUIRE(same_family(result, {
+    { 6, 58}, {15, 58}, {17, 58}, {34, 58},
+    { 6, 60}, {15, 60}, {17, 60}, {34, 60},
+    { 6, 64}, {15, 64}, {17, 64}, {34, 64},
+  }));
+}
+
+TEST_CASE("hitting-set (smallest-first): large hitting set, hub-and-spoke") {
+  // Same instance as the compute_hitting_sets "bad ordering" test: without
+  // that algorithm's ordering constraint there is no "bad ordering" to
+  // speak of here, but the same two minimal hitting sets must still be the
+  // exhaustive answer.
+  vector<bitset> to_hit = {
+    make_set(64, {0, 1}),  make_set(64, {0, 2}),  make_set(64, {0, 3}),
+    make_set(64, {0, 4}),  make_set(64, {0, 5}),  make_set(64, {0, 6}),
+    make_set(64, {0, 7}),  make_set(64, {0, 8}),  make_set(64, {0, 9}),
+    make_set(64, {0, 10}), make_set(64, {0, 11}), make_set(64, {0, 12}),
+    make_set(64, {0, 13}), make_set(64, {0, 14}), make_set(64, {0, 15}),
+    make_set(64, {0, 16}), make_set(64, {0, 17}), make_set(64, {0, 18}),
+    make_set(64, {0, 19}),
+ };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result);
+  REQUIRE(same_family(result, {{0}, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}}));
+}
+
+TEST_CASE("hitting-set (smallest-first): reconvergent duplicate is deduplicated") {
+  // The "triangle" instance: {1,2}, {1,3}, {2,3}. With no branch-order
+  // constraint, {1,2} is reachable both via 1-then-2 and via 2-then-1 (two
+  // distinct search-tree paths converging on the same complete set) -- this
+  // is exactly the duplicate-generation risk the algorithm's doc comment
+  // warns about. It must still show up exactly once in the result.
+  vector<bitset> to_hit = { make_set(64, {1, 2}), make_set(64, {1, 3}), make_set(64, {2, 3}) };
+  vector<bitset> result;
+  compute_hitting_sets_smallest_first(to_hit, result, /*limit=*/100);
+  REQUIRE(same_family(result, {{1, 2}, {1, 3}, {2, 3}}));
+  for (const bitset& candidate : result)
+    REQUIRE(hits_everything(candidate, to_hit));
+}

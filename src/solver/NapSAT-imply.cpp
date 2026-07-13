@@ -562,13 +562,14 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
 
 bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& reimplying_chunks)
 {
-  bitset closure = reimplying_chunks;
-  if (closure.empty()) {
+  if (reimplying_chunks.empty()) {
     return false;
   }
+  bitset closure = reimplying_chunks;
 
   bool changed = true;
 
+  bool visited[_n_allocated_chunks];
   while (changed) {
     if(closure[decision_chunk]) {
       // we found a cycle
@@ -577,6 +578,9 @@ bool napsat::NapSAT::reimplication_cycle(Tchunk decision_chunk, const bitset& re
     changed = false;
     for (auto it = closure.cbegin(); it != closure.cend(); ++it) {
       Tchunk c = *it;
+      if (visited[c])
+        continue;
+      visited[c] = true;
       bitset& m = _chunks[c].missed_implication;
       if (!(m < closure)) {
         closure |= m;

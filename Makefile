@@ -8,19 +8,23 @@ CC := g++
 BUILD_DIR ?= ./build
 SRC_DIRS ?= ./src
 TEST_DIRS ?= ./tests
+BENCH_DIRS ?= ./benchmarks
 SATSENTINEL_DIR ?= ./SATSentinel
 SATSENTINEL_BUILD_DIR := $(SATSENTINEL_DIR)/build
 SATSENTINEL_LIB := $(SATSENTINEL_BUILD_DIR)/SATSentinel.a
 
 SRCS := $(shell find $(SRC_DIRS) -name "*.cpp")
 TEST_SRCS := $(shell find $(TEST_DIRS) -name "*.cpp")
+BENCH_SRCS := $(shell find $(BENCH_DIRS) -name "*.cpp")
 
 OBJS := $(SRCS:%.cpp=$(BUILD_DIR)/%.o)
 TEST_OBJS := $(TEST_SRCS:%.cpp=$(BUILD_DIR)/%.o)
+BENCH_OBJS := $(BENCH_SRCS:%.cpp=$(BUILD_DIR)/%.o)
 MAIN_OBJ := $(BUILD_DIR)/$(MAIN:.cpp=.o)
 
 HEAD := $(shell find $(SRC_DIRS) -name "*.hpp")
 TEST_HEAD := $(shell find $(TEST_DIRS) -name *.hpp)
+BENCH_HEAD := $(shell find $(BENCH_DIRS) -name "*.hpp")
 
 DEPS := $(OBJS:.o=.d)
 MODULES_DIR ?= ..
@@ -46,7 +50,7 @@ DBG_FLAGS ?= -O0 -g -g3 -gdwarf-2 -ftrapv
 # switching between release/debug/tests forces a rebuild of the affected
 # objects instead of silently reusing stale ones compiled with different
 # flags (e.g. NDEBUG toggling invariant checks in custom-assert.hpp).
-BUILD_FLAGS := GUI=$(GUI) REL_FLAGS=$(REL_FLAGS) CFLAGS=$(CFLAGS)
+BUILD_FLAGS = GUI=$(GUI) REL_FLAGS=$(REL_FLAGS) CFLAGS=$(CFLAGS)
 FLAGS_FILE := $(BUILD_DIR)/.build-flags
 
 # Rules below add targets before `all`; pin the default goal explicitly so
@@ -122,6 +126,16 @@ tests: REL_FLAGS = $(DBG_FLAGS) $(TEST_LINK_FLAGS)
 tests: $(OBJS) $(TEST_OBJS) $(SATSENTINEL_LIB)
 	$(CC) $^ -o $(BUILD_DIR)/NapSAT-tests $(CFLAGS) $(DBG_FLAGS) $(LINK_FLAGS) $(TEST_LINK_FLAGS)
 	build/NapSAT-tests
+
+# benchmarks (Catch2 BENCHMARK suite under ./benchmarks, one binary,
+# separate from `tests`). Built at release optimization (unlike `tests`,
+# which builds at -O0 for debuggability) since debug-build timings aren't
+# representative of what the solver experiences.
+.PHONY: benchmarks
+benchmarks: REL_FLAGS = -O3 -DNDEBUG $(TEST_LINK_FLAGS)
+benchmarks: $(OBJS) $(BENCH_OBJS) $(SATSENTINEL_LIB)
+	$(CC) $^ -o $(BUILD_DIR)/NapSAT-benchmarks $(CFLAGS) -O3 -DNDEBUG $(LINK_FLAGS) $(TEST_LINK_FLAGS)
+	build/NapSAT-benchmarks
 
 .PHONY: debug
 

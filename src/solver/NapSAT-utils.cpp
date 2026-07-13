@@ -359,16 +359,17 @@ void NapSAT::allocate_chunks(size_t n_chunks)
     _free_chunks.push_back(n_chunks - i + _n_allocated_chunks - 1);
     NOTIFY_STAT(_n_allocated_chunks);
   }
-  _n_allocated_chunks = n_chunks;
   // resize the chunk sets of the variables
   for (Tvar i = 0; i < _vars.size(); i++) {
-    _vars[i].chunks.resize(_n_allocated_chunks);
-    _vars[i].cross_chunks.resize(_n_allocated_chunks);
+    _vars[i].chunks.resize(n_chunks);
+    _vars[i].cross_chunks.resize(n_chunks);
   }
 
   for (Tchunk i = _n_allocated_chunks; i < _chunks.size(); i++) {
-    _chunks[i].missed_implication.resize(_n_allocated_chunks);
+    _chunks[i].missed_implication.resize(n_chunks);
   }
+  _locked_chunks.resize(n_chunks);
+  _n_allocated_chunks = n_chunks;
   ASSERT(_n_allocated_chunks == solver_level().value + _free_chunks.size(),
         "\n_n_allocated_chunks = " + std::to_string(_n_allocated_chunks) + "\n"
       + " solver_level() = " + solver_level().to_string() + "\n"
