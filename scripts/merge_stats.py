@@ -81,6 +81,11 @@ def main():
     # sort the rows by the problem column, then by the option_set column
     if "file" in merged.columns and args.column in merged.columns:
         merged.sort_values(by=["file", args.column], inplace=True, ignore_index=True)
+
+    # only keep the "file" that is present in all option sets
+    merged = merged.groupby("file").filter(lambda x: len(x) == len(frames))
+
+
     merged.to_csv(args.output, index=False)
     print(
         f"Merged {len(frames)} files into {len(merged)} rows, "
