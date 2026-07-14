@@ -159,10 +159,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
     ASSERT(lit_chunks(lit).count() == 1);
     Tchunk ck = *lit_chunks(lit).cbegin();
     _locked_chunks.set(ck, false);
-    _free_chunks.push_back(ck);
-    _chunks[ck].decision = Tvar();
-    _chunks[ck].missed_implication.clear();
-    _chunks[ck].is_reimplied = false;
+    free_chunk(ck);
     _decision_index.resize(_decision_index.size() - 1);
     lit_lazy_reason(lit) = CLAUSE_UNDEF;
   }
@@ -433,7 +430,8 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
 
   lit_reason(decision) = reason;
   ASSERT(lit_chunks(decision).count() == 1);
-  _free_chunks.push_back(*lit_chunks(decision).cbegin());
+  ASSERT(*lit_chunks(decision).cbegin() == decision_chunk);
+  free_chunk(decision);
   NOTIFY(update_reason, decision, reason);
   // update the decision level and bitset
   lit_level(decision) = implication_level(reason);

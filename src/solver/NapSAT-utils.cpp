@@ -376,6 +376,26 @@ void NapSAT::allocate_chunks(size_t n_chunks)
       + "_free_chunks.size() = " + to_string(_free_chunks.size()));
 }
 
+void NapSAT::free_chunk(Tchunk ck)
+{
+  _free_chunks.push_back(ck);
+  _chunks[ck].decision = Tvar();
+  _chunks[ck].missed_implication.clear();
+  _chunks[ck].is_reimplied = false;
+}
+
+void NapSAT::free_chunk(Tvar decision)
+{
+  ASSERT(var_chunks(decision).count() == 1);
+  ASSERT(var_decision(decision));
+  free_chunk(*var_chunks(decision).cbegin());
+}
+
+void NapSAT::free_chunk(Tlit decision)
+{
+  free_chunk(decision.var());
+}
+
 unsigned NapSAT::utility_heuristic(Tlit lit)
 {
   // In graph backtracking, we cannot use a utility function anymore, because the literals are

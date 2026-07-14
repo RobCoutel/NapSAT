@@ -1546,6 +1546,29 @@ public:
     void allocate_chunks(size_t n_chunks);
 
     /**
+     * @brief Releases a chunk back to the free list and resets its bookkeeping.
+     * @details Clears the chunk's decision, missed-implication set and
+     * reimplied flag so that no stale metadata survives reuse (a chunk id
+     * left with a dangling decision variable can later be picked up by
+     * lazy chunk merging and report a bogus level).
+     * @param ck chunk to free.
+     */
+    void free_chunk(Tchunk ck);
+
+    /**
+     * @brief Releases the chunk owned by a variable.
+     * @param var variable whose chunk should be freed.
+     * @pre The variable must be a decision
+     */
+    void free_chunk(Tvar var);
+
+    /**
+     * @brief Releases the chunk owned by a decision literal.
+     * @param decision decision literal whose chunk should be freed.
+     */
+    void free_chunk(Tlit decision);
+
+    /**
      * @brief Returns the next clause identifier.
      * @details If there are deleted clauses, returns the identifier of a
      * deleted clause. Otherwise, returns the next identifier.

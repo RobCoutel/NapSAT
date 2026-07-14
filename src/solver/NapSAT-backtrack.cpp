@@ -35,13 +35,7 @@ void NapSAT::var_unassign(Tvar var)
 
   if (_options->graph_backtracking) {
     if (v.reason == CLAUSE_UNDEF) {
-      ASSERT(v.chunks.count() == 1);
-      Tchunk ck = *v.chunks.cbegin();
-      TSchunk& chunk = _chunks[ck];
-      _free_chunks.push_back(ck);
-      chunk.decision = Tvar();
-      chunk.missed_implication.clear();
-      chunk.is_reimplied = false;
+      free_chunk(var);
     }
     v.chunks.clear();
     v.cross_chunks.clear();
