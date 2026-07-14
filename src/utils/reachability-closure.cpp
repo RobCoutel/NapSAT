@@ -6,6 +6,10 @@
  */
 #include "reachability-closure.hpp"
 
+#include <iostream>
+#include <queue>
+#include <cassert>
+
 using namespace std;
 
 namespace napsat
@@ -23,63 +27,19 @@ namespace
     return false;
   }
 
-  void extend_closure(const vector<bitset>& parents,
-                      const bitset& forbidden,
-                      bitset current,
-                      bitset processed,
-                      vector<bitset>& completions,
-                      unsigned limit)
-  {
-    // check for subsumption
-    if (subsumed(completions, current)) {
-      return;
+  struct closure_node {
+    bitset current;
+    bitset processed;
+  };
+
+  struct compare_closure_nodes {
+    bool operator()(const closure_node& a, const closure_node& b) const
+    {
+      return a.current.count() > b.current.count();
     }
+  };
+}
 
-    // elements of current that still have to be checked for a path to a leaf
-    bitset frontier = current - processed;
-
-    if (frontier.empty()) {
-      completions.push_back(current);
-      return;
-    }
-
-    for (auto it = frontier.cbegin(); it != frontier.cend(); ++it) {
-      unsigned u = *it;
-      bitset next_processed = processed;
-      next_processed.set(u, true);
-
-      // parents of u still missing from current
-      bitset needed = parents[u] - current;
-      if (needed.empty()) {
-        // u is a leaf, or one of its parents is already in current: either
-        // way, its path to a leaf is already contained in current
-        extend_closure(parents, forbidden, current, next_processed, completions, limit);
-        if (limit > 0 && completions.size() > limit) {
-          return;
-        }
-        continue;
-      }
-
-      bitset candidates = needed - forbidden;
-      if (candidates.empty()) {
-        // every parent still missing is forbidden: u can never reach a
-        // leaf, so this whole completion must be discarded, not treated
-        // as satisfied
-        return;
-      }
-
-      for (auto jt = candidates.cbegin(); jt != candidates.cend(); ++jt) {
-        unsigned p = *jt;
-        bitset next_current = current;
-        next_current.set(p, true);
-        extend_closure(parents, forbidden, next_current, next_processed, completions, limit);
-        if (limit > 0 && completions.size() > limit) {
-          return;
-        }
-      }
-    }
-  }
-} // namespace
 
 void compute_reachability_closures(const vector<bitset>& parents,
                                    const bitset& forbidden,
@@ -87,7 +47,58 @@ void compute_reachability_closures(const vector<bitset>& parents,
                                    vector<bitset>& completions,
                                    unsigned limit)
 {
-  extend_closure(parents, forbidden, start, bitset(start.capacity()), completions, limit);
+  unsigned allocated_size = start.capacity();
+
+  bitset mergeable(allocated_size);
+  for (size_t i = 0; i < parents.size(); i++) {
+    if (!parents[i].empty() && !forbidden[i]) {
+      mergeable.set(i, true);
+    }
+  }
+
+  priority_queue<closure_node, vector<closure_node>, compare_closure_nodes> stack;
+  stack.push({start, bitset(parents.size())});
+
+  while(!stack.empty()) {
+    closure_node node = stack.top();
+    stack.pop();
+
+    if (subsumed(completions, node.current)) {
+      continue;
+    }
+
+    bitset remaining = (node.current & mergeable);
+    remaining -= node.processed;
+
+    if (remaining.empty()) {
+      completions.push_back(node.current);
+      if (limit > 0 && completions.size() >= limit) {
+        return;
+      }
+      continue;
+    }
+
+    for (auto it = remaining.cbegin(); it != remaining.cend(); ++it) {
+      unsigned c = *it;
+      assert(c < parents.size());
+      assert(!node.processed[c]);
+      assert(!forbidden[c]);
+      assert(!parents[c].empty());
+
+      bitset new_processed = node.processed;
+      new_processed.set(c, true);
+      for (auto p_it = parents[c].cbegin(); p_it != parents[c].cend(); ++p_it) {
+        unsigned p = *p_it;
+        if (forbidden[p]) {
+          continue;
+        }
+        assert(p < allocated_size);
+        bitset new_current = node.current;
+        new_current.set(p, true);
+        stack.push({new_current, new_processed});
+      }
+    }
+  }
 }
 
 } // namespace napsat

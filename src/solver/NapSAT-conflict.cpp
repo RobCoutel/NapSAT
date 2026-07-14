@@ -367,9 +367,9 @@ void NapSAT::calculate_bitset_weights(vector<Tweight>& weights)
 }
 
 
-std::vector<NapSAT::Ttrail_piece> NapSAT::trail_chunk_compaction(const bitset& chunks_of_interest)
+NapSAT::TScompacted_trail NapSAT::trail_chunk_compaction(const bitset& chunks_of_interest)
 {
-  std::vector<Ttrail_piece> compacted_trail;
+  TScompacted_trail compacted_trail;
   if (_trail.empty()) {
     return compacted_trail;
   }
@@ -390,7 +390,7 @@ std::vector<NapSAT::Ttrail_piece> NapSAT::trail_chunk_compaction(const bitset& c
       current_literals.push_back(lit);
     } else {
       if (!current_literals.empty()) {
-        compacted_trail.emplace_back(Ttrail_piece(current_chunks, current_literals));
+        compacted_trail.emplace_back(TStrail_piece(current_chunks, current_literals));
       }
       current_chunks = lit_chunks(lit);
       current_literals.clear();
@@ -399,15 +399,25 @@ std::vector<NapSAT::Ttrail_piece> NapSAT::trail_chunk_compaction(const bitset& c
   }
 
   // Add the last group
-  compacted_trail.emplace_back(Ttrail_piece(current_chunks, current_literals));
+  compacted_trail.emplace_back(TStrail_piece(current_chunks, current_literals));
 
   NOTIFY_STAT_N(_a_trail_compaction, ((double) _trail.size()) / compacted_trail.size());
+
+  // since only the chunks of interest are considered, we can calculate the weight of each piece directly.
+  for (TStrail_piece& piece : compacted_trail) {
+    for (Tlit lit : piece.literals) {
+      if (!lit_synced(lit)) {
+        continue;
+      }
+      piece.weight += literal_cost(lit);
+    }
+  }
 
   return compacted_trail;
 }
 
 void NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights,
-                                      const std::vector<Ttrail_piece>& compacted_trail)
+                                      const TScompacted_trail& compacted_trail)
 {
   if (weights.empty() || weights[0].finished) {
     sort(weights.begin(), weights.end(),
@@ -415,29 +425,22 @@ void NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights,
     return;
   }
 
-  for (Tweight& w : weights) {
-    size_t end = decision_lit_ptr(w.lowest_level) - _trail.data();
-    // this is a bit dirty, but like this we can reuse the same interface as above.
-    // The function will not do anything on the second call.
-    if (w.give_up_point == end)
-      continue;
-    w.give_up_point = end;
-    w.finished = true;
+  double lowest_weight = numeric_limits<double>::max();
 
-    for (const Ttrail_piece& piece : compacted_trail) {
+  for (Tweight& w : weights) {
+    if (w.give_up_point == 0)
+      continue;
+
+    while(w.give_up_point > 0 && w.total_weight < lowest_weight) {
+      const TStrail_piece& piece = compacted_trail[--w.give_up_point];
       if (!piece.chunks.has_intersection(w.chunks)) {
         continue;
       }
-      if (!piece.calculated) {
-        for (Tlit lit : piece.literals) {
-          if (!lit_synced(lit)) {
-            continue;
-          }
-          ASSERT(lit_chunks(lit).has_intersection(w.chunks));
-          w.total_weight += literal_cost(lit);
-        }
-      }
       w.total_weight += piece.weight;
+    }
+    w.finished = (w.give_up_point == 0);
+    if (w.finished && w.total_weight < lowest_weight) {
+      lowest_weight = w.total_weight;
     }
   }
 
@@ -1217,6 +1220,7 @@ void NapSAT::graph_repair()
   _conflicts_chunks.clear();
   _conflicts_chunks.reserve(_conflicts.size());
   bitset chunks_of_interest(_n_allocated_chunks);
+
   for (Tclause conflict : _conflicts) {
     _conflicts_chunks.push_back(clause_chunks(conflict));
     chunks_of_interest |= _conflicts_chunks.back();
@@ -1249,6 +1253,15 @@ void NapSAT::graph_repair()
   Tlevel highest_level = LEVEL_ROOT;
 
   setup_weights(possibilities, highest_level, weights);
+
+  TScompacted_trail compacted_trail;
+  if (_options->use_compact_trail) {
+    compacted_trail = trail_chunk_compaction(chunks_of_interest);
+    // setup the give up points to the end of the compacted trail
+    for (Tweight& w : weights) {
+      w.give_up_point = compacted_trail.size();
+    }
+  }
 
   static vector<Tclause> implying_conflicts;
   static vector<pair<Tclause, vector<Tlit>>> learned_clauses;
@@ -1294,7 +1307,7 @@ void NapSAT::graph_repair()
     const auto start = chrono::high_resolution_clock::now();
 
     if (_options->use_compact_trail) {
-      calculate_bitset_weights(weights, trail_chunk_compaction(chunks_of_interest));
+      calculate_bitset_weights(weights, compacted_trail);
     } else if (approximate) {
       calculate_bitset_weights_approx(weights);
     } else {

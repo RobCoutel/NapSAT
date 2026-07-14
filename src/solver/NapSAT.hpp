@@ -1907,7 +1907,7 @@ public:
      */
     void prove_root_conflict_with_lazy_merging();
 
-    struct Ttrail_piece {
+    struct TStrail_piece {
       /**
        * @brief The set of chunks that are associated with the literals in the trail chunk.
        */
@@ -1916,13 +1916,14 @@ public:
        * @brief The literals in the trail chunk.
        */
       std::vector<Tlit> literals;
-      bool calculated = false;
 
       double weight = 0.0;
 
-      Ttrail_piece(const bitset& chunks, const std::vector<Tlit>& literals, double weight = 0.0)
+      TStrail_piece(const bitset& chunks, const std::vector<Tlit>& literals, double weight = 0.0)
         : chunks(chunks), literals(literals), weight(weight) {}
     };
+
+    typedef std::vector<TStrail_piece> TScompacted_trail;
 
     /**
      * @brief Creates a trail where all literals that belong to the same set of chunks are grouped together.
@@ -1932,7 +1933,7 @@ public:
      *
      * To be efficient, this function only considers subsequent literals and checks whether they belong to the same set of chunks. We do not do a O(n^2) check for all pairs of literals because it would be too expensive. This is a heuristic that works well in practice.
      */
-    std::vector<Ttrail_piece> trail_chunk_compaction(const bitset& chunks_of_interest);
+    TScompacted_trail trail_chunk_compaction(const bitset& chunks_of_interest);
 
     typedef struct Tweight {
       /**
@@ -2014,7 +2015,8 @@ public:
      */
     void calculate_bitset_weights(std::vector<Tweight>& weights);
 
-    void calculate_bitset_weights(std::vector<Tweight>& weights, const std::vector<Ttrail_piece>& compacted_trail);
+    void calculate_bitset_weights(std::vector<Tweight>& weights,
+                                  const TScompacted_trail& compacted_trail);
 
     /**
      * @brief Given a set of bitsets, calculate an approximation of their weights according to the current state of the solver.
