@@ -1921,6 +1921,15 @@ public:
 
       TStrail_piece(const bitset& chunks, const std::vector<Tlit>& literals, double weight = 0.0)
         : chunks(chunks), literals(literals), weight(weight) {}
+
+      std::string to_string() const {
+        std::string res = "chunks: " + chunks.to_string() + " = " + std::to_string(weight) + " : ";
+        for (const Tlit& lit : literals) {
+          res += lit.to_string() + " ";
+        }
+        res += " cost = " + std::to_string(weight);
+        return res;
+      }
     };
 
     typedef std::vector<TStrail_piece> TScompacted_trail;

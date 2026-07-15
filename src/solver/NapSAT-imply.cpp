@@ -428,10 +428,8 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   // However, we need to recompute the chunks and levels anyway, so we have to go through the literals of each reason anyhow.
   lit_mark(decision);
 
-  lit_reason(decision) = reason;
-  ASSERT(lit_chunks(decision).count() == 1);
-  ASSERT(*lit_chunks(decision).cbegin() == decision_chunk);
   free_chunk(decision);
+  lit_reason(decision) = reason;
   NOTIFY(update_reason, decision, reason);
   // update the decision level and bitset
   lit_level(decision) = implication_level(reason);

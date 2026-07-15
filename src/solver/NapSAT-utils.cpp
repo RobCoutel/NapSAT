@@ -386,8 +386,8 @@ void NapSAT::free_chunk(Tchunk ck)
 
 void NapSAT::free_chunk(Tvar decision)
 {
-  ASSERT(var_chunks(decision).count() == 1);
   ASSERT(var_decision(decision));
+  ASSERT(var_chunks(decision).count() == 1);
   free_chunk(*var_chunks(decision).cbegin());
 }
 

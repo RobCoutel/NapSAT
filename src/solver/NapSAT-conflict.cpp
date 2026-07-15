@@ -1256,6 +1256,12 @@ void NapSAT::graph_repair()
 
   TScompacted_trail compacted_trail;
   if (_options->use_compact_trail) {
+    // in lcm, the sets of chunks of interest may no longer be correct since reimplications maybe have added more chunks
+    if (_options->lazy_chunk_merging) {
+      for (bitset& b : possibilities) {
+        chunks_of_interest |= b;
+      }
+    }
     compacted_trail = trail_chunk_compaction(chunks_of_interest);
     // setup the give up points to the end of the compacted trail
     for (Tweight& w : weights) {
@@ -1300,9 +1306,9 @@ void NapSAT::graph_repair()
     }
     ASSERT(!weights.empty());
 
-    bool approximate = _options->use_max_approximate_cost_estimation;
-    approximate     |= _options->use_sum_approximate_cost_estimation;
-    approximate     |= _options->use_vsids_approximate_cost_estimation;
+    bool approximate  = _options->use_max_approximate_cost_estimation;
+         approximate |= _options->use_sum_approximate_cost_estimation;
+         approximate |= _options->use_vsids_approximate_cost_estimation;
 
     const auto start = chrono::high_resolution_clock::now();
 
@@ -1327,8 +1333,14 @@ void NapSAT::graph_repair()
 #ifndef NDEBUG
     double penalty = _options->chunk_level_penalty * (_trail.size() - _decision_index[analyzed.lowest_level - 1]);
 #endif
-    ASSERT(approximate || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6);
-    ASSERT(approximate || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6);
+    ASSERT(approximate || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6,
+               "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) +
+                " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)) +
+                " and penalty is " + to_string(penalty));
+    ASSERT(approximate || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6,
+               "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) +
+                " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)) +
+                " and penalty is " + to_string(penalty));
 
     if(best.chunks.empty()) {
       best.total_weight = analyzed.total_weight;
