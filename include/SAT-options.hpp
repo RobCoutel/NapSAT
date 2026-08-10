@@ -321,11 +321,10 @@ namespace napsat
     double sync_weight = 8;
 
     /**
-     * @brief Timeout of the solver in milliseconds. If the solver does not finish within this time, it will stop and return UNKNOWN.
-     * @requires timeout > 0
+     * @brief Timeout of the solver in milliseconds. If the solver does not finish within this time, it will stop and return UNKNOWN. A negative value means no timeout.
      * @alias -t
      */
-    double timeout = 5000;
+    double timeout = -1;
 
     /**
      * @brief Number of conflicts before the solver exists with UNKNOWN.

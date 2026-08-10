@@ -102,7 +102,7 @@ debug: BUILD_MODE = debug
 
 .PHONY: install install-gui install-test
 install:
-	apt-get install liblzma libbz2
+	apt-get install liblzma-dev libbz2-dev
 	git submodule update --init --recursive
 
 install-gui:

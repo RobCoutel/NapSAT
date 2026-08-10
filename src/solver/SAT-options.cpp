@@ -204,7 +204,7 @@ void napsat::options::build_option_parser(napsat::options& t, napsat::OptionPars
     "Enables chronological backtracking as described in \n  [2018 - Chronological Backtracking - Nadel and Ryvchin]").alias("-cb");
   auto& lscb = p.add_bool("--lazy-strong-chronological-backtracking", t.lazy_strong_chronological_backtracking,
     "Enables strong chronological backtracking with the lazy reimplication scheme as described in \n  [2024 - Lazy Reimplication in Chronological Backtracking - Coutelier et al.].")
-    .alias("-lscb").alias("-scb");
+    .alias("-lscb");
   auto& gb = p.add_bool("--graph-backtracking", t.graph_backtracking,
     "Enables graph backtracking: upon a conflict, selects the lightest set of literals to be unassigned. As described in \n  [2026 - Generalizing CDCL with Graph Backtracking - Coutelier et al.]").alias("-gb");
   auto& lcm = p.add_bool("--lazy-chunk-merging", t.lazy_chunk_merging,
