@@ -1,0 +1,74 @@
+NapSAT logo and brand assets
+============================
+
+Copyright (c) 2026 Robin Coutelier
+Designed by beamoonforge
+
+The NapSAT logo was created by the artist beamoonforge, who assigned all rights
+in the artwork to Robin Coutelier in 2026. beamoonforge remains the author of
+the design and must be credited as its designer wherever the authorship of the
+artwork is stated.
+
+The contents of this directory -- the NapSAT logo in all its forms, including
+the TikZ sources (logo-common.tex, Logo.tex, Logo
+Dark.tex) and every rendering of them (Logo.*, Logo-Dark.*), -- are NOT covered by the MIT license that applies to the
+rest of NapSAT. They are licensed under the terms below.
+
+
+What you may do
+---------------
+
+You may copy, display, and redistribute the logo, unmodified, in order to refer
+to the NapSAT project. This is expressly encouraged in, for example:
+
+  * academic papers, talks, posters, and slides that discuss or cite NapSAT;
+  * documentation, README files, and websites of software that uses NapSAT;
+  * competition submissions, benchmarks, and evaluations that include NapSAT;
+  * lists of tools, dependencies, package indices, and similar catalogues;
+  * teaching material and news coverage about NapSAT.
+
+Such use requires no permission and no fee, in any medium, including commercial
+ones, for as long as the logo is being used to refer to NapSAT.
+
+Wherever the authorship of the logo is stated, credit the designer:
+
+    NapSAT logo by beamoonforge.
+
+
+What you may not do
+-------------------
+
+Anything else requires written permission from the copyright holder. In
+particular, you may not:
+
+  * use the logo for any purpose other than referring to NapSAT, whether
+    decoratively or as general-purpose artwork detached from the project;
+  * use it as the logo, icon, avatar, or identifying mark of another project,
+    product, organisation, or fork;
+  * use it in a way that suggests that the NapSAT project endorses, sponsors,
+    or is affiliated with your project, product, or organisation;
+  * sell it, or sell merchandise bearing it;
+  * distribute modified versions of it.
+
+Recolouring, cropping, redrawing, stretching, and combining the logo with other
+marks all count as modification. If you need a variant -- a monochrome version
+for print, a different aspect ratio, an icon-only crop -- please ask rather than
+making one yourself. The official variants in this directory are produced by the
+copyright holder, and more can be added.
+
+
+The name "NapSAT"
+-----------------
+
+This license covers copyright in the artwork only. It grants no rights in the
+name "NapSAT" or in the logo used as a mark, and the same principle applies to
+both: you may use the name to refer to the project, but not as the name of a
+fork or a derived work. Forks are welcome under the MIT license that covers the
+code, but they should carry their own name and their own logo.
+
+
+Requests
+--------
+
+For any use not permitted above, contact Robin Coutelier
+<robin.coutelier@tuwien.ac.at>.

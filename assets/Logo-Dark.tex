@@ -1,0 +1,25 @@
+% !TEX root = Logo Dark.tex
+% !TEX program = lualatex
+%
+% Acknowledgements:
+% The NapSAT logo was designed by the artist beamoonforge.
+%
+% Copyright (c) 2026 Robin Coutelier, designed by beamoonforge, who assigned all
+% rights in the artwork in 2026. Not covered by the MIT license that applies to
+% the rest of NapSAT: the logo may be used to refer to NapSAT, but not as the
+% mark of another project. See assets/LICENSE.
+%
+% ---------------------------------------------------------------------------
+% Named logo, dark-background variant. The geometry and the font setup live in
+% logo-common.tex; this file only selects the palette. Build it exactly like
+% the light variant, then render on a transparent background so the mark sits
+% on whatever dark canvas it is dropped onto:
+%
+%   lualatex "Named Logo Dark.tex"
+%   pdftoppm -png -transp -r 150 "Named Logo Dark.pdf" napsat-logo-dark
+%
+% \napsatdarkmode is only a flag: logo-common.tex tests for it and picks the
+% lightened blue. It has to be set before the \input because logo-common.tex
+% opens with \documentclass.
+\def\napsatdarkmode{}
+\input{logo-common}

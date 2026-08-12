@@ -1,6 +1,11 @@
-# NapSAT solver
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/Logo-Dark.svg">
+    <img src="assets/Logo.svg" alt="NapSAT" width="420">
+  </picture>
+</p>
 
-## Description
+# Description
 
 NapSAT is a SAT solver written in C++ specialized for academic study of backtracking strategies. As such, it is not intended (yet) to be a production-ready SAT solver, but rather a research tool to study the behavior of different backtracking strategies in (incremental) SAT solving.
 
@@ -9,7 +14,7 @@ You are invited to read these papers to understand the backtracking algorithms e
 
 Known limitations and open bugs are tracked in [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
 
-## Quick start
+# Quick start
 
 ```bash
 # 1. Clone the repository together with the SATSentinel submodule
@@ -28,40 +33,40 @@ build/NapSAT tests/cnf/unsat-01.cnf
 
 The solver prints `s SATISFIABLE`, `s UNSATISFIABLE`. The exit code is `0` whenever the solver ran (whatever the answer) and `1` if the command line or the input file could not be parsed.
 
-### Dependencies
+## Dependencies
 
 - `g++` with C++20 support
 - `liblzma` and `libbz2` (decompression of `.xz` and `.bz2` inputs)
 - [Catch2](https://github.com/catchorg/Catch2) — for the unit tests only (`sudo make install-test`)
 - Python 3 — for the fuzzing and benchmarking scripts only
 
-## Features
+# Features
 
-### Chronological Backtracking
+## Chronological Backtracking
 
 NapSAT implements different Chronological Backtracking (CB) strategies [1, 3, 4] that can be selected at runtime. CB allows the solver to backtrack to the highest decision level in a conflict clause, minus one. CB contrasts with Non-Chronological Backtracking (NCB), which backtracks until the second-highest decision level in the conflict clause. CB therefore saves the solver from undoing decisions that are unrelated to the conflict.
 
-### Graph Backtracking
+## Graph Backtracking
 
 NapSAT implements a unique Graph Backtracking (GB) strategy [2]. GB enables the user to provide a cost function to the solver, which is used to determine the minimal set of decisions to undo in order to resolve a conflict as cheaply as possible.
 
-### Sentinel
+## Sentinel
 
 For debugging and pedagogical purposes, NapSAT implements a sentinel mechanism that allows the user to observe the behavior of the solver with different levels of granularity. The sentinel was later severed from NapSAT and is now available in a separate project called [SATSentinel](https://github.com/RobCoutel/SATSentinel).
 
-### Proof Generation and Checking
+## Proof Generation and Checking
 
 NapSAT can generate primitive resolution proofs for UNSAT formulas. Future work will use standard formats such as DRAT and LRAT to generate proofs that can be checked by external proof checkers.
 
-### Incremental Solving
+## Incremental Solving
 
 NapSAT can be used as an incremental SAT solver. The user can add clauses at runtime. As opposed to other incremental SAT solvers, NapSAT does not always require to backtrack when adding new clauses. For example, a missed lower implication [5] would break an NCB solver. But NapSAT can continue without backtracking, provided that it uses a CB or GB strategy.
 
-### Solving with Assumptions
+## Solving with Assumptions
 
 This work is still ongoing. In principle NapSAT can solve formulas with assumptions when using Graph Backtracking. But the current implementation is not yet thoroughly tested and may not work in all cases.
 
-## Building
+# Building
 
 The project uses Make to generate the build files.
 
@@ -76,9 +81,9 @@ The project uses Make to generate the build files.
 
 The debug build writes to the same paths as the release build, so building one overwrites the other. A debug binary announces itself at startup with `INFO: Running NapSAT (debug)`. It aggressively checks for invariant violations and is much slower than the release version.
 
-## Usage
+# Usage
 
-### Running the SAT solver
+## Running the SAT solver
 
 ```bash
 build/NapSAT <input-file> [options]
@@ -99,7 +104,7 @@ Graph backtracking accepts several modifiers (all of them require `-gb`): `-lcm`
 
 `-stat` prints statistics about the solving process, and `-o` enables the sentinel observer. The sentinel can be configured with its own options, which are passed in braces right after `-o`. For example, `-o "{-dl 10 -commands commands.txt}"` sets the display level to 10 and loads a command file for interactive solving.
 
-### NapSAT as a library
+## NapSAT as a library
 
 NapSAT can be used as a library. The API is defined in [include/SAT-API.hpp](include/SAT-API.hpp). This allows a more abstract use of the solver. All the symbols live in the `napsat` namespace.
 
@@ -143,9 +148,9 @@ g++ -std=c++20 -I include -I SATSentinel/include example.cpp \
 
 Clauses can also be built literal by literal with `start_new_clause` / `push_literal` / `finalize_clause`, or loaded from a file with `parse_dimacs`.
 
-## Functionalities
+# Functionalities
 
-### Observing
+## Observing
 
 An observer can be attached to the solver to check and debug the solver. The observer can be used to generate tikz figures of the trail, the clause set and the implication graph. This is useful for creating slides for presentations.
 
@@ -161,7 +166,7 @@ For example, the following command replays a recorded session on a specific test
 build/NapSAT tests/cnf/test-trigger-mli.cnf -lscb -o "{-commands tests/cnf/test-trigger-mli-commands.txt -dl 10}"
 ```
 
-### Proof generation
+## Proof generation
 
 The solver generates proofs for UNSAT formulas. The proof can be printed in a human-readable format or simply checked using the options `-pp` and `-cp` respectively.
 
@@ -169,7 +174,7 @@ The solver generates proofs for UNSAT formulas. The proof can be printed in a hu
 build/NapSAT tests/cnf/unsat-01.cnf -pp
 ```
 
-## Development
+# Development
 
 - [HACKME.md](HACKME.md) describes the folder structure and the internals of the solver.
 - [KNOWN-ISSUES.md](KNOWN-ISSUES.md) lists the bugs that are known but not fixed yet.
@@ -179,7 +184,7 @@ build/NapSAT tests/cnf/unsat-01.cnf -pp
 - `make perf-bench` measures propagations per second on `tests/cnf/bench` ([scripts/bench.py](scripts/bench.py)).
 - Both the fuzzer and the benchmark also run in CI, see [.github/workflows/](.github/workflows/).
 
-## Citation
+# Citation
 
 If you use NapSAT in your research, please cite the relevant paper:
 
@@ -202,28 +207,39 @@ If you use NapSAT in your research, please cite the relevant paper:
 }
 ```
 
-## Acknowledgements
+# Acknowledgements
 
 NapSAT is part of the PhD research of Robin Coutelier, supervised by Prof. Laura Kovács at the TU Wien, Austria. The author would like to thank Prof. Laura Kovács for her guidance and support during the development of this project.
 This project started supervised by Prof. Pascal Fontaine from the University of Liège, Belgium. We thank him for his guidance and support during the early stages of this project.
 
 Other contributors to this project include Thomas Hader, who contributed to the development of the Graph Backtracking algorithm and the implementation of relevant data structures.
 
-## Funding
+The NapSAT logo was designed by the artist beamoonforge.
+
+# Funding
 
 This project has received funding from the ERC Consolidator Grant ARTIST 101002685;
 the TU Wien Doctoral Colleges TrustACPS and SecInt; the FWF SpyCoDe SFB projects F8504;
 and the WWTF Grant ForSmart 10.47379/ICT22007 and the University of Liège.
 
-## License
+# License
 
-This project is protected under the MIT license. See the LICENSE file for more information.
+The NapSAT source code and documentation are released under the MIT license. See the
+[LICENSE](LICENSE) file for more information.
 
-## Contact
+The NapSAT logo and brand assets in [assets/](assets/) are **not** covered by the MIT
+license. They were designed by beamoonforge, who assigned all rights in the artwork to
+Robin Coutelier. You may use the logo, unmodified, to refer to this project -- in
+papers, talks, documentation, and tool listings -- and this is encouraged. Any other
+use requires permission: in particular, the logo may not be used as the mark of another
+project or of a fork, in a way implying endorsement, or detached from NapSAT as
+general-purpose artwork. See [assets/LICENSE](assets/LICENSE).
+
+# Contact
 
 If you have any questions or suggestions, feel free to contact me at robin.coutelier@tuwien.ac.at
 
-## Bibliography
+# Bibliography
 
 [1] Robin Coutelier, Mathias Fleury, Laura Kovács. Lazy Reimplication in Chronological Backtracking. In Proceedings of the 27th International Conference on Theory and Applications of Satisfiability Testing (SAT 2024), 2024.
 

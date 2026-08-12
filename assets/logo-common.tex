@@ -1,0 +1,158 @@
+% Acknowledgements:
+% The NapSAT logo was designed by the artist beamoonforge.
+%
+% Copyright (c) 2026 Robin Coutelier, designed by beamoonforge, who assigned all
+% rights in the artwork in 2026. Not covered by the MIT license that applies to
+% the rest of NapSAT: the logo may be used to refer to NapSAT, but not as the
+% mark of another project. See assets/LICENSE.
+
+
+% ---------------------------------------------------------------------------
+% Shared body of the named logo. Do not build this file directly: it is
+% \input by the two wrappers that pick a palette.
+%
+%   Logo.tex        light backgrounds (the original artwork)
+%   Logo Dark.tex   dark backgrounds
+%
+% A wrapper selects the dark palette by defining \napsatdarkmode before the
+% \input. The geometry lives here once so the two variants cannot drift apart;
+% anything that changes the *shape* of the mark belongs in this file, and
+% anything that changes only its *colour* belongs in the palette block below.
+\documentclass[tikz,border=4pt]{standalone}
+
+\usepackage{iftex}
+\usepackage{tikz}
+\usetikzlibrary{calc}   % for the (A)!t!(B) interpolation used by the diagonal
+
+\def\wordmarksize{54}    % retune when swapping faces: cap heights differ
+
+\ifpdftex
+  % pdflatex: fontspec is out of reach, so URW Grotesk is too.
+  \usepackage[T1]{fontenc}
+  \usepackage{helvet}
+  \GenericWarning{}{Named Logo: pdflatex cannot load URW Grotesk,
+    falling back to Helvetica -- build with lualatex for the real face}
+  \def\wordmarkfont{\sffamily\bfseries}
+\else
+  \usepackage{fontspec}
+  \IfFontExistsTF{URW Grotesk}{
+    \newfontfamily\wordmarkfontface{URW Grotesk}[UprightFont=*-Bold]
+  }{
+    \GenericWarning{}{Named Logo: URW Grotesk not installed,
+      falling back to Helvetica}
+    \newfontfamily\wordmarkfontface{NimbusSans-Bold.otf}
+      [Path=/usr/share/fonts/opentype/urw-base35/]
+  }
+  \let\wordmarkfont\wordmarkfontface
+\fi
+
+% ---------------------------------------------------------------------------
+% Tunable parameters
+% ---------------------------------------------------------------------------
+\def\hexsize{1.5cm}      % circumradius of the hexagon (centre -> corner)
+\def\dotradius{4.5pt}    % radius of the corner dots
+\def\edgewidth{5pt}      % thickness of the hexagon edges
+\def\diagsegments{5}     % how many alternating colour segments it is cut into
+\def\diagoffset{1.4142pt}   % how far the two diagonals sit apart
+\def\inset{4pt}          % gap left between a dot and a detached edge
+\def\gap{0.5cm}          % horizontal space between hexagon and text
+
+% ---------------------------------------------------------------------------
+% Palette
+% ---------------------------------------------------------------------------
+% The dark variant lightens the blue and leaves the orange at its brand value:
+% napblue is far too dark to read against a dark canvas (1.2:1 on GitHub's
+% #0d1117), while the orange already clears 6.8:1 there and needs no help.
+% The lightened blue keeps the original hue (231 degrees) and only raises the
+% lightness, so the two variants stay recognisably the same mark. It measures
+% 6.2:1 on #0d1117, above the 4.5:1 needed for normal text.
+\ifdefined\napsatdarkmode
+  \definecolor{napblue}{RGB}{122,142,255}
+  \definecolor{naporange}{RGB}{248,124,0}
+\else
+  \definecolor{napblue}{RGB}{13,37,135}
+  \definecolor{naporange}{RGB}{248,124,0}
+\fi
+
+% ---------------------------------------------------------------------------
+\begin{document}
+\begin{tikzpicture}[
+  % A corner dot.
+  dot/.style={circle, inner sep=0pt, minimum size=2.5*\dotradius, fill=#1},
+  % A hexagon edge that runs all the way into both dots.
+  edge/.style={draw=#1, line width=\edgewidth, line cap=round},
+  % A hexagon edge detached from its dots at both ends.
+  stub/.style={edge=#1, shorten <=\inset+\dotradius, shorten >=\inset+\dotradius},
+  % A half edge: touches the first coordinate of the path, leaves a gap
+  % before the second one. Swap the two coordinates to flip which end is free.
+  halfedge/.style={edge=#1, shorten >=\inset+1.75*\dotradius},
+  logotext/.style={
+    anchor=west,
+    font=\wordmarkfont\fontsize{\wordmarksize}{\wordmarksize}\selectfont,
+    inner sep=0pt,
+  },
+]
+
+  % --- the six corners of a hexagon standing on its tip --------------------
+  % Angles: north 90, north east 30, south east -30,
+  %         south -90, south west -150, north west 150.
+  \coordinate (N)  at (  90:\hexsize);
+  \coordinate (NE) at (  30:\hexsize);
+  \coordinate (SE) at ( -30:\hexsize);
+  \coordinate (S)  at ( -90:\hexsize);
+  \coordinate (SW) at (-150:\hexsize);
+  \coordinate (NW) at ( 150:\hexsize);
+
+  % --- the outline, drawn one edge at a time -------------------------------
+  % Swap `edge` <-> `stub` to attach or detach an edge from its dots.
+  \draw[edge=naporange    ] (NW) -- (N);
+  \draw[halfedge=naporange] (N)  -- (NE);
+  \draw[halfedge=napblue  ] (SE) -- (NE);
+  \draw[edge=naporange    ] (SE) -- (S);
+  \draw[halfedge=naporange] (S)  -- (SW);
+  \draw[halfedge=napblue  ] (NW) -- (SW);
+
+  % --- the diagonal, as one line of alternating segments -------------------
+  % NW--SE cut into \diagsegments equal pieces, blue and orange in turn. The
+  % segments butt against each other (default butt line cap, so no round cap
+  % overshoots into the neighbour) and read as a single stroke that changes
+  % colour, rather than as the two parallel lines this used to be.
+  % \foreach \i in {1,...,\diagsegments} {
+  %   \pgfmathsetmacro{\segfrom}{(\i-1)/\diagsegments}
+  %   \pgfmathsetmacro{\segto}{\i/\diagsegments}
+  %   \ifodd\i\relax
+  %     \def\segcolour{napblue}
+  %   \else
+  %     \def\segcolour{naporange}
+  %   \fi
+  %   \draw[draw=\segcolour, line width=\diagwidth]
+  %     ($(NW)!\segfrom!(SE)$) -- ($(NW)!\segto!(SE)$);
+  % }
+    % --- the diagonal, as two parallel lines ---------------------------------
+  % The NW--SE direction is -60 degrees, so 30 degrees is perpendicular to it.
+  \draw[draw=napblue,   line width=0.5*\edgewidth]
+    ([shift=( 30:\diagoffset)]NW) -- ([shift=( 30:\diagoffset)]SE);
+  \draw[draw=naporange, line width=0.5*\edgewidth]
+    ([shift=(210:\diagoffset)]NW) -- ([shift=(210:\diagoffset)]SE);
+
+  % --- the corner dots, on top of the edges --------------------------------
+  % N, S and SE are orange; NE, SW and NW are blue.
+  \node[dot=naporange] at (N)  {};
+  \node[dot=napblue  ] at (NE) {};
+  \node[dot=napblue] at (SE) {};
+  \node[dot=naporange] at (S)  {};
+  \node[dot=napblue  ] at (SW) {};
+  \node[dot=napblue  ] at (NW) {};
+
+  % --- the wordmark --------------------------------------------------------
+  % The hexagon's half-width is cos(30) * \hexsize, so the text starts just
+  % past the NE/SE corners and is vertically centred on the hexagon.
+  \node[logotext] (name) at ({0.86603*\hexsize + \dotradius + \gap}, -0.2)
+    {\textcolor{napblue}{Nap}\textcolor{naporange}{SAT}};
+
+  % --- optional tagline (uncomment to use) ---------------------------------
+  % \node[anchor=north west, font=\sffamily\large, text=napblue]
+  %   at ([yshift=-2pt]name.south west) {A modular CDCL SAT solver};
+
+\end{tikzpicture}
+\end{document}

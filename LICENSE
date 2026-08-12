@@ -2,6 +2,12 @@ MIT License
 
 Copyright (c) 2024 Robin Coutelier
 
+The MIT license below covers the NapSAT source code and documentation. It does
+NOT cover the contents of the assets/ directory: the NapSAT logo and brand
+assets are copyright (c) 2026 Robin Coutelier, designed by beamoonforge, and are
+licensed separately -- they may be used to refer to NapSAT, but not for other
+purposes. See assets/LICENSE.
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights

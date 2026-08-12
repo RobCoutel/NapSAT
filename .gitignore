@@ -30,3 +30,4 @@ scripts/random-instances/
 CLAUDE.md
 .claude/settings.json
 */__pycache__/*
+*.synctex.gz
