@@ -29,6 +29,10 @@ MODULES :=
 BUILD_MODE ?= release
 GUI ?= 0
 
+# The first explicit target in this file is $(FLAGS_FILE), which would
+# otherwise become the default goal, so name the executable explicitly.
+.DEFAULT_GOAL := $(BUILD_DIR)/$(EXEC)
+
 INC_DIRS += ./include/ $(SATSENTINEL_DIR)/include/ $(SATSENTINEL_DIR)/src/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 LINK_FLAGS := -llzma -lbz2

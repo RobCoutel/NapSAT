@@ -283,8 +283,8 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
 #endif
   });
 
-#if NOTIFY_WATCH_CHANGES
   unordered_map<string, sentinel::WatchInvariant*> custom_invariants({
+#if NOTIFY_WATCH_CHANGES
     {"blocked_backtrack_compatible_weak_watched_literals",
       new sentinel::WatchInvariant("Weak watched literal (with blocker)",
                                    [this](sentinel::Tlit c1,
@@ -355,8 +355,8 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
                 || (lit_true(n_blocker) && lit_chunks(n_blocker) <= lit_cross_chunks(n_c1));
         },
         "¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∧ γ(c₂) ⊆ η(c₁)) ∨ (b ∈ π ∧ γ(b) ⊆ η(c₁))]")}
-  });
 #endif
+      });
 
   // reset all invariants to false
   for (auto &invariant : invariants)

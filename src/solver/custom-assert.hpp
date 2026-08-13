@@ -35,8 +35,10 @@
   } while(0)
 
 #else
-#define ASSERT(cond) assert(cond);
+// Variadic like the observed variant above: call sites pass an optional
+// message after the condition, which this variant simply ignores.
+#define ASSERT(cond, ...) assert(cond)
 #endif
 #else
-#define ASSERT(cond) ((void)0)
+#define ASSERT(cond, ...) ((void)0)
 #endif
