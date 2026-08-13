@@ -18,7 +18,7 @@ Known limitations and open bugs are tracked in [KNOWN-ISSUES.md](KNOWN-ISSUES.md
 
 ```bash
 # 1. Clone the repository together with the SATSentinel submodule
-git clone --recursive git@github.com:RobCoutel/NapSAT.git
+git clone https://github.com/RobCoutel/NapSAT.git
 cd NapSAT
 
 # 2. Install the dependencies (liblzma, libbz2) and initialize the submodules
@@ -53,6 +53,10 @@ NapSAT implements a unique Graph Backtracking (GB) strategy [2]. GB enables the 
 ## Sentinel
 
 For debugging and pedagogical purposes, NapSAT implements a sentinel mechanism that allows the user to observe the behavior of the solver with different levels of granularity. The sentinel was later severed from NapSAT and is now available in a separate project called [SATSentinel](https://github.com/RobCoutel/SATSentinel).
+
+The Sentinel comes with a CLI that allows the user to interact with the solver during runtime. The user can choose specific decisions or learn clauses interactively. This is useful for debugging and reproducing bugs.
+
+Optionally, the Sentinel can generate a GUI instead of the CLI. The GUI requires additional dependencies (IMGUI, GLFW, OpenGL) that can be installed with `sudo make install-gui`. The GUI is still experimental and may not work on all systems.
 
 ## Proof Generation and Checking
 

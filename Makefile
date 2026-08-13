@@ -107,7 +107,7 @@ debug: BUILD_MODE = debug
 .PHONY: install install-gui install-test
 install:
 	apt-get install liblzma-dev libbz2-dev
-	git submodule update --init --recursive
+	git submodule update --init SATSentinel
 
 install-gui:
 	$(MAKE) -C $(SATSENTINEL_DIR) install-gui
