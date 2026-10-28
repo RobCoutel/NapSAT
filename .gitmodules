@@ -1,6 +1,6 @@
 [submodule "SATSentinel"]
 	path = SATSentinel
-	url = git@github.com:RobCoutel/SATSentinel.git
+	url = https://github.com/RobCoutel/SATSentinel.git
 [submodule "third_party/fuzzing-SAT-solvers"]
 	path = third_party/fuzzing-SAT-solvers
-	url = git@github.com:requiel20/fuzzing-SAT-solvers.git
+	url = https://github.com/requiel20/fuzzing-SAT-solvers.git

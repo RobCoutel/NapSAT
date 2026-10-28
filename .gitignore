@@ -31,3 +31,4 @@ CLAUDE.md
 .claude/settings.json
 */__pycache__/*
 scripts/gather-csv-script.sh
+*.synctex.gz

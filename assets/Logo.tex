@@ -1,0 +1,24 @@
+% !TEX root = Logo.tex
+% !TEX program = lualatex
+%
+% Acknowledgements:
+% The NapSAT logo was designed by the artist beamoonforge.
+%
+% Copyright (c) 2026 Robin Coutelier, designed by beamoonforge, who assigned all
+% rights in the artwork in 2026. Not covered by the MIT license that applies to
+% the rest of NapSAT: the logo may be used to refer to NapSAT, but not as the
+% mark of another project. See assets/LICENSE.
+%
+% ---------------------------------------------------------------------------
+% Named logo, light-background variant -- the original artwork. The geometry
+% and the font setup live in logo-common.tex; this file only selects the
+% palette, so that the dark variant (Named Logo Dark.tex) cannot drift away
+% from it. Build:
+%
+%   lualatex "Named Logo.tex"
+%   pdftoppm -png -r 150 "Named Logo.pdf" napsat-logo
+%
+% lualatex rather than pdflatex: only the former can reach the URW Grotesk
+% .otf. Both fall back to Helvetica when Grotesk is not installed, and say so
+% in the log.
+\input{logo-common}
