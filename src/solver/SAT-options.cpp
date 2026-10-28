@@ -208,7 +208,7 @@ void napsat::Options::build_option_parser()
   auto& lscb = _parser.add_bool("--lazy-strong-chronological-backtracking", lazy_strong_chronological_backtracking,
     "Enables strong chronological backtracking with the lazy reimplication scheme as described in \n  [2024 - Lazy Reimplication in Chronological Backtracking - Coutelier et al.].")
     .alias("-lscb");
-  auto& gb = p.add_bool("--graph-backtracking", t.graph_backtracking,
+  auto& gb = _parser.add_bool("--graph-backtracking", graph_backtracking,
     "Enables graph backtracking: upon a conflict, selects the lightest set of literals to be unassigned. As described in \n  [2026 - Generalizing CDCL with Graph Backtracking - Coutelier et al.]").alias("-gb");
   auto& lcm = _parser.add_bool("--lazy-chunk-merging", lazy_chunk_merging,
     "Logs missed implications for decisions so that chunks can be merged lazily when needed.")

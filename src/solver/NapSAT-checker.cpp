@@ -371,7 +371,6 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
     {"implied_levels", &s_options.check_implied_levels},
     {"no_missed_implications", &s_options.check_no_missed_implications},
     {"topological_order", &s_options.check_topological_order},
-    {"assignment_coherence", &s_options.check_assignment_coherence},
 #if NOTIFY_WATCH_CHANGES
     {"weak_watched_literals", &s_options.check_weak_watched_literals},
     {"strong_watched_literals", &s_options.check_strong_watched_literals},
