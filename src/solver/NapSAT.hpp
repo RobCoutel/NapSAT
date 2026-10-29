@@ -1919,7 +1919,7 @@ public:
      *
      * To be efficient, this function only considers subsequent literals and checks whether they belong to the same set of chunks. We do not do a O(n^2) check for all pairs of literals because it would be too expensive. This is a heuristic that works well in practice.
      */
-    TScompacted_trail trail_chunk_compaction(const bitset& chunks_of_interest);
+    void trail_chunk_compaction(const bitset& chunks_of_interest, TScompacted_trail& compacted_trail);
 
     typedef struct Tweight {
       /**
@@ -1994,6 +1994,30 @@ public:
       }
     } Tweight;
 
+    /**  CONFLICT REPAIR BUFFERS  **/
+    /**
+     * @brief Scratch buffers of the conflict repair procedures, kept as members to reuse their memory from one conflict to the next.
+     * @details The buffers below are only used by functions that cannot be re-entered while the buffer is in use.
+     */
+    std::vector<bitset> _bt_possibilities;
+    std::vector<Tweight> _bt_weights;
+    TScompacted_trail _compacted_trail;
+    std::vector<Tlit> _compaction_literals;
+    std::vector<size_t> _subsumption_order;
+    /**
+     * @brief Mutable because it is used by the const function enhance_backtrack_possibilities_with_lazy_merging.
+     */
+    mutable std::vector<bitset> _chunk_parents;
+    /**
+     * @brief Buffers that are still in use when internal_add_clause may call repair_conflicts recursively.
+     * @details They must be accessed through a borrowed_buffer (see NapSAT-conflict.cpp), such that a nested call works on its own buffer.
+     */
+    std::vector<std::pair<Tclause, std::vector<Tlit>>> _learned_clauses;
+    std::vector<Tclause> _fix_conflicts;
+    std::vector<bool> _fix_added;
+    std::vector<bool> _fix_subsumed;
+    std::vector<bool> _fix_examined_conflicts;
+
     /**
      * @brief Given a set of bitsets, calculate their weights according to the current state of the solver.
      * @details This functions stop as soon as it can determine which chunks are the lightest. It does not fully compute the weight of all bitsets. After removing the best bitset and calling the function again, the computation will resume from where it stopped.
@@ -2066,20 +2090,20 @@ public:
     /**
      * @brief Checks if a conflict clause can generate a learned clause when analyzed on the chunks bt.
      * @details A conflict clause can generate a learned clause if it intersects with exactly one chunk in bt, after considering the lazy reimplications.
-     * @param conflict the conflict clause to check.
+     * @param conflict_index index of the conflict clause in _conflicts (and of its chunks in _conflicts_chunks).
      * @param bt the chunks to check against.
      * @return true if the conflict clause can generate a learned clause, false otherwise.
      */
-    bool conflict_can_generate_learned_clause(Tclause conflict, const bitset& bt);
+    bool conflict_can_generate_learned_clause(size_t conflict_index, const bitset& bt);
 
     /**
      * @brief Checks if a conflict clause can generate a learned clause when analyzed at level bt.
      * @details A conflict clause can generate a learned clause if it does not have literals above level bt.
-     * @param conflict the conflict clause to check.
+     * @param conflict_index index of the conflict clause in _conflicts.
      * @param bt the level to check against.
      * @return true if the conflict clause can generate a learned clause, false otherwise.
      */
-    bool conflict_can_generate_learned_clause(Tclause conflict, Tlevel bt);
+    bool conflict_can_generate_learned_clause(size_t conflict_index, Tlevel bt);
 
     /**
      * @brief Checks if a learned clause will be able to produce a propagating learned clause after backtracking.
