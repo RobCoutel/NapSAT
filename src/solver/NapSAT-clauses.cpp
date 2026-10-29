@@ -189,13 +189,9 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
     clause.size = input_size - n_removed;
   }
 
-  if (clause_size == 0) {
-    _status = status::UNSAT;
-    return id;
-  }
-
   // Remove duplicate literals
-  if (input_size > 1) {
+  // An empty clause must not reach the cleanup, since it would be reported as a tautology
+  if (clause.size > 1) {
     unsigned new_size = cleanup_duplicate_literals(lits, clause.size);
 
     // if the size is 0, it means that the clause was a tautology.
@@ -241,6 +237,13 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
         }
       }
     }
+  }
+
+  // All the literals are falsified at root level. The empty clause is derived in the proof by the
+  // removal of the root literals above, so this check must happen after the proof is updated.
+  if (clause_size == 0) {
+    _status = status::UNSAT;
+    return id;
   }
   // sort the literals
   sort(lits, lits + clause.size);

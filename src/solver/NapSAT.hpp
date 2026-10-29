@@ -1853,27 +1853,11 @@ public:
     /*************************************************************************/
 
     /**
-     * @brief Removes the clauses that are no longer conflicting from the conflict buffer.
-     * @details In incremental solving, it can be that adding a missed lower implication to the
-     * formula forces a backtrack that invalidates some of the conflicts stored in the conflict buffer.
-     * (not in graph backtracking)
-     */
-    void purge_conflict_buffer();
-
-    /**
-     * @brief Among the backtrack possibilities, remove the ones that are subsumed by others. That is, if a backtrack possibility is a superset of another, it is removed.
-     * @param possibilities vector of backtrack possibilities to filter.
-     * @details This function is used to reduce the number of backtrack possibilities to consider.
-     */
-    void subsumption_filter(std::vector<bitset>& possibilities);
-
-    /**
      * @brief In Lazy Chunk Merging (see -lcm option), enhance each backtrack possibility with the chunks that must be undone together with it to avoid the reimplication provoking the same conflict again.
      * @example If a conflict is caused by chunks {1, 2}, and chunk 2 is lazily merged with chunks {3, 4}, the the combinations should be {1}, {2, 3}, {2, 4}. The combination {1, 2} is not valid because it would provoke the same conflict again.
      * @details The chunk reimplication relation forms a DAG (chunk c has an edge to each chunk of `_chunks[c].missed_implication`); see compute_reachability_closures() for how each possibility is expanded into every valid completion of that DAG.
      */
-    void enhance_backtrack_possibilities_with_lazy_merging(const bitset& combined_chunks,
-                                                           std::vector<bitset>& possibilities) const;
+    void enhance_backtrack_possibilities_with_lazy_merging(std::vector<bitset>& possibilities) const;
 
     /**
      * @brief When multiple conflicts are registered at the same time, this function ensure that they are resolved in an order such that no implication is missed.
@@ -1899,13 +1883,6 @@ public:
      * @return true if there is a conflict at root level, false otherwise.
      */
     bool root_level_conflict();
-
-    /**
-     * @brief In Lazy Chunk Merging (see -lcm option), a conflict an be detected as root level even if its literals are not all at root level. This is the case because the conflict is caused by chunks that are all lazily merged with the empty set of chunks. We can then conclude UNSAT. This function deduces the empty clause for the proof.
-     * @pre The literals of the conflict are in the _lit_buffer and its size in _lit_buffer_size.
-     * @post The empty clause is added to the proof and the status is set to UNSAT.
-     */
-    void prove_root_conflict_with_lazy_merging();
 
     struct TStrail_piece {
       /**
@@ -2026,14 +2003,6 @@ public:
 
     void calculate_bitset_weights(std::vector<Tweight>& weights,
                                   const TScompacted_trail& compacted_trail);
-
-    /**
-     * @brief Given a set of bitsets, calculate an approximation of their weights according to the current state of the solver.
-     * @details The approximation is done by ignoring the intersections between chunks. The cost of each chunk is calculated separately and summed to obtain the total weight of the bitset.
-     * This function is faster than calculate_bitset_weights but less accurate.
-     * @param weights vector of bitsets to evaluate. After the call, the weights are updated.
-     */
-    void calculate_bitset_weights_approx(std::vector<Tweight>& weights);
 
     double calculate_weight(const bitset& chunks);
 
@@ -2392,6 +2361,17 @@ public:
      * @post all the literals in the trail are unmarked
      */
     void prove_root_literal_removal(Tlit* lits, unsigned size);
+
+    /**
+     * @brief From a conflicting clause, produce the empty clause in the proof
+     * system by linking resolutions.
+     * @param cl the conflicting clause
+     * @pre the proof system is enabled
+     * @pre all the literals in the trail must be unmarked
+     * @post the proof system has linked resolutions to produce the empty clause
+     * @post all the literals in the trail are unmarked
+     */
+    void prove_lazy_merge_unsat(Tclause cl);
 
     /**
      * @brief Restarts the solver by resetting the trail

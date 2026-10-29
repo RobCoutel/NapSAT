@@ -8,7 +8,7 @@
  * @file src/solver/NapSAT.cpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the NapSAT solver. It implements the CDCL algorithm and .
+ * @brief This file is part of the NapSAT solver. It implements the CDCL algorithm and the core functions of the solver.
  */
 #include "NapSAT.hpp"
 
@@ -21,46 +21,6 @@
 
 using namespace napsat;
 using namespace std;
-
-void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
-{
-  ASSERT(_proof);
-  // we assume that a resolution chain is already started
-  unsigned count = 0;
-
-  for (unsigned i = 0; i < size; i++) {
-    ASSERT(lit_false(lits[i]));
-    if (lit_level(lits[i]) != LEVEL_ROOT)
-      continue;
-    if (!lit_marked(lits[i])) {
-      count++;
-    }
-    lit_mark(lits[i]);
-  }
-
-  unsigned i = _trail.size() - 1;
-  while (count != 0) {
-    while (!lit_marked(_trail[i]))
-      i--;
-    Tlit lit = _trail[i];
-    ASSERT(lit_level(lit) == LEVEL_ROOT);
-    ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
-    Tclause reason = lit_reason(lit);
-    ASSERT(reason != CLAUSE_UNDEF);
-    _proof->link_resolution(~lit, reason);
-
-    for (unsigned j = 1; j < clause_size(reason); j++) {
-      Tlit lit = clause_lits(reason)[j];
-      ASSERT(lit_false(lit));
-      if (lit_marked(lit))
-        continue;
-      lit_mark(lit);
-      count++;
-    }
-    count--;
-    lit_unmark(lit);
-  }
-}
 
 void NapSAT::restart()
 {
@@ -116,10 +76,6 @@ static inline void print_bt_option(const Options &options) {
       LOG_INFO(" - with backtrack smallest chunk");
     else if (options.backtrack_first_chunk)
       LOG_INFO(" - with backtrack first chunk");
-    if (options.use_max_approximate_cost_estimation)
-      LOG_INFO(" - with max approximate cost estimation");
-    else if (options.use_sum_approximate_cost_estimation)
-      LOG_INFO(" - with sum approximate cost estimation");
     LOG_INFO(" - with backtrack possibilities limit: " + std::to_string(options.backtrack_possibilities_limit));
 
     LOG_INFO(options.get_options_string());

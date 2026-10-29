@@ -267,15 +267,6 @@ void napsat::Options::build_option_parser()
   auto& bl = _parser.add_bool("--backtrack-learned", backtrack_learned,
     "Backtracks the chunks that were analyzed to learn the clause, instead of always backtracking "
     "the smallest possible set of chunks.").alias("-bl");
-  auto& max_c = _parser.add_bool("--use-max-approximate-cost-estimation", use_max_approximate_cost_estimation,
-    "Uses an approximate max-based cost estimation when weighting bitsets during conflict analysis.")
-    .alias("-max-approx-cost");
-  auto& sum_c = _parser.add_bool("--use-sum-approximate-cost-estimation", use_sum_approximate_cost_estimation,
-    "Uses an approximate sum-based cost estimation when weighting bitsets during conflict analysis.")
-    .alias("-sum-approx-cost");
-  auto& vsids_c = _parser.add_bool("--use-vsids-approximate-cost-estimation", use_vsids_approximate_cost_estimation,
-    "Uses a VSIDS-activity-based approximate cost estimation when weighting bitsets during conflict "
-    "analysis.").alias("-vsids-approx-cost");
   _parser.add_double("--chunk-level-penalty", chunk_level_penalty,
     "Penalty for the level of chunks in the cost heuristic used by graph backtracking.");
   auto& compact_trail = _parser.add_bool("--use-compact-trail", use_compact_trail,
@@ -306,13 +297,6 @@ void napsat::Options::build_option_parser()
   bfc.require(gb, true);
   bfc.subsumes(bsc);
   compact_trail.require(gb, true);
-
-  max_c.require(gb, true);
-  sum_c.require(gb, true);
-  sum_c.require(max_c, false);
-  vsids_c.require(gb, true);
-  vsids_c.require(max_c, false);
-  vsids_c.require(sum_c, false);
 }
 
 napsat::Options::Options(vector<string>& tokens)

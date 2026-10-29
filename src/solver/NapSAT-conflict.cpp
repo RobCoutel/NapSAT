@@ -26,46 +26,7 @@ using namespace std;
 namespace napsat
 {
 
-void NapSAT::purge_conflict_buffer()
-{
-  ASSERT(!_options->graph_backtracking);
-  size_t write_index = 0;
-  for (size_t read_index = 0; read_index < _conflicts.size(); read_index++) {
-    Tclause conflict = _conflicts[read_index];
-    if (check_clause_falsified(conflict)) {
-      // still conflicting, keep it
-      _conflicts[write_index++] = conflict;
-      continue;
-    }
-  }
-  _conflicts.resize(write_index);
-}
-
-void NapSAT::subsumption_filter(vector<bitset>& possibilities)
-{
-  if (possibilities.size() <= 1)
-    return;
-  for (size_t i = 0; i < possibilities.size() - 1; i++) {
-    for (size_t j = i + 1; j < possibilities.size(); j++) {
-      if (possibilities[i] >= possibilities[j]) {
-        // j subsumes i, remove i
-        possibilities[i] = possibilities.back();
-        possibilities.pop_back();
-        i--;
-        break;
-      }
-      else if (possibilities[j] >= possibilities[i]) {
-        // i subsumes j, remove j
-        possibilities[j] = possibilities.back();
-        possibilities.pop_back();
-        j--;
-      }
-    }
-  }
-}
-
-void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(const bitset& combined_chunks,
-                                                               vector<bitset>& possibilities) const
+void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(vector<bitset>& possibilities) const
 {
   // The reimplication relation forms a DAG over chunks: parents[c] are the
   // chunks that must also be undone together with c, or c's reimplication
@@ -107,12 +68,7 @@ void NapSAT::compute_backtrack_possibilities(vector<bitset>& possibilities) cons
   if (possibilities.size() > _options->backtrack_possibilities_limit)
     NOTIFY_STAT(_n_backtrack_limit_reached);
 
-  bitset remaining(_n_allocated_chunks);
-  for (const bitset& cl_chunks : _conflicts_chunks) {
-    remaining |= cl_chunks;
-  }
-
-  enhance_backtrack_possibilities_with_lazy_merging(remaining, possibilities);
+  enhance_backtrack_possibilities_with_lazy_merging(possibilities);
 
   NOTIFY_STAT_N(_a_bt_choices, possibilities.size());
 }
@@ -171,7 +127,7 @@ void NapSAT::fix_conflicts_and_learned_in_order(const vector<pair<Tclause, vecto
       unsigned n_undef = 0;
       for (unsigned j = 0; j < clause_size(conflict); j++) {
         if (lit_undef(lits[j])) {
-          if (n_undef++ > 1) {
+          if (++n_undef > 1) {
             // we still need to fix the clause so we need to have a lower less than LEVEL_UNDEF
             level = LEVEL_UNDEF - 1;
           }
@@ -242,6 +198,12 @@ void NapSAT::fix_conflicts_and_learned_in_order(const vector<pair<Tclause, vecto
 Tclause NapSAT::clause_subsumed_in_formula(const Tlit* lits, size_t size) const
 {
   ASSERT(all_of(lits, lits + size, [this](Tlit l){ return lit_marked(l); }));
+
+  // An empty clause can only be subsumed by the empty clause, and a unit clause {l} only by
+  // itself, which would have set l true at root level. Neither can be in the watch lists.
+  // This also protects `size - 1` below from underflowing.
+  if (size < 2)
+    return CLAUSE_UNDEF;
 
   // go through the watch lists of all literals and check if the clause is there
   // since clauses are watched by two literals, we can skip the last one
@@ -329,11 +291,6 @@ bool NapSAT::root_level_conflict()
     }
   }
   return false;
-}
-
-void NapSAT::prove_root_conflict_with_lazy_merging()
-{
-  ASSERT(false);
 }
 
 void NapSAT::calculate_bitset_weights(vector<Tweight>& weights)
@@ -442,117 +399,6 @@ void NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights,
     if (w.finished && w.total_weight < lowest_weight) {
       lowest_weight = w.total_weight;
     }
-  }
-
-  // sort again, such that the best candidate is first
-  sort(weights.begin(), weights.end(),
-            [](const Tweight& a, const Tweight& b) { return b < a; });
-}
-
-void NapSAT::calculate_bitset_weights_approx(vector<Tweight>& weights)
-{
-  if (weights.empty() || weights[0].finished) {
-    sort(weights.begin(), weights.end(),
-            [](const Tweight& a, const Tweight& b) { return b < a; });
-    return;
-  }
-
-  vector<double> chunk_weights(_n_allocated_chunks, 0.0);
-  vector<double> decision_weights(_n_allocated_chunks, 0.0);
-  bitset counted_chunks(_n_allocated_chunks);
-  Tlevel lowest_level = LEVEL_UNDEF;
-  for (Tweight& w : weights) {
-    size_t end = decision_lit_ptr(w.lowest_level) - _trail.data();
-    // this is a bit dirty, but like this we can reuse the same interface as above.
-    // The function will not do anything on the second call.
-    if (w.give_up_point == end)
-      continue;
-    w.give_up_point = end;
-    w.finished = true;
-    counted_chunks |= w.chunks;
-
-    lowest_level = min(lowest_level, w.lowest_level);
-
-    if (_options->use_vsids_approximate_cost_estimation) {
-      // use VSIDS activity as a proxy for literal cost
-      for (auto it = w.chunks.cbegin(); it != w.chunks.cend(); ++it) {
-        size_t chunk_id = *it;
-        Tvar decision = _chunks[chunk_id].decision;
-        chunk_weights[chunk_id] += var_activity(decision);
-      }
-    }
-  }
-
-  if (_options->use_vsids_approximate_cost_estimation) {
-    sort(weights.begin(), weights.end(),
-            [](const Tweight& a, const Tweight& b) { return b < a; });
-    return;
-  }
-
-  // calculate the weight of each chunk
-  size_t start_point = _decision_index[lowest_level-1];
-  bitset lit_chunks_set(_n_allocated_chunks);
-  const bitset* last_chunks = &lit_chunks_set;
-  size_t count = 0;
-  size_t counted_chunk_size = counted_chunks.count();
-
-  for (size_t i = start_point; i < _trail.size(); i++) {
-    Tlit lit = _trail[i];
-    if (!lit_synced(lit)) {
-      ASSERT(!var_synced(lit.var()));
-      continue;
-    }
-    // if (!lit_chunks(lit).has_intersection(counted_chunks)) {
-    //   continue;
-    // }
-    // no need to clear because we know that lit_chunks_set is always a subset of counted_chunks
-    if (*last_chunks != lit_chunks(lit)) {
-      lit_chunks_set = lit_chunks(lit);
-      lit_chunks_set &= counted_chunks;
-      count = lit_chunks_set.count();
-    } else {
-      last_chunks = &lit_chunks(lit);
-    }
-    // if the literal belongs to all, or none of the counted chunks, we can skip it because it will not change the order of the weights
-    if (count == 0 || count == counted_chunk_size)
-      continue;
-
-    double lit_cost = literal_cost(lit);
-
-    // we do not check for cend() because it is slower
-    auto it = lit_chunks_set.cbegin();
-    for (size_t j = 0; j < count; ++j, ++it) {
-      ASSERT(it != lit_chunks_set.cend());
-      size_t chunk_id = *it;
-      chunk_weights[chunk_id] += lit_cost;
-      if (lit_decision(lit)) {
-        decision_weights[chunk_id] += lit_cost;
-      }
-    }
-  }
-
-  // now put the estimated weights together
-  for (Tweight& w : weights) {
-    double max_cost = 0.0;
-    for (auto it = w.chunks.cbegin(); it != w.chunks.cend(); ++it) {
-      size_t chunk_id = *it;
-      if (_options->use_sum_approximate_cost_estimation) {
-        w.total_weight += chunk_weights[chunk_id];
-        continue;
-      }
-      Tvar decision = _chunks[chunk_id].decision;
-      double decision_cost = 0.0;
-      if (var_synced(decision)) {
-        decision_cost = decision_weights[chunk_id];
-      }
-      ASSERT(chunk_weights[chunk_id] >= decision_cost,
-                 "Chunk weight " + to_string(chunk_weights[chunk_id]) +
-                 " is less than decision cost " + to_string(decision_cost) +
-                 " for chunk " + to_string(chunk_id));
-      max_cost = max(max_cost, chunk_weights[chunk_id] - decision_cost);
-      w.total_weight += decision_cost;
-    }
-    w.total_weight += max_cost;
   }
 
   // sort again, such that the best candidate is first
@@ -710,7 +556,6 @@ void NapSAT::analyze_conflict(T level) {
   unsigned i = _trail.size();
 
   while (count > 1 && i > 0) {
-    ASSERT(i > 0);
     Tlit lit = _trail[--i];
     if (!lit_marked(lit))
       continue;
@@ -718,12 +563,6 @@ void NapSAT::analyze_conflict(T level) {
     if (!lit_analyzed(lit, level))
       continue;
     bump_var_activity(lit.var());
-    if (count == 1) {
-      // this is the UIP. We want to put it at the front of the buffer
-      _lit_buffer[_lit_buffer_size++] = ~lit;
-      lit_unmark(lit);
-      break;
-    }
     // mark the literals of the reason
     if (lit_reason(lit) == CLAUSE_UNDEF && lit_lazy_reason(lit) == CLAUSE_UNDEF) {
       ASSERT(_options->lazy_chunk_merging || _options->lazy_strong_chronological_backtracking);
@@ -1045,14 +884,23 @@ void NapSAT::add_and_delete_clause(Tclause cl, const vector<Tlit>& clause)
 void NapSAT::compute_subsumed_clauses(const vector<pair<Tclause, vector<Tlit>>>& clauses, vector<bool>& subsumed)
 {
   ASSERT(clauses.size() == subsumed.size());
+  // visit the clauses by decreasing size, such that a clause can only be subsumed by a later one
+  vector<size_t> order(clauses.size());
+  for (size_t k = 0; k < order.size(); k++) { order[k] = k; }
+  stable_sort(order.begin(), order.end(), [&clauses](size_t a, size_t b) {
+    return clauses[a].second.size() > clauses[b].second.size();
+  });
+
   // do a backward subsumption check on the learned clauses
-  for (size_t i = 0; i < clauses.size(); i++) {
+  for (size_t oi = 0; oi < order.size(); oi++) {
+    size_t i = order[oi];
     if (subsumed[i])
       continue;
     // check if the clause i is subsumed by any later clause
     for (Tlit lit : clauses[i].second) { lit_mark(lit); }
 
-    for (size_t j = i + 1; j < clauses.size(); j++) {
+    for (size_t oj = oi + 1; oj < order.size(); oj++) {
+      size_t j = order[oj];
       if (subsumed[j])
         continue;
 
@@ -1156,9 +1004,6 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
 
     for (unsigned j = 0; j < _lit_buffer_size; j++) { lit_mark(_lit_buffer[j]); }
     bool redundant = learned_clause_is_redundant();
-    if (redundant) {
-      NOTIFY_STAT(_n_fw_subsumption_in_set);
-    }
     // check if the clause is already learned
     if (!redundant) {
       for (const pair<Tclause, vector<Tlit>>& id_clause : learned_clauses) {
@@ -1198,7 +1043,6 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
       _dependency_tracker->finalize_tracking(id);
 
     if (_lit_buffer_size == 0) {
-      cout << "UNSAT: learned clause is empty" << endl;
       _status = status::UNSAT;
       return;
     }
@@ -1239,9 +1083,21 @@ void NapSAT::graph_repair()
 
   if (possibilities.empty()) {
     // we cannot repair the conflicts
-    // TODO: We still need to generate the empty clause for the proof
     _status = status::UNSAT;
-    cout << "UNSAT: conflict cannot be solved because all chunks are locked" << endl;
+    if(_proof) {
+      cout << "UNSAT: conflict cannot be solved because all chunks are locked" << endl;
+      // we need to find which conflict is unsat and generate the proof
+      for (Tclause conflict : _conflicts) {
+        _conflicts_chunks.clear();
+        _conflicts_chunks.push_back(clause_chunks(conflict) - _locked_chunks);
+        possibilities.clear();
+        compute_backtrack_possibilities(possibilities);
+        if (possibilities.empty()) {
+          prove_lazy_merge_unsat(conflict);
+          break;
+        }
+      }
+    }
     return;
   }
 
@@ -1306,16 +1162,10 @@ void NapSAT::graph_repair()
     }
     ASSERT(!weights.empty());
 
-    bool approximate  = _options->use_max_approximate_cost_estimation;
-         approximate |= _options->use_sum_approximate_cost_estimation;
-         approximate |= _options->use_vsids_approximate_cost_estimation;
-
     const auto start = chrono::high_resolution_clock::now();
 
     if (_options->use_compact_trail) {
       calculate_bitset_weights(weights, compacted_trail);
-    } else if (approximate) {
-      calculate_bitset_weights_approx(weights);
     } else {
       calculate_bitset_weights(weights);
     }
@@ -1333,11 +1183,11 @@ void NapSAT::graph_repair()
 #ifndef NDEBUG
     double penalty = _options->chunk_level_penalty * (_trail.size() - _decision_index[analyzed.lowest_level - 1]);
 #endif
-    ASSERT(approximate || analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6,
+    ASSERT(analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6,
                "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) +
                 " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)) +
                 " and penalty is " + to_string(penalty));
-    ASSERT(approximate || analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6,
+    ASSERT(analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6,
                "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) +
                 " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)) +
                 " and penalty is " + to_string(penalty));

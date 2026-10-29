@@ -104,7 +104,7 @@ The complete list of options is available with `build/NapSAT -h`. The most impor
 | `-lscb` | Lazy strong chronological backtracking [1]; subsumes `-cb` |
 | `-gb` | Graph backtracking [2] |
 
-Graph backtracking accepts several modifiers (all of them require `-gb`): `-lcm` / `-ecm` for lazy or eager chunk merging, `-bsc` / `-bfc` to choose the backtracked chunk, `-bl` to backtrack the chunks that were analyzed to learn the clause, and `-max-approx-cost` / `-sum-approx-cost` / `-vsids-approx-cost` to select the cost estimation.
+Graph backtracking accepts several modifiers (all of them require `-gb`): `-lcm` / `-ecm` for lazy or eager chunk merging, `-bsc` / `-bfc` to choose the backtracked chunk, and `-bl` to backtrack the chunks that were analyzed to learn the clause.
 
 `-stat` prints statistics about the solving process, and `-o` enables the sentinel observer. The sentinel can be configured with its own options, which are passed in braces right after `-o`. For example, `-o "{-dl 10 -commands commands.txt}"` sets the display level to 10 and loads a command file for interactive solving.
 

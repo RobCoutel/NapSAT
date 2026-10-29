@@ -279,27 +279,6 @@ namespace napsat
     bool backtrack_learned = false;
 
     /**
-     * @brief If true, the solver will use an approximate cost estimation when calculating the weights of bitsets during conflict analysis.
-     * @alias -max-approx-cost
-     * @requires -gb and not use_sum_approximate_cost_estimation and not use_vsids_approximate_cost_estimation
-     */
-    bool use_max_approximate_cost_estimation = false;
-
-    /**
-     * @brief If true, the solver will use an alternative approximate cost estimation when calculating the weights of bitsets during conflict analysis.
-     * @alias -sum-approx-cost
-     * @requires -gb and not use_max_approximate_cost_estimation and not use_vsids_approximate_cost_estimation
-     */
-    bool use_sum_approximate_cost_estimation = false;
-
-    /**
-     * @brief If true, the solver will use an approximate cost estimation based on VSIDS activity when calculating the weights of bitsets during conflict analysis.
-     * @alias -vsids-approx-cost
-     * @requires -gb and not use_max_approximate_cost_estimation and not use_sum_approximate_cost_estimation
-     */
-    bool use_vsids_approximate_cost_estimation = false;
-
-    /**
      * @brief If true, the solver will use a compact representation of the trail when calculating the weights of bitsets during conflict analysis.
      * @alias -compact-trail
      * @requires -gb
