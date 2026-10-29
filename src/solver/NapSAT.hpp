@@ -1108,6 +1108,7 @@ public:
       statistics::stat *_n_fw_subsumption_in_set = nullptr; // "Forward subsumption in set"
       statistics::stat *_n_fw_subsumption = nullptr; // "Forward subsumption"
       statistics::stat *_n_bw_subsumption = nullptr; // "Backward subsumption"
+      statistics::stat *_n_minimized_literals = nullptr; // "Minimized literals"
       statistics::stat *_n_backtrack_limit_reached = nullptr; // "Backtrack limit reached"
       statistics::stat *_n_conflict_repair = nullptr; // "Conflict repair"
       statistics::stat *_n_failed_learning = nullptr; // "Failed learning"
@@ -2004,6 +2005,8 @@ public:
     TScompacted_trail _compacted_trail;
     std::vector<Tlit> _compaction_literals;
     std::vector<size_t> _subsumption_order;
+    std::vector<Tlit> _minimize_stack;
+    std::vector<Tlit> _minimize_resolved;
     /**
      * @brief Mutable because it is used by the const function enhance_backtrack_possibilities_with_lazy_merging.
      */
@@ -2078,14 +2081,29 @@ public:
     void repair_conflicts();
 
     /**
+     * @brief Returns true if the literal is implied by the marked literals, following the reasons in the implication graph (recursive clause minimization of MiniSat).
+     * @details The literals used to prove the redundancy are marked and pushed in _minimize_resolved. If the literal is not redundant, they are unmarked and removed again.
+     * @param lit true literal on the trail, with a reason clause, whose negation is in the learned clause.
+     * @param abstract_levels abstraction of the levels of the literals in the learned clause.
+     */
+    bool lit_is_redundant(Tlit lit, uint32_t abstract_levels);
+
+    /**
      * @brief Returns true if the literal is required in the learned clause.
      * Returns false if the literal is already implied by the other literals of
      * the clause.
      *
      * @param lit literal to evaluate.
+     * @param abstract_levels abstraction of the levels of the literals in the learned clause.
      * @return false if the literal is redundant with the current learned clause
      */
-    bool lit_is_required_in_learned_clause(Tlit lit);
+    bool lit_is_required_in_learned_clause(Tlit lit, uint32_t abstract_levels);
+
+    /**
+     * @brief Removes the redundant literals from the learned clause in _lit_buffer, with the recursive clause minimization of MiniSat.
+     * @details The literals of the clause must be marked, with the UIP in first position. The proof and the dependencies are updated with the resolutions removing the literals. On return, all literals are unmarked. Root level literals are kept, and must be removed afterwards.
+     */
+    void minimize_learned_clause();
 
     /**
      * @brief Checks if a conflict clause can generate a learned clause when analyzed on the chunks bt.

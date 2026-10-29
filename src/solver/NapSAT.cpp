@@ -130,6 +130,7 @@ napsat::NapSAT::NapSAT(unsigned n_var, unsigned n_clauses, napsat::Options* opti
     stat._n_fw_subsumption = _statistics->add_stat("Forward subsumption", cat_alg);
     stat._n_bw_subsumption = _statistics->add_stat("Backward subsumption", cat_alg);
     stat._n_fw_subsumption_in_set = _statistics->add_stat("Forward subsumption in set", cat_alg);
+    stat._n_minimized_literals = _statistics->add_stat("Minimized literals", cat_alg);
     stat._n_backtrack_forced_chunks = _statistics->add_stat("Backtrack forced chunks", cat_alg);
     stat._n_backtrack_better_chunks = _statistics->add_stat("Backtrack better chunks", cat_alg);
     stat._n_backtrack_limit_reached = _statistics->add_stat("Backtrack limit reached", cat_alg);

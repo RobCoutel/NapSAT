@@ -49,6 +49,14 @@ private:
   T& _owner;
   T _buffer;
 };
+
+/**
+ * @brief Abstraction of a level as a bit, used to quickly filter literals that cannot be redundant in clause minimization.
+ */
+inline uint32_t abstract_level(Tlevel level)
+{
+  return 1u << (level.value & 31);
+}
 }
 
 void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(vector<bitset>& possibilities) const
@@ -496,20 +504,53 @@ bool NapSAT::conflict_is_UIP_cut(Tclause conflict, Tlevel bt)
   return found;
 }
 
-bool NapSAT::lit_is_required_in_learned_clause(Tlit lit)
+bool NapSAT::lit_is_redundant(Tlit lit, uint32_t abstract_levels)
 {
-  if (lit_decision(lit))
+  ASSERT(lit_reason(lit) < _clauses.size());
+  // depth-first search in the implication graph, starting from the reason of lit
+  // the literals proven redundant stay marked, such that they are not explored again
+  const size_t top = _minimize_resolved.size();
+  _minimize_stack.clear();
+  _minimize_stack.push_back(lit);
+  while (!_minimize_stack.empty()) {
+    Tlit p = _minimize_stack.back();
+    _minimize_stack.pop_back();
+    Tclause reason = lit_reason(p);
+    ASSERT(!_clauses[reason].deleted);
+    const Tlit* reason_lits = clause_lits(reason);
+    for (unsigned i = 1; i < clause_size(reason); i++) {
+      Tlit q = reason_lits[i];
+      if (lit_marked(q) || lit_level(q) == LEVEL_ROOT)
+        continue;
+      // the proof of the minimization resolves the literals by decreasing order
+      ASSERT(lit_order(q) < lit_order(p));
+      Tclause q_reason = lit_reason(q);
+      if (q_reason != CLAUSE_UNDEF && q_reason != CLAUSE_LAZY
+       && (abstract_level(lit_level(q)) & abstract_levels) != 0) {
+        lit_mark(q);
+        _minimize_stack.push_back(~q);
+        _minimize_resolved.push_back(~q);
+        continue;
+      }
+      // q is a decision, or it depends on a level absent from the clause: lit is not redundant
+      for (size_t j = top; j < _minimize_resolved.size(); j++)
+        lit_unmark(_minimize_resolved[j]);
+      _minimize_resolved.resize(top);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool NapSAT::lit_is_required_in_learned_clause(Tlit lit, uint32_t abstract_levels)
+{
+  if (lit_decision(lit) || lit_reason(lit) == CLAUSE_LAZY)
     return true;
 
   ASSERT(lit_reason(lit) < _clauses.size());
-  TSclause& clause = _clauses[lit_reason(lit)];
-  ASSERT(!clause.deleted);
+  ASSERT(!_clauses[lit_reason(lit)].deleted);
 
-  bool found_missing = false;
-
-  for (unsigned i = 1; i < clause.size && !found_missing; i++)
-    if (!lit_marked(clause.lits[i]))
-      found_missing = true;
+  bool found_missing = !lit_is_redundant(lit, abstract_levels);
 
   if (found_missing) {
     // check if the lazy reason contains any marked literal
@@ -523,6 +564,61 @@ bool NapSAT::lit_is_required_in_learned_clause(Tlit lit)
   }
 
   return found_missing;
+}
+
+void NapSAT::minimize_learned_clause()
+{
+  ASSERT(_lit_buffer_size > 0);
+  ASSERT(all_of(_lit_buffer, _lit_buffer + _lit_buffer_size, [this](Tlit l){ return lit_marked(l); }));
+  // the levels are only used as a filter: a literal can only be redundant if its level appears in the clause.
+  // the uip is included, since in graph backtracking it does not need to be alone at its level.
+  uint32_t abstract_levels = 0;
+  for (unsigned i = 0; i < _lit_buffer_size; i++)
+    abstract_levels |= abstract_level(lit_level(_lit_buffer[i]));
+
+  _minimize_resolved.clear();
+  unsigned k = 1;
+  for (unsigned i = 1; i < _lit_buffer_size; i++) {
+    Tlit lit = _lit_buffer[i];
+    // root literals are removed later on, with their own proof
+    if (lit_level(lit) == LEVEL_ROOT || lit_is_required_in_learned_clause(~lit, abstract_levels)) {
+      _lit_buffer[k++] = lit;
+      continue;
+    }
+    _minimize_resolved.push_back(~lit);
+  }
+  NOTIFY_STAT_N(_n_minimized_literals, _lit_buffer_size - k);
+  _lit_buffer_size = k;
+
+  if (_proof || _dependency_tracker) {
+    // resolve the removed literals, and the literals used to prove their redundancy.
+    // by decreasing order, a resolved literal is never reintroduced by a later resolution.
+    sort(_minimize_resolved.begin(), _minimize_resolved.end(),
+         [this](Tlit a, Tlit b) { return lit_order(a) > lit_order(b); });
+    for (Tlit lit : _minimize_resolved) {
+      Tclause reason = lit_reason(lit);
+      if (_proof)
+        _proof->link_resolution(~lit, reason);
+      if (_dependency_tracker)
+        _dependency_tracker->track_dependency(reason);
+      // the root literals introduced by the resolution are added to the clause, to be removed with the other root literals
+      const Tlit* reason_lits = clause_lits(reason);
+      for (unsigned j = 1; j < clause_size(reason); j++) {
+        Tlit q = reason_lits[j];
+        if (lit_marked(q))
+          continue;
+        ASSERT(lit_level(q) == LEVEL_ROOT);
+        lit_mark(q);
+        _lit_buffer[_lit_buffer_size++] = q;
+      }
+    }
+  }
+
+  for (Tlit lit : _minimize_resolved)
+    lit_unmark(lit);
+  for (unsigned i = 0; i < _lit_buffer_size; i++)
+    lit_unmark(_lit_buffer[i]);
+  ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
 }
 
 bool NapSAT::lit_analyzed(Tlit lit, Tlevel level)
@@ -617,12 +713,11 @@ void NapSAT::analyze_conflict(T level) {
   Tlit uip = LIT_UNDEF;
   // make space to push the UIP literal at the front of the buffer
   _lit_buffer_size = 1;
-  // collect all the marked literals
+  // collect all the marked literals. They stay marked for the minimization
   for (size_t i = 0; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     if (!lit_marked(lit))
       continue;
-    lit_unmark(lit);
 
     if (lit_analyzed(lit, level)) {
       ASSERT(uip == LIT_UNDEF, "There should be only one UIP literal");
@@ -631,17 +726,12 @@ void NapSAT::analyze_conflict(T level) {
     }
 
     bump_var_activity(lit.var());
-    if(lit_is_required_in_learned_clause(lit)) {
-      _lit_buffer[_lit_buffer_size++] = ~lit;
-    } else {
-      if (_proof)
-        _proof->link_resolution(~lit, lit_reason(lit));
-      if (_dependency_tracker)
-        _dependency_tracker->track_dependency(lit_reason(lit));
-    }
+    _lit_buffer[_lit_buffer_size++] = ~lit;
   }
   ASSERT(uip != LIT_UNDEF, "There should be a UIP literal");
   _lit_buffer[0] = ~uip;
+
+  minimize_learned_clause();
 
   // clean up the literals at level 0
   if (_proof)
@@ -1015,9 +1105,19 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
       if (_dependency_tracker)
         _dependency_tracker->track_dependency(lazy_reason);
 
-      const Tlit* reason_lits = clause_lits(lazy_reason);
+      Tlit* reason_lits = clause_lits(lazy_reason);
+      // the root literals of the missed implication are removed right away, as in analyze_conflict.
+      // otherwise, a missed root implication would leave a clause with only root literals to analyze
+      if (_proof)
+        prove_root_literal_removal(reason_lits + 1, clause_size(lazy_reason) - 1);
       for (unsigned j = 1; j < clause_size(lazy_reason); j++) {
-        _lit_buffer[_lit_buffer_size++] = reason_lits[j];
+        Tlit lit = reason_lits[j];
+        if (lit_level(lit) == LEVEL_ROOT) {
+          if (_dependency_tracker)
+            _dependency_tracker->track_dependency(lit_reason(lit));
+          continue;
+        }
+        _lit_buffer[_lit_buffer_size++] = lit;
       }
       if (_lit_buffer_size == 1) {
         _lit_buffer_size = 0;
