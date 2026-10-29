@@ -99,7 +99,7 @@ void NapSAT::imply(Tlit lit, Tclause reason)
         // In graph backtracking we do not have any information about the levels
         // we need to compute it by going through the clause
         svar.level = implication_level(reason);
-        recompute_chunks(lit);
+        recompute_clause_chunks(reason, svar.chunks);
         if (size > 2) {
           lit_cross_chunks(lits[1]) |= svar.chunks;
         }
@@ -126,7 +126,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   ASSERT(lit_true(lit));
   ASSERT(reason != CLAUSE_UNDEF && reason != CLAUSE_LAZY);
   ASSERT(lit == clause_lits(reason)[0]);
-  ASSERT(clause_size(reason) == 1);
+  ASSERT(implication_level(reason) == 0);
   if (lit_level(lit) == LEVEL_ROOT)
     return;
 
@@ -153,6 +153,7 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
   ASSERT(pos < _trail.size());
 
   // if the literal is a decision, we will need to update the decision index
+  vector<Tchunk> root_reimplied;
   bool squash_level = lit_decision(lit);
   if (squash_level && _options->graph_backtracking) {
     // we need to free the chunk of the decision
@@ -160,6 +161,17 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
     Tchunk ck = *lit_chunks(lit).cbegin();
     _locked_chunks.set(ck, false);
     free_chunk(ck);
+    if (_options->lazy_chunk_merging) {
+      // we need to check wether another chunk was reimplied by ck. If that is the case, we need to remove ck from its missed implication set
+      for (Tchunk c = 0; c < _n_allocated_chunks; c++) {
+        if (_chunks[c].is_reimplied && _chunks[c].missed_implication.get(ck)) {
+          _chunks[c].missed_implication.set(ck, false);
+          if (_chunks[c].missed_implication.empty()) {
+            root_reimplied.push_back(c);
+          }
+        }
+      }
+    }
     _decision_index.resize(_decision_index.size() - 1);
     lit_lazy_reason(lit) = CLAUSE_UNDEF;
   }
@@ -258,12 +270,18 @@ void napsat::NapSAT::reimply_literal_root(Tlit lit, Tclause reason)
       if (lit_chunks(l) >= old_chunks) {
         Tlevel prev_level = lit_level(l);
         lit_level(l) = implication_level(lit_reason(l));
-        recompute_chunks(l);
+        recompute_clause_chunks(lit_reason(l), lit_chunks(l));
         if (lit_level(l) != prev_level) {
           NOTIFY(update_level, l, lit_level(l));
         }
       }
     }
+  }
+
+  for (Tchunk c : root_reimplied) {
+    Tvar var = _chunks[c].decision;
+    Tlit c2 = Tlit(var, _vars[var].state == Tval::TRUE);
+    reimply_literal_root(c2, var_lazy_reason(var));
   }
 
   ASSERT(check_decision_index_consistency());
@@ -351,24 +369,10 @@ void NapSAT::reimply_graph(Tlit lit, Tclause reason)
   // Lazy chunk merging
   if (_options->lazy_chunk_merging && lit_lazy_reason(c2) == CLAUSE_UNDEF) {
     // compute the chunk set of the clause, excluding the lits[1]
-    bitset chunks(_n_allocated_chunks);
-    for (size_t j = 1; j < clause.size; j++) {
-      ASSERT(lits[j] != c2);
-      chunks |= lit_chunks(lits[j]);
-    }
+    bitset chunks = implication_chunks(reason);
 
     ASSERT(lit_chunks(c2).count() == 1);
     Tchunk decision_chunk = *lit_chunks(c2).cbegin();
-
-    if (chunks.empty()) {
-      // every other literal of reason is at the root level: c2 does not
-      // actually depend on any decision chunk, so reason proves it
-      // unconditionally. Reimply it eagerly (freeing its chunk and moving
-      // it to the root) instead of registering a lazy merge with an empty
-      // (and therefore vacuously "always active") dependency set.
-      eager_decision_reimplication(c2, reason);
-      return;
-    }
 
     NOTIFY_STAT(_n_cross_implication_decisions);
     if (!reimplication_cycle(decision_chunk, chunks)) {
@@ -390,10 +394,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
   ASSERT(check_clause_implying(reason));
 
   // check that the chunks don't cycle. That is, check that γ(C) ∩ γ(decision) = ∅. If they do, we cannot do eager reimplication, as we would end up with a cycle of implications.
-  bitset reason_chunks = bitset(_n_allocated_chunks);
-  for (unsigned i = 1; i < clause_size(reason); i++) {
-    reason_chunks |= lit_chunks(clause_lits(reason)[i]);
-  }
+  bitset reason_chunks = implication_chunks(reason);
   if (reason_chunks.has_intersection(lit_chunks(decision))) {
     return;
   }
@@ -492,7 +493,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
       }
       lit_level(lit) = implication_level(lit_reason(lit));
       if (_options->graph_backtracking && !keep) {
-        recompute_chunks(lit);
+        recompute_clause_chunks(lit_reason(lit), lit_chunks(lit));
       }
     }
 
@@ -534,7 +535,7 @@ void NapSAT::eager_decision_reimplication(Tlit decision, Tclause reason)
     } else {
       lit_level(lit) = implication_level(lit_reason(lit));
       if (_options->graph_backtracking) {
-        recompute_chunks(lit);
+        recompute_clause_chunks(lit_reason(lit), lit_chunks(lit));
       }
     }
 

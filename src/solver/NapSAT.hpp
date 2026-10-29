@@ -1474,8 +1474,23 @@ public:
      */
     inline size_t clause_size(Tclause cl) const { return _clauses[cl].size; }
 
+    /**
+     * @brief Returns the level of a clause.
+     * @param cl clause to evaluate.
+     * @return the maximum level of the literals in the clause.
+     */
+    Tlevel clause_level(Tclause cl) const;
+
+    /**
+     * @brief Returns the level of a clause without the first literal.
+     * @param cl clause to evaluate.
+     * @return the maximum level of the literals in the clause without the first literal.
+     * @details This is used to compute the level of a clause that implied a literal.
+     */
     inline Tlevel implication_level(Tclause cl) const {
       const Tlit* lits = clause_lits(cl);
+      ASSERT(clause_size(cl) > 0);
+      ASSERT(!lit_false(lits[0]));
       Tlevel max_level = LEVEL_ROOT;
       for (size_t i = 1; i < clause_size(cl); i++) {
         max_level = std::max(max_level, lit_level(lits[i]));
@@ -1483,13 +1498,43 @@ public:
       return max_level;
     }
 
-    inline void recompute_chunks(Tlit lit) {
-      ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
-      const Tlit* lits = clause_lits(lit_reason(lit));
-      lit_chunks(lit).clear();
-      for (size_t i = 1; i < clause_size(lit_reason(lit)); i++) {
-        lit_chunks(lit) |= lit_chunks(lits[i]);
+    /**
+     * @brief Returns the chunks of a clause.
+     * @param cl clause to evaluate.
+     * @return chunk of the clause.
+     */
+    inline bitset clause_chunks(Tclause cl) const {
+      bitset chunk(_n_allocated_chunks);
+      const Tlit* lits = clause_lits(cl);
+      unsigned size = clause_size(cl);
+      for (unsigned i = 0; i < size; i++) {
+        chunk |= lit_chunks(lits[i]);
       }
+      return chunk;
+    }
+
+    inline bitset implication_chunks(Tclause cl) const {
+      const Tlit* lits = clause_lits(cl);
+      ASSERT(clause_size(cl) > 0);
+      ASSERT(!lit_false(lits[0]));
+      bitset chunk(_n_allocated_chunks);
+      unsigned size = clause_size(cl);
+      for (unsigned i = 1; i < size; i++) {
+        chunk |= lit_chunks(lits[i]);
+      }
+      return chunk;
+    }
+
+    inline void recompute_clause_chunks(Tclause cl, bitset& chunk) const {
+      ASSERT(cl < _clauses.size());
+      chunk.clear();
+      const Tlit* lits = clause_lits(cl);
+      unsigned size = clause_size(cl);
+      unsigned i = 0;
+      if (size > 0 && lit_false(lits[0]))
+        i = 1;
+      for (; i < size; i++)
+        chunk |= lit_chunks(lits[i]);
     }
 
 
@@ -1599,20 +1644,6 @@ public:
     Tclause internal_add_clause(const Tlit* lits, unsigned size,
                                 bool learned, bool external,
                                 Tclause id = CLAUSE_UNDEF);
-
-    /**
-     * @brief Returns the chunks of a clause.
-     * @param cl clause to evaluate.
-     * @return chunk of the clause.
-     */
-    bitset clause_chunks(Tclause cl) const;
-
-    /**
-     * @brief Returns the level of a clause.
-     * @param cl clause to evaluate.
-     * @return the maximum level of the literals in the clause.
-     */
-    Tlevel clause_level(Tclause cl) const;
 
     /**
      * @brief Defragments the order of the trail. That is, the order of the variables in the trail is updated to

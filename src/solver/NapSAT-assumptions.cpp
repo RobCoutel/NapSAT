@@ -96,10 +96,7 @@ std::vector<Tlit> napsat::NapSAT::unsat_core() const
   for (const Tclause conflict : _conflicts) {
     const Tlit* lits = clause_lits(conflict);
     const unsigned size = clause_size(conflict);
-    conflict_chunks.clear();
-    for (unsigned i = 0; i < size; i++) {
-      conflict_chunks |= lit_chunks(lits[i]);
-    }
+    recompute_clause_chunks(conflict, conflict_chunks);
     if (conflict_chunks <= _locked_chunks) {
       // all chunks in the conflict are locked, the assumption failed
       for (unsigned i = 0; i < size; i++) {
@@ -128,12 +125,7 @@ std::vector<Tclause> napsat::NapSAT::clause_unsat_core()
   bitset conflict_chunks(_n_allocated_chunks);
   Tclause conflict_clause = CLAUSE_UNDEF;
   for (const Tclause conflict : _conflicts) {
-    const Tlit* lits = clause_lits(conflict);
-    const unsigned size = clause_size(conflict);
-    conflict_chunks.clear();
-    for (unsigned i = 0; i < size; i++) {
-      conflict_chunks |= lit_chunks(lits[i]);
-    }
+    recompute_clause_chunks(conflict, conflict_chunks);
     if (conflict_chunks <= _locked_chunks) {
       // all chunks in the conflict are locked, the assumption failed
       conflict_clause = conflict;

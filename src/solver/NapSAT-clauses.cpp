@@ -356,17 +356,6 @@ void napsat::NapSAT::delete_clause(Tclause cl)
     _dependency_tracker->delete_clause(cl);
 }
 
-bitset napsat::NapSAT::clause_chunks(Tclause cl) const
-{
-  bitset chunk(_n_allocated_chunks);
-  const Tlit* lits = clause_lits(cl);
-  unsigned size = clause_size(cl);
-  for (unsigned i = 0; i < size; i++) {
-    chunk |= lit_chunks(lits[i]);
-  }
-  return chunk;
-}
-
 Tlevel napsat::NapSAT::clause_level(Tclause cl) const
 {
   ASSERT(cl != CLAUSE_UNDEF);

@@ -70,6 +70,11 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(vector<bitset>& p
   parents.resize(_n_allocated_chunks);
   bitset mergeable_chunks(_n_allocated_chunks);
   for (Tchunk c = 0; c < _n_allocated_chunks; c++) {
+    ASSERT(_chunks[c].decision < _vars.size());
+    ASSERT(!_chunks[c].is_reimplied || var_lazy_reason(_chunks[c].decision) != CLAUSE_UNDEF,
+           "Chunk " + to_string(c) + " is reimplied but its decision variable " + _chunks[c].decision.to_string() + " has no lazy reason");
+    ASSERT(!_chunks[c].is_reimplied || _chunks[c].missed_implication == implication_chunks(var_lazy_reason(_chunks[c].decision)),
+            "Chunk " + to_string(c) + " is reimplied but its decision variable " + _chunks[c].decision.to_string() + " has a lazy reason " + clause_to_string(var_lazy_reason(_chunks[c].decision)) + " whose chunks are " + clause_chunks(var_lazy_reason(_chunks[c].decision)).to_string() + ", which does not match the chunk's missed implication " + _chunks[c].missed_implication.to_string());
     parents[c] = _chunks[c].missed_implication;
     if (_chunks[c].is_reimplied) {
       mergeable_chunks.set(c, true);
@@ -99,6 +104,7 @@ void NapSAT::compute_backtrack_possibilities(vector<bitset>& possibilities) cons
 {
   compute_hitting_sets_smallest_first(_conflicts_chunks, possibilities,
                                       static_cast<unsigned>(_options->backtrack_possibilities_limit), true);
+
   if (possibilities.size() > _options->backtrack_possibilities_limit)
     NOTIFY_STAT(_n_backtrack_limit_reached);
 
@@ -1093,6 +1099,7 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
       if (lazy_reason == CLAUSE_UNDEF) {
         break;
       }
+      NOTIFY(message, "Missed implication " + clause_to_string(lazy_reason) + " for literal " + lit_to_string(uip) + " at level " + bt.to_string(), 8);
       // check if the missed implication is at a lower level
       if (!implication_active_after_backtrack(lazy_reason, bt)) {
         break;
