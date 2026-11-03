@@ -53,12 +53,6 @@ void compute_reachability_closures(const vector<bitset>& parents,
   assert (forbidden.capacity() == allocated_size);
   assert (mergeable.capacity() == allocated_size);
 
-  cout << "Computing reachability closures for start = " << start.to_string() << ", forbidden = " << forbidden.to_string() << endl;
-  cout << "Completions before: " << completions.size() << endl;
-  for (size_t i = 0; i < completions.size(); i++) {
-    cout << "  " << i << ": " << completions[i].to_string() << endl;
-  }
-
   priority_queue<closure_node, vector<closure_node>, compare_closure_nodes> stack;
   stack.push({start, bitset(allocated_size)});
 
