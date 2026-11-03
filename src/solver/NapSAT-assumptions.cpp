@@ -326,7 +326,10 @@ bool NapSAT::add_assumption_GB_false(std::vector<Tlit>& lits)
   Tlevel highest_level = LEVEL_ROOT;
 
   setup_weights(possibilities, highest_level, weights);
-  calculate_bitset_weights(weights);
+  if (_options->pick_highest_chunks)
+    sort_by_highest_chunks(weights);
+  else
+    calculate_bitset_weights(weights);
   const Tweight& best = weights.back();
 
   cout << "Removing chunks " << best.chunks.to_string() << " to add assumptions with weight " << best.total_weight << endl;

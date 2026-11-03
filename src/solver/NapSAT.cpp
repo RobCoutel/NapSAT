@@ -75,6 +75,8 @@ static inline void print_bt_option(const Options &options) {
       LOG_INFO(" - with backtrack smallest chunk");
     else if (options.backtrack_first_chunk)
       LOG_INFO(" - with backtrack first chunk");
+    if (options.pick_highest_chunks)
+      LOG_INFO(" - with pick highest chunks");
     LOG_INFO(" - with backtrack possibilities limit: " + std::to_string(options.backtrack_possibilities_limit));
 
     LOG_INFO(options.get_options_string());

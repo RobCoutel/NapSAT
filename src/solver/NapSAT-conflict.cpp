@@ -462,6 +462,35 @@ void NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights,
             [](const Tweight& a, const Tweight& b) { return b < a; });
 }
 
+void NapSAT::sort_by_highest_chunks(vector<Tweight>& weights)
+{
+  for (Tweight& w : weights)
+    w.finished = true;
+
+  // the best candidate is at the back of the vector
+  sort(weights.begin(), weights.end(),
+       [](const Tweight& a, const Tweight& b) {
+         if (a.lowest_level != b.lowest_level)
+           return a.lowest_level < b.lowest_level;
+         if (a.highest_level != b.highest_level)
+           return a.highest_level < b.highest_level;
+         if (a.maybe_learning != b.maybe_learning)
+           return b.maybe_learning;
+         // prefer fewer chunks, then go through the chunks to have a deterministic order
+         if (a.chunks.count() != b.chunks.count())
+           return a.chunks.count() > b.chunks.count();
+         auto it1 = a.chunks.cbegin();
+         auto it2 = b.chunks.cbegin();
+         while (it1 != a.chunks.cend() && it2 != b.chunks.cend()) {
+           if (*it1 != *it2)
+             return *it1 > *it2;
+           ++it1;
+           ++it2;
+         }
+         return false;
+       });
+}
+
 double NapSAT::calculate_weight(const bitset& chunks)
 {
   double total_weight = 0.0;
@@ -1276,7 +1305,7 @@ void NapSAT::graph_repair()
   Tweight best;
   Tweight analyzed;
 
-  if (_options->chunk_level_penalty != 0.0) {
+  if (_options->chunk_level_penalty != 0.0 && !_options->pick_highest_chunks) {
     // add an extra cost on the lowest levels
     for (Tweight& w : weights) {
       ASSERT(w.total_weight == 0);
@@ -1306,7 +1335,9 @@ void NapSAT::graph_repair()
 
     const auto start = chrono::high_resolution_clock::now();
 
-    if (_options->use_compact_trail) {
+    if (_options->pick_highest_chunks) {
+      sort_by_highest_chunks(weights);
+    } else if (_options->use_compact_trail) {
       calculate_bitset_weights(weights, compacted_trail);
     } else {
       calculate_bitset_weights(weights);
@@ -1326,7 +1357,8 @@ void NapSAT::graph_repair()
     ASSERT(analyzed.lowest_level > 0);
     double penalty = _options->chunk_level_penalty * (_trail.size() - _decision_index[analyzed.lowest_level - 1]);
 #endif
-    ASSERT(abs(analyzed.total_weight - penalty - calculate_weight(analyzed.chunks)) <= 1e-6,
+    ASSERT(_options->pick_highest_chunks
+        || abs(analyzed.total_weight - penalty - calculate_weight(analyzed.chunks)) <= 1e-6,
                "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) +
                 " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)) +
                 " and penalty is " + to_string(penalty));

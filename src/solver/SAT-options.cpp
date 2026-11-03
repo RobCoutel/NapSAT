@@ -269,6 +269,9 @@ void napsat::Options::build_option_parser()
     "the smallest possible set of chunks.").alias("-bl");
   _parser.add_double("--chunk-level-penalty", chunk_level_penalty,
     "Penalty for the level of chunks in the cost heuristic used by graph backtracking.");
+  auto& phc = _parser.add_bool("--pick-highest-chunks", pick_highest_chunks,
+    "Does not compute the weight of the backtrack possibilities in graph backtracking, and picks "
+    "the chunks with the highest decision levels instead.").alias("-phc");
   auto& compact_trail = _parser.add_bool("--use-compact-trail", use_compact_trail,
     "Uses a compact representation of the trail when calculating the weights of bitsets during "
     "conflict analysis.").alias("-compact-trail");
@@ -297,6 +300,8 @@ void napsat::Options::build_option_parser()
   bfc.require(gb, true);
   bfc.subsumes(bsc);
   compact_trail.require(gb, true);
+  phc.require(gb, true);
+  phc.subsumes(compact_trail);
 }
 
 napsat::Options::Options(vector<string>& tokens)

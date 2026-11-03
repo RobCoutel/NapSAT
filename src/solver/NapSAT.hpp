@@ -2095,6 +2095,13 @@ public:
     double calculate_weight(const bitset& chunks);
 
     /**
+     * @brief Ranks the bitsets by decision levels instead of weights, used when pick_highest_chunks is enabled.
+     * @details The bitsets are sorted such that the one with the highest lowest level is at the back of the vector. Ties are broken by the highest level, then by the possibility to learn. All bitsets are marked as finished, with a total weight of 0.
+     * @param weights vector of bitsets to rank.
+     */
+    void sort_by_highest_chunks(std::vector<Tweight>& weights);
+
+    /**
      * @brief Given a set of conflicting clauses, computes the set of chunk sets, that, if backtracked, will resolve all conflicts at once.
      * @details The chunk sets are stored in the vector possibilities. A possibility Γ is a set of chunks such that ∀ C ∈ κ. γ(C) ∩ Γ ≠ ∅
      * @param conflicts set of conflicting clauses.

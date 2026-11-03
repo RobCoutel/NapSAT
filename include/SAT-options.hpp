@@ -295,6 +295,14 @@ namespace napsat
     double chunk_level_penalty = 0.01;
 
     /**
+     * @brief If true, the solver does not compute the weight of the backtrack possibilities. Instead, it picks the chunks with the highest decision levels.
+     * @details Possibilities are ranked by their lowest decision level, then by their highest decision level (higher is better).
+     * @alias -phc
+     * @requires -gb
+     */
+    bool pick_highest_chunks = false;
+
+    /**
      * @brief Limit on the number of backtrack possibilities to consider when using graph backtracking. If the number of possibilities is greater than the limit, the solver will heuristically cutoff.
      */
     double backtrack_possibilities_limit = 1000;
