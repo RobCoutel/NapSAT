@@ -67,7 +67,7 @@ void napsat::NapSAT::purge_root_watch_lists()
   // Therefore we need to clean the watch lists
   for (unsigned i = 0; i < _n_propagated_lits; i++) {
     Tlit lit = _trail[i];
-    if (lit_level(lit) != LEVEL_ROOT)
+    if (level(lit) != LEVEL_ROOT)
       continue;
 
     lit = ~lit;
@@ -97,7 +97,7 @@ void napsat::NapSAT::purge_root_watch_lists()
 
       ASSERT(clause.size > 2,
         "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lit));
-      if (lit_true(w.block) && lit_level(w.block) == LEVEL_ROOT) {
+      if (lit_true(w.block) && level(w.block) == LEVEL_ROOT) {
         // delete the clause. repair_watch_lists will take care of the rest
         delete_clause(cl);
         continue;
@@ -108,13 +108,13 @@ void napsat::NapSAT::purge_root_watch_lists()
       lits[0] = lit2;
       lits[1] = lit;
 
-      if (lit_true(lits[0]) && lit_level(lits[0]) == LEVEL_ROOT) {
+      if (lit_true(lits[0]) && level(lits[0]) == LEVEL_ROOT) {
         // delete the clause. repair_watch_lists will take care of the rest
         delete_clause(cl);
         continue;
       }
       for (unsigned i = 2; i < clause.size; i++) {
-        if (lit_level(lits[i]) != LEVEL_ROOT || lit_true(lits[i])) {
+        if (level(lits[i]) != LEVEL_ROOT || lit_true(lits[i])) {
           lits[1] ^= lits[i];
           lits[i] ^= lits[1];
           lits[1] ^= lits[i];
@@ -151,8 +151,8 @@ void napsat::NapSAT::purge_clauses()
     // Since all literals are propagated, if a clause has a watched literal falsified at level 0, then the other must be satisfied.
     // In strong chronological backtracking, the other watched literal must be satisfied at level 0 too.
     Tlit* lits = clause.lits;
-    if ((lit_true(lits[0]) && lit_level(lits[0]) == LEVEL_ROOT)
-      || (lit_true(lits[1]) && lit_level(lits[1]) == LEVEL_ROOT)) {
+    if ((lit_true(lits[0]) && level(lits[0]) == LEVEL_ROOT)
+      || (lit_true(lits[1]) && level(lits[1]) == LEVEL_ROOT)) {
       delete_clause(cl);
       continue;
     }
@@ -161,7 +161,7 @@ void napsat::NapSAT::purge_clauses()
     Tlit* end = lits + clause.size - 1;
     unsigned previous_size = clause.size;
     while (i <= end) {
-      if (lit_level(*i) != LEVEL_ROOT) {
+      if (level(*i) != LEVEL_ROOT) {
         i++;
         continue;
       }
@@ -190,18 +190,18 @@ void napsat::NapSAT::purge_clauses()
     if (clause.deleted)
       continue;
 
-    if (lit_level(lits[1]) == LEVEL_ROOT) {
+    if (level(lits[1]) == LEVEL_ROOT) {
       if (lit_true(lits[1])) {
         delete_clause(cl);
         continue;
       }
-      else if (lit_propagated(lits[1])) {
+      else if (propagated(lits[1])) {
 #ifndef NDEBUG
         for (unsigned i = 2; i < clause.size; i++) {
           ASSERT(lit_false(lits[i]),
             "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]));
-          ASSERT(lit_level(lits[i]) == LEVEL_ROOT,
-            "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]) + "\nLevel: " + lit_level(lits[i]).to_string());
+          ASSERT(level(lits[i]) == LEVEL_ROOT,
+            "Clause: " + clause_to_string(cl) + "\nLiteral: " + lit_to_string(lits[i]) + "\nLevel: " + level(lits[i]).to_string());
         }
 #endif
         NOTIFY(shrink_clause, cl, lits[1]);
@@ -221,7 +221,7 @@ void napsat::NapSAT::purge_clauses()
     }
     if (_dependency_tracker && previous_size != clause.size) {
       for (unsigned j = clause.size; j < previous_size; j++) {
-        _dependency_tracker->link_dependencies(cl, lit_reason(clause.lits[j]));
+        _dependency_tracker->link_dependencies(cl, reason(clause.lits[j]));
       }
     }
 

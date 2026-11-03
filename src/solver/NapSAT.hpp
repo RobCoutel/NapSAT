@@ -180,13 +180,13 @@ do {                                                                          \
       _vars.size().value - 1,                                                 \
       _trail,                                                                 \
       [this](Tlit lit) {                                                      \
-        Tclause reason = this->lit_reason(lit);                               \
+        Tclause reason = this->reason(lit);                               \
         if (reason == CLAUSE_UNDEF)                                           \
           return (const Tlit*) nullptr;                                       \
         return (const Tlit*) this->clause_lits(reason);                       \
       },                                                                      \
       [this](Tlit lit) {                                                      \
-        Tclause reason = this->lit_reason(lit);                               \
+        Tclause reason = this->reason(lit);                               \
         if (reason == CLAUSE_UNDEF)                                           \
           return (size_t) 0;                                                  \
         return this->clause_size(reason);                                     \
@@ -453,7 +453,7 @@ namespace napsat
     */
     inline bool is_decided(Tlit lit) const {
       ASSERT(!lit_undef(lit));
-      return lit_decision(lit);
+      return is_decision(lit);
     }
 
     /**
@@ -464,7 +464,7 @@ namespace napsat
      */
     inline bool is_root_level(Tlit lit) const {
       ASSERT(!lit_undef(lit));
-      return lit_level(lit) == LEVEL_ROOT;
+      return level(lit) == LEVEL_ROOT;
     }
 
     /**
@@ -522,6 +522,7 @@ public:
 
     size_t _current_order = 0;
     static const size_t ORDER_RESET = 0xFFFFFFFFFFFFFFFF;
+    static const size_t TRAIL_POS_UNDEF = 0xFFFFFFFFFFFFFFFF;
 
     /*************************************************************************/
     /*                            Data structures                            */
@@ -563,6 +564,13 @@ public:
        * or reaches arithmetic overflow.
        */
       size_t order = ORDER_RESET;
+
+      /**
+       * @brief Position of the variable in the trail.
+       * @details If the variable is unassigned, the position is TRAIL_POS_UNDEF.
+       * @invariant ∀ℓ ∈ π. π[trail_pos(ℓ)] = ℓ
+       */
+      size_t trail_pos = TRAIL_POS_UNDEF;
 
       /**
        * @brief Activity of the variable. Used in decision heuristics.
@@ -1032,6 +1040,15 @@ public:
      */
     bitset _locked_chunks;
 
+    /**
+     * @brief Set of chunks that were backtracked recently. Until the next decision, these chunks are kept
+     * to remember which literals need to be repropagated after backtracking.
+     * @details This is used to avoid a full scan of the trail after backtracking. Instead, we only need to set
+     * the propagation head to the first literal of the trail, and skip all literals that do not have
+     * a recently backtracked chunk in their cross-chunk dependencies.
+     */
+    bitset _recently_backtracked_chunks;
+
     /**  PROOFS  **/
     /**
      * @brief Proof builder of the solver. If _proof is not nullptr, the solver
@@ -1181,7 +1198,7 @@ public:
     /**
      * @brief Returns the level of the given variable.
      */
-    inline Tlevel var_level(Tvar var) const {
+    inline Tlevel level(Tvar var) const {
       ASSERT(var < _vars.size());
       return _vars[var].level;
     }
@@ -1191,7 +1208,7 @@ public:
      * @param lit literal to evaluate.
      * @return level of the literal.
      */
-    inline Tlevel lit_level(Tlit lit) const { return var_level(lit.var()); }
+    inline Tlevel level(Tlit lit) const { return level(lit.var()); }
 
   private:
     /**
@@ -1199,7 +1216,7 @@ public:
      * @details Used to modify the level of a variable.
      * @return reference to the level of the variable.
      */
-    inline Tlevel& var_level(Tvar var) {
+    inline Tlevel& level(Tvar var) {
       ASSERT(var < _vars.size());
       return _vars[var].level;
     }
@@ -1210,18 +1227,18 @@ public:
      * @param lit literal to evaluate.
      * @return reference to the level of the literal.
      */
-    inline Tlevel& lit_level(Tlit lit) { return var_level(lit.var()); }
+    inline Tlevel& level(Tlit lit) { return level(lit.var()); }
 
     /**
      * @brief Returns that clause that implied the variable if such a clause exists.
      * @param var variable to evaluate.
      * @return clause that implied the variable.
      */
-    inline Tclause var_reason(Tvar var) const {
+    inline Tclause reason(Tvar var) const {
       ASSERT(var < _vars.size());
       return _vars[var].reason;
     }
-    inline Tclause& var_reason(Tvar var) {
+    inline Tclause& reason(Tvar var) {
       ASSERT(var < _vars.size());
       return _vars[var].reason;
     }
@@ -1232,23 +1249,23 @@ public:
      * @param lit literal to evaluate.
      * @return reason of the literal.
      */
-    inline Tclause lit_reason(Tlit lit) const { return var_reason(lit.var()); }
-    inline Tclause& lit_reason(Tlit lit) { return var_reason(lit.var()); }
+    inline Tclause reason(Tlit lit) const { return reason(lit.var()); }
+    inline Tclause& reason(Tlit lit) { return reason(lit.var()); }
 
-    inline double var_activity(Tvar var) const {
+    inline double activity(Tvar var) const {
       ASSERT(var < _vars.size());
       return _vars[var].activity;
     }
-    inline double& var_activity(Tvar var) {
+    inline double& activity(Tvar var) {
       ASSERT(var < _vars.size());
       return _vars[var].activity;
     }
 
-    inline double var_weight(Tvar var) const {
+    inline double weight(Tvar var) const {
       ASSERT(var < _vars.size());
       return _vars[var].weight;
     }
-    inline double& var_weight(Tvar var) {
+    inline double& weight(Tvar var) {
       ASSERT(var < _vars.size());
       return _vars[var].weight;
     }
@@ -1258,9 +1275,9 @@ public:
      * @param var variable to evaluate.
      * @return true if the variable is a decision variable, false otherwise.
      */
-    inline bool var_decision(Tvar var) const {
+    inline bool is_decision(Tvar var) const {
       ASSERT(var < _vars.size());
-      return !var_undef(var) && var_reason(var) == CLAUSE_UNDEF;
+      return !var_undef(var) && reason(var) == CLAUSE_UNDEF;
     }
 
     /**
@@ -1268,7 +1285,7 @@ public:
      * @param lit literal to evaluate.
      * @return true if the literal is a decision literal, false otherwise.
      */
-    inline bool lit_decision(Tlit lit) const { return var_decision(lit.var()); }
+    inline bool is_decision(Tlit lit) const { return is_decision(lit.var()); }
 
     inline size_t var_order(Tvar var) const {
       ASSERT(var < _vars.size());
@@ -1281,26 +1298,37 @@ public:
     }
     inline size_t& lit_order(Tlit lit) { return var_order(lit.var()); }
 
+    inline size_t trail_pos(Tvar var) const {
+      ASSERT(var < _vars.size());
+      return _vars[var].trail_pos;
+    }
+    inline size_t lit_trail_pos(Tlit lit) const { return trail_pos(lit.var()); }
+    inline size_t& trail_pos(Tvar var) {
+      ASSERT(var < _vars.size());
+      return _vars[var].trail_pos;
+    }
+    inline size_t& lit_trail_pos(Tlit lit) { return trail_pos(lit.var()); }
+
     /**
      * @brief Returns the decision literal at the given level.
      * @param level decision level to evaluate.
      * @return decision literal at the given level.
      * @pre 1 <= level <= solver_level()
      */
-    inline Tlit decision_lit(Tlevel level) const {
-      ASSERT(level >= 1);
-      ASSERT(level <= solver_level());
-      ASSERT(lit_decision(_trail[_decision_index[level - 1]]));
-      ASSERT(lit_level(_trail[_decision_index[level - 1]]) == level);
-      return _trail[_decision_index[level - 1]];
+    inline Tlit decision_lit(Tlevel lvl) const {
+      ASSERT(lvl >= 1);
+      ASSERT(lvl <= solver_level());
+      ASSERT(is_decision(_trail[_decision_index[lvl - 1]]));
+      ASSERT(level(_trail[_decision_index[lvl - 1]]) == lvl);
+      return _trail[_decision_index[lvl - 1]];
     }
-    inline const Tlit* decision_lit_ptr(Tlevel level) const {
-      ASSERT(level >= 1);
-      ASSERT(level <= solver_level());
-      ASSERT(lit_decision(_trail[_decision_index[level - 1]]));
-      ASSERT(lit_level(_trail[_decision_index[level - 1]]) == level);
+    inline const Tlit* decision_lit_ptr(Tlevel lvl) const {
+      ASSERT(lvl >= 1);
+      ASSERT(lvl <= solver_level());
+      ASSERT(is_decision(_trail[_decision_index[lvl - 1]]));
+      ASSERT(level(_trail[_decision_index[lvl - 1]]) == lvl);
       const Tlit* start = _trail.data();
-      return start + _decision_index[level - 1];
+      return start + _decision_index[lvl - 1];
     }
 
     /**
@@ -1313,42 +1341,44 @@ public:
     /**
      * @brief Returns true if a variable was propagated and false otherwise.
      */
-    inline bool var_propagated(Tvar var) const { return _vars[var].propagated; }
+    inline bool propagated(Tvar var) const { return _vars[var].propagated
+                                          && !cross_chunks(var).has_intersection(_recently_backtracked_chunks);
+    }
     /**
      * @brief Returns true if the literal was propagated and false otherwise.
      */
-    inline bool lit_propagated(Tlit lit) const { return var_propagated(lit.var()); }
+    inline bool propagated(Tlit lit) const { return propagated(lit.var()); }
 
     /**
      * @brief Returns true if the variable is marked
      */
-    inline bool var_marked(Tvar var) const { return _vars[var].marked; }
+    inline bool marked(Tvar var) const { return _vars[var].marked; }
     /**
      * @brief Returns true if the literal is marked as marked
      */
-    inline bool lit_marked(Tlit lit) const { return var_marked(lit.var()); }
+    inline bool marked(Tlit lit) const { return marked(lit.var()); }
     /**
      * @brief Marks the variable
      */
-    inline void var_mark(Tvar var) { _vars[var].marked = true; }
+    inline void mark(Tvar var) { _vars[var].marked = true; }
     /**
      * @brief Marks the literal
      */
-    inline void lit_mark(Tlit lit) { var_mark(lit.var()); }
+    inline void mark(Tlit lit) { mark(lit.var()); }
     /**
      * @brief Unmark the variable
      */
-    inline void var_unmark(Tvar var) { _vars[var].marked = false; }
+    inline void unmark(Tvar var) { _vars[var].marked = false; }
     /**
      * @brief Unmark the literal
      */
-    inline void lit_unmark(Tlit lit) { var_unmark(lit.var()); }
+    inline void unmark(Tlit lit) { unmark(lit.var()); }
 
-    inline bool var_synced(Tvar var) const {
+    inline bool synced(Tvar var) const {
       const TSvar& v = _vars[var];
       return v.state != Tval::UNDEF && v.synced == v.state % 2;
     }
-    inline bool lit_synced(Tlit lit) const { return var_synced(lit.var()); }
+    inline bool lit_synced(Tlit lit) const { return synced(lit.var()); }
     inline void var_sync(Tvar var) {
       ASSERT(!var_undef(var));
       _vars[var].synced = _vars[var].state % 2;
@@ -1383,8 +1413,8 @@ public:
      * @param var variable to evaluate.
      * @return a missed lower implication of the variable.
      */
-    inline Tclause var_lazy_reason(Tvar var) const { return _vars[var].missed_lower_implication; }
-    inline Tclause& var_lazy_reason(Tvar var) { return _vars[var].missed_lower_implication; }
+    inline Tclause lazy_reason(Tvar var) const { return _vars[var].missed_lower_implication; }
+    inline Tclause& lazy_reason(Tvar var) { return _vars[var].missed_lower_implication; }
 
     /**
      * @brief Returns an alternative reason for propagating the literal at a
@@ -1393,8 +1423,8 @@ public:
      * @param lit literal to evaluate.
      * @return a missed lower implication of the literal.
      */
-    inline Tclause lit_lazy_reason(Tlit lit) const { return _vars[lit.var()].missed_lower_implication; }
-    inline Tclause& lit_lazy_reason(Tlit lit) { return _vars[lit.var()].missed_lower_implication; }
+    inline Tclause lazy_reason(Tlit lit) const { return _vars[lit.var()].missed_lower_implication; }
+    inline Tclause& lazy_reason(Tlit lit) { return _vars[lit.var()].missed_lower_implication; }
 
     /**
      * @brief Returns the level of the lazy reimplication of a literal.
@@ -1404,18 +1434,18 @@ public:
      */
     inline Tlevel lit_lazy_level(Tlit lit)
     {
-      Tclause l_reason = lit_lazy_reason(lit);
+      Tclause l_reason = lazy_reason(lit);
       if (l_reason == CLAUSE_UNDEF)
-        return lit_level(lit);
+        return level(lit);
       if (clause_size(l_reason) == 1)
         return LEVEL_ROOT;
       Tlit* lits = clause_lits(l_reason);
       ASSERT(lit == lits[0]);
-      ASSERT(lit_level(lit) > LEVEL_ROOT);
+      ASSERT(level(lit) > LEVEL_ROOT);
       ASSERT(check_clause_implying(l_reason));
       ASSERT(clause_size(l_reason) > 1);
       ASSERT(lit_is_max_literal(lits[1], lits + 1, clause_size(l_reason) - 1));
-      return lit_level(lits[1]);
+      return level(lits[1]);
     }
 
     /**  GRAPH BACKTRACKING  **/
@@ -1440,23 +1470,23 @@ public:
      * @param chunk chunk to evaluate.
      * @return level of the decision starting the chunk.
      */
-    Tlevel chunk_level(Tchunk chunk) { return var_level(_chunks[chunk].decision); }
+    Tlevel chunk_level(Tchunk chunk) { return level(_chunks[chunk].decision); }
 
     /**
      * @brief Returns the cross-chunk dependencies of a variable.
      * @param var variable to evaluate.
      * @return cross-chunk dependencies of the variable.
      */
-    inline const bitset& var_cross_chunks(Tvar var) const { return _vars[var].cross_chunks; }
-    inline bitset& var_cross_chunks(Tvar var) { return _vars[var].cross_chunks; }
+    inline const bitset& cross_chunks(Tvar var) const { return _vars[var].cross_chunks; }
+    inline bitset& cross_chunks(Tvar var) { return _vars[var].cross_chunks; }
 
     /**
      * @brief Returns the cross-chunk dependencies of a literal.
      * @param lit literal to evaluate.
      * @return cross-chunk dependencies of the variable of the literal.
      */
-    inline const bitset& lit_cross_chunks(Tlit lit) const { return var_cross_chunks(lit.var()); }
-    inline bitset& lit_cross_chunks(Tlit lit) { return var_cross_chunks(lit.var()); }
+    inline const bitset& lit_cross_chunks(Tlit lit) const { return cross_chunks(lit.var()); }
+    inline bitset& cross_chunks(Tlit lit) { return cross_chunks(lit.var()); }
 
     /** CLAUSES **/
     /**
@@ -1479,7 +1509,7 @@ public:
      * @param cl clause to evaluate.
      * @return the maximum level of the literals in the clause.
      */
-    Tlevel clause_level(Tclause cl) const;
+    Tlevel level(Tclause cl) const;
 
     /**
      * @brief Returns the level of a clause without the first literal.
@@ -1493,7 +1523,7 @@ public:
       ASSERT(!lit_false(lits[0]));
       Tlevel max_level = LEVEL_ROOT;
       for (size_t i = 1; i < clause_size(cl); i++) {
-        max_level = std::max(max_level, lit_level(lits[i]));
+        max_level = std::max(max_level, level(lits[i]));
       }
       return max_level;
     }
@@ -1547,8 +1577,8 @@ public:
     inline bool is_protected(Tclause cl) const
     {
       ASSERT(cl < _clauses.size());
-      return lit_reason     (_clauses[cl].lits[0]) == cl
-          || lit_lazy_reason(_clauses[cl].lits[0]) == cl;
+      return reason     (_clauses[cl].lits[0]) == cl
+          || lazy_reason(_clauses[cl].lits[0]) == cl;
     }
 
     /**
@@ -2583,6 +2613,13 @@ public:
      * every assigned variable is in the trail.
      */
     bool check_trail_variable_consistency() const;
+
+    /**
+     * @brief Returns true if the trail position stored in each assigned
+     * variable matches its actual position in the trail, and unassigned
+     * variables have an undefined trail position.
+     */
+    bool check_trail_position_consistency() const;
 
     /**
      * @brief Returns true if the decision indices of the literals in the trail

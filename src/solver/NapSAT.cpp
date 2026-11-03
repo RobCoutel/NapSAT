@@ -33,7 +33,6 @@ void NapSAT::restart()
     while (i > 0) {
       i--;
       Tlit lit = _trail[i];
-      _vars[lit.var()].propagated = false;
       if (i < _n_propagated_lits) {
         NOTIFY(unpropagate, lit);
       }
@@ -48,7 +47,7 @@ double napsat::NapSAT::literal_cost(Tlit lit) const {
   if (_backtrack_cost_estimator) {
     return _backtrack_cost_estimator(lit);
   }
-  return var_weight(lit.var());
+  return weight(lit.var());
 }
 
 static inline void print_bt_option(const Options &options) {
@@ -304,17 +303,15 @@ bool NapSAT::propagate()
   while (_n_propagated_lits < _trail.size()) {
     Tlit lit = _trail[_n_propagated_lits];
 #ifdef NDEBUG
-    if (lit_propagated(lit)) {
+    if (propagated(lit)) {
       _n_propagated_lits++;
       NOTIFY_STAT(_n_skipped_propagation);
       NOTIFY(propagate, lit);
       continue;
     }
 #endif
-    if (!lit_propagated(lit)) {
-      lit_cross_chunks(lit).clear();
-    }
-    lit_cross_chunks(lit) |= lit_chunks(lit);
+    cross_chunks(lit).clear();
+    cross_chunks(lit) |= lit_chunks(lit);
 
     propagate_lit(lit);
 
@@ -344,6 +341,8 @@ bool NapSAT::propagate()
       }
     }
   }
+
+  _recently_backtracked_chunks.clear();
 
   if (_trail.size() == _vars.size().value - 1) {
     _status = status::SAT;
@@ -521,14 +520,14 @@ void NapSAT::hint(Tlit lit)
   imply(lit, CLAUSE_LAZY);
 }
 
-void NapSAT::hint(Tlit lit, Tlevel level)
+void NapSAT::hint(Tlit lit, Tlevel lvl)
 {
   ASSERT(lit.var() < _vars.size());
   ASSERT(!_writing_clause);
   ASSERT(lit_undef(lit));
-  ASSERT(level <= solver_level() + 1);
+  ASSERT(lvl <= solver_level() + 1);
   hint(lit);
-  lit_level(lit) = level;
+  level(lit) = lvl;
 }
 
 void NapSAT::synchronize()
@@ -539,7 +538,7 @@ void NapSAT::synchronize()
     Tlit lit = _trail[i];
     Tvar var = lit.var();
     ASSERT(!var_undef(var));
-    if (var_synced(var)) {
+    if (synced(var)) {
       continue;
     }
     NOTIFY_STAT_N(_n_sync_cost, (unsigned) literal_cost(lit));

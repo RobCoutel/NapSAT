@@ -72,10 +72,10 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(vector<bitset>& p
   bitset forbidden = _n_assumptions > 0 ? _locked_chunks : bitset(_n_allocated_chunks);
   for (Tchunk c = 0; c < _n_allocated_chunks; c++) {
     ASSERT(_chunks[c].decision < _vars.size());
-    ASSERT(!_chunks[c].is_reimplied || var_lazy_reason(_chunks[c].decision) != CLAUSE_UNDEF,
+    ASSERT(!_chunks[c].is_reimplied || lazy_reason(_chunks[c].decision) != CLAUSE_UNDEF,
            "Chunk " + to_string(c) + " is reimplied but its decision variable " + _chunks[c].decision.to_string() + " has no lazy reason");
-    ASSERT(!_chunks[c].is_reimplied || _chunks[c].missed_implication == implication_chunks(var_lazy_reason(_chunks[c].decision)),
-            "Chunk " + to_string(c) + " is reimplied but its decision variable " + _chunks[c].decision.to_string() + " has a lazy reason " + clause_to_string(var_lazy_reason(_chunks[c].decision)) + " whose chunks are " + clause_chunks(var_lazy_reason(_chunks[c].decision)).to_string() + ", which does not match the chunk's missed implication " + _chunks[c].missed_implication.to_string());
+    ASSERT(!_chunks[c].is_reimplied || _chunks[c].missed_implication == implication_chunks(lazy_reason(_chunks[c].decision)),
+            "Chunk " + to_string(c) + " is reimplied but its decision variable " + _chunks[c].decision.to_string() + " has a lazy reason " + clause_to_string(lazy_reason(_chunks[c].decision)) + " whose chunks are " + clause_chunks(lazy_reason(_chunks[c].decision)).to_string() + ", which does not match the chunk's missed implication " + _chunks[c].missed_implication.to_string());
     parents[c] = _chunks[c].missed_implication;
     if (_chunks[c].is_reimplied) {
       mergeable.set(c, true);
@@ -158,17 +158,17 @@ void NapSAT::fix_conflicts_and_learned_in_order(const vector<pair<Tclause, vecto
 
       auto& id_clause = learned[i];
       const vector<Tlit>& clause = id_clause.second;
-      Tlevel level = LEVEL_ROOT;
+      Tlevel lvl = LEVEL_ROOT;
       for (Tlit lit : clause) {
         if (lit_undef(lit))
           continue;
-        level = max(level, lit_level(lit));
-        if (level > lowest_level) {
+        lvl = max(lvl, level(lit));
+        if (lvl > lowest_level) {
           break;
         }
       }
-      if (level < lowest_level) {
-        lowest_level = level;
+      if (lvl < lowest_level) {
+        lowest_level = lvl;
         lowest_id = i;
       }
     }
@@ -179,28 +179,28 @@ void NapSAT::fix_conflicts_and_learned_in_order(const vector<pair<Tclause, vecto
         continue;
       }
       Tclause conflict = conflicts[i];
-      Tlevel level = LEVEL_ROOT;
+      Tlevel lvl = LEVEL_ROOT;
       const Tlit* lits = clause_lits(conflict);
       unsigned n_undef = 0;
       for (unsigned j = 0; j < clause_size(conflict); j++) {
         if (lit_undef(lits[j])) {
           if (++n_undef > 1) {
             // we still need to fix the clause so we need to have a lower less than LEVEL_UNDEF
-            level = LEVEL_UNDEF - 1;
+            lvl = LEVEL_UNDEF - 1;
           }
           continue;
         }
         if (lit_true(lits[j])) {
-          level = LEVEL_UNDEF - 1;
+          lvl = LEVEL_UNDEF - 1;
         }
-        level = max(level, lit_level(lits[j]));
-        if (level > lowest_level) {
+        lvl = max(lvl, level(lits[j]));
+        if (lvl > lowest_level) {
           break;
         }
       }
-      if (level < lowest_level) {
+      if (lvl < lowest_level) {
         existing_clause_is_better = true;
-        lowest_level = level;
+        lowest_level = lvl;
         lowest_id = i;
       }
     }
@@ -218,7 +218,7 @@ void NapSAT::fix_conflicts_and_learned_in_order(const vector<pair<Tclause, vecto
         fix_watched_literals(conflict);
         if (_options->graph_backtracking
          && lit_true(lits[0]) && lit_false(lits[1])) {
-          lit_cross_chunks(lits[1]) |= lit_chunks(lits[0]);
+          cross_chunks(lits[1]) |= lit_chunks(lits[0]);
         }
       }
       if (lit_undef(lits[0])
@@ -254,7 +254,7 @@ void NapSAT::fix_conflicts_and_learned_in_order(const vector<pair<Tclause, vecto
 
 Tclause NapSAT::clause_subsumed_in_formula(const Tlit* lits, size_t size) const
 {
-  ASSERT(all_of(lits, lits + size, [this](Tlit l){ return lit_marked(l); }));
+  ASSERT(all_of(lits, lits + size, [this](Tlit l){ return marked(l); }));
 
   // An empty clause can only be subsumed by the empty clause, and a unit clause {l} only by
   // itself, which would have set l true at root level. Neither can be in the watch lists.
@@ -270,7 +270,7 @@ Tclause NapSAT::clause_subsumed_in_formula(const Tlit* lits, size_t size) const
     // check the binary clauses
     for (const TSwatch& watch : _binary_watches[lit]) {
       Tlit b = watch.block;
-      if (lit_false(b) && lit_marked(b)) {
+      if (lit_false(b) && marked(b)) {
         found = watch.cl;
         break;
       }
@@ -283,13 +283,13 @@ Tclause NapSAT::clause_subsumed_in_formula(const Tlit* lits, size_t size) const
     for (const TSwatch& watch : watch_list) {
       Tclause cl = watch.cl;
       Tlit b = watch.block;
-      if (!lit_false(b) && !lit_marked(b)) {
+      if (!lit_false(b) && !marked(b)) {
         continue;
       }
       const Tlit* cls = clause_lits(cl);
       bool all_found = true;
       for (unsigned j = 0; j < _clauses[cl].size && all_found; j++) {
-        all_found = lit_false(cls[j]) && lit_marked(cls[j]);
+        all_found = lit_false(cls[j]) && marked(cls[j]);
       }
       if (all_found) {
         found = cl;
@@ -304,7 +304,7 @@ Tclause NapSAT::clause_subsumed_in_formula(const Tlit* lits, size_t size) const
 bool NapSAT::learned_clause_is_redundant()
 {
   ASSERT(all_of(_lit_buffer, _lit_buffer + _lit_buffer_size, [this](Tlit l){
-    return lit_marked(l); }));
+    return marked(l); }));
 
   if (_options->graph_backtracking) {
     Tclause redundant = clause_subsumed_in_formula(_lit_buffer, _lit_buffer_size);
@@ -317,7 +317,7 @@ bool NapSAT::learned_clause_is_redundant()
       Tlit* lits = clause_lits(_conflicts[k]);
       bool all_marked = true;
       for (unsigned j = 0; j < clause_size(_conflicts[k]); j++) {
-        if (!lit_marked(lits[j])) {
+        if (!marked(lits[j])) {
           all_marked = false;
           break;
         }
@@ -335,7 +335,7 @@ bool NapSAT::root_level_conflict()
 {
   // check if there is a conflict at level 0
   for (Tclause conflict : _conflicts) {
-    if (clause_level(conflict) == LEVEL_ROOT) {
+    if (level(conflict) == LEVEL_ROOT) {
       // the conflict cannot be repaired
       _status = status::UNSAT;
       if (_proof) {
@@ -506,7 +506,7 @@ bool NapSAT::conflict_is_UIP_cut(Tclause conflict, Tlevel bt)
   bool found = false;
   const Tlit* lits = clause_lits(conflict);
   for (unsigned i = 0; i < clause_size(conflict); i++) {
-    Tlevel lvl = lit_level(lits[i]);
+    Tlevel lvl = level(lits[i]);
 
     if (lvl >= bt) {
       if (found)
@@ -519,7 +519,7 @@ bool NapSAT::conflict_is_UIP_cut(Tclause conflict, Tlevel bt)
 
 bool NapSAT::lit_is_redundant(Tlit lit, uint32_t abstract_levels)
 {
-  ASSERT(lit_reason(lit) < _clauses.size());
+  ASSERT(reason(lit) < _clauses.size());
   // depth-first search in the implication graph, starting from the reason of lit
   // the literals proven redundant stay marked, such that they are not explored again
   const size_t top = _minimize_resolved.size();
@@ -528,26 +528,26 @@ bool NapSAT::lit_is_redundant(Tlit lit, uint32_t abstract_levels)
   while (!_minimize_stack.empty()) {
     Tlit p = _minimize_stack.back();
     _minimize_stack.pop_back();
-    Tclause reason = lit_reason(p);
-    ASSERT(!_clauses[reason].deleted);
-    const Tlit* reason_lits = clause_lits(reason);
-    for (unsigned i = 1; i < clause_size(reason); i++) {
+    Tclause r = reason(p);
+    ASSERT(!_clauses[r].deleted);
+    const Tlit* reason_lits = clause_lits(r);
+    for (unsigned i = 1; i < clause_size(r); i++) {
       Tlit q = reason_lits[i];
-      if (lit_marked(q) || lit_level(q) == LEVEL_ROOT)
+      if (marked(q) || level(q) == LEVEL_ROOT)
         continue;
       // the proof of the minimization resolves the literals by decreasing order
       ASSERT(lit_order(q) < lit_order(p));
-      Tclause q_reason = lit_reason(q);
+      Tclause q_reason = reason(q);
       if (q_reason != CLAUSE_UNDEF && q_reason != CLAUSE_LAZY
-       && (abstract_level(lit_level(q)) & abstract_levels) != 0) {
-        lit_mark(q);
+       && (abstract_level(level(q)) & abstract_levels) != 0) {
+        mark(q);
         _minimize_stack.push_back(~q);
         _minimize_resolved.push_back(~q);
         continue;
       }
       // q is a decision, or it depends on a level absent from the clause: lit is not redundant
       for (size_t j = top; j < _minimize_resolved.size(); j++)
-        lit_unmark(_minimize_resolved[j]);
+        unmark(_minimize_resolved[j]);
       _minimize_resolved.resize(top);
       return false;
     }
@@ -557,21 +557,21 @@ bool NapSAT::lit_is_redundant(Tlit lit, uint32_t abstract_levels)
 
 bool NapSAT::lit_is_required_in_learned_clause(Tlit lit, uint32_t abstract_levels)
 {
-  if (lit_decision(lit) || lit_reason(lit) == CLAUSE_LAZY)
+  if (is_decision(lit) || reason(lit) == CLAUSE_LAZY)
     return true;
 
-  ASSERT(lit_reason(lit) < _clauses.size());
-  ASSERT(!_clauses[lit_reason(lit)].deleted);
+  ASSERT(reason(lit) < _clauses.size());
+  ASSERT(!_clauses[reason(lit)].deleted);
 
   bool found_missing = !lit_is_redundant(lit, abstract_levels);
 
   if (found_missing) {
     // check if the lazy reason contains any marked literal
-    Tclause lazy_reason = lit_lazy_reason(lit);
-    if (lazy_reason != CLAUSE_UNDEF) {
-      const Tlit* lazy_lits = clause_lits(lazy_reason);
-      for (unsigned i = 0; i < clause_size(lazy_reason); i++)
-        if (lit_marked(lazy_lits[i]))
+    Tclause l_reason = lazy_reason(lit);
+    if (l_reason != CLAUSE_UNDEF) {
+      const Tlit* lazy_lits = clause_lits(l_reason);
+      for (unsigned i = 0; i < clause_size(l_reason); i++)
+        if (marked(lazy_lits[i]))
           return true;
     }
   }
@@ -582,19 +582,19 @@ bool NapSAT::lit_is_required_in_learned_clause(Tlit lit, uint32_t abstract_level
 void NapSAT::minimize_learned_clause()
 {
   ASSERT(_lit_buffer_size > 0);
-  ASSERT(all_of(_lit_buffer, _lit_buffer + _lit_buffer_size, [this](Tlit l){ return lit_marked(l); }));
+  ASSERT(all_of(_lit_buffer, _lit_buffer + _lit_buffer_size, [this](Tlit l){ return marked(l); }));
   // the levels are only used as a filter: a literal can only be redundant if its level appears in the clause.
   // the uip is included, since in graph backtracking it does not need to be alone at its level.
   uint32_t abstract_levels = 0;
   for (unsigned i = 0; i < _lit_buffer_size; i++)
-    abstract_levels |= abstract_level(lit_level(_lit_buffer[i]));
+    abstract_levels |= abstract_level(level(_lit_buffer[i]));
 
   _minimize_resolved.clear();
   unsigned k = 1;
   for (unsigned i = 1; i < _lit_buffer_size; i++) {
     Tlit lit = _lit_buffer[i];
     // root literals are removed later on, with their own proof
-    if (lit_level(lit) == LEVEL_ROOT || lit_is_required_in_learned_clause(~lit, abstract_levels)) {
+    if (level(lit) == LEVEL_ROOT || lit_is_required_in_learned_clause(~lit, abstract_levels)) {
       _lit_buffer[k++] = lit;
       continue;
     }
@@ -609,35 +609,35 @@ void NapSAT::minimize_learned_clause()
     sort(_minimize_resolved.begin(), _minimize_resolved.end(),
          [this](Tlit a, Tlit b) { return lit_order(a) > lit_order(b); });
     for (Tlit lit : _minimize_resolved) {
-      Tclause reason = lit_reason(lit);
+      Tclause r = reason(lit);
       if (_proof)
-        _proof->link_resolution(~lit, reason);
+        _proof->link_resolution(~lit, r);
       if (_dependency_tracker)
-        _dependency_tracker->track_dependency(reason);
+        _dependency_tracker->track_dependency(r);
       // the root literals introduced by the resolution are added to the clause, to be removed with the other root literals
-      const Tlit* reason_lits = clause_lits(reason);
-      for (unsigned j = 1; j < clause_size(reason); j++) {
+      const Tlit* reason_lits = clause_lits(r);
+      for (unsigned j = 1; j < clause_size(r); j++) {
         Tlit q = reason_lits[j];
-        if (lit_marked(q))
+        if (marked(q))
           continue;
-        ASSERT(lit_level(q) == LEVEL_ROOT);
-        lit_mark(q);
+        ASSERT(level(q) == LEVEL_ROOT);
+        mark(q);
         _lit_buffer[_lit_buffer_size++] = q;
       }
     }
   }
 
   for (Tlit lit : _minimize_resolved)
-    lit_unmark(lit);
+    unmark(lit);
   for (unsigned i = 0; i < _lit_buffer_size; i++)
-    lit_unmark(_lit_buffer[i]);
-  ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
+    unmark(_lit_buffer[i]);
+  ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !marked(l); }));
 }
 
-bool NapSAT::lit_analyzed(Tlit lit, Tlevel level)
+bool NapSAT::lit_analyzed(Tlit lit, Tlevel lvl)
 {
   ASSERT(!_options->graph_backtracking);
-  return lit_level(lit) == level;
+  return level(lit) == lvl;
 }
 
 bool NapSAT::lit_analyzed(Tlit lit, const bitset& chunks)
@@ -647,50 +647,50 @@ bool NapSAT::lit_analyzed(Tlit lit, const bitset& chunks)
 }
 
 template <typename T>
-bool NapSAT::mark_relevant_literals(Tlit lit, T level, unsigned& count) {
-  Tclause reason = lit_reason(lit);
+bool NapSAT::mark_relevant_literals(Tlit lit, T lvl, unsigned& count) {
+  Tclause r = reason(lit);
   bool reset_head = false;
-  if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
-    reason = lit_lazy_reason(lit);
+  if (lazy_reason(lit) != CLAUSE_UNDEF) {
+    r = lazy_reason(lit);
     // if we use the lazy reason, we need to ensure that we will look at all the literals in the clause
     // since the missed lower implication does not satisfy the trail invariant, we need to push the reading head to the back
     // note that this may lead to duplicate literals in the learned clause, but this will be cleaned up in the "internal_add_clause" function
     reset_head = true;
   }
 
-  ASSERT(reason != CLAUSE_UNDEF);
+  ASSERT(r != CLAUSE_UNDEF);
   if (_proof)
-    _proof->link_resolution(~lit, reason);
+    _proof->link_resolution(~lit, r);
   if (_dependency_tracker)
-    _dependency_tracker->track_dependency(reason);
-  const Tlit* reason_lits = clause_lits(reason);
-  for (unsigned j = 1; j < clause_size(reason); j++) {
+    _dependency_tracker->track_dependency(r);
+  const Tlit* reason_lits = clause_lits(r);
+  for (unsigned j = 1; j < clause_size(r); j++) {
     Tlit reason_lit = reason_lits[j];
-    if (lit_marked(reason_lit))
+    if (marked(reason_lit))
       continue;
-    lit_mark(reason_lit);
-    if (lit_analyzed(reason_lit, level))
+    mark(reason_lit);
+    if (lit_analyzed(reason_lit, lvl))
       count++;
   }
   count--;
-  lit_unmark(lit);
+  unmark(lit);
   return reset_head;
 }
 
 template <typename T>
-void NapSAT::analyze_conflict(T level) {
+void NapSAT::analyze_conflict(T lvl) {
   ASSERT(_lit_buffer_size > 0);
-  ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !lit_marked(l); }));
+  ASSERT(all_of(_trail.begin(), _trail.end(), [this](Tlit l){ return !marked(l); }));
   ASSERT(!_options->graph_backtracking || check_correct_chunks());
-  NOTIFY(message, "Analyzing conflict " + clause_to_string(_lit_buffer, _lit_buffer_size) + " at level " + level.to_string(), 8);
+  NOTIFY(message, "Analyzing conflict " + clause_to_string(_lit_buffer, _lit_buffer_size) + " at level " + lvl.to_string(), 8);
   unsigned count = 0;
   for (unsigned i = 0; i < _lit_buffer_size; i++) {
     Tlit lit = _lit_buffer[i];
     ASSERT(lit_false(lit));
-    if (!lit_marked(lit) && lit_analyzed(lit, level)) {
+    if (!marked(lit) && lit_analyzed(lit, lvl)) {
       count++;
     }
-    lit_mark(lit);
+    mark(lit);
   }
   ASSERT(count > 0);
 
@@ -701,14 +701,14 @@ void NapSAT::analyze_conflict(T level) {
 
   while (count > 1 && i > 0) {
     Tlit lit = _trail[--i];
-    if (!lit_marked(lit))
+    if (!marked(lit))
       continue;
 
-    if (!lit_analyzed(lit, level))
+    if (!lit_analyzed(lit, lvl))
       continue;
     bump_var_activity(lit.var());
     // mark the literals of the reason
-    if (lit_reason(lit) == CLAUSE_UNDEF && lit_lazy_reason(lit) == CLAUSE_UNDEF) {
+    if (reason(lit) == CLAUSE_UNDEF && lazy_reason(lit) == CLAUSE_UNDEF) {
       ASSERT(_options->lazy_chunk_merging || _options->lazy_strong_chronological_backtracking);
       // this is a decision literal, we cannot go further
       // we are guaranteed that there is a merge later, that will reset the index i. We will need this literal again
@@ -716,7 +716,7 @@ void NapSAT::analyze_conflict(T level) {
       // we will certainly visit this literal again, so we can just skip it for now
       continue;
     }
-    if (mark_relevant_literals(lit, level, count)) {
+    if (mark_relevant_literals(lit, lvl, count)) {
       i = _trail.size();
     }
   }
@@ -729,10 +729,10 @@ void NapSAT::analyze_conflict(T level) {
   // collect all the marked literals. They stay marked for the minimization
   for (size_t i = 0; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
-    if (!lit_marked(lit))
+    if (!marked(lit))
       continue;
 
-    if (lit_analyzed(lit, level)) {
+    if (lit_analyzed(lit, lvl)) {
       ASSERT(uip == LIT_UNDEF, "There should be only one UIP literal");
       uip = lit;
       continue;
@@ -752,8 +752,8 @@ void NapSAT::analyze_conflict(T level) {
   if (_dependency_tracker) {
     for (unsigned i = 0; i < _lit_buffer_size; i++) {
       Tlit lit = _lit_buffer[i];
-      if (lit_level(lit) == LEVEL_ROOT) {
-        _dependency_tracker->track_dependency(lit_reason(lit));
+      if (level(lit) == LEVEL_ROOT) {
+        _dependency_tracker->track_dependency(reason(lit));
       }
     }
   }
@@ -761,7 +761,7 @@ void NapSAT::analyze_conflict(T level) {
   unsigned k = 0;
   for (unsigned i = 0; i < _lit_buffer_size; i++) {
     Tlit lit = _lit_buffer[i];
-    if (lit_level(lit) == LEVEL_ROOT) {
+    if (level(lit) == LEVEL_ROOT) {
       // we do not want to add the root literals to the learned clause
       continue;
     }
@@ -777,7 +777,7 @@ Tlevel NapSAT::compute_repair_level()
   for (Tclause conflict : _conflicts) {
     const Tlit* lits = clause_lits(conflict);
     ASSERT(lit_is_max_literal(lits[0], lits + 1, clause_size(conflict) - 1));
-    min_level = min(min_level, lit_level(lits[0]));
+    min_level = min(min_level, level(lits[0]));
   }
   return min_level;
 }
@@ -932,7 +932,7 @@ bool NapSAT::conflict_can_generate_learned_clause(size_t conflict_index, const b
       Tchunk chunk = *it;
       const bitset& reimplied_chunks = _chunks[chunk].missed_implication;
       if (_chunks[chunk].is_reimplied) {
-        ASSERT(var_lazy_reason(_chunks[chunk].decision) != CLAUSE_UNDEF);
+        ASSERT(lazy_reason(_chunks[chunk].decision) != CLAUSE_UNDEF);
         conflict_chunks |= reimplied_chunks;
         conflict_chunks.set(chunk, false);
 
@@ -946,7 +946,7 @@ bool NapSAT::conflict_can_generate_learned_clause(size_t conflict_index, const b
   return chunk_count == 1;
 }
 
-bool NapSAT::conflict_can_generate_learned_clause(size_t conflict_index, Tlevel level)
+bool NapSAT::conflict_can_generate_learned_clause(size_t conflict_index, Tlevel lvl)
 {
   if (!_options->chronological_backtracking) {
     return true;
@@ -955,18 +955,18 @@ bool NapSAT::conflict_can_generate_learned_clause(size_t conflict_index, Tlevel 
   Tclause conflict = _conflicts[conflict_index];
   const Tlit* lits = clause_lits(conflict);
   for (unsigned i = 0; i < clause_size(conflict); i++) {
-    if (lit_level(lits[i]) > level) {
+    if (level(lits[i]) > lvl) {
       return false;
     }
   }
   return true;
 }
 
-bool NapSAT::implication_active_after_backtrack(Tclause reason, Tlevel level)
+bool NapSAT::implication_active_after_backtrack(Tclause reason, Tlevel lvl)
 {
   for (unsigned i = 1; i < clause_size(reason); i++) {
-    if (lit_level(clause_lits(reason)[i]) > level
-     && lit_lazy_level(clause_lits(reason)[i]) > level) {
+    if (level(clause_lits(reason)[i]) > lvl
+     && lit_lazy_level(clause_lits(reason)[i]) > lvl) {
       return false;
     }
   }
@@ -1028,7 +1028,7 @@ void NapSAT::compute_subsumed_clauses(const vector<pair<Tclause, vector<Tlit>>>&
     if (subsumed[i])
       continue;
     // check if the clause i is subsumed by any later clause
-    for (Tlit lit : clauses[i].second) { lit_mark(lit); }
+    for (Tlit lit : clauses[i].second) { mark(lit); }
 
     for (size_t oj = oi + 1; oj < order.size(); oj++) {
       size_t j = order[oj];
@@ -1037,7 +1037,7 @@ void NapSAT::compute_subsumed_clauses(const vector<pair<Tclause, vector<Tlit>>>&
 
       bool all_found = true;
       for (Tlit lit : clauses[j].second) {
-        if (!lit_marked(lit)) {
+        if (!marked(lit)) {
           all_found = false;
           break;
         }
@@ -1048,7 +1048,7 @@ void NapSAT::compute_subsumed_clauses(const vector<pair<Tclause, vector<Tlit>>>&
         break;
       }
     }
-    for (Tlit lit : clauses[i].second) { lit_unmark(lit); }
+    for (Tlit lit : clauses[i].second) { unmark(lit); }
   }
 }
 
@@ -1058,13 +1058,13 @@ const bitset& NapSAT::update_bt_after_analysis_of_reimplication(const bitset& ch
   return chunks;
 }
 
-Tlevel NapSAT::update_bt_after_analysis_of_reimplication(Tlevel level)
+Tlevel NapSAT::update_bt_after_analysis_of_reimplication(Tlevel lvl)
 {
   Tlevel new_level = LEVEL_ROOT;
   for (unsigned j = 0; j < _lit_buffer_size; j++) {
-    new_level = max(new_level, lit_level(_lit_buffer[j]));
+    new_level = max(new_level, level(_lit_buffer[j]));
   }
-  ASSERT(new_level < level, "The new backtrack level " + to_string(new_level) + " is not lower than the current level " + to_string(level));
+  ASSERT(new_level < lvl, "The new backtrack level " + to_string(new_level) + " is not lower than the current level " + to_string(lvl));
   return new_level;
 }
 
@@ -1102,33 +1102,33 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
 
       // check if the uip is a missed implication
       Tlit uip = _lit_buffer[0];
-      Tclause lazy_reason = lit_lazy_reason(uip);
-      if (lazy_reason == CLAUSE_UNDEF) {
+      Tclause l_reason = lazy_reason(uip);
+      if (l_reason == CLAUSE_UNDEF) {
         break;
       }
-      NOTIFY(message, "Missed implication " + clause_to_string(lazy_reason) + " for literal " + lit_to_string(uip) + " at level " + bt.to_string(), 8);
+      NOTIFY(message, "Missed implication " + clause_to_string(l_reason) + " for literal " + lit_to_string(uip) + " at level " + bt.to_string(), 8);
       // check if the missed implication is at a lower level
-      if (!implication_active_after_backtrack(lazy_reason, bt)) {
+      if (!implication_active_after_backtrack(l_reason, bt)) {
         break;
       }
 
       // we need to continue the analysis with the missed implication
       // fill in the literal buffer
       if (_proof)
-        _proof->link_resolution(uip, lazy_reason);
+        _proof->link_resolution(uip, l_reason);
       if (_dependency_tracker)
-        _dependency_tracker->track_dependency(lazy_reason);
+        _dependency_tracker->track_dependency(l_reason);
 
-      Tlit* reason_lits = clause_lits(lazy_reason);
+      Tlit* reason_lits = clause_lits(l_reason);
       // the root literals of the missed implication are removed right away, as in analyze_conflict.
       // otherwise, a missed root implication would leave a clause with only root literals to analyze
       if (_proof)
-        prove_root_literal_removal(reason_lits + 1, clause_size(lazy_reason) - 1);
-      for (unsigned j = 1; j < clause_size(lazy_reason); j++) {
+        prove_root_literal_removal(reason_lits + 1, clause_size(l_reason) - 1);
+      for (unsigned j = 1; j < clause_size(l_reason); j++) {
         Tlit lit = reason_lits[j];
-        if (lit_level(lit) == LEVEL_ROOT) {
+        if (level(lit) == LEVEL_ROOT) {
           if (_dependency_tracker)
-            _dependency_tracker->track_dependency(lit_reason(lit));
+            _dependency_tracker->track_dependency(reason(lit));
           continue;
         }
         _lit_buffer[_lit_buffer_size++] = lit;
@@ -1145,7 +1145,7 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
 
     // check if the clause is new
 
-    for (unsigned j = 0; j < _lit_buffer_size; j++) { lit_mark(_lit_buffer[j]); }
+    for (unsigned j = 0; j < _lit_buffer_size; j++) { mark(_lit_buffer[j]); }
     bool redundant = learned_clause_is_redundant();
     // check if the clause is already learned
     if (!redundant) {
@@ -1154,7 +1154,7 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
         if (clause.size() != _lit_buffer_size)
           continue;
         bool all_found = true;
-        for (unsigned j = 0; j < clause.size() && all_found; j++) { all_found &= lit_marked(clause[j]); }
+        for (unsigned j = 0; j < clause.size() && all_found; j++) { all_found &= marked(clause[j]); }
         if (all_found) {
           NOTIFY_STAT(_n_fw_subsumption);
 
@@ -1163,7 +1163,7 @@ void NapSAT::try_and_learn_impl(T bt, vector<pair<Tclause, vector<Tlit>>>& learn
         }
       }
     }
-    for (unsigned j = 0; j < _lit_buffer_size; j++) { lit_unmark(_lit_buffer[j]); }
+    for (unsigned j = 0; j < _lit_buffer_size; j++) { unmark(_lit_buffer[j]); }
     if (redundant) {
       if (_proof)
         _proof->cancel_resolution_chain();
@@ -1215,8 +1215,9 @@ void NapSAT::graph_repair()
       _conflicts_chunks.back() -= _locked_chunks;
       if (_conflicts_chunks.back().empty()) { // conflict cannot be solved
         _status = status::UNSAT;
-        cout << "UNSAT: conflict cannot be solved because all chunks are locked" << endl;
-        // TODO need to produce a proof
+        if (_proof) {
+          prove_lazy_merge_unsat(conflict);
+        }
         return;
       }
     }
@@ -1228,7 +1229,6 @@ void NapSAT::graph_repair()
     // we cannot repair the conflicts
     _status = status::UNSAT;
     if(_proof) {
-      cout << "UNSAT: conflict cannot be solved because all chunks are locked" << endl;
       // we need to find which conflict is unsat and generate the proof
       for (Tclause conflict : _conflicts) {
         _conflicts_chunks.clear();

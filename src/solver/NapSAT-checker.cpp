@@ -92,8 +92,8 @@ bool napsat::NapSAT::check_correct_chunks() const
 
   bool success = true;
   for (Tlit lit : _trail) {
-    Tclause reason = lit_reason(lit);
-    if (reason == CLAUSE_UNDEF) {
+    Tclause r = reason(lit);
+    if (r == CLAUSE_UNDEF) {
       // Decision literal: must own a single, fresh chunk.
       if (lit_chunks(lit).count() != 1) {
         success = false;
@@ -108,8 +108,8 @@ bool napsat::NapSAT::check_correct_chunks() const
     }
     else {
       // Implied literal: its chunks must be the union of the chunks of the other literals of its reason.
-      const Tlit* lits = clause_lits(reason);
-      const unsigned size = clause_size(reason);
+      const Tlit* lits = clause_lits(r);
+      const unsigned size = clause_size(r);
       ASSERT(lits[0] == lit);
       bitset expected = lit_chunks(lit);
       expected.clear();
@@ -117,7 +117,7 @@ bool napsat::NapSAT::check_correct_chunks() const
         expected |= lit_chunks(lits[i]);
       if (lit_chunks(lit) != expected) {
         success = false;
-        LOG_ERROR("Invariant violation: Correct chunks: implied literal " << lit_to_string(lit) << " has chunks " << lit_chunks(lit).to_string() << " but the union of the chunks of its reason " << clause_to_string(reason) << " (excluding itself) is " << expected.to_string());
+        LOG_ERROR("Invariant violation: Correct chunks: implied literal " << lit_to_string(lit) << " has chunks " << lit_chunks(lit).to_string() << " but the union of the chunks of its reason " << clause_to_string(r) << " (excluding itself) is " << expected.to_string());
       }
     }
   }
@@ -131,7 +131,7 @@ bool napsat::NapSAT::check_correct_chunk_reimplication() const
 
   bool success = true;
   for (Tlit lit : _trail) {
-    if (!lit_decision(lit))
+    if (!is_decision(lit))
       continue;
     ASSERT(lit_chunks(lit).count() == 1);
     Tchunk chunk = *lit_chunks(lit).cbegin();
@@ -142,8 +142,8 @@ bool napsat::NapSAT::check_correct_chunk_reimplication() const
       continue;
     }
 
-    Tclause lazy_reason = lit_lazy_reason(lit);
-    if (lazy_reason == CLAUSE_UNDEF) {
+    Tclause l_reason = lazy_reason(lit);
+    if (l_reason == CLAUSE_UNDEF) {
       if (ck.is_reimplied) {
         success = false;
         LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") is marked as reimplied but has no lazy reason");
@@ -153,14 +153,14 @@ bool napsat::NapSAT::check_correct_chunk_reimplication() const
 
     if (!ck.is_reimplied) {
       success = false;
-      LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") has lazy reason " << clause_to_string(lazy_reason) << " but is not marked as reimplied");
+      LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") has lazy reason " << clause_to_string(l_reason) << " but is not marked as reimplied");
     }
 
-    const Tlit* lits = clause_lits(lazy_reason);
-    const unsigned size = clause_size(lazy_reason);
+    const Tlit* lits = clause_lits(l_reason);
+    const unsigned size = clause_size(l_reason);
     if (lits[0] != lit) {
       success = false;
-      LOG_ERROR("Invariant violation: Correct chunk reimplication: lazy reason " << clause_to_string(lazy_reason) << " of decision literal " << lit_to_string(lit) << " does not have it as its first literal");
+      LOG_ERROR("Invariant violation: Correct chunk reimplication: lazy reason " << clause_to_string(l_reason) << " of decision literal " << lit_to_string(lit) << " does not have it as its first literal");
       continue;
     }
 
@@ -169,7 +169,7 @@ bool napsat::NapSAT::check_correct_chunk_reimplication() const
       expected |= lit_chunks(lits[i]);
     if (ck.missed_implication != expected) {
       success = false;
-      LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") has missed_implication " << ck.missed_implication.to_string() << " but the union of the chunks of its lazy reason " << clause_to_string(lazy_reason) << " (excluding itself) is " << expected.to_string());
+      LOG_ERROR("Invariant violation: Correct chunk reimplication: chunk " << chunk << " (decision " << lit_to_string(lit) << ") has missed_implication " << ck.missed_implication.to_string() << " but the union of the chunks of its lazy reason " << clause_to_string(l_reason) << " (excluding itself) is " << expected.to_string());
     }
 
     if (reimplication_cycle(chunk, ck.missed_implication)) {
@@ -192,7 +192,7 @@ bool napsat::NapSAT::lit_is_max_literal(Tlit lit, const Tlit* lits, size_t size)
     }
   } else {
     for (size_t i = 0; i < size; i++) {
-      if (lit_level(lit) < lit_level(lits[i])) {
+      if (level(lit) < level(lits[i])) {
         return false;
       }
     }
@@ -228,6 +228,25 @@ bool napsat::NapSAT::check_trail_variable_consistency() const
   return success;
 }
 
+bool napsat::NapSAT::check_trail_position_consistency() const
+{
+  bool success = true;
+  for (size_t i = 0; i < _trail.size(); i++) {
+    Tlit lit = _trail[i];
+    if (lit_trail_pos(lit) != i) {
+      success = false;
+      LOG_ERROR("Invariant violation: Trail position consistency: literal " << lit_to_string(lit) << " is at position " << i << " in the trail but its stored position is " << lit_trail_pos(lit));
+    }
+  }
+  for (Tvar var = 1; var < _vars.size(); var++) {
+    if (var_undef(var) && trail_pos(var) != TRAIL_POS_UNDEF) {
+      success = false;
+      LOG_ERROR("Invariant violation: Trail position consistency: variable " << var << " is unassigned but has trail position " << trail_pos(var));
+    }
+  }
+  return success;
+}
+
 bool napsat::NapSAT::check_decision_index_consistency() const
 {
   bool success = true;
@@ -238,13 +257,13 @@ bool napsat::NapSAT::check_decision_index_consistency() const
       continue;
     }
     Tlit lit = _trail[_decision_index[i]];
-    if (!lit_decision(lit)) {
+    if (!is_decision(lit)) {
       success = false;
       LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << i << ", index " << _decision_index[i] << " points to literal " << lit_to_string(lit) << " which is not a decision literal");
     }
-    if (lit_level(lit) != i + 1) {
+    if (level(lit) != i + 1) {
       success = false;
-      LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << (i + 1) << ", index " << _decision_index[i] << " points to literal " << lit_to_string(lit) << " which is at level " << lit_level(lit));
+      LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << (i + 1) << ", index " << _decision_index[i] << " points to literal " << lit_to_string(lit) << " which is at level " << level(lit));
     }
   }
   if (!success) {
@@ -389,18 +408,18 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
           Tlit n_c2 = Tlit(c2.value);
           Tlit n_blocker = Tlit(blocker.value);
           bool success =
-                   !(lit_false(n_c1) && lit_propagated(n_c1))
-                || !(lit_false(n_c2) && lit_propagated(n_c2))
-                || (lit_true(n_blocker) && lit_level(n_blocker) <= lit_level(n_c1));
+                   !(lit_false(n_c1) && propagated(n_c1))
+                || !(lit_false(n_c2) && propagated(n_c2))
+                || (lit_true(n_blocker) && level(n_blocker) <= level(n_c1));
           if (!success) {
             err_msg += lit_to_string(~n_c1) + " ∈ τ ⇒ [" + lit_to_string(~n_c2) + " ∉ τ ∨ (" + lit_to_string(n_blocker) + " ∈ π ∧ δ(" + lit_to_string(n_blocker) + ") ≤ δ(" + lit_to_string(n_c1) + "))]\n";
-            err_msg += (lit_false(n_c1) && lit_propagated(n_c1) ? "true" : "false");
+            err_msg += (lit_false(n_c1) && propagated(n_c1) ? "true" : "false");
             err_msg += " ⇒ ";
-            err_msg += (lit_false(n_c2) && lit_propagated(n_c2) ? "true" : "false");
+            err_msg += (lit_false(n_c2) && propagated(n_c2) ? "true" : "false");
             err_msg += " ∨ (";
             err_msg += (lit_true(n_blocker) ? "true" : "false");
             err_msg += " ∧ ";
-            err_msg += (lit_level(n_blocker) <= lit_level(n_c1) ? "true" : "false");
+            err_msg += (level(n_blocker) <= level(n_c1) ? "true" : "false");
             err_msg += ")\n";
           }
           return success;
@@ -415,9 +434,9 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
           Tlit n_c1 = Tlit(c1.value);
           Tlit n_c2 = Tlit(c2.value);
           Tlit n_blocker = Tlit(blocker.value);
-          return  !(lit_false(n_c1) && lit_propagated(n_c1))
-                || (lit_true(n_c2) && lit_level(n_c2) <= lit_level(n_c1))
-                || (lit_true(n_blocker) && lit_level(n_blocker) <= lit_level(n_c1));
+          return  !(lit_false(n_c1) && propagated(n_c1))
+                || (lit_true(n_c2) && level(n_c2) <= level(n_c1))
+                || (lit_true(n_blocker) && level(n_blocker) <= level(n_c1));
         },
         "¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)) ∨ (b ∈ π ∧ δ(b) ≤ δ(c₁))]")},
     {"blocked_lazy_backtrack_compatible_strong_watched_literals",
@@ -429,9 +448,9 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
           Tlit n_c1 = Tlit(c1.value);
           Tlit n_c2 = Tlit(c2.value);
           Tlit n_blocker = Tlit(blocker.value);
-          return  !(lit_false(n_c1) && lit_propagated(n_c1))
-                || (lit_true(n_c2) && lit_lazy_level(n_c2) <= lit_level(n_c1))
-                || (lit_true(n_blocker) && lit_lazy_level(n_blocker) <= lit_level(n_c1));
+          return  !(lit_false(n_c1) && propagated(n_c1))
+                || (lit_true(n_c2) && lit_lazy_level(n_c2) <= level(n_c1))
+                || (lit_true(n_blocker) && lit_lazy_level(n_blocker) <= level(n_c1));
         },
         "¬c₁ ∈ τ ⇒ [c₂ ∈ π ∧ [δ(c₂) ≤ δ(c₁) ∨ δ(λ(c₂) \\ {c₂}) ≤ δ(c₁)] ∨ [b ∈ π ∧ δ(b) ≤ δ(c₁)]")
   },
@@ -444,14 +463,14 @@ void napsat::NapSAT::load_invariant_configuration(sentinel::Options& s_options)
           Tlit n_c1 = Tlit(c1.value);
           Tlit n_c2 = Tlit(c2.value);
           Tlit n_blocker = Tlit(blocker.value);
-          bool success = !(lit_false(n_c1) && lit_propagated(n_c1))
-                         || (lit_true(n_c2) && lit_chunks(n_c2) <= lit_cross_chunks(n_c1))
-                         || (lit_true(n_blocker) && lit_chunks(n_blocker) <= lit_cross_chunks(n_c1));
+          bool success = !(lit_false(n_c1) && propagated(n_c1))
+                         || (lit_true(n_c2) && lit_chunks(n_c2) <= cross_chunks(n_c1))
+                         || (lit_true(n_blocker) && lit_chunks(n_blocker) <= cross_chunks(n_c1));
           if (!success) {
             err_msg += "\n";
             err_msg += "γ(" + lit_to_string(n_c2) + ") = " + lit_chunks(n_c2).to_string() + "\n";
             err_msg += "γ(" + lit_to_string(n_blocker) + ") = " + lit_chunks(n_blocker).to_string() + "\n";
-            err_msg += "η(" + lit_to_string(n_c1) + ") = " + lit_cross_chunks(n_c1).to_string() + "\n";
+            err_msg += "η(" + lit_to_string(n_c1) + ") = " + cross_chunks(n_c1).to_string() + "\n";
           }
           return success;
         },

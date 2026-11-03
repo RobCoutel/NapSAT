@@ -142,12 +142,12 @@ bool NapSAT::parse_dimacs(const char* filename)
           Tvar var = stoi(var_string, &pos);
           if (pos != var_string.size())
             throw invalid_argument(var_string);
-          double weight = stod(weight_string, &pos);
+          double w = stod(weight_string, &pos);
           if (pos != weight_string.size())
             throw invalid_argument(weight_string);
           if (var >= _vars.size())
             var_allocate(var + 1);
-          var_weight(var) = weight;
+          weight(var) = w;
           // done, next line
           continue;
         }
@@ -286,14 +286,14 @@ void NapSAT::stop_watch(Tlit lit, Tclause cl)
 
 unsigned NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
 {
-  ASSERT(all_of(lits, lits + size, [this](Tlit lit) { return !lit_marked(lit); }));
+  ASSERT(all_of(lits, lits + size, [this](Tlit lit) { return !marked(lit); }));
   Tlit* i = lits;
   Tlit* j = i;
   Tlit* end = i + size;
   unsigned new_size = size;
   bool tautology = false;
   while(i < end) {
-    if (lit_marked(*i)) {
+    if (marked(*i)) {
       // check that the clause is not a tautology
       for (Tlit* k = lits; k < j; k++) {
         if (*k == ~*i) {
@@ -304,13 +304,13 @@ unsigned NapSAT::cleanup_duplicate_literals(Tlit* lits, unsigned size)
       i++;
       continue;
     }
-    lit_mark(*i);
+    mark(*i);
     *j++ = *i++;
   }
   new_size = j - lits;
   end_loop:
   for (unsigned k = 0; k < new_size; k++) {
-    lit_unmark(lits[k]);
+    unmark(lits[k]);
   }
   if (tautology) {
     return 0;
@@ -365,10 +365,11 @@ void NapSAT::allocate_chunks(size_t n_chunks)
     _vars[i].cross_chunks.resize(n_chunks);
   }
 
-  for (Tchunk i = 0; i < _chunks.size(); i++) {
+  for (Tchunk i = 1; i < _chunks.size(); i++) {
     _chunks[i].missed_implication.resize(n_chunks);
   }
   _locked_chunks.resize(n_chunks);
+  _recently_backtracked_chunks.resize(n_chunks);
   _n_allocated_chunks = n_chunks;
   ASSERT(_n_allocated_chunks == solver_level().value + _free_chunks.size(),
         "\n_n_allocated_chunks = " + std::to_string(_n_allocated_chunks) + "\n"
@@ -386,7 +387,7 @@ void NapSAT::free_chunk(Tchunk ck)
 
 void NapSAT::free_chunk(Tvar decision)
 {
-  ASSERT(var_decision(decision));
+  ASSERT(is_decision(decision));
   ASSERT(var_chunks(decision).count() == 1);
   free_chunk(*var_chunks(decision).cbegin());
 }
@@ -405,7 +406,7 @@ unsigned NapSAT::utility_heuristic(Tlit lit)
   if (_options->graph_backtracking) {
     level_weight = lit_chunks(lit).count();
   } else {
-    level_weight = lit_level(lit).value;
+    level_weight = level(lit).value;
   }
   return (lit_true(lit)  * (2 * solver_level().value - level_weight + 3))
        + (lit_undef(lit) * (solver_level().value + 2))
@@ -451,18 +452,18 @@ size_t napsat::NapSAT::find_literal_in_trail(Tlit lit) const
 {
   // the literal must be located between the decision of it's decision level and the end of the trail
   // if in NCB, it must be located between the decision of it's decision level and the next decision of a different level
-  Tlevel level = lit_level(lit);
+  Tlevel lvl = level(lit);
   const Tlit* left = _trail.data();
-  if (level > 0) {
-    left = decision_lit_ptr(level);
+  if (lvl > 0) {
+    left = decision_lit_ptr(lvl);
   }
   const Tlit* right = _trail.data() + _trail.size();
-  if (lit_decision(lit)) {
+  if (is_decision(lit)) {
     return left - _trail.data();
   }
   if (!_options->chronological_backtracking && !_options->graph_backtracking
-   && level < solver_level()) {
-    right = decision_lit_ptr(level + 1);
+   && lvl < solver_level()) {
+    right = decision_lit_ptr(lvl + 1);
   }
 
   size_t target_order = lit_order(lit);
@@ -487,7 +488,7 @@ size_t napsat::NapSAT::find_literal_in_trail(Tlit lit) const
 string NapSAT::lit_to_string(Tlit lit) const
 {
   string s = "";
-  if (lit_marked(lit))
+  if (marked(lit))
     s += "M";
   if (lit_undef(lit))
     s += ORANGE;
@@ -497,7 +498,7 @@ string NapSAT::lit_to_string(Tlit lit) const
     ASSERT(lit_false(lit));
     s += RED;
   }
-  if (lit_decision(lit))
+  if (is_decision(lit))
     s += "\033[4m";
   s += lit.to_string();
   if (lit_locked(lit))
@@ -518,13 +519,13 @@ std::string napsat::NapSAT::lit_to_md_string(Tlit lit) const
     ASSERT(lit_false(lit));
     s += "<span style=\"color:rgb(255, 0, 0)\">";
   }
-  if (lit_decision(lit))
+  if (is_decision(lit))
     s += "<u>";
   s += lit.to_string();
   if (lit_locked(lit))
     s += "🔒";
 
-  if (lit_decision(lit))
+  if (is_decision(lit))
     s += "</u>";
 
   s += "</span>";
@@ -540,7 +541,7 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
 //   - decision
 // ---
   string s = "---\n";
-  if (lit_decision(lit)) {
+  if (is_decision(lit)) {
     s += "  tags:\n   - decision\n";
   } else {
     s += "  tags:\n   - implied\n";
@@ -560,11 +561,11 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
     s += "   - conflicting\n";
   }
 
-  s += "  level: "      + lit_level(lit).to_string() + "\n";
-  s += "  propagated: " + (string) (lit_propagated(lit) ? "true" : "false") + "\n";
+  s += "  level: "      + level(lit).to_string() + "\n";
+  s += "  propagated: " + (string) (propagated(lit) ? "true" : "false") + "\n";
   s += "  sync: "       + (string) (lit_synced(lit) ? "true" : "false") + "\n";
   s += "  locked: "     + (string) (lit_locked(lit) ? "true" : "false") + "\n";
-  s += "  marked: "     + (string) (lit_marked(lit) ? "true" : "false") + "\n";
+  s += "  marked: "     + (string) (marked(lit) ? "true" : "false") + "\n";
   s += "  vsids: "      + to_string(_vars[lit.var()].activity) + "\n";
 
   // compute the number of clauses that contain this variable
@@ -584,10 +585,10 @@ std::string napsat::NapSAT::lit_to_md_info_string(Tlit lit) const
 
   s += "---\n";
   s += "$\\ell$: " + lit_to_md_string(lit) + "\n";
-  s += "$\\delta(\\ell)$: " + lit_level(lit).to_string() + "\n";
-  s += "$\\rho(\\ell)$: " + clause_to_md_string(lit_reason(lit)) + "\n";
-  if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
-    s += "$\\lambda(\\ell)$: " + clause_to_md_string(lit_lazy_reason(lit)) + "\n";
+  s += "$\\delta(\\ell)$: " + level(lit).to_string() + "\n";
+  s += "$\\rho(\\ell)$: " + clause_to_md_string(reason(lit)) + "\n";
+  if (lazy_reason(lit) != CLAUSE_UNDEF) {
+    s += "$\\lambda(\\ell)$: " + clause_to_md_string(lazy_reason(lit)) + "\n";
   }
   if (_options->graph_backtracking) {
     s += "$\\gamma(\\ell)$: " + lit_chunks(lit).to_string() + "\n";
@@ -629,7 +630,7 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
   };
 
   string s = "";
-  if (var_decision(var))
+  if (is_decision(var))
     s += "tags: decision\n";
   else if (!var_undef(var))
     s += "tags: implied\n";
@@ -652,25 +653,25 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
     s += "tags: conflicting\n";
 
   s += "value: " + (string) (var_true(var) ? "true" : var_false(var) ? "false" : "undef") + "\n";
-  s += "δ: " + var_level(var).to_string() + "\n";
-  s += "ρ: " + plain_clause(var_reason(var)) + "\n";
-  Tclause lazy_reason = lit_lazy_reason(Tlit(var, 1));
-  if (lazy_reason != CLAUSE_UNDEF || _options->lazy_strong_chronological_backtracking) {
-    s += "λ: " + plain_clause(lazy_reason) + "\n";
-    if (lazy_reason != CLAUSE_UNDEF) {
+  s += "δ: " + level(var).to_string() + "\n";
+  s += "ρ: " + plain_clause(reason(var)) + "\n";
+  Tclause l_reason = lazy_reason(Tlit(var, 1));
+  if (l_reason != CLAUSE_UNDEF || _options->lazy_strong_chronological_backtracking) {
+    s += "λ: " + plain_clause(l_reason) + "\n";
+    if (l_reason != CLAUSE_UNDEF) {
       bitset chunks(_n_allocated_chunks);
-      for (unsigned i = 1; i < clause_size(lazy_reason); i++) {
-        Tlit lit = clause_lits(lazy_reason)[i];
+      for (unsigned i = 1; i < clause_size(l_reason); i++) {
+        Tlit lit = clause_lits(l_reason)[i];
         chunks |= lit_chunks(lit);
       }
       s += "γ(λ): " + chunks.to_string() + "\n";
     }
   }
-  s += "propagated: " + (string) (var_propagated(var) ? "true" : "false") + "\n";
-  s += "synced: "     + (string) (var_synced(var) ? "true" : "false") + "\n";
+  s += "propagated: " + (string) (propagated(var) ? "true" : "false") + "\n";
+  s += "synced: "     + (string) (synced(var) ? "true" : "false") + "\n";
   s += "locked: "     + (string) (var_locked(var) ? "true" : "false") + "\n";
-  s += "marked: "     + (string) (var_marked(var) ? "true" : "false") + "\n";
-  s += "vsids: "       + to_string(var_activity(var)) + "\n";
+  s += "marked: "     + (string) (marked(var) ? "true" : "false") + "\n";
+  s += "vsids: "       + to_string(activity(var)) + "\n";
 
   unsigned n_clauses = 0;
   for (TSclause cl : _clauses) {
@@ -688,7 +689,7 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
 
   if (_options->graph_backtracking) {
     s += "γ: " + var_chunks(var).to_string() + "\n";
-    s += "η: " + (var_cross_chunks(var) - var_chunks(var)).to_string() + "\n";
+    s += "η: " + (cross_chunks(var) - var_chunks(var)).to_string() + "\n";
     s += "ζ: " + to_string(literal_cost(Tlit(var, var_value(var)))) + "\n";
   }
 
@@ -741,7 +742,7 @@ std::string napsat::NapSAT::clause_to_gui_info_string(Tclause cl) const
     s += "  " + lit.to_string();
     if (i < 2)
       s += " (watched)";
-    s += ": " + value + " @ " + lit_level(lit).to_string() + "\n";
+    s += ": " + value + " @ " + level(lit).to_string() + "\n";
   }
 
   return s;
@@ -851,28 +852,28 @@ void NapSAT::print_trail() const
     }
     ASSERT(!lit_undef(lit));
     cout << pad(i, _trail.size()) << i;
-    cout << ": δ = " <<  pad(lit_level(lit).value, solver_level().value) << lit_level(lit) << " ";
+    cout << ": δ = " <<  pad(level(lit).value, solver_level().value) << level(lit) << " ";
     if (solver_level() < 500) {
-      for (Tlevel i = 0; i < lit_level(lit); i++) {
+      for (Tlevel i = 0; i < level(lit); i++) {
         cout << " ";
       }
     }
     cout << lit_to_string(lit) << " --> ρ = ";
-    print_clause(lit_reason(lit));
-    if (lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+    print_clause(reason(lit));
+    if (lazy_reason(lit) != CLAUSE_UNDEF) {
       cout << " / (λ = ";
-      print_clause(lit_lazy_reason(lit));
+      print_clause(lazy_reason(lit));
       cout << ")";
     }
     if (_options->graph_backtracking) {
       cout << " (γ = " << lit_chunks(lit).to_string() << ", ";
       cout <<   "η = " << (lit_cross_chunks(lit) - lit_chunks(lit)).to_string();
-      if (lit_decision(lit) && lit_lazy_reason(lit) != CLAUSE_UNDEF) {
+      if (is_decision(lit) && lazy_reason(lit) != CLAUSE_UNDEF) {
         cout << ", ξ = " << _chunks[*lit_chunks(lit).cbegin()].missed_implication.to_string();
       }
       cout << ")";
     }
-    // if (lit_propagated(lit)) {
+    // if (propagated(lit)) {
     //   cout << " (propagated)";
     // }
     cout << "\n";
@@ -896,7 +897,7 @@ void NapSAT::print_trail_simple() const
       if (i == _n_propagated_lits)
         cout << "| ";
       Tlit lit = _trail[i];
-      if (lit_level(lit) == lvl) {
+      if (level(lit) == lvl) {
         if (lit.pol())
           cout << " ";
         cout << pad(lit.var().value, _vars.size().value);

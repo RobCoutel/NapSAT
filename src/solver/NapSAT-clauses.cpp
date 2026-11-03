@@ -126,10 +126,10 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
   bool satisfied_at_root = false;
   for (unsigned i = 0; !satisfied_at_root && i < input_size; i++) {
     Tlit l = lits_input[i];
-    if (lit_level(l) == LEVEL_ROOT) {
+    if (level(l) == LEVEL_ROOT) {
       // the solver should not introduce redundant literals, so the literal must be false at level 0
       // ASSERT(external || _conflicts.size() > 0,
-      //   "The clause: " + clause_to_string(lits_input, input_size) + "\nLiteral: " + lit_to_string(l) + "\nLevel: " + std::to_string(lit_level(l)) + "\nThis should not happen since the solver should not introduce redundant literals.");
+      //   "The clause: " + clause_to_string(lits_input, input_size) + "\nLiteral: " + lit_to_string(l) + "\nLevel: " + std::to_string(level(l)) + "\nThis should not happen since the solver should not introduce redundant literals.");
       // The solver should not generate redundant literals and clauses
       satisfied_at_root |= lit_true(l);
       n_removed++;
@@ -178,10 +178,10 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
   else {
     // cannot use memcpy because we skip the literals falsified at level 0
     for (unsigned i = 0, j = 0; i < input_size; i++) {
-      if (lit_level(lits_input[i]) == LEVEL_ROOT) {
+      if (level(lits_input[i]) == LEVEL_ROOT) {
         // if the literal were true, we should have deleted the clause already, so it must be false
         ASSERT(lit_false(lits_input[i]),
-          "Clause: " + clause_to_string(id) + "\nLiteral: " + lit_to_string(lits_input[i]) + "\nLevel: " + std::to_string(lit_level(lits_input[i])));
+          "Clause: " + clause_to_string(id) + "\nLiteral: " + lit_to_string(lits_input[i]) + "\nLevel: " + std::to_string(level(lits_input[i])));
         continue;
       }
       lits[j++] = lits_input[i];
@@ -232,8 +232,8 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
     // Remove the literals falsified at level 0 in the dependencies
     if (n_removed > 0) {
       for (unsigned i = 0; i < input_size; i++) {
-        if (lit_level(lits_input[i]) == LEVEL_ROOT) {
-          _dependency_tracker->link_dependencies(id, lit_reason(lits_input[i]));
+        if (level(lits_input[i]) == LEVEL_ROOT) {
+          _dependency_tracker->link_dependencies(id, reason(lits_input[i]));
         }
       }
     }
@@ -269,7 +269,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
       }
       imply(lits[0], id);
     }
-    if (lit_true(lits[0]) && lit_level(lits[0]) != LEVEL_ROOT) {
+    if (lit_true(lits[0]) && level(lits[0]) != LEVEL_ROOT) {
       reimply_literal_root(lits[0], id);
       return id;
     }
@@ -302,7 +302,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
 
     if (!_options->chronological_backtracking && !_options->graph_backtracking) {
       // we need to ensure monotonicity of the trail. For that reason, we have to backtrack everything above the implied level
-      Tlevel backtrack_level = lit_level(lits[1]);
+      Tlevel backtrack_level = level(lits[1]);
       backtrack(backtrack_level);
     }
 
@@ -328,7 +328,7 @@ Tclause napsat::NapSAT::internal_add_clause(const Tlit* lits_input,
 
   ASSERT(lit_true(lits[0]));
   ASSERT(check_clause_implying(id));
-  ASSERT(lit_level(lits[1]) > LEVEL_ROOT);
+  ASSERT(level(lits[1]) > LEVEL_ROOT);
 
   // This might be a missed lower implication
   // check if we need to reimply the literal at a lower level (or fix the cross-chunks)
@@ -356,7 +356,7 @@ void napsat::NapSAT::delete_clause(Tclause cl)
     _dependency_tracker->delete_clause(cl);
 }
 
-Tlevel napsat::NapSAT::clause_level(Tclause cl) const
+Tlevel napsat::NapSAT::level(Tclause cl) const
 {
   ASSERT(cl != CLAUSE_UNDEF);
   ASSERT(cl < _clauses.size());
@@ -365,14 +365,12 @@ Tlevel napsat::NapSAT::clause_level(Tclause cl) const
 
   if (!_options->graph_backtracking) {
     ASSERT(lit_is_max_literal(lits[0], lits + 1, clause_size(cl) - 1));
-    return lit_level(lits[0]);
+    return level(lits[0]);
   }
 
-  Tlevel level = lit_level(lits[0]);
+  Tlevel lvl = level(lits[0]);
   for (unsigned i = 1; i < clause_size(cl); i++) {
-    Tlevel lit_lvl = lit_level(lits[i]);
-    if (lit_lvl > level)
-      level = lit_lvl;
+    lvl = max(lvl, level(lits[i]));
   }
-  return level;
+  return lvl;
 }

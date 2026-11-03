@@ -150,7 +150,7 @@ bool is_decided(const NapSAT* solver, Tlit lit)
 bool is_root_level(const NapSAT* solver, Tvar var)
 {
   assert(solver != nullptr);
-  Tlevel lvl =  solver->var_level(var);
+  Tlevel lvl =  solver->level(var);
   return lvl == LEVEL_ROOT;
 }
 

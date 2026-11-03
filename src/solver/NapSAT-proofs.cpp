@@ -30,35 +30,35 @@ void napsat::NapSAT::prove_root_literal_removal(Tlit* lits, unsigned size)
 
   for (unsigned i = 0; i < size; i++) {
     ASSERT(lit_false(lits[i]));
-    if (lit_level(lits[i]) != LEVEL_ROOT)
+    if (level(lits[i]) != LEVEL_ROOT)
       continue;
-    if (!lit_marked(lits[i])) {
+    if (!marked(lits[i])) {
       count++;
     }
-    lit_mark(lits[i]);
+    mark(lits[i]);
   }
 
   unsigned i = _trail.size() - 1;
   while (count != 0) {
-    while (!lit_marked(_trail[i]))
+    while (!marked(_trail[i]))
       i--;
     Tlit lit = _trail[i];
-    ASSERT(lit_level(lit) == LEVEL_ROOT);
-    ASSERT(lit_reason(lit) != CLAUSE_UNDEF);
-    Tclause reason = lit_reason(lit);
-    ASSERT(reason != CLAUSE_UNDEF);
-    _proof->link_resolution(~lit, reason);
+    ASSERT(level(lit) == LEVEL_ROOT);
+    ASSERT(reason(lit) != CLAUSE_UNDEF);
+    Tclause r = reason(lit);
+    ASSERT(r != CLAUSE_UNDEF);
+    _proof->link_resolution(~lit, r);
 
-    for (unsigned j = 1; j < clause_size(reason); j++) {
-      Tlit lit = clause_lits(reason)[j];
+    for (unsigned j = 1; j < clause_size(r); j++) {
+      Tlit lit = clause_lits(r)[j];
       ASSERT(lit_false(lit));
-      if (lit_marked(lit))
+      if (marked(lit))
         continue;
-      lit_mark(lit);
+      mark(lit);
       count++;
     }
     count--;
-    lit_unmark(lit);
+    unmark(lit);
   }
 }
 
@@ -73,8 +73,8 @@ void napsat::NapSAT::prove_lazy_merge_unsat(Tclause cl)
   unsigned n_lits_remaining = 0;
   for (unsigned i = 0; i < clause_size(cl); i++) {
     Tlit lit = clause_lits(cl)[i];
-    ASSERT(!lit_marked(lit));
-    lit_mark(lit);
+    ASSERT(!marked(lit));
+    mark(lit);
     n_lits_remaining++;
   }
 
@@ -82,26 +82,28 @@ void napsat::NapSAT::prove_lazy_merge_unsat(Tclause cl)
   while (n_lits_remaining > 0) {
     ASSERT(index > 0);
     Tlit lit = _trail[--index];
-    if (!lit_marked(lit))
+    if (!marked(lit))
       continue;
-    Tclause reason = lit_reason(lit);
-    if (reason == CLAUSE_UNDEF) {
+    Tclause r = reason(lit);
+    if (r == CLAUSE_UNDEF) {
       // this must be a lazy chunk merge
-      reason = lit_lazy_reason(lit);
+      r = lazy_reason(lit);
+      // we need to restart because this might have added literals at the back of the trail
+      index = _trail.size();
     }
-    ASSERT(reason != CLAUSE_UNDEF);
-    ASSERT(_clauses[reason].lits[0] == lit);
-    for (unsigned i = 1; i < clause_size(reason); i++) {
-      Tlit lit = clause_lits(reason)[i];
-      if (lit_marked(lit))
+    ASSERT(r != CLAUSE_UNDEF);
+    ASSERT(clause_lits(r)[0] == lit);
+    for (unsigned i = 1; i < clause_size(r); i++) {
+      Tlit lit = clause_lits(r)[i];
+      if (marked(lit))
         continue;
-      lit_mark(lit);
+      mark(lit);
       n_lits_remaining++;
     }
 
     n_lits_remaining--;
-    _proof->link_resolution(~lit, reason);
-    lit_unmark(lit);
+    _proof->link_resolution(~lit, r);
+    unmark(lit);
   }
 
   _proof->finalize_resolution(_clauses.size(), nullptr, 0);

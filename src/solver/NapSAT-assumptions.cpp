@@ -53,7 +53,7 @@ bool NapSAT::forget_assumption(Tlit assumption)
       // the assumption was not added
       return false;
     }
-    ASSERT(lit_decision(assumption));
+    ASSERT(is_decision(assumption));
     // unlock the chunk of the literal
     ASSERT(lit_chunks(assumption).count() == 1);
     _locked_chunks -= lit_chunks(assumption);
@@ -74,7 +74,7 @@ void NapSAT::forget_assumption()
     for (auto it = _locked_chunks.cbegin(); it != _locked_chunks.cend(); ++it) {
       Tvar var = _chunks[*it].decision;
       Tlit lit(var, var_value(var));
-      ASSERT(lit_decision(lit));
+      ASSERT(is_decision(lit));
       lit_unlock(lit);
     }
     _locked_chunks.clear();
@@ -101,7 +101,7 @@ std::vector<Tlit> napsat::NapSAT::unsat_core() const
       // all chunks in the conflict are locked, the assumption failed
       for (unsigned i = 0; i < size; i++) {
         Tlit lit = lits[i];
-        if (lit_decision(lit) && lit_locked(lit)) {
+        if (is_decision(lit) && lit_locked(lit)) {
           failed.push_back(lit);
         }
       }
@@ -142,17 +142,17 @@ std::vector<Tclause> napsat::NapSAT::clause_unsat_core()
   const Tlit* lits = clause_lits(conflict_clause);
   const unsigned size = clause_size(conflict_clause);
   for (unsigned i = 0; i < size; i++)
-    lit_mark(lits[i]);
+    mark(lits[i]);
 
   // perform a reverse traversal of the trail
   for (size_t i = _trail.size(); i-- > 0;) {
     Tlit lit = _trail[i];
-    if (!lit_marked(lit)) {
+    if (!marked(lit)) {
       continue;
     }
-    lit_unmark(lit);
-    Tclause reason = lit_reason(lit);
-    ASSERT(reason != CLAUSE_UNDEF || lit_locked(lit));
+    unmark(lit);
+    Tclause r = reason(lit);
+    ASSERT(r != CLAUSE_UNDEF || lit_locked(lit));
 
     if (lit_locked(lit)) {
       // the literal is an assumption, nothing to do
@@ -160,13 +160,13 @@ std::vector<Tclause> napsat::NapSAT::clause_unsat_core()
     }
 
     // add the reason clause to the unsat core
-    const set<Tclause>& deps = _dependency_tracker->get_dependencies(reason);
+    const set<Tclause>& deps = _dependency_tracker->get_dependencies(r);
     failed.insert(deps.begin(), deps.end());
     // mark all literals in the reason clause
-    const Tlit* rlits = clause_lits(reason);
-    const unsigned rsize = clause_size(reason);
+    const Tlit* rlits = clause_lits(r);
+    const unsigned rsize = clause_size(r);
     for (unsigned j = 0; j < rsize; j++)
-      lit_mark(rlits[j]);
+      mark(rlits[j]);
   }
 
   std::vector<Tclause> to_return(failed.begin(), failed.end());
@@ -186,7 +186,7 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
   ASSERT(lit_true(lit));
   ASSERT(_options->graph_backtracking);
   // check if the literal is already a decision
-  if (lit_decision(lit)) {
+  if (is_decision(lit)) {
     // just lock the chunk of the literal
     ASSERT(lit_chunks(lit).count() == 1);
     _locked_chunks |= lit_chunks(lit);
@@ -196,7 +196,7 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
     return;
   }
 
-  if (lit_level(lit) == LEVEL_ROOT) {
+  if (level(lit) == LEVEL_ROOT) {
     // the literal is at root level, just lock its chunk
     // nothing needs to be done
     ASSERT(lit_chunks(lit).count() == 0);
@@ -204,16 +204,16 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
   }
 
   // search the literal in the trail
-  Tlevel level = lit_level(lit);
-  ASSERT(level != LEVEL_UNDEF);
+  Tlevel lvl = level(lit);
+  ASSERT(lvl != LEVEL_UNDEF);
   // first literal at level after the decision (we do not want to count the decision to increment the level)
-  size_t pos = _decision_index[level-1] + 1;
+  size_t pos = _decision_index[lvl-1] + 1;
   for (; pos < _trail.size(); pos++) {
     Tlit l = _trail[pos];
     if (l == lit) {
       break;
     }
-    level += lit_decision(l) ? 1 : 0;
+    lvl += is_decision(l) ? 1 : 0;
   }
   ASSERT(pos < _trail.size());
 
@@ -227,13 +227,13 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
    */
   bitset lit_chunk = lit_chunks(lit);
   _decision_index.resize(_decision_index.size() + 1);
-  _decision_index[level] = pos;
+  _decision_index[lvl] = pos;
 
-  lit_lazy_reason(lit) = lit_reason(lit);
-  lit_reason(lit) = CLAUSE_UNDEF;
+  lazy_reason(lit) = reason(lit);
+  reason(lit) = CLAUSE_UNDEF;
   NOTIFY(update_reason, lit, CLAUSE_UNDEF);
-  lit_level(lit) = level+1;
-  NOTIFY(update_level, lit, level+1);
+  level(lit) = lvl+1;
+  NOTIFY(update_level, lit, lvl+1);
 
   lit_chunks(lit).clear();
   unsigned ck = _free_chunks.back();
@@ -251,31 +251,31 @@ void NapSAT::add_assumption_GB_true(Tlit lit)
     Tlit l = _trail[i];
     // decisions should be updated in the index
     // we do not need to compute -1 because we are going to increment the level right after
-    if (lit_decision(l)) {
-      _decision_index[lit_level(l)] = i;
+    if (is_decision(l)) {
+      _decision_index[level(l)] = i;
     }
     // update level
-    if (lit_level(l) >= level) {
-      lit_level(l)++;
-      NOTIFY(update_level, l, lit_level(l));
+    if (level(l) >= lvl) {
+      level(l)++;
+      NOTIFY(update_level, l, level(l));
     }
     // update chunks if necessary
     if (lit_chunk >= lit_chunks(l)) {
       Tlevel recomputed_level = LEVEL_ROOT;
       lit_chunks(l).clear();
-      const Tclause reason = lit_reason(l);
-      ASSERT(reason != CLAUSE_UNDEF);
-      const Tlit* lits = clause_lits(reason);
-      const unsigned size = clause_size(reason);
+      const Tclause r = reason(l);
+      ASSERT(r != CLAUSE_UNDEF);
+      const Tlit* lits = clause_lits(r);
+      const unsigned size = clause_size(r);
       for (unsigned j = 1; j < size; j++) {
         Tlit rl = lits[j];
         lit_chunks(l) |= lit_chunks(rl);
-        recomputed_level = std::max(recomputed_level, lit_level(rl));
+        recomputed_level = std::max(recomputed_level, level(rl));
       }
-      if (lit_level(l) != recomputed_level) {
+      if (level(l) != recomputed_level) {
         NOTIFY(update_level, l, recomputed_level);
       }
-      lit_level(l) = recomputed_level;
+      level(l) = recomputed_level;
       NOTIFY(update_level, l, recomputed_level);
     }
   }

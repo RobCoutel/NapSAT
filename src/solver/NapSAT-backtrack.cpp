@@ -43,7 +43,7 @@ void NapSAT::var_unassign(Tvar var)
   v.state = Tval::UNDEF;
   v.reason = CLAUSE_UNDEF;
   v.level = LEVEL_UNDEF;
-  v.propagated = false;
+  v.trail_pos = TRAIL_POS_UNDEF;
 }
 
 Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
@@ -52,7 +52,7 @@ Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
 #ifndef NDEBUG
   // The first literal of the clause is at the highest level
   for (unsigned i = 1; i < size; i++) {
-    ASSERT(lit_level(learned_lits[i]) <= lit_level(learned_lits[0]), "Inconsistent literal levels for learned clause " + clause_to_string(learned_lits, size));
+    ASSERT(level(learned_lits[i]) <= level(learned_lits[0]), "Inconsistent literal levels for learned clause " + clause_to_string(learned_lits, size));
   }
 #endif
   if (size == 0) {
@@ -60,32 +60,32 @@ Tlevel NapSAT::choose_backtracked_level(Tlit* learned_lits, unsigned size) const
     return LEVEL_UNDEF;
   }
   if (_options->chronological_backtracking) {
-    return lit_level(learned_lits[0]) - 1;
+    return level(learned_lits[0]) - 1;
   }
   if (size == 1) {
     // If the learned clause is a unit clause, we can backtrack to the level of the literal
     return LEVEL_ROOT;
   }
-  return lit_level(learned_lits[1]);
+  return level(learned_lits[1]);
 }
 
-void NapSAT::backtrack(Tlevel level)
+void NapSAT::backtrack(Tlevel lvl)
 {
-  ASSERT(level <= solver_level());
+  ASSERT(lvl <= solver_level());
   if (_status == status::SAT) {
     _status = status::UNKNOWN;
   }
-  if (level >= solver_level())
+  if (lvl >= solver_level())
     return;
   unsigned waiting_count = 0;
 
   // the restore point is the location of the lowest decision that gets undone. That is, one level above the backtracking level.
-  const size_t restore_point = _decision_index[level];
+  const size_t restore_point = _decision_index[lvl];
   ASSERT(restore_point <= _trail.size());
-  ASSERT(lit_decision(_trail[restore_point]),
-    "The restore point should be a decision literal. Restore point: " + to_string(restore_point) + "\nLevel: " + to_string(level));
-  ASSERT(lit_level(_trail[restore_point]) == level + 1,
-    "The restore point should be at level one above the backtracking level. Restore point: " + to_string(restore_point) + "\nLevel: " + to_string(level));
+  ASSERT(is_decision(_trail[restore_point]),
+    "The restore point should be a decision literal. Restore point: " + to_string(restore_point) + "\nLevel: " + to_string(lvl));
+  ASSERT(level(_trail[restore_point]) == lvl + 1,
+    "The restore point should be at level one above the backtracking level. Restore point: " + to_string(restore_point) + "\nLevel: " + to_string(lvl));
   size_t j = restore_point;
   _sync_validity_index = min(_sync_validity_index, restore_point);
 
@@ -94,16 +94,16 @@ void NapSAT::backtrack(Tlevel level)
   for (unsigned i = restore_point; i < _trail.size(); i++) {
     Tlit lit = _trail[i];
     Tvar var = lit.var();
-    if (lit_level(lit) > level) {
-      ASSERT(_options->lazy_strong_chronological_backtracking || _options->graph_backtracking || lit_lazy_reason(lit) == CLAUSE_UNDEF);
-      if (lit_lazy_level(lit) <= level) {
+    if (level(lit) > lvl) {
+      ASSERT(_options->lazy_strong_chronological_backtracking || _options->graph_backtracking || lazy_reason(lit) == CLAUSE_UNDEF);
+      if (lit_lazy_level(lit) <= lvl) {
         // look if the literal can be reimplied at a lower level
         ASSERT(_options->lazy_strong_chronological_backtracking || _options->lazy_chunk_merging);
-        Tclause lazy_reason = lit_lazy_reason(lit);
-        ASSERT(lazy_reason != CLAUSE_UNDEF);
-        ASSERT(clause_lits(lazy_reason)[0] == lit);
-        ASSERT(lit_true(clause_lits(lazy_reason)[0]));
-        _reimplication_backtrack_buffer.push_back(lazy_reason);
+        Tclause l_reason = lazy_reason(lit);
+        ASSERT(l_reason != CLAUSE_UNDEF);
+        ASSERT(clause_lits(l_reason)[0] == lit);
+        ASSERT(lit_true(clause_lits(l_reason)[0]));
+        _reimplication_backtrack_buffer.push_back(l_reason);
       }
       /* in LSCB, we cannot backtrack from front to back because it breaks the missed lower implications
         for example, if ℓ₁ ∨ ℓ₂ ∨ ℓ₃ is a missed lower implication and the trail looks like
@@ -117,15 +117,16 @@ void NapSAT::backtrack(Tlevel level)
         at the end of the backtracking
       */
       _backtracked_variables.push_back(var);
-    } else { // lit_level(lit) <= level
+    } else { // level(lit) <= level
       ASSERT(_options->chronological_backtracking || _options->graph_backtracking,
-        "The literal " + lit_to_string(lit) + " at level " + lit_level(lit).to_string() + " at position " + to_string(i) + " should be backtracked. Backtracking level: " + to_string(level));
+        "The literal " + lit_to_string(lit) + " at level " + level(lit).to_string() + " at position " + to_string(i) + " should be backtracked. Backtracking level: " + to_string(lvl));
+      lit_trail_pos(lit) = j;
       _trail[j++] = lit;
       waiting_count += (i >= _n_propagated_lits);
     }
-    if (lit_lazy_reason(lit) != CLAUSE_UNDEF && lit_lazy_level(lit) > level) {
+    if (lazy_reason(lit) != CLAUSE_UNDEF && lit_lazy_level(lit) > lvl) {
       // the lazy reason is not valid anymore
-      lit_lazy_reason(lit) = CLAUSE_UNDEF;
+      lazy_reason(lit) = CLAUSE_UNDEF;
     }
   }
   // Here we unassign the literals as mentioned above
@@ -135,10 +136,10 @@ void NapSAT::backtrack(Tlevel level)
     var_unassign(var);
   }
   _trail.resize(j);
-  _decision_index.resize(level);
+  _decision_index.resize(lvl);
 
   ASSERT(_options->chronological_backtracking || _options->graph_backtracking || waiting_count == 0,
-             "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(level) + "\nRestore point: " + to_string(restore_point));
+             "Waiting count: " + to_string(waiting_count) + "\nLevel: " + to_string(lvl) + "\nRestore point: " + to_string(restore_point));
   _n_propagated_lits = _trail.size() - waiting_count;
   ASSERT(_options->chronological_backtracking || _options->graph_backtracking || _n_propagated_lits == restore_point,
     "Propagated literals: " + to_string(_n_propagated_lits) + "\nRestore point: " + to_string(restore_point));
@@ -147,9 +148,6 @@ void NapSAT::backtrack(Tlevel level)
   if (_options->chronological_backtracking) {
     while (_n_propagated_lits > restore_point) {
       Tlit lit = _trail[_n_propagated_lits - 1];
-      Tvar var = lit.var();
-      ASSERT(var_propagated(var));
-      _vars[var].propagated = false;
       _n_propagated_lits--;
       NOTIFY(unpropagate, lit);
     }
@@ -169,6 +167,7 @@ void NapSAT::backtrack(Tlevel level)
     }
     _reimplication_backtrack_buffer.clear();
   }
+  ASSERT(check_trail_position_consistency());
 }
 
 static Tvar last_backtracked_decision = 0;
@@ -179,6 +178,10 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   ASSERT(!backtracked_chunks.empty());
   ASSERT(!backtracked_chunks.empty());
   ASSERT(_backtracked_variables.empty());
+
+  // record the recently backtracked chunks to avoid a full scan of the trail for repropagation
+  _recently_backtracked_chunks |= backtracked_chunks;
+
   // Mapping to the new level of literals after backtracking
   indexed_vector<Tlevel, Tlevel> level_transformation;
   level_transformation.resize(solver_level() + 1);
@@ -196,53 +199,19 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
     }
   }
 
-  Tlit* i = _trail.data();
-  Tlit* j = i + _decision_index[min_level - 1];
+  Tlit* i = _trail.data() + _decision_index[min_level - 1];
+  Tlit* j = i;
   Tlit* end = _trail.data() + _trail.size();
   Tlevel decision_counter = min_level - 1;
-  unsigned new_propagation_head = _n_propagated_lits;
-  // print_trail();
+
   while (i < end) {
     Tlit lit = *i;
     Tvar var = lit.var();
     bitset& chunks = var_chunks(var);
-    Tlevel lit_lvl = var_level(var);
+    Tlevel lvl = level(var);
 
-    // belonging to one of the deleted levels is a sufficient condition, faster to compute than the chunk intersection
-    bool backtracked = i >= j && (level_transformation[lit_lvl] == LEVEL_ERROR || chunks.has_intersection(backtracked_chunks));
-
-    /** CROSS-CHUNKS **/
-    if (!backtracked && lit_propagated(lit) && lit_cross_chunks(lit).has_intersection(backtracked_chunks)) {
-      unsigned loc = min(i, j) - _trail.data();
-      _vars[var].propagated = false;
-      NOTIFY_STAT(_n_propagation_replayed);
-      NOTIFY(unpropagate, lit);
-      new_propagation_head = min(new_propagation_head, loc);
-    }
-
-    // check if the lazy reimplication still holds
-    Tclause lazy_reason = lit_lazy_reason(lit);
-    if (lazy_reason != CLAUSE_UNDEF) {
-      ASSERT(lit_decision(lit), "The literal " + lit_to_string(lit) + " has a lazy reason " + clause_to_string(lazy_reason) + " but is not a decision literal");
-      TSchunk& chunk = _chunks[*var_chunks(var).cbegin()];
-      if (chunk.missed_implication.has_intersection(backtracked_chunks)) {
-        lit_lazy_reason(lit) = CLAUSE_UNDEF;
-        chunk.missed_implication.clear();
-        chunk.is_reimplied = false;
-      }
-    }
-
-    if (i < j) {
-      i++;
-      continue;
-    }
-
-
-    /** ACTUAL BACKTRACKING **/
-    // only for after the start position
-
-    if (backtracked) {
-      if(lit_decision(lit)) {
+    if (level_transformation[lvl] == LEVEL_ERROR || chunks.has_intersection(backtracked_chunks)) {
+      if(is_decision(lit)) {
         last_backtracked_decision = lit.var();
       }
       // we need to unassign the variable
@@ -250,33 +219,45 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
       _sync_validity_index = min(_sync_validity_index, (size_t) (j - _trail.data()));
       unsigned loc = j - _trail.data();
       _n_propagated_lits   -= loc < _n_propagated_lits;
-      new_propagation_head -= loc < new_propagation_head;
       ASSERT(_n_propagated_lits <= _trail.size());
       i++;
       continue;
     }
 
-    if (lit_decision(lit)) {
+    if (is_decision(lit)) {
       _decision_index[decision_counter++] = j - _trail.data();
     }
 
-    if (lit_lvl > min_level) {
+    if (lvl > min_level) {
       // We need to fix the level of the literal
-      var_level(var) = level_transformation[var_level(var)];
-      ASSERT(var_level(var) != LEVEL_ERROR);
-      NOTIFY(update_level, lit, var_level(var));
+      level(var) = level_transformation[level(var)];
+      ASSERT(level(var) != LEVEL_ERROR);
+      NOTIFY(update_level, lit, level(var));
     }
+    trail_pos(var) = j - _trail.data();
     *(j++) = *(i++);
   }
   ASSERT(decision_counter == _decision_index.size() - backtracked_chunks.count());
   _decision_index.resize(decision_counter);
   _trail.resize(j - _trail.data());
+  ASSERT(check_trail_position_consistency());
 
   ASSERT(_n_propagated_lits <= _trail.size());
-  _n_propagated_lits = new_propagation_head;
+#if OBSERVER_ENABLED
+  if (_sentinel) {
+    while (_n_propagated_lits > 0) {
+      NOTIFY(unpropagate, _trail[--_n_propagated_lits]);
+    }
+  }
+#endif
+  _n_propagated_lits = 0;
 
-  ASSERT(all_of(_trail.begin(), _trail.end(), [this,backtracked_chunks](Tlit l){
-    return !lit_chunks(l).has_intersection(backtracked_chunks); }));
-  ASSERT(all_of(_trail.begin(), _trail.end(), [this,backtracked_chunks](Tlit l){
-    return !lit_propagated(l) || !lit_cross_chunks(l).has_intersection(backtracked_chunks); }));
+  // check if the lazy reimplications still hold
+  for (Tchunk c = 0; c < _n_allocated_chunks; c++) {
+    if (backtracked_chunks.has_intersection(_chunks[c].missed_implication)) {
+      _chunks[c].missed_implication.clear();
+      _chunks[c].is_reimplied = false;
+      lazy_reason(_chunks[c].decision) = CLAUSE_UNDEF;
+    }
+  }
 }
