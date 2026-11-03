@@ -42,22 +42,25 @@ namespace
 
 
 void compute_reachability_closures(const vector<bitset>& parents,
+                                   const bitset& mergeable,
                                    const bitset& forbidden,
                                    const bitset& start,
                                    vector<bitset>& completions,
                                    unsigned limit)
 {
   unsigned allocated_size = start.capacity();
+  assert (parents.size() == allocated_size);
+  assert (forbidden.capacity() == allocated_size);
+  assert (mergeable.capacity() == allocated_size);
 
-  bitset mergeable(allocated_size);
-  for (size_t i = 0; i < parents.size(); i++) {
-    if (!parents[i].empty() && !forbidden[i]) {
-      mergeable.set(i, true);
-    }
+  cout << "Computing reachability closures for start = " << start.to_string() << ", forbidden = " << forbidden.to_string() << endl;
+  cout << "Completions before: " << completions.size() << endl;
+  for (size_t i = 0; i < completions.size(); i++) {
+    cout << "  " << i << ": " << completions[i].to_string() << endl;
   }
 
   priority_queue<closure_node, vector<closure_node>, compare_closure_nodes> stack;
-  stack.push({start, bitset(parents.size())});
+  stack.push({start, bitset(allocated_size)});
 
   while(!stack.empty()) {
     closure_node node = stack.top();
@@ -80,9 +83,10 @@ void compute_reachability_closures(const vector<bitset>& parents,
 
     for (auto it = remaining.cbegin(); it != remaining.cend(); ++it) {
       unsigned c = *it;
+      if (forbidden[c])
+        continue;
       assert(c < parents.size());
       assert(!node.processed[c]);
-      assert(!forbidden[c]);
       assert(!parents[c].empty());
 
       bitset new_processed = node.processed;

@@ -68,7 +68,8 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(vector<bitset>& p
   // completion.
   vector<bitset>& parents = _chunk_parents;
   parents.resize(_n_allocated_chunks);
-  bitset mergeable_chunks(_n_allocated_chunks);
+  bitset mergeable(_n_allocated_chunks);
+  bitset forbidden = _n_assumptions > 0 ? _locked_chunks : bitset(_n_allocated_chunks);
   for (Tchunk c = 0; c < _n_allocated_chunks; c++) {
     ASSERT(_chunks[c].decision < _vars.size());
     ASSERT(!_chunks[c].is_reimplied || var_lazy_reason(_chunks[c].decision) != CLAUSE_UNDEF,
@@ -77,17 +78,19 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(vector<bitset>& p
             "Chunk " + to_string(c) + " is reimplied but its decision variable " + _chunks[c].decision.to_string() + " has a lazy reason " + clause_to_string(var_lazy_reason(_chunks[c].decision)) + " whose chunks are " + clause_chunks(var_lazy_reason(_chunks[c].decision)).to_string() + ", which does not match the chunk's missed implication " + _chunks[c].missed_implication.to_string());
     parents[c] = _chunks[c].missed_implication;
     if (_chunks[c].is_reimplied) {
-      mergeable_chunks.set(c, true);
+      mergeable.set(c, true);
+      if (parents[c].empty()) {
+        forbidden.set(c, true);
+      }
     }
   }
-  bitset forbidden = _n_assumptions > 0 ? _locked_chunks : bitset(_n_allocated_chunks);
   unsigned limit = static_cast<unsigned>(_options->backtrack_possibilities_limit);
 
   size_t original_size = possibilities.size();
   while(original_size > 0) {
     bitset current = possibilities[original_size - 1];
     if (possibilities.size() > _options->backtrack_possibilities_limit
-     || !current.has_intersection(mergeable_chunks)) {
+     || !current.has_intersection(mergeable)) {
       // no mergeable chunk, nothing to do
       original_size--;
       continue;
@@ -95,8 +98,12 @@ void NapSAT::enhance_backtrack_possibilities_with_lazy_merging(vector<bitset>& p
     possibilities[original_size - 1] = possibilities.back();
     possibilities.pop_back();
     original_size--;
+    if (current <= forbidden) {
+      // all chunks are forbidden. This is not an acceptable backtrack possibility
+      continue;
+    }
     // remove the original possibility, replaced with its lazy-merge completions
-    compute_reachability_closures(parents, forbidden, current, possibilities, limit);
+    compute_reachability_closures(parents, mergeable, forbidden, current, possibilities, limit);
   }
 }
 
@@ -1319,11 +1326,7 @@ void NapSAT::graph_repair()
     ASSERT(analyzed.lowest_level > 0);
     double penalty = _options->chunk_level_penalty * (_trail.size() - _decision_index[analyzed.lowest_level - 1]);
 #endif
-    ASSERT(analyzed.total_weight - penalty <= calculate_weight(analyzed.chunks) + 1e-6,
-               "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) +
-                " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)) +
-                " and penalty is " + to_string(penalty));
-    ASSERT(analyzed.total_weight - penalty >= calculate_weight(analyzed.chunks) - 1e-6,
+    ASSERT(abs(analyzed.total_weight - penalty - calculate_weight(analyzed.chunks)) <= 1e-6,
                "Analyzed is " + analyzed.chunks.to_string() + " with weight " + to_string(analyzed.total_weight) +
                 " but calculated weight is " + to_string(calculate_weight(analyzed.chunks)) +
                 " and penalty is " + to_string(penalty));

@@ -30,6 +30,7 @@ namespace napsat
    * completions.
    *
    * @param parents parents[u] = u's parents in the DAG.
+   * @param mergeable elements that can be added to a completion (e.g. elements that are not pinned elsewhere and can be moved).
    * @param forbidden elements that can never be added to a completion (e.g.
    * elements pinned elsewhere that cannot be moved).
    * @param start the initial element set every completion extends.
@@ -38,6 +39,7 @@ namespace napsat
    * appended (0 = unbounded).
    */
   void compute_reachability_closures(const std::vector<bitset>& parents,
+                                     const bitset& mergeable,
                                      const bitset& forbidden,
                                      const bitset& start,
                                      std::vector<bitset>& completions,
