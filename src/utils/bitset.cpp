@@ -399,9 +399,11 @@ static bool compare(const bitset::bitstore &a, const bitset::bitstore &b, const 
   do {
     uint64_t v1 = *m1 & M_DATA_MSK;
     uint64_t v2 = *m2 & M_DATA_MSK;
-    for (; v1 | v2; v1 >>= 1, v2 >>= 1) {
-      uint64_t a1 = LB(v1) ? *(it1++) : 0;
-      uint64_t a2 = LB(v2) ? *(it2++) : 0;
+    // only visit the positions where at least one of the two bitsets has a data word
+    for (uint64_t u = v1 | v2; u; u &= u - 1) {
+      const uint64_t low = u & -u; // lowest set bit of u
+      uint64_t a1 = (v1 & low) ? *(it1++) : 0;
+      uint64_t a2 = (v2 & low) ? *(it2++) : 0;
       uint64_t v = op(a1, a2);
       if (v) return true;
     }
