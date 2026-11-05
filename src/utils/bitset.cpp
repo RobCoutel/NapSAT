@@ -36,6 +36,15 @@ static inline constexpr unsigned count_bits(uint64_t b, uint64_t m = -1) {
 #endif
 }
 
+static inline constexpr unsigned count_zero_l(uint64_t b) {
+#if __cplusplus >= 202002L
+  return std::countl_zero(b);
+#else
+  // not defined for 0
+  return b ? __builtin_clzll(b) : sizeof(uint64_t) * CHAR_BIT;
+#endif
+}
+
 static inline constexpr unsigned count_zero_r(uint64_t b) {
 #if __cplusplus >= 202002L
   return std::countr_zero(b);
@@ -218,24 +227,23 @@ static bool subset_check(const bitset::bitstore &a, const bitset::bitstore &b, b
   auto m1 = a.cbegin();
   auto m2 = b.cbegin();
   do {
-    uint64_t v1 = *m1 & M_DATA_MSK;
-    uint64_t v2 = *m2 & M_DATA_MSK;
-    uint64_t s = ~v1 & v2; // skip
-    uint64_t c = v1 & v2;  // check
+    const uint64_t v1 = *m1 & M_DATA_MSK;
+    const uint64_t v2 = *m2 & M_DATA_MSK;
     assert(!(v1 & ~v2)); // checked above
-    assert(!(s & c)); // either check or skip
-    for (; c; c >>= 1, s >>= 1) {
-      if (LB(c)) {
+    // Walk the data words of b (a only has words where b has one), and stop as soon as
+    // there is no word of a left in this metadata block.
+    uint64_t u = v2;
+    for (; u & v1; u &= u - 1) {
+      if (v1 & u & -u) {
         if (!subset(*it1, *it2)) return false;
         equal = equal && (*it1 == *it2);
-        ++it1; ++it2;
-      } else if (LB(s)) {
-        assert(!equal);
-        ++it2;
+        ++it1;
       }
+      ++it2;
     }
-    assert(!count_bits(s) || !equal);
-    it2 += count_bits(s);
+    // skip the remaining words of b, that a does not have
+    assert(!u || !equal);
+    if (u) it2 += count_bits(u);
   } while (*(m1++) & *(m2++) & M_NEXT_MSK);
 
   // check for proper => !equal
@@ -262,133 +270,207 @@ bool bitset::operator>(const bitset &other) const {
   return subset_check(other._bits, _bits, true);
 }
 
-typedef uint64_t (*op_t)(uint64_t, uint64_t);
+/*
+ * Word-wise operations. Besides the operation itself, each one describes
+ * - relevant(v1, v2): the data positions (as metadata bits) where the result can be non-zero,
+ * - grows:   whether op(0, b) can be non-zero, i.e. the result can have words a does not have,
+ * - shrinks: whether op(a, b) can be zero for a != 0, i.e. words of a can disappear.
+ * Taking them as template parameters lets the compiler inline the operation and drop the
+ * code paths that cannot happen for it.
+ */
+struct op_and {
+  static constexpr bool grows = false, shrinks = true;
+  static uint64_t apply(uint64_t a, uint64_t b) { return a & b; }
+  static uint64_t relevant(uint64_t v1, uint64_t v2) { return v1 & v2; }
+};
 
-static bitset::bitstore combine(const bitset::bitstore &a, const bitset::bitstore &b, const op_t op) {
-  auto it1 = a.cbegin();
-  auto it2 = b.cbegin();
-  while (*(it1++) & *(it2++) & M_NEXT_MSK);
+struct op_or {
+  static constexpr bool grows = true, shrinks = false;
+  static uint64_t apply(uint64_t a, uint64_t b) { return a | b; }
+  static uint64_t relevant(uint64_t v1, uint64_t v2) { return v1 | v2; }
+};
 
-  bitset::bitstore out(it1 - a.cbegin());
+struct op_xor {
+  static constexpr bool grows = true, shrinks = true;
+  static uint64_t apply(uint64_t a, uint64_t b) { return a ^ b; }
+  static uint64_t relevant(uint64_t v1, uint64_t v2) { return v1 | v2; }
+};
 
-  // check data
-  auto m1 = a.cbegin();
-  auto m2 = b.cbegin();
-  size_t mo = 0;
-  do {
-    uint64_t v1 = *m1 & M_DATA_MSK;
-    uint64_t v2 = *m2 & M_DATA_MSK;
+struct op_diff {
+  static constexpr bool grows = false, shrinks = true;
+  static uint64_t apply(uint64_t a, uint64_t b) { return a & ~b; }
+  static uint64_t relevant(uint64_t v1, uint64_t /*v2*/) { return v1; }
+};
+
+/** Number of metadata words of a bitset. */
+static inline size_t metadata_size(const bitset::bitstore &a) {
+  auto it = a.cbegin();
+  while (*(it++) & M_NEXT_MSK);
+  return it - a.cbegin();
+}
+
+template <class Op>
+static bitset::bitstore combine(const bitset::bitstore &a, const bitset::bitstore &b) {
+  // count the metadata words, and an upper bound on the number of data words of the result
+  const size_t n_meta = metadata_size(a);
+  assert(n_meta == metadata_size(b));
+  size_t bound = 0;
+  for (size_t mi = 0; mi < n_meta; mi++)
+    bound += count_bits(Op::relevant(a[mi] & M_DATA_MSK, b[mi] & M_DATA_MSK));
+
+  bitset::bitstore out(n_meta);
+  out.reserve(n_meta + bound);
+
+  auto it1 = a.cbegin() + n_meta;
+  auto it2 = b.cbegin() + n_meta;
+  for (size_t mi = 0; mi < n_meta; mi++) {
+    const uint64_t v1 = a[mi] & M_DATA_MSK;
+    const uint64_t v2 = b[mi] & M_DATA_MSK;
+    const uint64_t rel = Op::relevant(v1, v2);
     uint64_t o = 0;
-    int rem = BITS - 1;
-    for (; v1 | v2; v1 >>= 1, v2 >>= 1, o >>= 1) {
-      -- rem;
-      uint64_t a1 = LB(v1) ? *(it1++) : 0;
-      uint64_t a2 = LB(v2) ? *(it2++) : 0;
-      uint64_t v = op(a1, a2);
+    // visit the positions where either bitset has a data word, as long as a relevant one remains
+    uint64_t u = v1 | v2;
+    for (; u & rel; u &= u - 1) {
+      const uint64_t low = u & -u; // lowest set bit of u
+      const uint64_t a1 = (v1 & low) ? *(it1++) : 0;
+      const uint64_t a2 = (v2 & low) ? *(it2++) : 0;
+      const uint64_t v = Op::apply(a1, a2);
       if (v) {
-        o |= MSK_HI(1);
+        o |= low;
         out.push_back(v);
       }
     }
-    assert(rem >= 0);
-    o >>= rem;
-    assert((o & M_DATA_MSK) == o);
-    out[mo++] = o | M_NEXT_MSK;
-  } while (*(m1++) & *(m2++) & M_NEXT_MSK);
-  assert((*(m1-1) & M_NEXT_MSK) == (*(m2-1) & M_NEXT_MSK));
-  // clear the next bit for the last metadata word
-  out[mo-1] &= ~M_NEXT_MSK;
-
+    // skip the words that cannot contribute to the result
+    if (u && mi + 1 < n_meta) {
+      it1 += count_bits(v1 & u);
+      it2 += count_bits(v2 & u);
+    }
+    out[mi] = o | (a[mi] & M_NEXT_MSK);
+  }
+  assert(out.size() <= n_meta + bound);
   return out;
 }
 
-bitset bitset::operator&(const bitset &other) const {  // check metadata
+bitset bitset::operator&(const bitset &other) const {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a & b; };
-  return bitset(combine(_bits, other._bits, o));
+  return bitset(combine<op_and>(_bits, other._bits));
 }
 
 bitset bitset::operator|(const bitset &other) const {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a | b; };
-  return bitset(combine(_bits, other._bits, o));
+  return bitset(combine<op_or>(_bits, other._bits));
 }
 
 bitset bitset::operator^(const bitset &other) const {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a ^ b; };
-  return bitset(combine(_bits, other._bits, o));
+  return bitset(combine<op_xor>(_bits, other._bits));
 }
 
 bitset bitset::operator-(const bitset &other) const {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a ^ (a & b); };
-  return bitset(combine(_bits, other._bits, o));
+  return bitset(combine<op_diff>(_bits, other._bits));
 }
 
-static void update(bitset::bitstore &a, const bitset::bitstore &b, const op_t op) {
-  auto it1 = a.begin();
-  auto it2 = b.cbegin();
-  while (*(it1++) & *(it2++) & M_NEXT_MSK);
+template <class Op>
+static void update(bitset::bitstore &a, const bitset::bitstore &b) {
+  // count the metadata words, and the number of data words of b that a does not have
+  const size_t n_meta = metadata_size(a);
+  assert(n_meta == metadata_size(b));
+  size_t n_new = 0;
+  if (Op::grows)
+    for (size_t mi = 0; mi < n_meta; mi++)
+      n_new += count_bits(b[mi] & ~a[mi] & M_DATA_MSK);
 
-  // check data
-  unsigned m1 = 0;
-  unsigned m2 = 0;
-  do {
-    uint64_t v1 = a[m1] & M_DATA_MSK;
-    uint64_t v2 = b[m2] & M_DATA_MSK;
+  if (Op::grows && n_new > 0) {
+    // The result can have more data words than a. Grow a once, then merge from the back so
+    // that no word of a is overwritten before being read: the write position never goes below
+    // the read position. Words that become zero are dropped, leaving a gap removed at the end.
+    const size_t old_size = a.size();
+    a.resize(old_size + n_new);
+    size_t r1 = old_size;
+    size_t r2 = b.size();
+    size_t w = a.size();
+    for (size_t mi = n_meta; mi-- > 0;) {
+      const uint64_t v1 = a[mi] & M_DATA_MSK;
+      const uint64_t v2 = b[mi] & M_DATA_MSK;
+      uint64_t o = 0;
+      for (uint64_t u = v1 | v2; u;) {
+        const uint64_t high = MSK_BT(BITS - 1 - count_zero_l(u)); // highest set bit of u
+        u ^= high;
+        const uint64_t a1 = (v1 & high) ? a[--r1] : 0;
+        const uint64_t a2 = (v2 & high) ? b[--r2] : 0;
+        const uint64_t v = Op::apply(a1, a2);
+        if (!Op::shrinks || v) {
+          assert(w > r1); // never overwrite a word of a that has not been read yet
+          a[--w] = v;
+          o |= high;
+        }
+      }
+      a[mi] = o | (a[mi] & M_NEXT_MSK);
+    }
+    assert(r1 == n_meta && r2 == n_meta && w >= n_meta);
+    if (Op::shrinks && w > n_meta)
+      a.erase(a.begin() + n_meta, a.begin() + w);
+    assert(Op::shrinks || w == n_meta);
+    return;
+  }
+
+  // The result has no word that a does not have: compute it in place, front to back.
+  // The write position never goes past the read position.
+  size_t r1 = n_meta;
+  size_t r2 = n_meta;
+  size_t w = n_meta;
+  for (size_t mi = 0; mi < n_meta; mi++) {
+    const uint64_t v1 = a[mi] & M_DATA_MSK;
+    const uint64_t v2 = b[mi] & M_DATA_MSK;
+    const uint64_t rel = Op::relevant(v1, v2);
     uint64_t o = 0;
-    int rem = BITS - 1;
-    for (; v1 | v2; v1 >>= 1, v2 >>= 1, o >>= 1) {
-      -- rem;
-      uint64_t a1 = LB(v1) ? *(it1) : 0;
-      uint64_t a2 = LB(v2) ? *(it2++) : 0;
-      uint64_t v = op(a1, a2);
-      if (LB(v1)) {
-        *it1 = v;
-        ++it1;
-        o |= (v ? MSK_HI(1) : 0);
-      } else if (v) {
-        it1 = a.insert(it1, v);
-        ++it1;
-        o |= MSK_HI(1);
+    uint64_t u = v1 | v2;
+    for (; u & rel; u &= u - 1) {
+      const uint64_t low = u & -u; // lowest set bit of u
+      const uint64_t a1 = (v1 & low) ? a[r1++] : 0;
+      const uint64_t a2 = (v2 & low) ? b[r2++] : 0;
+      const uint64_t v = Op::apply(a1, a2);
+      assert((v1 & low) || !v);
+      if (!Op::shrinks || v) {
+        a[w++] = v;
+        o |= low;
       }
     }
-    assert(rem >= 0);
-    o >>= rem;
-    a[m1] = o | (b[m2] & M_NEXT_MSK);
-    assert((a[m1] & M_NEXT_MSK) == (b[m2] & M_NEXT_MSK));
-  } while (a[m1++] & b[m2++] & M_NEXT_MSK);
-
-  // clear all empty fields
-  a.erase(std::remove(a.begin() + m1, a.end(), 0), a.end());
+    // the remaining words of a cannot be kept (op(a1, 0) == 0 when they are not relevant)
+    if (u && mi + 1 < n_meta) {
+      r1 += count_bits(v1 & u);
+      r2 += count_bits(v2 & u);
+    }
+    a[mi] = o | (a[mi] & M_NEXT_MSK);
+  }
+  if (Op::shrinks)
+    a.resize(w);
+  assert(a.size() == w);
 }
 
 void bitset::operator&=(const bitset &other) {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a & b; };
-  update(_bits, other._bits, o);
+  update<op_and>(_bits, other._bits);
 }
 
 void bitset::operator|=(const bitset &other) {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a | b; };
-  update(_bits, other._bits, o);
+  update<op_or>(_bits, other._bits);
 }
 
 void bitset::operator^=(const bitset &other) {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a ^ b; };
-  update(_bits, other._bits, o);
+  update<op_xor>(_bits, other._bits);
 }
 
 void bitset::operator-=(const bitset &other) {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a ^ (a & b); };
-  update(_bits, other._bits, o);
+  update<op_diff>(_bits, other._bits);
 }
 
-static bool compare(const bitset::bitstore &a, const bitset::bitstore &b, const op_t op) {
+template <class Op>
+static bool compare(const bitset::bitstore &a, const bitset::bitstore &b) {
   auto it1 = a.cbegin();
   auto it2 = b.cbegin();
   while (*(it1++) & *(it2++) & M_NEXT_MSK);
@@ -397,32 +479,39 @@ static bool compare(const bitset::bitstore &a, const bitset::bitstore &b, const 
   auto m1 = a.cbegin();
   auto m2 = b.cbegin();
   do {
-    uint64_t v1 = *m1 & M_DATA_MSK;
-    uint64_t v2 = *m2 & M_DATA_MSK;
-    // only visit the positions where at least one of the two bitsets has a data word
-    for (uint64_t u = v1 | v2; u; u &= u - 1) {
+    const uint64_t v1 = *m1 & M_DATA_MSK;
+    const uint64_t v2 = *m2 & M_DATA_MSK;
+    const uint64_t rel = Op::relevant(v1, v2);
+    // visit the positions where either bitset has a data word, as long as a relevant one remains
+    uint64_t u = v1 | v2;
+    for (; u & rel; u &= u - 1) {
       const uint64_t low = u & -u; // lowest set bit of u
-      uint64_t a1 = (v1 & low) ? *(it1++) : 0;
-      uint64_t a2 = (v2 & low) ? *(it2++) : 0;
-      uint64_t v = op(a1, a2);
-      if (v) return true;
+      const uint64_t a1 = (v1 & low) ? *(it1++) : 0;
+      const uint64_t a2 = (v2 & low) ? *(it2++) : 0;
+      if (Op::apply(a1, a2)) return true;
     }
-  } while (*(m1++) & *(m2++) & M_NEXT_MSK);
-  assert((*(m1-1) & M_NEXT_MSK) == (*(m2-1) & M_NEXT_MSK));
+    // no more metadata block: nothing left to check
+    if (!(*m1 & *m2 & M_NEXT_MSK)) break;
+    // skip the words that cannot contribute to the result
+    if (u) {
+      it1 += count_bits(v1 & u);
+      it2 += count_bits(v2 & u);
+    }
+    ++m1; ++m2;
+  } while (true);
+  assert((*m1 & M_NEXT_MSK) == (*m2 & M_NEXT_MSK));
   return false;
 }
 
 /** returns true if (this & other) != 0 */
 bool bitset::has_intersection(const bitset &other) const {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a & b; };
-  return compare(_bits, other._bits, o);
+  return compare<op_and>(_bits, other._bits);
 }
 
 bool bitset::has_difference(const bitset &other) const {
   assert(capacity() == other.capacity());
-  const auto o = [](uint64_t a, uint64_t b) { return a ^ (a & b); };
-  return compare(_bits, other._bits, o);
+  return compare<op_diff>(_bits, other._bits);
 }
 
 unsigned bitset::iterator::operator*() const {
