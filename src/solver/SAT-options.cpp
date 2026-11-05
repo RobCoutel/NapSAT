@@ -279,6 +279,9 @@ void napsat::Options::build_option_parser()
   _parser.add_double("--backtrack-possibilities-limit", backtrack_possibilities_limit,
     "Limit on the number of backtrack possibilities considered by graph backtracking before "
     "heuristically cutting off.");
+  _parser.add_double("--conflicts-before-repair", conflicts_before_repair,
+    "Number of conflicting clauses added through the interface that are accumulated before a round "
+    "of conflict repair is triggered (graph backtracking only).").range(1, 1e9, /*fatal=*/true);
   _parser.add_double("--sync-weight", sync_weight,
     "Weight of synced variables in the graph-backtracking utility heuristic.");
   _parser.add_double("--timeout", timeout,

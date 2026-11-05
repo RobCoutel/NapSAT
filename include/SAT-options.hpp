@@ -308,6 +308,13 @@ namespace napsat
     double backtrack_possibilities_limit = 1000;
 
     /**
+     * @brief Number of conflicting clauses added through the interface that are accumulated before a round of conflict repair is triggered.
+     * @requires -gb
+     * @details Without graph backtracking, conflicts are always repaired eagerly. With graph backtracking, accumulating conflicts lets the solver pick better chunks to backtrack, but computing the hitting sets of many conflicts can be expensive.
+     */
+    double conflicts_before_repair = 10;
+
+    /**
      * @brief Weight of synced variables in the utility heuristic.
      * @requires -gb
      * @details The utility heuristic is used to choose which chunk to backtrack when using graph backtracking.

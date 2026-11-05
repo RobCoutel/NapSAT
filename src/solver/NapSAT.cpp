@@ -78,6 +78,7 @@ static inline void print_bt_option(const Options &options) {
     if (options.pick_highest_chunks)
       LOG_INFO(" - with pick highest chunks");
     LOG_INFO(" - with backtrack possibilities limit: " + std::to_string(options.backtrack_possibilities_limit));
+    LOG_INFO(" - with conflicts before repair: " + std::to_string(options.conflicts_before_repair));
 
     LOG_INFO(options.get_options_string());
   }
