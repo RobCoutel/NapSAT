@@ -186,23 +186,23 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   indexed_vector<Tlevel, Tlevel> level_transformation;
   level_transformation.resize(solver_level() + 1);
   Tlevel real_level = 1;
-  Tlevel min_level = LEVEL_UNDEF;
+  Tlevel min_lvl = LEVEL_UNDEF;
   level_transformation[LEVEL_ROOT] = LEVEL_ROOT;
   for (Tlevel lvl = 1; lvl <= solver_level(); lvl++) {
     Tlit decision = decision_lit(lvl);
 
     if (lit_chunks(decision).has_intersection(backtracked_chunks)) {
-      min_level = min(min_level, lvl);
+      min_lvl = min(min_lvl, lvl);
       level_transformation[lvl] = LEVEL_ERROR;
     } else {
       level_transformation[lvl] = real_level.value++;
     }
   }
 
-  Tlit* i = _trail.data() + _decision_index[min_level - 1];
+  Tlit* i = _trail.data() + _decision_index[min_lvl - 1];
   Tlit* j = i;
   Tlit* end = _trail.data() + _trail.size();
-  Tlevel decision_counter = min_level - 1;
+  Tlevel decision_counter = min_lvl - 1;
 
   while (i < end) {
     Tlit lit = *i;
@@ -210,10 +210,11 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
     bitset& chunks = var_chunks(var);
     Tlevel lvl = level(var);
 
-    if (level_transformation[lvl] == LEVEL_ERROR || chunks.has_intersection(backtracked_chunks)) {
-      if(is_decision(lit)) {
+    if (lvl >= min_lvl
+     && (level_transformation[lvl] == LEVEL_ERROR || chunks.has_intersection(backtracked_chunks))) {
+      if(is_decision(lit))
         last_backtracked_decision = lit.var();
-      }
+
       // we need to unassign the variable
       var_unassign(lit.var());
       _sync_validity_index = min(_sync_validity_index, (size_t) (j - _trail.data()));
@@ -228,7 +229,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
       _decision_index[decision_counter++] = j - _trail.data();
     }
 
-    if (lvl > min_level) {
+    if (lvl > min_lvl) {
       // We need to fix the level of the literal
       level(var) = level_transformation[level(var)];
       ASSERT(level(var) != LEVEL_ERROR);
