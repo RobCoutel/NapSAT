@@ -690,7 +690,8 @@ std::string napsat::NapSAT::var_to_gui_info_string(Tvar var) const
   if (_options->graph_backtracking) {
     s += "γ: " + var_chunks(var).to_string() + "\n";
     s += "η: " + (cross_chunks(var) - var_chunks(var)).to_string() + "\n";
-    s += "ζ: " + to_string(literal_cost(Tlit(var, var_value(var)))) + "\n";
+    if (var_value(var) != Tval::UNDEF)
+      s += "ζ: " + to_string(literal_cost(Tlit(var, var_value(var)))) + "\n";
   }
 
   for (unsigned pol = 0; pol < 2; pol++) {
