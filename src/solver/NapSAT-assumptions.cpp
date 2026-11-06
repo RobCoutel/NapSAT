@@ -312,7 +312,6 @@ bool NapSAT::add_assumption_GB_false(std::vector<Tlit>& lits)
   }
   vector<bitset> possibilities;
   compute_backtrack_possibilities(possibilities);
-  cout << "Found " << possibilities.size() << " possibilities to backtrack to in order to add assumptions." << endl;
   if (possibilities.empty()) {
     return false;
   }

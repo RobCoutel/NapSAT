@@ -244,7 +244,7 @@ void NapSAT::backtrack(const bitset& backtracked_chunks)
   ASSERT(check_trail_position_consistency());
 
   ASSERT(_n_propagated_lits <= _trail.size());
-#if OBSERVER_ENABLED
+#if USE_OBSERVER
   if (_sentinel) {
     while (_n_propagated_lits > 0) {
       NOTIFY(unpropagate, _trail[--_n_propagated_lits]);

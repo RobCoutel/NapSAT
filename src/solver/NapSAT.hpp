@@ -1971,7 +1971,22 @@ public:
       }
     };
 
-    typedef std::vector<TStrail_piece> TScompacted_trail;
+    struct TScompacted_trail {
+      /**
+       * @brief The pieces of the compacted trail, in trail order.
+       */
+      std::vector<TStrail_piece> pieces;
+      /**
+       * @brief decision_piece[lvl - 1] is the index of the piece in which the decision of level lvl is passed, mirroring _decision_index.
+       * @details All literals at or after the decision of level lvl on the trail are in pieces with an index greater or equal to decision_piece[lvl - 1]. The piece at that index may also contain literals placed before the decision. Since all literals of a piece share the same set of chunks, and no literal before the decision of level lvl belongs to a chunk whose level is at least lvl, such a piece is never counted for a set of chunks whose lowest level is lvl. Stopping at that piece is therefore as precise as stopping at the decision on the trail.
+       */
+      indexed_vector<size_t, Tlevel> decision_piece;
+
+      void clear() {
+        pieces.clear();
+        decision_piece.clear();
+      }
+    };
 
     /**
      * @brief Creates a trail where all literals that belong to the same set of chunks are grouped together.

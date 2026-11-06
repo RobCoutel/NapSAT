@@ -266,12 +266,6 @@ bool napsat::NapSAT::check_decision_index_consistency() const
       LOG_ERROR("Invariant violation: Decision index consistency: at decision level " << (i + 1) << ", index " << _decision_index[i] << " points to literal " << lit_to_string(lit) << " which is at level " << level(lit));
     }
   }
-  if (!success) {
-    // print the _decision_index for debugging
-    for (Tlevel i = 0; i < _decision_index.size(); i++) {
-      cout << "_decision_index[" << i << "] = " << _decision_index[i] << endl;
-    }
-  }
   return success;
 }
 

@@ -101,7 +101,6 @@ void NapSAT::imply(Tlit lit, Tclause reason)
         // we need to compute it by going through the clause
         svar.level = implication_level(reason);
         recompute_clause_chunks(reason, svar.chunks);
-        svar.cross_chunks.set(0, true);
         if (size > 2) {
           cross_chunks(lits[1]) |= svar.chunks;
         }

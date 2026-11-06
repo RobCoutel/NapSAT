@@ -305,16 +305,18 @@ bool NapSAT::propagate()
     return false;
   while (_n_propagated_lits < _trail.size()) {
     Tlit lit = _trail[_n_propagated_lits];
-#ifdef NDEBUG
-    if (propagated(lit)) {
-      _n_propagated_lits++;
+    if (_options->graph_backtracking && propagated(lit)) {
       NOTIFY_STAT(_n_skipped_propagation);
       NOTIFY(propagate, lit);
+#ifdef NDEBUG
+      _n_propagated_lits++;
       continue;
-    }
 #endif
-    cross_chunks(lit).clear();
-    cross_chunks(lit) |= lit_chunks(lit);
+    } else {
+      _vars[lit.var()].propagated = false;
+      cross_chunks(lit).clear();
+      cross_chunks(lit) |= lit_chunks(lit);
+    }
 
     propagate_lit(lit);
 
