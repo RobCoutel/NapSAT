@@ -26,9 +26,14 @@ void NapSAT::restart()
 {
   NOTIFY_STAT(_n_restart);
   if (_options->graph_backtracking) {
-    unsigned tmp = _n_propagated_lits;
+    // we have to set the backtracked chunks to all the chunks that were used
+    for (Tlevel lvl = LEVEL_ROOT; lvl < solver_level(); lvl++) {
+      Tlit lit = _trail[_decision_index[lvl]];
+      Tvar var = lit.var();
+      _recently_backtracked_chunks |= var_chunks(var);
+    }
     backtrack(LEVEL_ROOT);
-    _n_propagated_lits = min(tmp, _n_propagated_lits);
+    _n_propagated_lits = 0;
     size_t i = _trail.size();
     while (i > 0) {
       i--;
