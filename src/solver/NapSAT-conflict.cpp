@@ -381,88 +381,111 @@ void NapSAT::calculate_bitset_weights(vector<Tweight>& weights)
 }
 
 
-void NapSAT::trail_chunk_compaction(const bitset& chunks_of_interest, TScompacted_trail& compacted_trail)
+void NapSAT::reset_trail_pieces()
 {
-  compacted_trail.clear();
-  compacted_trail.decision_piece.resize(solver_level());
-  if (_trail.empty()) {
-    return;
-  }
-
-  bitset current_chunks(_n_allocated_chunks);
-  std::vector<Tlit>& current_literals = _compaction_literals;
-  current_literals.clear();
-  std::vector<TStrail_piece>& pieces = compacted_trail.pieces;
-
-  for (size_t i = 0; i < _trail.size(); ++i) {
-    Tlit lit = _trail[i];
-    if (is_decision(lit)) {
-      // record the piece under construction, which will be pushed at index pieces.size(),
-      // before the decision is possibly skipped below
-      ASSERT(level(lit) > LEVEL_ROOT);
-      ASSERT(_decision_index[level(lit) - 1] == i);
-      compacted_trail.decision_piece[level(lit) - 1] = pieces.size();
-    }
-    if (!lit_synced(lit)) {
-      continue;
-    }
-    if (!lit_chunks(lit).has_intersection(chunks_of_interest)) {
-      continue;
-    }
-
-    if (lit_chunks(lit) == current_chunks) {
-      current_literals.push_back(lit);
-    } else {
-      if (!current_literals.empty()) {
-        pieces.emplace_back(TStrail_piece(current_chunks, current_literals));
-      }
-      current_chunks = lit_chunks(lit);
-      current_literals.clear();
-      current_literals.push_back(lit);
-    }
-  }
-
-  // Add the last group
-  pieces.emplace_back(TStrail_piece(current_chunks, current_literals));
-
-  NOTIFY_STAT_N(_a_trail_compaction, ((double) _trail.size()) / pieces.size());
-
-  // since only the chunks of interest are considered, we can calculate the weight of each piece directly.
-  for (TStrail_piece& piece : pieces) {
-    for (Tlit lit : piece.literals) {
-      if (!lit_synced(lit)) {
-        continue;
-      }
-      piece.weight += literal_cost(lit);
-    }
+  ++_trail_pieces_stamp;
+  if (_trail_pieces.size() < _trail.size()) {
+    _trail_pieces.resize(_trail.size());
   }
 }
 
-void NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights,
-                                      const TScompacted_trail& compacted_trail)
+bool NapSAT::trail_lit_relevant(size_t i, const bitset& chunks_of_interest) const
 {
-  // weights[0] alone is not enough: graph_repair's swap-and-pop filtering can move a finished
-  // entry to the front while unfinished entries remain
-  if (all_of(weights.begin(), weights.end(), [](const Tweight& w) { return w.finished; })) {
-    sort(weights.begin(), weights.end(),
-            [](const Tweight& a, const Tweight& b) { return b < a; });
+  Tlit lit = _trail[i];
+  return lit_synced(lit) && lit_chunks(lit).has_intersection(chunks_of_interest);
+}
+
+void NapSAT::build_trail_piece(size_t i, const bitset& chunks_of_interest)
+{
+  ASSERT(i < _trail.size());
+  ASSERT(_trail_pieces[i].stamp != _trail_pieces_stamp);
+  const uint64_t stamp = _trail_pieces_stamp;
+  std::vector<size_t>& indices = _trail_piece_indices;
+  indices.clear();
+  indices.push_back(i);
+
+  // j is the left boundary of the piece under construction
+  size_t j = i;
+
+  if (!trail_lit_relevant(i, chunks_of_interest)) {
+    // run of irrelevant literals, i.e. literals that are disjoint from all candidate sets of chunks
+    while (j > 0) {
+      const size_t k = j - 1;
+      if (trail_lit_relevant(k, chunks_of_interest)) {
+        break;
+      }
+      const TStrail_piece_entry& entry = _trail_pieces[k];
+      if (entry.stamp == stamp) {
+        j = entry.left;
+        break;
+      }
+      j = k;
+      indices.push_back(k);
+    }
+    for (size_t idx : indices) {
+      _trail_pieces[idx] = {0.0, j, stamp, nullptr};
+    }
     return;
   }
 
+  // piece of relevant literals sharing the same set of chunks, possibly interleaved with irrelevant literals
+  const bitset& chunks = lit_chunks(_trail[i]);
+  double cost = 0.0;
+  while (j > 0) {
+    const size_t k = j - 1;
+    const TStrail_piece_entry& entry = _trail_pieces[k];
+    if (!trail_lit_relevant(k, chunks_of_interest)) {
+      // jump over an already built run of irrelevant literals
+      j = (entry.stamp == stamp) ? entry.left : k;
+      continue;
+    }
+    if (lit_chunks(_trail[k]) != chunks) {
+      break;
+    }
+    if (entry.stamp == stamp) {
+      // the rest of the piece was already built, extend it
+      j = entry.left;
+      cost = entry.cost;
+      break;
+    }
+    j = k;
+    indices.push_back(k);
+  }
+
+  // fill the entries from left to right with the cumulative cost
+  for (auto it = indices.rbegin(); it != indices.rend(); ++it) {
+    cost += literal_cost(_trail[*it]);
+    _trail_pieces[*it] = {cost, j, stamp, &chunks};
+  }
+
+  NOTIFY_STAT_N(_a_trail_compaction, i - j + 1);
+}
+
+void NapSAT::calculate_bitset_weights(std::vector<Tweight>& weights, const bitset& chunks_of_interest)
+{
+  ASSERT(_trail_pieces.size() >= _trail.size());
   double lowest_weight = numeric_limits<double>::max();
 
   for (Tweight& w : weights) {
-    // we go right to left to estimate the cost of backtracking to this level, and stop at the
-    // piece of the decision of the lowest level, as in the non-compacted version
-    const size_t end = compacted_trail.decision_piece[w.lowest_level - 1];
+    ASSERT(w.chunks <= chunks_of_interest);
+    // we go right to left to estimate the cost of backtracking to this level
+    const size_t end = decision_lit_ptr(w.lowest_level) - _trail.data();
     while (w.give_up_point > end && w.total_weight < lowest_weight) {
-      ASSERT(w.give_up_point <= compacted_trail.pieces.size());
-      const TStrail_piece& piece = compacted_trail.pieces[--w.give_up_point];
-      if (!piece.chunks.has_intersection(w.chunks)) {
-        continue;
+      ASSERT(w.give_up_point <= _trail.size());
+      const size_t i = w.give_up_point - 1;
+      if (_trail_pieces[i].stamp != _trail_pieces_stamp) {
+        build_trail_piece(i, chunks_of_interest);
       }
-      w.total_weight += piece.weight;
+      const TStrail_piece_entry& entry = _trail_pieces[i];
+      // All relevant literals of a piece share the chunks of the literal at i. If they intersect
+      // w.chunks, they are all placed after the decision of the lowest level of w.chunks. The other
+      // literals of the piece are disjoint from w.chunks. Clamping the jump at end is thus exact.
+      if (entry.chunks && entry.chunks->has_intersection(w.chunks)) {
+        w.total_weight += entry.cost;
+      }
+      w.give_up_point = max(entry.left, end);
     }
+
     w.finished = (w.give_up_point == end);
     if (w.finished && w.total_weight < lowest_weight) {
       lowest_weight = w.total_weight;
@@ -1294,8 +1317,6 @@ void NapSAT::graph_repair()
 
   setup_weights(possibilities, highest_level, weights);
 
-  TScompacted_trail& compacted_trail = _compacted_trail;
-  compacted_trail.clear();
   if (_options->use_compact_trail) {
     // in lcm, the sets of chunks of interest may no longer be correct since reimplications maybe have added more chunks
     if (_options->lazy_chunk_merging) {
@@ -1303,11 +1324,7 @@ void NapSAT::graph_repair()
         chunks_of_interest |= b;
       }
     }
-    trail_chunk_compaction(chunks_of_interest, compacted_trail);
-    // setup the give up points to the end of the compacted trail
-    for (Tweight& w : weights) {
-      w.give_up_point = compacted_trail.pieces.size();
-    }
+    reset_trail_pieces();
   }
 
   // fix_conflicts_and_learned_in_order may call repair_conflicts recursively, so the buffer is borrowed
@@ -1350,7 +1367,7 @@ void NapSAT::graph_repair()
     if (_options->pick_highest_chunks) {
       sort_by_highest_chunks(weights);
     } else if (_options->use_compact_trail) {
-      calculate_bitset_weights(weights, compacted_trail);
+      calculate_bitset_weights(weights, chunks_of_interest);
     } else {
       calculate_bitset_weights(weights);
     }

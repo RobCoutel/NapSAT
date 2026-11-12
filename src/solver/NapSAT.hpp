@@ -1946,57 +1946,65 @@ public:
      */
     bool root_level_conflict();
 
-    struct TStrail_piece {
+    /**
+     * @brief Cache entry of the compact trail, for one position of the trail.
+     * @details A trail piece is a range [left, right] of the trail in which all relevant literals (synced and intersecting the chunks of interest of the current conflict) have the same set of chunks. The other literals of the range are disjoint from every candidate set of chunks, and can be jumped over. Each relevant literal of the piece has a valid entry, which stores the cumulative cost of the piece from its left boundary up to and including this literal. Hence, any relevant literal of the piece is a valid entry point for a right-to-left scan. Runs of irrelevant literals between pieces also get entries, with cost 0.
+     */
+    struct TStrail_piece_entry {
       /**
-       * @brief The set of chunks that are associated with the literals in the trail chunk.
+       * @brief Cumulative cost of the literals of the piece, from the left boundary of the piece up to and including this literal.
        */
-      bitset chunks;
+      double cost = 0.0;
       /**
-       * @brief The literals in the trail chunk.
+       * @brief Trail index of the leftmost literal of the piece.
        */
-      std::vector<Tlit> literals;
-
-      double weight = 0.0;
-
-      TStrail_piece(const bitset& chunks, const std::vector<Tlit>& literals, double weight = 0.0)
-        : chunks(chunks), literals(literals), weight(weight) {}
-
-      std::string to_string() const {
-        std::string res = "chunks: " + chunks.to_string() + " = " + std::to_string(weight) + " : ";
-        for (const Tlit& lit : literals) {
-          res += lit.to_string() + " ";
-        }
-        res += " cost = " + std::to_string(weight);
-        return res;
-      }
-    };
-
-    struct TScompacted_trail {
+      size_t left = 0;
       /**
-       * @brief The pieces of the compacted trail, in trail order.
+       * @brief The entry is valid if and only if stamp == _trail_pieces_stamp.
        */
-      std::vector<TStrail_piece> pieces;
+      uint64_t stamp = 0;
       /**
-       * @brief decision_piece[lvl - 1] is the index of the piece in which the decision of level lvl is passed, mirroring _decision_index.
-       * @details All literals at or after the decision of level lvl on the trail are in pieces with an index greater or equal to decision_piece[lvl - 1]. The piece at that index may also contain literals placed before the decision. Since all literals of a piece share the same set of chunks, and no literal before the decision of level lvl belongs to a chunk whose level is at least lvl, such a piece is never counted for a set of chunks whose lowest level is lvl. Stopping at that piece is therefore as precise as stopping at the decision on the trail.
+       * @brief The chunks shared by the relevant literals of the piece, or nullptr for a run of irrelevant literals.
+       * @details Points to the chunks of a variable on the trail, which do not change during a graph repair.
        */
-      indexed_vector<size_t, Tlevel> decision_piece;
-
-      void clear() {
-        pieces.clear();
-        decision_piece.clear();
-      }
+      const bitset* chunks = nullptr;
     };
 
     /**
-     * @brief Creates a trail where all literals that belong to the same set of chunks are grouped together.
+     * @brief Compact trail cache, indexed by trail position.
      * @details This is because it can become very expensive to calculate the cost of chunks if there is one key literal, belonging to a lot of chunks, that then implies a long chain of other literals.
      * For example, let ℓ such that γ(ℓ) = {1, 2, ..., 1000} and a series of clauses {¬ℓ, ℓ₁}, {¬ℓ₁, ℓ₂}, ..., {¬ℓ₄₉₉, ℓ₅₀₀}. If we have a conflict involving ℓ₅₀₀, then the cost of calculating the cost of each chunk is O(1000 * 500) without the trail chunk compaction, and O(1000 + 500) with the trail chunk compaction.
      * This happens for example in vampire with AVATAR on SWV/SWV424-1.500.p
      *
-     * To be efficient, this function only considers subsequent literals and checks whether they belong to the same set of chunks. We do not do a O(n^2) check for all pairs of literals because it would be too expensive. This is a heuristic that works well in practice.
+     * The pieces are built lazily during the weight computation, and are only valid for the duration of one call to graph_repair (see _trail_pieces_stamp).
      */
-    void trail_chunk_compaction(const bitset& chunks_of_interest, TScompacted_trail& compacted_trail);
+    std::vector<TStrail_piece_entry> _trail_pieces;
+    /**
+     * @brief Current validity stamp of the entries of _trail_pieces, incremented at each graph repair.
+     */
+    uint64_t _trail_pieces_stamp = 0;
+    /**
+     * @brief Scratch buffer to build trail pieces.
+     */
+    std::vector<size_t> _trail_piece_indices;
+
+    /**
+     * @brief Invalidates all trail pieces, and makes room for the current trail.
+     */
+    void reset_trail_pieces();
+
+    /**
+     * @brief Returns true if the literal at trail position i is synced and intersects the chunks of interest, i.e. if it may be counted in the weight of a candidate set of chunks.
+     */
+    bool trail_lit_relevant(size_t i, const bitset& chunks_of_interest) const;
+
+    /**
+     * @brief Builds the trail piece whose rightmost literal is at trail position i.
+     * @details If the literal at i is relevant (see trail_lit_relevant), the piece contains the relevant literals on the left of i that have the same chunks, up to the first relevant literal with different chunks, and every irrelevant literal in between. Otherwise, the piece is the run of irrelevant literals on the left of i, with cost 0. In both cases, the left boundary of the piece is just after the first relevant literal that does not belong to it.
+     * @param i trail position without a valid entry.
+     * @param chunks_of_interest union of all candidate sets of chunks.
+     */
+    void build_trail_piece(size_t i, const bitset& chunks_of_interest);
 
     typedef struct Tweight {
       /**
@@ -2078,8 +2086,6 @@ public:
      */
     std::vector<bitset> _bt_possibilities;
     std::vector<Tweight> _bt_weights;
-    TScompacted_trail _compacted_trail;
-    std::vector<Tlit> _compaction_literals;
     std::vector<size_t> _subsumption_order;
     std::vector<Tlit> _minimize_stack;
     std::vector<Tlit> _minimize_resolved;
@@ -2104,8 +2110,12 @@ public:
      */
     void calculate_bitset_weights(std::vector<Tweight>& weights);
 
-    void calculate_bitset_weights(std::vector<Tweight>& weights,
-                                  const TScompacted_trail& compacted_trail);
+    /**
+     * @brief Same as calculate_bitset_weights, but uses the compact trail cache (see _trail_pieces) to jump over pieces of literals that share the same set of chunks.
+     * @param chunks_of_interest union of all sets of chunks in weights.
+     * @pre reset_trail_pieces was called since the last change of the trail.
+     */
+    void calculate_bitset_weights(std::vector<Tweight>& weights, const bitset& chunks_of_interest);
 
     double calculate_weight(const bitset& chunks);
 
